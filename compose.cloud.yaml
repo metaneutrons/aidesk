@@ -1,0 +1,25 @@
+# Optional managed-cloud trust overlay; normal local development does not need it.
+services:
+  app:
+    build:
+      secrets: [proxy_ca]
+    environment:
+      NODE_EXTRA_CA_CERTS: /run/proxy-ca.pem
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+    volumes:
+      - ${CODEX_PROXY_CERT:?Managed cloud CA path required}:/run/proxy-ca.pem:ro
+  worker:
+    build:
+      secrets: [proxy_ca]
+    environment:
+      NODE_EXTRA_CA_CERTS: /run/proxy-ca.pem
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+    volumes:
+      - ${CODEX_PROXY_CERT:?Managed cloud CA path required}:/run/proxy-ca.pem:ro
+secrets:
+  proxy_ca:
+    file: ${CODEX_PROXY_CERT:?Managed cloud CA path required}

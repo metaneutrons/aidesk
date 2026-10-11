@@ -1,0 +1,85 @@
+name: aidesk-dev
+services:
+  postgres:
+    image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    environment:
+      POSTGRES_DB: aidesk
+      POSTGRES_USER: aidesk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run sh scripts/dev.sh up first}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aidesk -d aidesk"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  storage:
+    image: chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
+    ports: ["127.0.0.1:8333:8333"]
+    volumes:
+      - storage-data:/data
+      - ./.local/s3.json:/etc/seaweedfs/s3.json:ro
+  mailpit:
+    image: axllent/mailpit@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    environment:
+      MP_MAX_MESSAGES: 500
+  app:
+    build:
+      context: .
+      target: development
+    environment: &app-environment
+      NODE_ENV: development
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD}@postgres:5432/aidesk
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      S3_ENDPOINT: http://storage:8333
+      S3_REGION: us-east-1
+      S3_BUCKET: aidesk
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      DEV_BOOTSTRAP: "true"
+      DEV_OWNER_EMAIL: owner@aidesk.local
+      DEV_OWNER_PASSWORD: ${DEV_OWNER_PASSWORD}
+      DEV_SMTP_HOST: mailpit
+      DEV_SMTP_PORT: "1025"
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - .:/app
+      - app-dependencies:/app/node_modules
+      - app-store:/pnpm/store
+      - app-next:/app/.next
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 40s
+  worker:
+    build:
+      context: .
+      target: development
+    environment: *app-environment
+    command: ["pnpm", "worker"]
+    volumes:
+      - .:/app
+      - app-dependencies:/app/node_modules
+      - app-store:/pnpm/store
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  postgres-data:
+  storage-data:
+  app-dependencies:
+  app-store:
+  app-next:

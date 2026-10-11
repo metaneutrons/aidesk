@@ -1,0 +1,40 @@
+# Patterns deliberately UNANCHORED, so that they bite at every level.
+# A leading slash would no longer match in a new subproject.
+
+node_modules/
+.pnpm-store/
+dist/
+build/
+out/
+.next/
+.next-production/
+.astro/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Rust, in case a subproject appears somewhere
+target/
+
+# Environment and state
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor and operating system
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+.local/
+playwright-report/
+test-results/
