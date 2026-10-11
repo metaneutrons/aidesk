@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Layers3, LoaderCircle } from "lucide-react";
 export function Login({ returnTo, development }: { returnTo: string; development: boolean }) {
@@ -8,6 +8,12 @@ export function Login({ returnTo, development }: { returnTo: string; development
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Until hydration the inputs are server HTML without handlers; React would
+  // replace anything typed then with the initial state. Keep them disabled.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   async function signIn(sso: boolean): Promise<void> {
     setBusy(true);
     setFailed(false);
@@ -53,57 +59,59 @@ export function Login({ returnTo, development }: { returnTo: string; development
             void signIn(!development);
           }}
         >
-          <label>
-            {t("email")}
-            <input
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              required
-            />
-          </label>
-          {development && (
+          <fieldset disabled={!hydrated}>
             <label>
-              {t("password")}
+              {t("email")}
               <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
+                type="email"
+                autoComplete="username"
+                value={email}
                 onChange={(event) => {
-                  setPassword(event.target.value);
+                  setEmail(event.target.value);
                 }}
                 required
               />
             </label>
-          )}
-          {failed && (
-            <p className="error" role="alert">
-              {t("loginError")}
-            </p>
-          )}
-          {development && (
-            <button className="primary" type="submit" disabled={busy}>
-              {busy ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}
-              {t("signIn")}
+            {development && (
+              <label>
+                {t("password")}
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                  }}
+                  required
+                />
+              </label>
+            )}
+            {failed && (
+              <p className="error" role="alert">
+                {t("loginError")}
+              </p>
+            )}
+            {development && (
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}
+                {t("signIn")}
+              </button>
+            )}
+            <button
+              className={development ? "secondary" : "primary"}
+              type={development ? "button" : "submit"}
+              disabled={busy || !email}
+              onClick={
+                development
+                  ? () => {
+                      void signIn(true);
+                    }
+                  : undefined
+              }
+            >
+              {t("signInSso")}
             </button>
-          )}
-          <button
-            className={development ? "secondary" : "primary"}
-            type={development ? "button" : "submit"}
-            disabled={busy || !email}
-            onClick={
-              development
-                ? () => {
-                    void signIn(true);
-                  }
-                : undefined
-            }
-          >
-            {t("signInSso")}
-          </button>
+          </fieldset>
         </form>
         <p className="hint">{t(development ? "devLoginHint" : "ssoEmailHint")}</p>
       </section>

@@ -757,9 +757,13 @@ label {
     right: 12px;
 }
 .modal form,
-.login-card form {
+.login-card fieldset {
     display: grid;
     gap: 18px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
 }
 .modal-actions {
     display: flex;

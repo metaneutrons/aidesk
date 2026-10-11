@@ -266,3 +266,17 @@ test.describe("with a dark system appearance", () => {
     await expect.poll(background).toBe("rgb(21, 23, 32)");
   });
 });
+test.describe("before hydration", () => {
+  test.use({ javaScriptEnabled: false });
+  test("keeps the sign-in form disabled so typed input cannot be lost", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByLabel("Email address")).toBeDisabled();
+    await expect(page.getByLabel("Password")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeDisabled();
+  });
+});
+test("enables the sign-in form after hydration", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByLabel("Email address")).toBeEnabled();
+  await expect(page.getByLabel("Password")).toBeEnabled();
+});
