@@ -17,26 +17,26 @@ differences are explicit in `docs/capabilities.md`. Production release hardening
 and publication channels are not yet qualified; no release workflow publishes
 an image, package or application from this slice.
 
-## Blocked administration changes
+## Administration changes
 
-On 2026-10-11 the GitHub API returned HTTP 403 "Resource not accessible by
-integration" for repository settings, topics, secret scanning/push protection,
-private vulnerability reporting, vulnerability alerts, automated security fixes
-and branch/tag rulesets. User-level `permissions.admin=true` in repository
-metadata does not grant those operations to the connected GitHub App.
-Private vulnerability reporting was separately read back as disabled. Default
-branch protection was absent; no ruleset mutation succeeded.
+In the cloud environment on 2026-10-11 the GitHub API returned HTTP 403
+"Resource not accessible by integration" for every administration write.
 
-The reviewable intended configuration is in `config/github/`. Apply it only with
-a GitHub connection authorized for administration and the corresponding security
-features. Preserve existing protection if the repository changes meanwhile.
-Enable vulnerability alerts before automated security fixes. The branch ruleset
-binds `CI Success`, the exact aggregate name observed in the successful
+On 2026-10-11 the reviewed configuration in `config/github/` was applied from
+an authorized local connection: repository settings (squash only with
+`PR_TITLE`/`PR_BODY`, auto-merge allowed, branch deletion on merge), topics,
+secret scanning with push protection, private vulnerability reporting,
+vulnerability alerts followed by automated security fixes, the default-branch
+ruleset and the immutable `v*` tag ruleset. The default-branch ruleset requires
+`CI Success`, the aggregate name observed in the successful
 [Node 26 CI run](https://github.com/metaneutrons/aidesk/actions/runs/38160850493)
-on commit `2329abacc9188397abab7110da3587bd2371b608`. It uses zero approval votes
-for a solo-maintained repository, resolved discussions and squash-only history.
-Immutable `v*` tags are planned without creating or publishing a tag.
+on commit `2329abacc9188397abab7110da3587bd2371b608`, with zero approval votes
+for a solo-maintained repository, resolved discussions, linear history and
+squash-only merges. No tag was created.
 
-Apply the reviewable configuration and read back every setting/rule using an
-authorized connection. Until these operations and release
-qualification pass, M5-A4 and the full gitrepo bootstrap remain open.
+Read-back with the gitrepo `check-gitrepo.sh` passed every settings, security
+and ruleset check. Non-provider secret patterns are unavailable for a user
+account. One check failed at that time: no run on `main` had reported `CI
+Success` yet, because `main` contained only documentation before the first
+application merge. M5-A4 and the full gitrepo bootstrap stay open until that
+check passes on `main` and release qualification is done.
