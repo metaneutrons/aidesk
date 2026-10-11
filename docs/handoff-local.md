@@ -176,11 +176,14 @@ integrations.
    local machine. Record OS/architecture, source SHA and outcomes in the issues.
    The pinned image indexes contain both amd64 and arm64, verified from registry
    metadata; the cloud runtime was Linux amd64. Apple Silicon execution and
-   Linux hosts with a different source-file UID remain untested.
+   Linux hosts with a different source-file UID remain untested. Done for macOS
+   on Apple Silicon with Colima on 2026-10-11; see the evidence comment in M5.
 2. Establish real Playwright configuration and browser tests for login, authorized
    project filtering, notes/replies, locale/theme, drafts and keyboard/focus
-   behavior. Playwright is installed, but no E2E suite is delivered yet. Observe
-   actual UI workflows before claiming accessibility or enterprise UX.
+   behavior. A first suite in `tests/e2e/` covers these flows in Chromium, Firefox and
+   WebKit against the development stack; CI integration, loading/error states
+   and an accessibility audit remain. Observe actual UI workflows before
+   claiming accessibility or enterprise UX.
 3. Complete M1's real OIDC/SAML and owner provisioning/recovery path, plus a
    selected authenticated remote HTTPS MCP client. Preserve explicit project
    grants; owner status must not silently bypass project access.

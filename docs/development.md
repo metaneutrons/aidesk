@@ -62,6 +62,13 @@ ticket, save a note and send a reply. Inspect Mailpit's HTML and text views and
 check that the note is absent from mail. Stop and restart the stack; the project,
 message and connection records must remain. Never use `down -v` to stop normally.
 
+Playwright browser tests run on the host against the running stack. Install the
+browsers once with `pnpm exec playwright install chromium firefox webkit`, then
+run `pnpm test:e2e`. Each Playwright worker creates its own operator and projects
+under an `e2e-` prefix inside the app container (`scripts/e2e-fixture.ts`) and
+deletes them afterwards, so the development desk data stays unchanged. CI does not
+run the browser tests yet.
+
 The 90% coverage floor applies to all current domain/server TypeScript, including
 database schema code. Tests use real PostgreSQL for scopes, grants, sessions,
 revocation, encrypted SSO configuration, audit, revision and idempotency behavior;
