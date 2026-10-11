@@ -1,14 +1,19 @@
 # Repository bootstrap status
 
-The supplied gitrepo skill was read from `metaneutrons/claude-skills` at commit
-`6e0b80ecd064572cf44b066b356b49dfdfad398a`. Its TypeScript ESLint, Lefthook,
-hook scripts, editorconfig, ignore and CI templates form this foundation.
-The staged ESLint hook suppresses notices for intentionally ignored generated
-declaration files; actual lint warnings/errors still fail at zero warnings.
-The explicit user override is Node 26 only in CI. Repository prose is English;
-German catalogues and multilingual fixtures are intentional product content.
-The application uses the skill's GPL-3.0-or-later default. No Vellum code or
-assets were copied; its access/design architecture was a reference.
+The gitrepo skill from `metaneutrons/claude-skills` was first applied at commit
+`6e0b80ecd064572cf44b066b356b49dfdfad398a` and updated on 2026-10-11 to
+`160504750456c32ec87821ddd4917e91960f09b8`, which replaces the pre-commit lockfile
+guard with a pnpm frozen-lockfile check of the staged manifests. Its TypeScript
+ESLint, Lefthook, hook scripts, editorconfig, ignore and CI templates form this
+foundation. `lefthook.yml` deviates from the template in two marked places: the
+staged ESLint hook suppresses notices for intentionally ignored generated
+declaration files (actual lint warnings/errors still fail at zero warnings), and
+the pre-push test command runs `scripts/hooks/run-tests.sh`, which uses the app
+container because the development database is not published to the host. The
+explicit user override is Node 26 only in CI. Repository prose is English; German
+catalogues and multilingual fixtures are intentional product content. The
+application uses the skill's GPL-3.0-or-later default. No Vellum code or assets
+were copied; its access/design architecture was a reference.
 
 Pinned pnpm, frozen installation, strict typed ESLint, strict TypeScript 6.0,
 coverage thresholds, positive/counter gate probes, Conventional Commits,

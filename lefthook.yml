@@ -22,11 +22,36 @@ pre-commit:
       glob: "*.{ts,tsx,mts,cts}"
       run: pnpm exec eslint --fix --max-warnings=0 --no-warn-ignored {staged_files}
       stage_fixed: true
+    # Asks pnpm whether the staged lockfile satisfies the staged manifests,
+    # the same question CI asks with --frozen-lockfile. Runs on a copy of the
+    # index, so unstaged edits do not count. A change to scripts or other
+    # fields pnpm does not lock passes; a dependency, catalog, override or
+    # packageManager change without the matching lockfile fails.
+    # The copy holds only what pnpm reads for that check: manifests, lockfile,
+    # workspace file, .npmrc, pnpmfile and patches. Exporting the whole index
+    # costs seconds on a large repository.
+    # --offline keeps the network out of the hook. trust-lockfile skips the
+    # supply-chain policy check of pnpm 11 and later, which needs registry
+    # metadata and is not what is being asked here; the real install still
+    # applies it.
     lockfile:
-      glob: "package.json"
+      glob:
+        - "package.json"
+        - "**/package.json"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - ".pnpmfile.*"
+        - "patches/**"
       run: |
-        if ! git diff --cached --name-only | grep -q '^pnpm-lock.yaml$'; then
-          echo "package.json changed, pnpm-lock.yaml did not. Run pnpm install." >&2
+        tmp=$(mktemp -d) || exit 1
+        trap 'rm -rf "$tmp"' EXIT
+        git ls-files -z -- ':(glob)**/package.json' pnpm-lock.yaml \
+            pnpm-workspace.yaml .npmrc ':(glob).pnpmfile.*' ':(glob)patches/**' \
+          | git checkout-index -z --stdin --prefix="$tmp/" || exit 1
+        if ! out=$(cd "$tmp" && pnpm install --frozen-lockfile --lockfile-only \
+            --offline --ignore-scripts --config.trust-lockfile=true 2>&1); then
+          printf '%s\n' "$out" >&2
+          echo "Staged pnpm-lock.yaml does not match the staged manifests. Run pnpm install and stage pnpm-lock.yaml." >&2
           exit 1
         fi
 
