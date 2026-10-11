@@ -14,7 +14,11 @@ export function validateCatalog(
     },
   });
   for (const key of keys) {
-    if (!candidate[key]?.trim()) throw new Error("empty_catalog_message");
-    translate(key, { count: 2, project: "Project", customer: "Customer" });
+    const message = candidate[key];
+    if (!message?.trim()) throw new Error("empty_catalog_message");
+    // Supply a sample for every argument the message names, so a new
+    // placeholder is validated without changing this gate.
+    const names = [...message.matchAll(/\{\s*([A-Za-z_]\w*)/g)].map((match) => match[1] ?? "");
+    translate(key, Object.fromEntries(names.map((name) => [name, name === "count" ? 2 : name])));
   }
 }

@@ -80,9 +80,17 @@ test("records an internal note and delivers a reply without it", async ({ page, 
   await expect(recorded).toBeVisible();
   await expect(recorded.getByText("Internal", { exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(
+    panel.getByText(`From ${desk.projects.alpha.name} <${desk.prefix}-alpha@support.local>`),
+  ).toBeVisible();
+  await expect(panel.getByText(`To Customer 1 <${recipient}>`)).toBeVisible();
   await panel.getByRole("textbox", { name: "Write your reply in Markdown…" }).fill(reply);
   await panel.getByRole("button", { name: "Send reply" }).click();
-  await expect(panel.getByRole("article").filter({ hasText: reply })).toBeVisible();
+  const sent = panel.getByRole("article").filter({ hasText: reply });
+  await expect(sent).toBeInViewport();
+  // The open ticket follows the worker's outcome without a reload.
+  await expect(sent.getByText("Accepted by mail transport")).toBeVisible({ timeout: 30_000 });
+  await expect(panel.getByText("Waiting for customer")).toBeVisible();
   const messages = z.object({
     messages: z.array(z.object({ markdown: z.string(), deliveryState: z.string() })),
   });
@@ -114,8 +122,6 @@ test("records an internal note and delivers a reply without it", async ({ page, 
   expect(mail.Text).toContain(reply);
   expect(mail.HTML).toContain(reply);
   expect(mail.Text + mail.HTML).not.toContain(note);
-  await page.reload();
-  await expect(conversation(page).getByText("Waiting for customer")).toBeVisible();
   // A mutation without the application origin is rejected even with a session.
   const foreign = await page.request.post(`/api/v1/tickets/${ticket}/reply`, {
     data: {},

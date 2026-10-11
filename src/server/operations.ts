@@ -2,7 +2,16 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { audit, jobs, memberships, messages, projects, tickets, user } from "./db/schema";
+import {
+  audit,
+  connections,
+  jobs,
+  memberships,
+  messages,
+  projects,
+  tickets,
+  user,
+} from "./db/schema";
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
 import { actions, allowedProjectIds, permits, type Principal } from "../domain/permissions";
@@ -52,7 +61,26 @@ export async function getTicket(principal: Principal, ticketId: string) {
     ticket,
     messages: conversation.map((message) => ({ ...message, html: markdownHtml(message.markdown) })),
     actions: principal.grants.find((grant) => grant.projectId === ticket.projectId)?.actions ?? [],
+    sender: await senderIdentity(ticket.projectId),
+    // The worker sends public replies to the requester only.
+    recipients: [{ name: ticket.requesterName, address: ticket.requesterEmail }],
   };
+}
+// Name and address of the project's outgoing identity, without any other
+// connection settings.
+async function senderIdentity(projectId: string) {
+  const [project] = await db()
+    .select({ name: projects.name, settings: projects.settings })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  const connectionId = project?.settings.outboundConnectionId;
+  if (!project || typeof connectionId !== "string") return null;
+  const [connection] = await db()
+    .select({ config: connections.config })
+    .from(connections)
+    .where(and(eq(connections.id, connectionId), eq(connections.projectId, projectId)));
+  const address = connection?.config.from;
+  return typeof address === "string" ? { name: project.name, address } : null;
 }
 export async function createProject(principal: Principal, input: unknown) {
   if (!principal.active || !principal.owner || principal.kind !== "human")
