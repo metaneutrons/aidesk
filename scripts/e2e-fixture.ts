@@ -104,6 +104,7 @@ async function setup() {
           authorEmail: ticket.requesterEmail,
           markdown: `Customer message ${index} for ${name}.`,
           language,
+          receivedMessageId: `<${prefix}-${key}-${index}@example.test>`,
         });
         ids.push(ticket.id);
       }

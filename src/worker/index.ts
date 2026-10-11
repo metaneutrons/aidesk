@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { z } from "zod";
 import { db, sqlClient } from "../server/db";
@@ -17,6 +17,7 @@ import {
 import { renderEmail } from "../server/email";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
+import { threadHeaders } from "../domain/threading";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -186,14 +187,42 @@ async function runNext(): Promise<boolean> {
       language: message.language,
       color: project.color,
     });
+    const earlier = await db()
+      .select({
+        authorType: messages.authorType,
+        receivedMessageId: messages.receivedMessageId,
+        deliveryState: messages.deliveryState,
+        source: messages.source,
+      })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.ticketId, ticket.id),
+          eq(messages.internal, false),
+          lt(messages.createdAt, message.createdAt),
+        ),
+      )
+      .orderBy(messages.createdAt);
+    const thread = threadHeaders(
+      earlier.map((entry) =>
+        entry.authorType === "customer"
+          ? { messageId: entry.receivedMessageId, fromCustomer: true }
+          : {
+              messageId: entry.deliveryState === "sent" ? entry.source.messageId : null,
+              fromCustomer: false,
+            },
+      ),
+    );
     code = "transport_acceptance_unknown";
     const senderDomain = config.from.slice(config.from.lastIndexOf("@") + 1);
+    const outgoingId = `<${message.id}@${senderDomain}>`;
     const accepted = await transport.sendMail({
       from: { name: project.name, address: config.from },
       replyTo: config.replyTo,
       to: ticket.requesterEmail,
       subject: `Re: ${ticket.subject}`,
-      messageId: `<${message.id}@${senderDomain}>`,
+      messageId: outgoingId,
+      ...thread,
       headers: { "X-Aidesk-Ticket": ticket.id },
       ...content,
     });
@@ -208,7 +237,10 @@ async function runNext(): Promise<boolean> {
         )
         .for("update");
       if (!owned) throw new Error("dispatch_lease_lost");
-      await tx.update(messages).set({ deliveryState: "sent" }).where(eq(messages.id, message.id));
+      await tx
+        .update(messages)
+        .set({ deliveryState: "sent", source: { ...message.source, messageId: outgoingId } })
+        .where(eq(messages.id, message.id));
       // A newer inbound revision retains its response obligation.
       await tx
         .update(tickets)

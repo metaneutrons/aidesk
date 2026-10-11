@@ -11,6 +11,7 @@ import { responseAge, responseState } from "../src/domain/response-clock";
 import { seal, unseal } from "../src/server/crypto";
 import { markdownHtml } from "../src/server/markdown";
 import { renderEmail } from "../src/server/email";
+import { isMessageId, threadHeaders } from "../src/domain/threading";
 import { DomainError } from "../src/server/errors";
 import english from "../src/i18n/en.json";
 import german from "../src/i18n/de.json";
@@ -187,5 +188,45 @@ describe("communication rendering", () => {
     const error = new DomainError("forbidden", 403);
     expect(error.status).toBe(403);
     expect(error.code).toBe("forbidden");
+  });
+});
+describe("mail threading headers", () => {
+  it("replies to the latest customer message and keeps the thread root", () => {
+    expect(threadHeaders([])).toEqual({});
+    expect(threadHeaders([{ messageId: null, fromCustomer: true }])).toEqual({});
+    expect(
+      threadHeaders([
+        { messageId: "<c1@example.test>", fromCustomer: true },
+        { messageId: "<r1@support.test>", fromCustomer: false },
+      ]),
+    ).toEqual({
+      inReplyTo: "<c1@example.test>",
+      references: "<c1@example.test> <r1@support.test>",
+    });
+    expect(threadHeaders([{ messageId: "<r1@support.test>", fromCustomer: false }])).toEqual({
+      inReplyTo: "<r1@support.test>",
+      references: "<r1@support.test>",
+    });
+    const long = Array.from({ length: 30 }, (_, index) => ({
+      messageId: `<m${String(index)}@example.test>`,
+      fromCustomer: index % 2 === 0,
+    }));
+    const trimmed = threadHeaders(long, 5).references?.split(" ");
+    expect(trimmed).toEqual([
+      "<m0@example.test>",
+      "<m26@example.test>",
+      "<m27@example.test>",
+      "<m28@example.test>",
+      "<m29@example.test>",
+    ]);
+  });
+  it("ignores identifiers that could inject header content", () => {
+    for (const value of ["no-brackets@example.test", "<a b@example.test>", "<a@b>\r\nBcc: x", 42])
+      expect(isMessageId(value)).toBe(false);
+    expect(
+      threadHeaders([
+        { messageId: "<x@example.test>\r\nBcc: victim@example.test", fromCustomer: true },
+      ]),
+    ).toEqual({});
   });
 });
