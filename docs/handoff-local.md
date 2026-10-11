@@ -68,7 +68,9 @@ an example ticket, save a private note and send a public reply. Mailpit should
 show the styled HTML and text reply; the private note must not appear in mail.
 The response clock completes after transport acceptance, not merely queueing.
 
-Source edits reload the Next.js app. Worker changes require
+Source edits reload the Next.js app. The development app polls for changes every
+second (`NEXT_WATCH_POLL_MS`), because Colima/virtiofs bind mounts delivered no
+file events into the containers even with `mountInotify` enabled. Worker changes require
 `sh scripts/dev.sh restart worker`. After dependency changes, rerun the build/start
 command so the boot script updates the shared dependency volume.
 

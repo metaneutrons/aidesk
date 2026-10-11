@@ -47,6 +47,8 @@ services:
       # The source and .git are bind-mounted from the host. Hooks installed here
       # would point the host's Git at binaries that exist only in this container.
       AIDESK_SKIP_GIT_HOOKS: "true"
+      # Host edits do not raise file events inside Colima/virtiofs containers.
+      NEXT_WATCH_POLL_MS: "1000"
     ports: ["127.0.0.1:3000:3000"]
     volumes:
       - .:/app
