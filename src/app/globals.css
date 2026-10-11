@@ -1,28 +1,22 @@
 @import "tailwindcss";
 :root {
-    --bg: #f6f7fb;
-    --panel: #fff;
-    --sidebar: #f1f2f7;
-    --text: #202333;
-    --muted: #62677b;
-    --line: #e3e5ee;
-    --accent: #5668e8;
-    --accent-soft: #edf0ff;
-    --warning: #b54f2a;
-    --warning-bg: #fff3ea;
+    --bg: light-dark(#f6f7fb, #151720);
+    --panel: light-dark(#fff, #1d202c);
+    --sidebar: light-dark(#f1f2f7, #181b25);
+    --text: light-dark(#202333, #edf0ff);
+    --muted: light-dark(#62677b, #a0a7be);
+    --line: light-dark(#e3e5ee, #32374a);
+    --accent: light-dark(#5668e8, #9daaff);
+    --accent-soft: light-dark(#edf0ff, #303852);
+    --warning: light-dark(#b54f2a, #ffb08c);
+    --warning-bg: light-dark(#fff3ea, #382b28);
+    /* Follow the operating system unless the operator chose a theme. */
+    color-scheme: light dark;
+}
+:root[data-theme="light"] {
     color-scheme: light;
 }
 :root[data-theme="dark"] {
-    --bg: #151720;
-    --panel: #1d202c;
-    --sidebar: #181b25;
-    --text: #edf0ff;
-    --muted: #a0a7be;
-    --line: #32374a;
-    --accent: #9daaff;
-    --accent-soft: #303852;
-    --warning: #ffb08c;
-    --warning-bg: #382b28;
     color-scheme: dark;
 }
 * {
@@ -224,8 +218,32 @@ label {
     margin: 14px 12px;
 }
 .locale-select select {
+    width: 100%;
     padding: 6px;
     font-size: 12px;
+}
+.theme-switch {
+    display: flex;
+    gap: 2px;
+    margin: 0 12px;
+    padding: 2px;
+    width: fit-content;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+}
+.theme-switch button {
+    display: inline-flex;
+    padding: 6px;
+    border-radius: 7px;
+    color: var(--muted);
+}
+.theme-switch button:hover {
+    background: var(--accent-soft);
+}
+.theme-switch button[aria-pressed="true"] {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 1px 3px #10102012;
 }
 .operator {
     display: flex;
@@ -327,16 +345,14 @@ label {
     width: 100%;
     margin: 0 auto;
 }
-.overview h2 {
-    font-size: 32px;
-    line-height: 1.2;
-    margin: 12px 0;
+.overview > h2 {
+    margin: 0;
 }
 .metric-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 18px;
-    margin: 32px 0 44px;
+    margin: 16px 0 44px;
 }
 .metric {
     text-align: left;
@@ -769,13 +785,9 @@ label {
     z-index: 1;
 }
 .login-card h1 {
-    font-size: 29px;
+    font-size: 24px;
     line-height: 1.2;
-    margin: 12px 0;
-}
-.login-card > .muted {
-    margin-bottom: 30px;
-    font-size: 13px;
+    margin: 12px 0 24px;
 }
 .login-card label {
     font-size: 12px;
@@ -843,6 +855,10 @@ label {
     .operator > .icon-button,
     .locale-select {
         display: none;
+    }
+    .theme-switch {
+        flex-direction: column;
+        margin: 0 auto;
     }
     .operator {
         justify-content: center;

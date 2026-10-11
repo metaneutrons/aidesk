@@ -11,6 +11,7 @@ import {
   Layers3,
   LayoutDashboard,
   LogOut,
+  Monitor,
   Moon,
   Plus,
   Search,
@@ -66,7 +67,18 @@ interface Props {
   operator: { id: string; name: string; owner: boolean };
   initialTicketId: string | null;
   initialLocale: Locale;
+  localePreference: string | null;
   serverTime: number;
+}
+type Theme = "system" | "light" | "dark";
+const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
+  { value: "system", icon: Monitor, label: "themeSystem" },
+  { value: "light", icon: Sun, label: "themeLight" },
+  { value: "dark", icon: Moon, label: "themeDark" },
+];
+function applyTheme(theme: Theme): void {
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
 }
 type View = "overview" | "inbox" | "overdue" | "waiting" | "resolved";
 export function Desk({
@@ -75,6 +87,7 @@ export function Desk({
   operator,
   initialTicketId,
   initialLocale,
+  localePreference,
   serverTime,
 }: Props) {
   const t = useTranslations();
@@ -91,7 +104,7 @@ export function Desk({
   const [draft, setDraft] = useState("");
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [theme, setTheme] = useState<Theme>("system");
   const [now, setNow] = useState(serverTime);
   const [creating, setCreating] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -100,9 +113,10 @@ export function Desk({
     document.documentElement.lang = initialLocale;
   }, [initialLocale]);
   useEffect(() => {
-    const mode = localStorage.getItem("aidesk:theme") === "dark";
-    setDark(mode);
-    document.documentElement.dataset.theme = mode ? "dark" : "light";
+    const stored = localStorage.getItem("aidesk:theme");
+    const mode = stored === "light" || stored === "dark" ? stored : "system";
+    setTheme(mode);
+    applyTheme(mode);
     const timer = window.setInterval(() => {
       setNow(Date.now());
     }, 60_000);
@@ -274,9 +288,9 @@ export function Desk({
             <label className="locale-select">
               {t("language")}
               <select
-                value={initialLocale}
+                value={localePreference ?? "auto"}
                 onChange={(event) => {
-                  const locale = event.target.value;
+                  const locale = event.target.value === "auto" ? null : event.target.value;
                   void fetch("/api/v1/me/locale", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
@@ -286,22 +300,30 @@ export function Desk({
                   });
                 }}
               >
+                <option value="auto">{t("localeAuto")}</option>
                 <option value="en">English</option>
                 <option value="de">Deutsch</option>
               </select>
             </label>
-            <button
-              className="nav-item"
-              onClick={() => {
-                const value = !dark;
-                setDark(value);
-                document.documentElement.dataset.theme = value ? "dark" : "light";
-                localStorage.setItem("aidesk:theme", value ? "dark" : "light");
-              }}
-            >
-              {dark ? <Sun size={18} /> : <Moon size={18} />}
-              {t("colorMode")}
-            </button>
+            <div className="theme-switch" role="group" aria-label={t("theme")}>
+              {themes.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-label={t(option.label)}
+                  title={t(option.label)}
+                  aria-pressed={theme === option.value}
+                  onClick={() => {
+                    setTheme(option.value);
+                    applyTheme(option.value);
+                    if (option.value === "system") localStorage.removeItem("aidesk:theme");
+                    else localStorage.setItem("aidesk:theme", option.value);
+                  }}
+                >
+                  <option.icon size={15} />
+                </button>
+              ))}
+            </div>
             <div className="operator">
               <span className="avatar">{operator.name.slice(0, 1)}</span>
               <span>{operator.name}</span>
@@ -383,9 +405,7 @@ export function Desk({
           </header>
           {view === "overview" ? (
             <section className="overview">
-              <div className="eyebrow">{t("attention")}</div>
-              <h2>{t("homeTitle")}</h2>
-              <p className="muted">{t("homeDescription")}</p>
+              <h2 className="eyebrow">{t("attention")}</h2>
               <div className="metric-grid">
                 <button
                   className="metric warning"
@@ -508,7 +528,6 @@ export function Desk({
                   <div className="empty">
                     <Inbox size={24} />
                     <h3>{t("noTickets")}</h3>
-                    <p>{t("noTicketsDescription")}</p>
                   </div>
                 )}
               </section>
@@ -654,7 +673,6 @@ export function Desk({
                   <div className="empty">
                     <Layers3 size={32} />
                     <h2>{t("chooseTicket")}</h2>
-                    <p>{t("chooseTicketDescription")}</p>
                   </div>
                 )}
                 {error && (

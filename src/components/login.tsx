@@ -47,7 +47,6 @@ export function Login({ returnTo, development }: { returnTo: string; development
       <section className="login-card">
         <div className="eyebrow">{development ? t("development") : "aidesk"}</div>
         <h1>{t("loginTitle")}</h1>
-        <p className="muted">{t("loginDescription")}</p>
         <form
           onSubmit={(event) => {
             event.preventDefault();

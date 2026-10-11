@@ -3,6 +3,11 @@ export type Locale = (typeof locales)[number];
 export function resolveLocale(value: string | null | undefined): Locale {
   return value?.toLowerCase().split(/[-_]/)[0] === "de" ? "de" : "en";
 }
+// A stored operator preference wins; without one the browser decides, with
+// English as the explicit fallback.
+export function effectiveLocale(preference: string | null, acceptLanguage: string | null): Locale {
+  return preference ? resolveLocale(preference) : negotiateLocale(acceptLanguage);
+}
 export function negotiateLocale(header: string | null): Locale {
   if (!header) return "en";
   const choices = header

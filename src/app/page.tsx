@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { identify } from "../server/principal";
 import { listProjects, listTickets, operatorInfo } from "../server/operations";
 import { DomainError } from "../server/errors";
-import { resolveLocale } from "../domain/locale";
+import { effectiveLocale } from "../domain/locale";
 import { Desk } from "../components/desk";
 import english from "../i18n/en.json";
 import german from "../i18n/de.json";
@@ -15,9 +15,10 @@ export default async function Home({
   searchParams: Promise<{ ticket?: string }>;
 }) {
   const parameters = await searchParams;
+  const requestHeaders = new Headers(await headers());
   let principal;
   try {
-    principal = await identify(new Headers(await headers()));
+    principal = await identify(requestHeaders);
   } catch (error) {
     if (error instanceof DomainError && error.code === "unauthenticated")
       redirect(
@@ -30,7 +31,7 @@ export default async function Home({
     listTickets(principal),
     operatorInfo(principal),
   ]);
-  const locale = resolveLocale(operator.locale);
+  const locale = effectiveLocale(operator.locale, requestHeaders.get("accept-language"));
   const initialTickets = ticketList.map((ticket) => ({
     ...ticket,
     createdAt: ticket.createdAt.toISOString(),
@@ -50,6 +51,7 @@ export default async function Home({
         operator={{ ...operator, id: principal.id }}
         initialTicketId={parameters.ticket ?? null}
         initialLocale={locale}
+        localePreference={operator.locale}
         serverTime={Date.now()}
       />
     </NextIntlClientProvider>

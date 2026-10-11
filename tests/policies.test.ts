@@ -6,7 +6,7 @@ import {
   permits,
   type Principal,
 } from "../src/domain/permissions";
-import { negotiateLocale, resolveLocale } from "../src/domain/locale";
+import { effectiveLocale, negotiateLocale, resolveLocale } from "../src/domain/locale";
 import { responseAge, responseState } from "../src/domain/response-clock";
 import { seal, unseal } from "../src/server/crypto";
 import { markdownHtml } from "../src/server/markdown";
@@ -87,6 +87,13 @@ describe("locale negotiation", () => {
     expect(resolveLocale("DE_at")).toBe("de");
     expect(resolveLocale("fr")).toBe("en");
     expect(resolveLocale(undefined)).toBe("en");
+  });
+  it("prefers a stored choice and otherwise follows the browser", () => {
+    expect(effectiveLocale(null, "de-DE,de;q=0.9")).toBe("de");
+    expect(effectiveLocale(null, "fr-FR")).toBe("en");
+    expect(effectiveLocale(null, null)).toBe("en");
+    expect(effectiveLocale("en", "de-DE")).toBe("en");
+    expect(effectiveLocale("de", "en-US")).toBe("de");
   });
   it("provides matching, nonempty MVP UI catalogues", () => {
     expect(() => {

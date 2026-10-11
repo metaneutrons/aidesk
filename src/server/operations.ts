@@ -166,11 +166,11 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
 }
 export async function setLocale(principal: Principal, input: unknown): Promise<void> {
   if (principal.kind !== "human") throw new DomainError("forbidden", 403);
-  const { locale } = z.object({ locale: z.enum(["en", "de"]) }).parse(input);
+  const { locale } = z.object({ locale: z.enum(["en", "de"]).nullable() }).parse(input);
   await db().update(user).set({ locale }).where(eq(user.id, principal.id));
 }
 export async function operatorInfo(principal: Principal) {
-  if (principal.kind !== "human") return { name: "Agent", locale: "en", owner: false };
+  if (principal.kind !== "human") return { name: "Agent", locale: null, owner: false };
   const [operator] = await db()
     .select({ name: user.name, locale: user.locale, owner: user.owner })
     .from(user)

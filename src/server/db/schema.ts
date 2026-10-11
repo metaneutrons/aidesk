@@ -31,7 +31,7 @@ export const user = pgTable("auth_user", {
   updatedAt: updated(),
   active: boolean("active").notNull().default(true),
   owner: boolean("owner").notNull().default(false),
-  locale: text("locale").notNull().default("en"),
+  locale: text("locale"),
 });
 export const session = pgTable(
   "auth_session",

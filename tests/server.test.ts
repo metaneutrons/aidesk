@@ -186,7 +186,10 @@ describe("persistent project boundaries", () => {
     await expect(
       setLocale({ ...principal, kind: "agent" }, { locale: "en" }),
     ).rejects.toMatchObject({ code: "forbidden" });
-    expect((await operatorInfo({ ...principal, kind: "agent" })).locale).toBe("en");
+    expect((await operatorInfo({ ...principal, kind: "agent" })).locale).toBeNull();
+    await setLocale(principal, { locale: null });
+    expect((await operatorInfo(principal)).locale).toBeNull();
+    await expect(setLocale(principal, { locale: "fr" })).rejects.toThrow();
     await expect(operatorInfo({ ...principal, id: randomUUID() })).rejects.toMatchObject({
       code: "unauthenticated",
     });
