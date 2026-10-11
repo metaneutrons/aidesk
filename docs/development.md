@@ -67,7 +67,12 @@ browsers once with `pnpm exec playwright install chromium firefox webkit`, then
 run `pnpm test:e2e`. Each Playwright worker creates its own operator and projects
 under an `e2e-` prefix inside the app container (`scripts/e2e-fixture.ts`) and
 deletes them afterwards, so the development desk data stays unchanged. CI does not
-run the browser tests yet.
+run the browser tests yet. `tests/e2e/accessibility.spec.ts` runs the axe-core
+WCAG 2.2 A/AA rules on the sign-in page, overview, an open ticket with composer
+and the project dialog in light and dark appearance. Automated rules detect only
+part of the barriers; manual keyboard, screen-reader and zoom checks are still
+required before any WCAG claim. Base UI's dialog focus guards are excluded because
+Base UI gives them role="button" in WebKit on purpose for VoiceOver.
 
 The 90% coverage floor applies to all current domain/server TypeScript, including
 database schema code. Tests use real PostgreSQL for scopes, grants, sessions,

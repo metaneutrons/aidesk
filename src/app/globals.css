@@ -6,9 +6,9 @@
     --text: light-dark(#202333, #edf0ff);
     --muted: light-dark(#62677b, #a0a7be);
     --line: light-dark(#e3e5ee, #32374a);
-    --accent: light-dark(#5668e8, #9daaff);
+    --accent: light-dark(#4f60e0, #9daaff);
     --accent-soft: light-dark(#edf0ff, #303852);
-    --warning: light-dark(#b54f2a, #ffb08c);
+    --warning: light-dark(#a8461f, #ffb08c);
     --warning-bg: light-dark(#fff3ea, #382b28);
     /* Follow the operating system unless the operator chose a theme. */
     color-scheme: light dark;
@@ -501,7 +501,12 @@ label {
 .ticket-row-top strong {
     font-weight: 500;
 }
-.ticket-row h3 {
+.ticket-row-top,
+.ticket-row-subject,
+.ticket-row-meta {
+    display: flex;
+}
+.ticket-row-subject {
     font-size: 13px;
     font-weight: 600;
     letter-spacing: -0.015em;
@@ -649,10 +654,12 @@ label {
     color: var(--text);
     font-weight: 600;
 }
-.compose-tabs span {
-    margin-left: auto;
-    font-size: 10px;
-    color: var(--muted);
+.compose-identity {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .composer textarea {
     display: block;
@@ -675,6 +682,8 @@ label {
     color: var(--muted);
 }
 .compose-footer .primary {
+    flex-shrink: 0;
+    white-space: nowrap;
     font-size: 11px;
     padding: 7px 11px;
 }
@@ -827,9 +836,6 @@ label {
     }
     .conversation-header {
         padding: 20px;
-    }
-    .compose-tabs span {
-        display: none;
     }
 }
 @media (max-width: 760px) {

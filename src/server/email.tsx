@@ -1,5 +1,18 @@
 import { render, toPlainText } from "@react-email/render";
 import { markdownHtml } from "./markdown";
+const mono = "SFMono-Regular,Menlo,Consolas,monospace";
+// Mail clients drop or ignore style sheets, so code formatting is inlined.
+function mailHtml(markdown: string): string {
+  return markdownHtml(markdown)
+    .replaceAll(
+      /<pre>/g,
+      `<pre style="margin:0 0 16px;padding:12px 14px;background:#f6f7fb;border:1px solid #e3e5ee;border-radius:8px;white-space:pre-wrap;word-break:break-word;font-family:${mono};font-size:13px;line-height:1.5">`,
+    )
+    .replaceAll(
+      /(?<!<pre[^>]*>)<code(?=[ >])/g,
+      `<code style="padding:1px 4px;background:#f1f2f7;border-radius:4px;font-family:${mono};font-size:13px"`,
+    );
+}
 export async function renderEmail({
   project,
   markdown,
@@ -59,7 +72,7 @@ export async function renderEmail({
                     <tr>
                       <td
                         style={{ padding: "28px 32px", fontSize: 15, lineHeight: "1.7" }}
-                        dangerouslySetInnerHTML={{ __html: markdownHtml(markdown) }}
+                        dangerouslySetInnerHTML={{ __html: mailHtml(markdown) }}
                       />
                     </tr>
                   </tbody>

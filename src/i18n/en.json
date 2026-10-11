@@ -35,8 +35,6 @@
   "send": "Send reply",
   "saveNote": "Save note",
   "sending": "Saving…",
-  "fromProject": "From {project}",
-  "toCustomer": "To {customer}",
   "queued": "Queued for delivery",
   "sent": "Accepted by mail transport",
   "deliveryFailed": "Delivery needs checking",
@@ -79,5 +77,7 @@
   "theme": "Appearance",
   "themeSystem": "Use system appearance",
   "themeLight": "Light appearance",
-  "themeDark": "Dark appearance"
+  "themeDark": "Dark appearance",
+  "fromSender": "From {sender}",
+  "toRecipients": "To {recipients}"
 }
