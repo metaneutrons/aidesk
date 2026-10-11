@@ -139,7 +139,7 @@ and Conventional Commits, preserving user changes.
 
 Apply the user-requested gitrepo skill from
 `metaneutrons/claude-skills`, revision
-`6e0b80ecd064572cf44b066b356b49dfdfad398a`, file `gitrepo/SKILL.md`.
+`160504750456c32ec87821ddd4917e91960f09b8`, file `gitrepo/SKILL.md`.
 If the skill is not already installed locally, obtain that exact revision in a
 separate checkout and read it before further implementation. Cloud-only helper
 paths under `/workspace/shared` are not local prerequisites. The explicit user
