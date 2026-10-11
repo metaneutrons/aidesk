@@ -1,17 +1,57 @@
+# From the gitrepo template (gitrepo/templates/dependabot.yml). Minor and
+# patch updates are grouped per ecosystem, majors arrive one by one, and
+# `cooldown` keeps a version that is withdrawn shortly after publication out of
+# every pull request. Times are in UTC.
+
 version: 2
+
 updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    ignore:
-      - dependency-name: typescript
-        versions: ['>=6.1']
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: '05:15'
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+      # semver-major-days is not permitted for github-actions. If it stands
+      # here, Dependabot rejects the ENTIRE file and not a single update runs
+      # any more, not even a security update.
+    groups:
+      github-actions-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:30'
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+    groups:
+      npm-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # 2026-10-11: TypeScript stays on ~6.0, the range the typed ESLint peer
+      # dependencies and the gitrepo standard accept (docs/development.md).
+      - dependency-name: typescript
+        versions: ['>=6.1']
+
+  # Not in the template: the Dockerfile and Compose files pin base and service
+  # images by digest. Only default-days is set, because an unsupported cooldown
+  # key makes Dependabot reject the whole file.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: '05:45'
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
