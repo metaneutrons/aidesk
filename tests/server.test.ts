@@ -148,6 +148,18 @@ describe("persistent project boundaries", () => {
     expect((await getTicket(principal, ticketId)).messages[0]?.html).toContain(
       "<strong>Question</strong>",
     );
+    expect(await getTicket(principal, ticketId)).toMatchObject({
+      sender: null,
+      recipients: [{ name: "Customer", address: "customer@example.test" }],
+    });
+    await db()
+      .update(connections)
+      .set({ config: { from: "support@example.test", password: "never-exposed" } })
+      .where(eq(connections.id, connectionId));
+    const identified = await getTicket(principal, ticketId);
+    expect(identified.sender).toEqual({ name: "Visible test", address: "support@example.test" });
+    expect(JSON.stringify(identified)).not.toContain("never-exposed");
+    await db().update(connections).set({ config: {} }).where(eq(connections.id, connectionId));
     expect(
       (
         await getTicket(

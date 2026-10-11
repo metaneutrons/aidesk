@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -48,11 +48,15 @@ const messageSchema = z.object({
   deliveryState: z.string(),
   createdAt: z.string(),
 });
+const addressSchema = z.object({ name: z.string(), address: z.string() });
 const conversationSchema = z.object({
   ticket: ticketSchema,
   messages: z.array(messageSchema),
   actions: z.array(z.enum(actions)),
+  sender: addressSchema.nullable(),
+  recipients: z.array(addressSchema),
 });
+const mailbox = (entry: z.infer<typeof addressSchema>) => `${entry.name} <${entry.address}>`;
 type Ticket = z.infer<typeof ticketSchema>;
 interface Project {
   id: string;
@@ -109,6 +113,7 @@ export function Desk({
   const [creating, setCreating] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [slug, setSlug] = useState("");
+  const messageList = useRef<HTMLDivElement>(null);
   useEffect(() => {
     document.documentElement.lang = initialLocale;
   }, [initialLocale]);
@@ -152,6 +157,41 @@ export function Desk({
       controller.abort();
     };
   }, [selected, operator.id]);
+  const messageCount = conversation?.messages.length ?? 0;
+  useEffect(() => {
+    const list = messageList.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [selected, messageCount]);
+  // Delivery happens in the worker. While a reply is queued, refresh the
+  // conversation until the transport outcome is recorded, then refresh the
+  // server-rendered list so status and response clock follow.
+  const queued = conversation?.messages.some((message) => message.deliveryState === "queued");
+  useEffect(() => {
+    if (!selected || !queued) return;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > 60) {
+        window.clearInterval(timer);
+        return;
+      }
+      void fetch(`/api/v1/tickets/${selected}`)
+        .then(async (response) => {
+          if (!response.ok) return;
+          const next = conversationSchema.parse(await response.json());
+          if (next.messages.some((message) => message.deliveryState === "queued")) return;
+          window.clearInterval(timer);
+          setConversation(next);
+          transition(() => {
+            router.refresh();
+          });
+        })
+        .catch(() => undefined);
+    }, 2_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [selected, queued, router]);
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const scoped = initialTickets.filter(
     (ticket) =>
@@ -510,18 +550,18 @@ export function Desk({
                       select(ticket.id);
                     }}
                   >
-                    <div className="ticket-row-top">
+                    <span className="ticket-row-top">
                       <strong>{ticket.requesterName}</strong>
                       <span className={overdue(ticket) ? "urgent-text" : "muted"}>
                         {age(ticket)}
                       </span>
-                    </div>
-                    <h3>{ticket.subject}</h3>
-                    <div className="ticket-row-meta">
+                    </span>
+                    <span className="ticket-row-subject">{ticket.subject}</span>
+                    <span className="ticket-row-meta">
                       <i style={{ background: projectById.get(ticket.projectId)?.color }} />
                       {projectById.get(ticket.projectId)?.name}
                       <span>#{ticket.number}</span>
-                    </div>
+                    </span>
                   </button>
                 ))}
                 {visible.length === 0 && (
@@ -560,7 +600,7 @@ export function Desk({
                       </div>
                       <span className="status-badge">{t(conversation.ticket.status)}</span>
                     </header>
-                    <div className="message-list">
+                    <div className="message-list" ref={messageList}>
                       {conversation.messages.map((message) => (
                         <article
                           key={message.id}
@@ -627,11 +667,6 @@ export function Desk({
                               {t("note")}
                             </button>
                           )}
-                          <span>
-                            {internal
-                              ? t("privateNote")
-                              : t("toCustomer", { customer: conversation.ticket.requesterEmail })}
-                          </span>
                         </div>
                         <textarea
                           aria-label={t(internal ? "composeNote" : "compose")}
@@ -643,20 +678,31 @@ export function Desk({
                           rows={4}
                         />
                         <div className="compose-footer">
-                          <small>
-                            {internal
-                              ? t("privateNote")
-                              : t("fromProject", {
-                                  project:
-                                    projectById.get(conversation.ticket.projectId)?.name ?? "",
-                                })}{" "}
-                            · {conversation.ticket.language.toUpperCase()}
+                          <small className="compose-identity">
+                            {internal ? (
+                              t("privateNote")
+                            ) : conversation.sender ? (
+                              <>
+                                <span>
+                                  {t("fromSender", { sender: mailbox(conversation.sender) })}
+                                </span>
+                                <span>
+                                  {t("toRecipients", {
+                                    recipients: conversation.recipients.map(mailbox).join(", "),
+                                  })}
+                                </span>
+                              </>
+                            ) : (
+                              t("noOutbound")
+                            )}
+                            <span>{conversation.ticket.language.toUpperCase()}</span>
                           </small>
                           <button
                             className="primary"
                             disabled={
                               sending ||
                               !draft.trim() ||
+                              (!internal && !conversation.sender) ||
                               !conversation.actions.includes(
                                 internal ? "ticket.note" : "ticket.reply",
                               )

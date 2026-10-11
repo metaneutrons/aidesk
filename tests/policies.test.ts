@@ -116,6 +116,9 @@ describe("locale negotiation", () => {
     expect(() => {
       validateCatalog({ example: "Hello" }, { example: "{count, plural, one {Hello}" });
     }).toThrow();
+    expect(() => {
+      validateCatalog({ example: "From {sender}" }, { example: "Von {sender} an {recipients}" });
+    }).not.toThrow();
   });
 });
 describe("secret envelopes", () => {
@@ -170,6 +173,15 @@ describe("communication rendering", () => {
     expect(
       (await renderEmail({ project: "Orbit", markdown: "Hello", language: "en" })).html,
     ).toContain("Orbit");
+    const code = (
+      await renderEmail({
+        project: "Orbit",
+        markdown: "Use `token` here:\n\n```sh\ncurl https://example.test\n```",
+        language: "en",
+      })
+    ).html;
+    expect(code).toMatch(/<pre style="[^"]*white-space:pre-wrap[^"]*"><code class="language-sh">/);
+    expect(code).toMatch(/<code style="[^"]*background:#f1f2f7[^"]*">token<\/code>/);
   });
   it("carries stable domain error codes without customer details", () => {
     const error = new DomainError("forbidden", 403);
