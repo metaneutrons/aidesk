@@ -31,11 +31,12 @@ The reviewable intended configuration is in `config/github/`. Apply it only with
 a GitHub connection authorized for administration and the corresponding security
 features. Preserve existing protection if the repository changes meanwhile.
 Enable vulnerability alerts before automated security fixes. The branch ruleset
-intentionally has no required status yet: the skill requires taking the exact
-aggregate name from a real run before binding it. It uses zero approval votes
+binds `CI Success`, the exact aggregate name observed in the successful
+[Node 26 CI run](https://github.com/metaneutrons/aidesk/actions/runs/38160850493)
+on commit `2329abacc9188397abab7110da3587bd2371b608`. It uses zero approval votes
 for a solo-maintained repository, resolved discussions and squash-only history.
 Immutable `v*` tags are planned without creating or publishing a tag.
 
-After an actual successful CI run, add its observed aggregate check to the branch
-ruleset and read back every setting/rule. Until these operations and release
+Apply the reviewable configuration and read back every setting/rule using an
+authorized connection. Until these operations and release
 qualification pass, M5-A4 and the full gitrepo bootstrap remain open.
