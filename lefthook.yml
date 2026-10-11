@@ -38,4 +38,4 @@ pre-push:
     typecheck:
       run: pnpm typecheck
     tests:
-      run: pnpm test --run
+      run: sh scripts/hooks/run-tests.sh

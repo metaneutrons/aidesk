@@ -44,13 +44,14 @@ environment draft or copying any cloud proxy/CA variables.
 | ------------------------ | ----------------------- |
 | App                      | `http://localhost:3000` |
 | Mailpit HTML/text viewer | `http://localhost:8025` |
-| PostgreSQL               | `127.0.0.1:5432`        |
 | S3-compatible storage    | `http://localhost:8333` |
 | Development SMTP         | `127.0.0.1:1025`        |
 
-These ports must be free. If there is a collision, inspect the existing service
-before changing bindings. Changing the app's public origin also requires matching
-`APP_URL`; authentication and mutation-origin checks depend on it.
+PostgreSQL stays inside the Compose network and is not published to the host, so a
+host database on port 5432 does not collide. These ports must be free. If there is
+a collision, inspect the existing service before changing bindings. Changing the
+app's public origin also requires matching `APP_URL`; authentication and
+mutation-origin checks depend on it.
 
 The owner email is `owner@aidesk.local`. Read `DEV_OWNER_PASSWORD` in your local
 `.env.development` using your editor. The bootstrap generates private credentials,
@@ -124,9 +125,15 @@ gitleaks version
 ```
 
 The container dependency volume does not install host dependencies. Host install
-prepares Lefthook for host Git commands. Do not bypass hooks to work around a
-missing host tool. CI runs only on Node 26; Corepack is not the setup path.
-Use English repository prose and Conventional Commits, preserving user changes.
+prepares Lefthook for host Git commands; the development containers skip hook
+installation because they share the host's `.git`. If the host creates or replaces
+`node_modules` while the stack runs, recreate the containers with `sh
+scripts/dev.sh up -d --force-recreate app worker`. Some bind-mount implementations
+(observed with Lima/virtiofs on Apple Silicon) then detach the container's
+dependency volume and expose host-platform packages; the pre-push hook detects
+this and stops. Do not bypass hooks to work around a missing host tool. CI runs
+only on Node 26; Corepack is not the setup path. Use English repository prose and
+Conventional Commits, preserving user changes.
 
 Apply the user-requested gitrepo skill from
 `metaneutrons/claude-skills`, revision
