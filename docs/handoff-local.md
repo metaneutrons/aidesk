@@ -181,8 +181,8 @@ integrations.
 2. Establish real Playwright configuration and browser tests for login, authorized
    project filtering, notes/replies, locale/theme, drafts and keyboard/focus
    behavior. A first suite in `tests/e2e/` covers these flows in Chromium, Firefox and
-   WebKit against the development stack; CI integration, loading/error states
-   and an accessibility audit remain. Observe actual UI workflows before
+   WebKit against the development stack, also in CI; loading/error states and
+   manual accessibility checks remain. Observe actual UI workflows before
    claiming accessibility or enterprise UX.
 3. Complete M1's real OIDC/SAML and owner provisioning/recovery path, plus a
    selected authenticated remote HTTPS MCP client. Preserve explicit project

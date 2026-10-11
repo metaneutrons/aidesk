@@ -41,12 +41,12 @@ sh scripts/dev.sh exec -T -e NODE_ENV=production -e NEXT_DIST_DIR=.next-producti
 sh scripts/dev.sh down
 ```
 
-Browser tests run on the host against the running stack. Install the browsers
-once with `pnpm exec playwright install chromium firefox webkit`, then run
-`pnpm test:e2e`. Each Playwright worker creates its own operator and projects
-under an `e2e-` prefix inside the app container (`scripts/e2e-fixture.ts`) and
-deletes them afterwards, so the development desk data stays unchanged. CI does
-not run the browser tests yet.
+Browser tests run on the host against the running stack. Install the browsers once
+with `pnpm exec playwright install chromium firefox webkit`, then run `pnpm
+test:e2e`. Each Playwright worker creates its own operator and projects under an
+`e2e-` prefix inside the app container (`scripts/e2e-fixture.ts`) and deletes them
+afterwards, so the development desk data stays unchanged. CI runs them in the
+Browser tests job against the same Compose stack.
 
 Stopping the stack preserves data. Integration tests use `aidesk_test`, separate
 from the development desk. The bootstrap creates two persisted example projects
