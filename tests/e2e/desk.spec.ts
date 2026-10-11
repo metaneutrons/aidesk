@@ -80,9 +80,17 @@ test("records an internal note and delivers a reply without it", async ({ page, 
   await expect(recorded).toBeVisible();
   await expect(recorded.getByText("Internal", { exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(
+    panel.getByText(`From ${desk.projects.alpha.name} <${desk.prefix}-alpha@support.local>`),
+  ).toBeVisible();
+  await expect(panel.getByText(`To Customer 1 <${recipient}>`)).toBeVisible();
   await panel.getByRole("textbox", { name: "Write your reply in Markdown…" }).fill(reply);
   await panel.getByRole("button", { name: "Send reply" }).click();
-  await expect(panel.getByRole("article").filter({ hasText: reply })).toBeVisible();
+  const sent = panel.getByRole("article").filter({ hasText: reply });
+  await expect(sent).toBeInViewport();
+  // The open ticket follows the worker's outcome without a reload.
+  await expect(sent.getByText("Accepted by mail transport")).toBeVisible({ timeout: 30_000 });
+  await expect(panel.getByText("Waiting for customer")).toBeVisible();
   const messages = z.object({
     messages: z.array(z.object({ markdown: z.string(), deliveryState: z.string() })),
   });
@@ -114,14 +122,52 @@ test("records an internal note and delivers a reply without it", async ({ page, 
   expect(mail.Text).toContain(reply);
   expect(mail.HTML).toContain(reply);
   expect(mail.Text + mail.HTML).not.toContain(note);
-  await page.reload();
-  await expect(conversation(page).getByText("Waiting for customer")).toBeVisible();
   // A mutation without the application origin is rejected even with a session.
   const foreign = await page.request.post(`/api/v1/tickets/${ticket}/reply`, {
     data: {},
     headers: { origin: "https://attacker.example" },
   });
   expect(foreign.status()).toBe(403);
+});
+test("threads consecutive replies to the customer message", async ({ page, desk, signIn }) => {
+  const ticket = desk.projects.alpha.tickets[1];
+  const recipient = `${desk.prefix}-alpha-2@example.test`;
+  const customer = `<${desk.prefix}-alpha-2@example.test>`;
+  const headers = z.record(z.string(), z.array(z.string()));
+  async function deliver(text: string) {
+    const panel = conversation(page);
+    await panel.getByRole("textbox", { name: "Write your reply in Markdown…" }).fill(text);
+    await panel.getByRole("button", { name: "Send reply" }).click();
+    await expect(
+      panel.getByRole("article").filter({ hasText: text }).getByText("Accepted by mail transport"),
+    ).toBeVisible({ timeout: 30_000 });
+    const found = z
+      .object({ messages: z.array(z.object({ ID: z.string(), Snippet: z.string() })) })
+      .parse(
+        await (
+          await page.request.get(
+            `${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${recipient}`)}`,
+          )
+        ).json(),
+      )
+      .messages.filter((message) => message.Snippet.includes(text));
+    expect(found).toHaveLength(1);
+    return headers.parse(
+      await (
+        await page.request.get(`${mailpit}/api/v1/message/${found[0]?.ID ?? ""}/headers`)
+      ).json(),
+    );
+  }
+  await signIn();
+  await page.goto(`/?ticket=${ticket}`);
+  const first = await deliver(`First threaded reply ${randomUUID()}`);
+  expect(first["In-Reply-To"]).toEqual([customer]);
+  expect(first.References).toEqual([customer]);
+  const firstId = first["Message-Id"]?.[0];
+  expect(firstId).toMatch(/^<[^@]+@[^>]+>$/);
+  const second = await deliver(`Second threaded reply ${randomUUID()}`);
+  expect(second["In-Reply-To"]).toEqual([customer]);
+  expect(second.References).toEqual([`${customer} ${firstId ?? ""}`]);
 });
 test("hides the composer and rejects replies in a read-only project", async ({
   page,

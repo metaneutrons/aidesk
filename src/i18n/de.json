@@ -35,8 +35,6 @@
   "send": "Antwort senden",
   "saveNote": "Notiz speichern",
   "sending": "Wird gespeichert…",
-  "fromProject": "Absender: {project}",
-  "toCustomer": "An {customer}",
   "queued": "Zum Versand vorgemerkt",
   "sent": "Vom Mailtransport angenommen",
   "deliveryFailed": "Zustellung prüfen",
@@ -79,5 +77,7 @@
   "theme": "Darstellung",
   "themeSystem": "Systemdarstellung verwenden",
   "themeLight": "Helle Darstellung",
-  "themeDark": "Dunkle Darstellung"
+  "themeDark": "Dunkle Darstellung",
+  "fromSender": "Von {sender}",
+  "toRecipients": "An {recipients}"
 }
