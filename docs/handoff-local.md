@@ -196,11 +196,10 @@ integrations.
    records with exact code/input/run references. Close a milestone/epic only when
    all applicable mandatory criteria and dependencies are qualified.
 
-GitHub settings/security/ruleset writes returned upstream integration HTTP 403.
-Prepared JSON is in `config/github`; no administration mutation succeeded.
-`CI Success` is an observed passing check, but the protection draft is not active.
-Use an appropriately authorized local GitHub connection for applying/readback;
-do not treat user-level admin metadata as proof of integration permissions.
+GitHub settings/security/ruleset writes returned integration HTTP 403 in the
+cloud. The prepared `config/github` configuration was applied locally on
+2026-10-11 and read back; see [repository bootstrap status](repository-bootstrap.md).
+Pull requests use CI auto-fix and squash auto-merge gated by `CI Success`.
 
 Cloud browser downloads returned policy HTTP 403. A narrow CDN allowance and
 updated setup are saved in cloud draft revision 21 but not published. These are
