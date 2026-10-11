@@ -6,9 +6,9 @@
     --text: light-dark(#202333, #edf0ff);
     --muted: light-dark(#62677b, #a0a7be);
     --line: light-dark(#e3e5ee, #32374a);
-    --accent: light-dark(#5668e8, #9daaff);
+    --accent: light-dark(#4f60e0, #9daaff);
     --accent-soft: light-dark(#edf0ff, #303852);
-    --warning: light-dark(#b54f2a, #ffb08c);
+    --warning: light-dark(#a8461f, #ffb08c);
     --warning-bg: light-dark(#fff3ea, #382b28);
     /* Follow the operating system unless the operator chose a theme. */
     color-scheme: light dark;
