@@ -1,0 +1,53 @@
+export const capabilities = {
+  "projects.list": {
+    operation: "listProjects",
+    action: "project.read",
+    ui: "src/app/page.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: "src/server/mcp.ts",
+  },
+  "tickets.list": {
+    operation: "listTickets",
+    action: "ticket.read",
+    ui: "src/app/page.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: "src/server/mcp.ts",
+  },
+  "tickets.get": {
+    operation: "getTicket",
+    action: "ticket.read",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: "src/server/mcp.ts",
+  },
+  "tickets.reply": {
+    operation: "reply",
+    action: "ticket.reply",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: "src/server/mcp.ts",
+  },
+  "tickets.note": {
+    operation: "reply",
+    action: "ticket.note",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: "src/server/mcp.ts",
+  },
+  "projects.create": {
+    operation: "createProject",
+    action: "workspace.project.create",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "operator.locale": {
+    operation: "setLocale",
+    action: "self.locale",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+} as const;
