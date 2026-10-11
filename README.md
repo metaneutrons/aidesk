@@ -49,3 +49,6 @@ For host tooling use Node 26 and the package's pinned standalone pnpm, then
 `pnpm install --frozen-lockfile`. Lefthook installs the Git hooks; install Gitleaks
 before committing or pushing. CI runs only on Node 26. See the
 [development handoff](docs/development.md) for configuration, evidence and gaps.
+For the move from cloud to a local machine, use the
+[local implementation handoff](docs/handoff-local.md), including a continuation
+prompt for the next agent.

@@ -4,6 +4,8 @@ Current slice: Docker development foundation. Execution and qualification remain
 owned by [M1 #2](https://github.com/metaneutrons/aidesk/issues/2) and
 [M5 #6](https://github.com/metaneutrons/aidesk/issues/6); the product authority is
 the [initial plan](plans/initial-product.md). This slice does not close a milestone.
+The [local implementation handoff](handoff-local.md) supplies checkout/start
+commands, migration boundaries and the next agent's continuation prompt.
 
 ## Data and configuration
 
@@ -54,7 +56,7 @@ The [capability ledger](capabilities.md) records current interface differences.
 
 ## Reproduce the local check
 
-Start the stack with the README command. Run its four quality commands inside
+Start the stack with the README command. Run its quality commands inside
 the app container. Check readiness at `/api/health/ready`, sign in, open an example
 ticket, save a note and send a reply. Inspect Mailpit's HTML and text views and
 check that the note is absent from mail. Stop and restart the stack; the project,
