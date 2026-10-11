@@ -1,13 +1,13 @@
 # Initiative plan: aidesk initial product
 
-Epic: pending authorized issue creation.
+Epic: [#1](https://github.com/metaneutrons/aidesk/issues/1).
 Decision state: agreed product direction; implementation tracking authorized
 on 2026-10-11. Configurable defaults are design decisions, not implemented
 settings or achieved service levels.
 Repository location: `docs/plans/initial-product.md`.
 This versioned plan owns requirements; linked issues own execution and evidence.
-Issue links are pending the authorized tracking setup and will be filled from
-actual GitHub creation results. No application implementation is accepted.
+The epic and milestone links identify the actual authorized tracking records.
+No application implementation is accepted.
 
 ## Outcome and boundaries
 
@@ -509,7 +509,7 @@ resending. Changing one handler must not silently alter the other.
 
 ### M1: Foundation, identity and authorization
 
-Milestone issue: pending authorized issue creation.
+Milestone issue: [M1 #2](https://github.com/metaneutrons/aidesk/issues/2).
 Dependencies: none; actual IdP configuration is required for SSO qualification.
 Outcome: a buildable foundation, central policy and initial REST/MCP entry points.
 
@@ -537,7 +537,7 @@ Outcome: a buildable foundation, central policy and initial REST/MCP entry point
 
 ### M2: Ticket core and complete email processing
 
-Milestone issue: pending authorized issue creation.
+Milestone issue: [M2 #3](https://github.com/metaneutrons/aidesk/issues/3).
 Dependencies: M1.
 Outcome: durable tickets and complete email round-trips with clean content and
 traceable delivery state across both inbound and both outbound adapters.
@@ -597,7 +597,7 @@ traceable delivery state across both inbound and both outbound adapters.
 
 ### M3: Operator experience and project portals
 
-Milestone issue: pending authorized issue creation.
+Milestone issue: [M3 #4](https://github.com/metaneutrons/aidesk/issues/4).
 Dependencies: M1 and M2 for integrated core workflows; design begins independently.
 M3-A7 through M3-A11 require the relevant implemented M4 operations for real
 workflow qualification, not a fully accepted M4 issue. UI and M4 execution
@@ -656,7 +656,7 @@ Outcome: an actionable dashboard, shared filtered desk and private customer port
 
 ### M4: MCP, API, knowledge and autonomous AI
 
-Milestone issue: pending authorized issue creation.
+Milestone issue: [M4 #5](https://github.com/metaneutrons/aidesk/issues/5).
 Dependencies: M1 and M2. Full parity requires implemented M3 controls/routes and
 declarations, not acceptance/closure of the whole M3 milestone. M4 operations
 unblock M3's integrated AI/GitHub/settings checks. Collect current cross-surface
@@ -725,7 +725,7 @@ Outcome: remote control, project-scoped knowledge and governed multi-provider AI
 
 ### M5: Deployment and operational qualification
 
-Milestone issue: pending authorized issue creation.
+Milestone issue: [M5 #6](https://github.com/metaneutrons/aidesk/issues/6).
 Dependencies: M1 through M4.
 Outcome: the same qualified product runs on Vercel and Docker with measured
 recovery and actionable operational health.
@@ -837,3 +837,7 @@ exists yet; this plan makes no cost or deadline commitment.
   configurable with qualified provider-backed translation. Added M1-A6, M2-A12,
   M3-A11, M4-A11 and M5-A7 without renumbering earlier criteria. All application
   and translation evidence remains outstanding.
+
+- 2026-10-11: Verified repository/API access and established the epic plus five
+  ordinary milestone issues. Filled reciprocal links from their actual IDs;
+  implementation, qualification and application release remain outstanding.

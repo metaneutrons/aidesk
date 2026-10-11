@@ -4,7 +4,8 @@ A shared support desk for solo developers and small teams supporting multiple
 projects, with project-specific email, private customer portals and governed
 AI control through HTTPS MCP and direct API.
 
-The [initial product plan](docs/plans/initial-product.md) defines agreed scope,
+Start with the [implementation epic](https://github.com/metaneutrons/aidesk/issues/1) and its five milestone
+issues. The [initial product plan](docs/plans/initial-product.md) defines agreed scope,
 design decisions, delivery dependencies and acceptance criteria. The
 [UX concept](docs/design/ux.md) describes the dashboard, shared filtered inbox,
 customer portals and multilingual communication. See
