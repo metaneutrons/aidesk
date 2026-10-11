@@ -163,10 +163,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The checkout belongs to the runner user (UID 1001) while the
-      # development containers run as node (UID 1000) on the bind mount, and
-      # the Next.js dev server writes into the project directory.
-      - name: Make the checkout writable for the development containers
-        run: chmod -R a+rwX .
+      # development containers run as other users on the bind mount, and the
+      # Next.js dev server writes into the project directory. Generate the
+      # private credential files first (mode 0600), so the permission change
+      # also reaches them; they exist only for this throwaway run.
+      - name: Generate credentials and open the checkout to the containers
+        run: |
+          sh scripts/dev.sh config --quiet
+          chmod -R a+rwX .
       - name: Start the development stack
         run: sh scripts/dev.sh up --build -d
       - name: Wait for readiness and compile the first pages
