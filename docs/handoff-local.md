@@ -44,7 +44,7 @@ environment draft or copying any cloud proxy/CA variables.
 | ------------------------ | ----------------------- |
 | App                      | `http://localhost:3000` |
 | Mailpit HTML/text viewer | `http://localhost:8025` |
-| S3-compatible storage    | `http://localhost:8333` |
+| Silo console (S3)        | `http://localhost:9001` |
 | Development SMTP         | `127.0.0.1:1025`        |
 
 PostgreSQL stays inside the Compose network and is not published to the host, so a
@@ -70,9 +70,12 @@ The response clock completes after transport acceptance, not merely queueing.
 
 Source edits reload the Next.js app. The development app polls for changes every
 second (`NEXT_WATCH_POLL_MS`), because Colima/virtiofs bind mounts delivered no
-file events into the containers even with `mountInotify` enabled. Worker changes require
-`sh scripts/dev.sh restart worker`. After dependency changes, rerun the build/start
-command so the boot script updates the shared dependency volume.
+file events into the containers even with `mountInotify` enabled. Polling logs a
+"watch error" line for every missing path Turbopack probes; where file events
+work, set `NEXT_WATCH_POLL_MS=0` in `.env.development` and recreate the app.
+Worker changes require `sh scripts/dev.sh restart worker`. After dependency
+changes, rerun the build/start command so the boot script updates the shared
+dependency volume.
 
 ```sh
 sh scripts/dev.sh down
@@ -86,7 +89,7 @@ the current Compose setup.
 ## What moves, and what stays in the cloud
 
 Git transfers code, migrations, plans and documentation. It does not transfer
-Docker volumes, `.env.development`, `.local/s3.json`, browser drafts or cloud
+Docker volumes, `.env.development`, browser drafts or cloud
 research scripts/logs. The documented local start creates a fresh database and
 new credentials; it does not import the cloud's example conversations.
 

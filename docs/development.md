@@ -11,10 +11,13 @@ commands, migration boundaries and the next agent's continuation prompt.
 
 PostgreSQL holds projects, explicit project/action memberships, tickets, Markdown
 messages, connection definitions, durable jobs, audit, identities and sessions.
-Private S3 storage is prepared for original mail and attachments. The local
-SeaweedFS service supplies the same S3 boundary; blobs are not stored in the
-Next.js runtime filesystem. Production storage/encryption/authentication root
-settings are deployment variables listed in `.env.example`.
+Private S3 storage is prepared for original mail and attachments. In Docker it is
+PGSTY Silo (`pgsty/silo`, an AGPL-3.0 MinIO fork run as a separate service and
+used only through the S3 API); blobs are not stored in the Next.js runtime
+filesystem. The development stack uses Silo's root credentials as the
+application's S3 key pair; a production deployment needs a scoped key and policy.
+Production storage/encryption/authentication root settings are deployment
+variables listed in `.env.example`.
 
 Project creation and UI locale preferences persist through the application API.
 Inbound/outbound connection records are independent. The development bootstrap

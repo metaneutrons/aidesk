@@ -26,11 +26,13 @@ sh scripts/dev.sh up --build -d
 ```
 
 Open `http://localhost:3000`. The local owner is `owner@aidesk.local`; read its
-generated password from `.env.development` on your own machine. Keep that file
-and `.local/s3.json` private. Mailpit captures outgoing mail at
-`http://localhost:8025`, without an external relay. PostgreSQL, private S3 storage
-and dependency caches use named volumes. PostgreSQL is reachable only inside the
-Compose network; it is not published to the host. Editing `src/` reloads the app.
+generated password from `.env.development` on your own machine and keep that
+file private. Mailpit captures outgoing mail at `http://localhost:8025`, without
+an external relay. Object storage is [PGSTY Silo](https://github.com/pgsty/silo),
+an S3-compatible MinIO fork; its console is at `http://localhost:9001` with the
+`S3_ACCESS_KEY`/`S3_SECRET_KEY` pair from `.env.development`. PostgreSQL, Silo and
+dependency caches use named volumes. PostgreSQL and the S3 API are reachable only
+inside the Compose network. Editing `src/` reloads the app.
 
 ```sh
 sh scripts/dev.sh exec -T app pnpm lint
