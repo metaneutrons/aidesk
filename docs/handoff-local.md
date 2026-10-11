@@ -129,11 +129,11 @@ prepares Lefthook for host Git commands; the development containers skip hook
 installation because they share the host's `.git`. If the host creates or replaces
 `node_modules` while the stack runs, recreate the containers with `sh
 scripts/dev.sh up -d --force-recreate app worker`. Some bind-mount implementations
-(observed with Lima/virtiofs on Apple Silicon) then detach the container's
-dependency volume and expose host-platform packages; the pre-push hook detects
-this and stops. Do not bypass hooks to work around a missing host tool. CI runs
-only on Node 26; Corepack is not the setup path. Use English repository prose and
-Conventional Commits, preserving user changes.
+(observed with Colima, a Lima VM with virtiofs, on Apple Silicon) then detach the
+container's dependency volume and expose host-platform packages; the pre-push hook
+detects this and stops. Do not bypass hooks to work around a missing host tool. CI
+runs only on Node 26; Corepack is not the setup path. Use English repository prose
+and Conventional Commits, preserving user changes.
 
 Apply the user-requested gitrepo skill from
 `metaneutrons/claude-skills`, revision

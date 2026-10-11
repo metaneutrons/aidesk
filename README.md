@@ -52,9 +52,9 @@ before committing or pushing. Without a host `DATABASE_URL`, the pre-push hook
 runs the tests inside the running app container. If the host creates or replaces
 `node_modules` while the stack runs, recreate the containers with `sh
 scripts/dev.sh up -d --force-recreate app worker`. Some bind-mount implementations
-(observed with Lima/virtiofs on Apple Silicon) then detach the container's
-dependency volume and expose host-platform packages; the pre-push hook detects
-this and stops. CI runs only on Node 26. See the [development
+(observed with Colima, a Lima VM with virtiofs, on Apple Silicon) then detach the
+container's dependency volume and expose host-platform packages; the pre-push hook
+detects this and stops. CI runs only on Node 26. See the [development
 handoff](docs/development.md) for configuration, evidence and gaps. For the move
 from cloud to a local machine, use the [local implementation
 handoff](docs/handoff-local.md), including a continuation prompt for the next
