@@ -34,9 +34,9 @@ on commit `2329abacc9188397abab7110da3587bd2371b608`, with zero approval votes
 for a solo-maintained repository, resolved discussions, linear history and
 squash-only merges. No tag was created.
 
-Read-back with the gitrepo `check-gitrepo.sh` passed every settings, security
-and ruleset check. Non-provider secret patterns are unavailable for a user
-account. One check failed at that time: no run on `main` had reported `CI
-Success` yet, because `main` contained only documentation before the first
-application merge. M5-A4 and the full gitrepo bootstrap stay open until that
-check passes on `main` and release qualification is done.
+Read-back with the gitrepo `check-gitrepo.sh` passed every settings, security and
+ruleset check. Non-provider secret patterns are unavailable for a user account.
+The required-check test first failed because `main` had no CI run yet; after the
+first application merges it passed as well (17 passed, 0 failed, 2 notes on
+2026-10-11). M5-A4 and the full gitrepo bootstrap stay open until release
+qualification is done.
