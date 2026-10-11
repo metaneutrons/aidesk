@@ -27,6 +27,9 @@ the MCP SDK form the foundation. Native build/install scripts remain enabled.
 TypeScript stays on `~6.0` because the gitrepo standard and typed ESLint peer
 range require it. Next's web project overrides the base module settings with
 ES modules/bundler resolution; the strict base flags remain enabled.
+Framework ambient types are explicit so a clean checkout can typecheck before
+Next generates `next-env.d.ts`. That generated file stays ignored: switching
+between development and production output folders must not dirty the checkout.
 
 The pnpm override of the legacy Drizzle loader's esbuild dependency addresses
 GHSA-67mh-4wv8-2f99. It is an explicit compatibility boundary: frozen installation,

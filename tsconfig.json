@@ -9,6 +9,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "types": ["node", "react", "react-dom", "next", "next/image-types/global"],
     "allowJs": false,
     "noEmit": true,
     "incremental": true,
