@@ -74,7 +74,7 @@ existing Entra OIDC flow does not establish SAML readiness. Code or asset reuse
 requires preservation and resolution of the applicable provenance/license terms.
 
 Repository standard: `metaneutrons/claude-skills/gitrepo` at
-`6e0b80ecd064572cf44b066b356b49dfdfad398a`. Use pnpm without Corepack,
+`160504750456c32ec87821ddd4917e91960f09b8`. Use pnpm without Corepack,
 `packageManager` pinning, TypeScript `~6.0`, strict derived TypeScript configs,
 type-aware strict/stylistic ESLint with zero warnings, Lefthook, Conventional
 Commits, coverage gates, SHA-pinned Actions and English repository content.
@@ -841,3 +841,7 @@ exists yet; this plan makes no cost or deadline commitment.
 - 2026-10-11: Verified repository/API access and established the epic plus five
   ordinary milestone issues. Filled reciprocal links from their actual IDs;
   implementation, qualification and application release remain outstanding.
+- 2026-10-11: Updated the gitrepo revision from `6e0b80e` to `1605047`. The
+  only change is the pre-commit lockfile guard, which now asks pnpm whether the
+  staged lockfile satisfies the staged manifests instead of requiring a lockfile
+  change with every `package.json` change. No requirement changes.
