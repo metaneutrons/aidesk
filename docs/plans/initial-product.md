@@ -108,7 +108,9 @@ audit events, sync cursors and outbox state. Private S3-compatible storage owns
 attachments and originals retained under a configurable policy; incoming originals
 are saved for preview/extraction review. PostgreSQL stores object metadata.
 Vercel uses external persistent services; Docker supports local persistent
-PostgreSQL volumes and local or external object storage. Process-local state is
+PostgreSQL volumes and local or external object storage. The local Docker object
+store is PGSTY Silo (`pgsty/silo`), an S3-compatible MinIO fork under AGPL-3.0,
+run as a separate service and used only through the S3 API. Process-local state is
 not the source of truth for durable data.
 
 Deployment secrets stay outside database configuration. User-managed integration
@@ -845,3 +847,7 @@ exists yet; this plan makes no cost or deadline commitment.
   only change is the pre-commit lockfile guard, which now asks pnpm whether the
   staged lockfile satisfies the staged manifests instead of requiring a lockfile
   change with every `package.json` change. No requirement changes.
+- 2026-10-11: The user identified Silo as `pgsty/silo`. Adopted it as the local
+  Docker object store in place of SeaweedFS; aidesk keeps using the generic S3
+  boundary, so external object storage remains supported. Production key scoping,
+  backup and restore for Silo remain M5 qualification.

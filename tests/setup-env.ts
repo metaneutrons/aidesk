@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 process.env.APP_URL ??= "http://localhost:3000";
 process.env.BETTER_AUTH_SECRET ??= "local-test-auth-secret-that-is-not-a-credential";
 process.env.ENCRYPTION_KEY ??= "ab".repeat(32);
-process.env.S3_ENDPOINT ??= "http://127.0.0.1:8333";
+process.env.S3_ENDPOINT ??= "http://127.0.0.1:9000";
 process.env.S3_REGION ??= "us-east-1";
 process.env.S3_BUCKET ??= "aidesk";
 process.env.S3_ACCESS_KEY ??= "test-access";
