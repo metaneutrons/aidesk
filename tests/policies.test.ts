@@ -237,16 +237,16 @@ describe("parser extraction of new inbound content", () => {
     const english = extractReply(
       "Thanks, that works.\n\nOn Mon, 12 Oct 2026 at 10:00, Orbit <orbit@support.local> wrote:\n> Hi Alex,\n> try this.\n",
     );
-    expect(english).toEqual({ markdown: "Thanks, that works.", trimmed: true });
+    expect(english).toEqual({ markdown: "Thanks, that works.", trimmed: true, uncertain: false });
     const german = extractReply(
       "Danke!\n\nAm 12.10.2026 um 10:00 schrieb Harbor <harbor@support.local>:\n> Hallo\n",
     );
-    expect(german).toEqual({ markdown: "Danke!", trimmed: true });
+    expect(german).toEqual({ markdown: "Danke!", trimmed: true, uncertain: false });
   });
   it("keeps inline replies between quoted passages", () => {
     const text =
       "On Mon, Orbit wrote:\n> Which version do you use?\nVersion 2.3.\n> Does it fail every time?\nOnly on Mondays.";
-    expect(extractReply(text)).toEqual({ markdown: text, trimmed: false });
+    expect(extractReply(text)).toEqual({ markdown: text, trimmed: false, uncertain: false });
     const mixed = "See below.\n\nOn Mon, Orbit wrote:\n> Which version?\n2.3\n> And the OS?\nLinux";
     expect(extractReply(mixed).markdown).toContain("Linux");
     expect(extractReply(mixed).markdown).toContain("> Which version?");
@@ -255,6 +255,7 @@ describe("parser extraction of new inbound content", () => {
     expect(extractReply("Here is the log:\n\n```\nERR 42\n```\n-- \nAlex\nACME Ltd")).toEqual({
       markdown: "Here is the log:\n\n```\nERR 42\n```",
       trimmed: true,
+      uncertain: false,
     });
     expect(
       extractReply(
@@ -264,18 +265,20 @@ describe("parser extraction of new inbound content", () => {
     expect(
       extractReply(
         "Neue Frage.\n\nVon: Harbor <h@support.local>\nGesendet: Montag\nAn: Alex\nAlte Antwort",
-      ).markdown,
-    ).toBe("Neue Frage.");
+      ),
+    ).toEqual({ markdown: "Neue Frage.", trimmed: true, uncertain: true });
     expect(extractReply("Reply\n\n> quoted only at the end\n> more").markdown).toBe("Reply");
   });
   it("never returns empty content", () => {
     expect(extractReply("> only a forwarded quote\n> nothing else")).toEqual({
       markdown: "> only a forwarded quote\n> nothing else",
       trimmed: false,
+      uncertain: false,
     });
     expect(extractReply("Plain message without history")).toEqual({
       markdown: "Plain message without history",
       trimmed: false,
+      uncertain: false,
     });
   });
 });

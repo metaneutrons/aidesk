@@ -157,5 +157,7 @@
   "projectSettingsTitle": "Projekte",
   "acknowledgementHint": "Eine Eingangsbestätigung bestätigt dem Kunden jedes neue Ticket mit seiner Nummer. Sie geht nicht an automatische Absender wie Mailinglisten oder Unzustellbarkeitsmeldungen und höchstens einmal pro Stunde an dieselbe Adresse.",
   "acknowledgementSetting": "{project}: Eingangsbestätigungen senden",
-  "acknowledgement": "Eingangsbestätigung"
+  "acknowledgement": "Eingangsbestätigung",
+  "originalMail": "Original (.eml)",
+  "extractionUncertain": "Automatisch gekürzt, bitte mit dem Original vergleichen."
 }
