@@ -579,6 +579,23 @@ describe("persistence and private storage", () => {
       await initializeStorage();
       expect(send.mock.calls[2]?.[0]).toBeInstanceOf(CreateBucketCommand);
       const denied = { $metadata: { httpStatusCode: 403 } };
+      // Another process created the bucket between the check and the creation.
+      for (const name of ["BucketAlreadyOwnedByYou", "BucketAlreadyExists"])
+        send.mockRejectedValueOnce({ $metadata: { httpStatusCode: 404 } }).mockRejectedValueOnce({
+          name,
+          $metadata: { httpStatusCode: 409 },
+        });
+      await initializeStorage();
+      await initializeStorage();
+      // Any other failure of the creation is still an error.
+      send
+        .mockRejectedValueOnce({ $metadata: { httpStatusCode: 404 } })
+        .mockRejectedValueOnce(denied);
+      await expect(initializeStorage()).rejects.toEqual(denied);
+      send
+        .mockRejectedValueOnce({ $metadata: { httpStatusCode: 404 } })
+        .mockRejectedValueOnce(new Error("BucketAlreadyOwnedByYou"));
+      await expect(initializeStorage()).rejects.toThrow("BucketAlreadyOwnedByYou");
       send.mockRejectedValueOnce(denied);
       await expect(initializeStorage()).rejects.toEqual(denied);
       send.mockRejectedValueOnce(new Error("service_unavailable"));
