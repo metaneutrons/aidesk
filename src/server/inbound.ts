@@ -44,13 +44,15 @@ export async function acceptInbound(input: {
         checksum,
         origin: input.origin ?? null,
       })
-      .onConflictDoNothing({ target: ingress.externalKey })
+      .onConflictDoNothing({ target: [ingress.projectId, ingress.externalKey] })
       .returning({ id: ingress.id });
     if (!created) {
       const [existing] = await tx
         .select({ id: ingress.id })
         .from(ingress)
-        .where(eq(ingress.externalKey, input.externalKey));
+        .where(
+          and(eq(ingress.projectId, input.projectId), eq(ingress.externalKey, input.externalKey)),
+        );
       if (!existing) throw new Error("inbound_conflict");
       return { ingressId: existing.id, duplicate: true };
     }

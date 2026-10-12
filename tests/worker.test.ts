@@ -309,6 +309,27 @@ describe("stale or forbidden dispatch", () => {
       },
     ],
     [
+      "an outgoing connection that is really an inbound one",
+      "stale_or_paused_dispatch",
+      async (e) => {
+        await db()
+          .update(connections)
+          .set({ direction: "inbound" })
+          .where(eq(connections.id, e.connectionId));
+      },
+    ],
+    [
+      "a connection that moved to another project",
+      "stale_or_paused_dispatch",
+      async (e) => {
+        const other = await scenario();
+        await db()
+          .update(connections)
+          .set({ projectId: other.projectId })
+          .where(eq(connections.id, e.connectionId));
+      },
+    ],
+    [
       "a connection that is not ready",
       "outbound_not_ready",
       async (e) => {

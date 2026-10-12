@@ -57,6 +57,13 @@
       "when": 1791843431751,
       "tag": "0007_email_design",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791847242075,
+      "tag": "0008_ingress_key_per_project",
+      "breakpoints": true
     }
   ]
 }

@@ -296,7 +296,7 @@ export const ingress = pgTable(
       .notNull()
       .references(() => projects.id),
     connectionId: uuid("connection_id").references(() => connections.id),
-    externalKey: text("external_key").notNull().unique(),
+    externalKey: text("external_key").notNull(),
     rawObjectKey: text("raw_object_key").notNull(),
     checksum: text("checksum").notNull(),
     state: text("state").notNull().default("queued"),
@@ -308,7 +308,12 @@ export const ingress = pgTable(
     ticketId: uuid("ticket_id").references(() => tickets.id),
     receivedAt: created(),
   },
-  (t) => [index("ingress_project_idx").on(t.projectId)],
+  (t) => [
+    index("ingress_project_idx").on(t.projectId),
+    // An adapter's key is only unique within the project it delivers to, so a
+    // colliding key of another account or project can never swallow a mail.
+    uniqueIndex("ingress_project_key_idx").on(t.projectId, t.externalKey),
+  ],
 );
 export const jobStatus = pgEnum("job_status", [
   "queued",
