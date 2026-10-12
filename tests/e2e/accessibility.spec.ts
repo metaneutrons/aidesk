@@ -39,6 +39,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         page.getByRole("textbox", { name: "Write your reply in Markdown…" }),
       ).toBeVisible();
       expect(await audit(page)).toEqual([]);
+      await page.getByRole("navigation").getByRole("button", { name: "Junk" }).click();
+      await expect(page.getByRole("region", { name: "Junk" })).toBeVisible();
+      expect(await audit(page)).toEqual([]);
       await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
       await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
       expect(await audit(page)).toEqual([]);

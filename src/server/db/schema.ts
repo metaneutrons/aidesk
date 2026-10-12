@@ -172,6 +172,10 @@ export const tickets = pgTable(
       .references(() => projects.id),
     subject: text("subject").notNull(),
     status: ticketStatus("status").notNull().default("open"),
+    // A ticket in junk keeps its status and history but leaves the inbox
+    // until a person restores it.
+    junkAt: timestamp("junk_at", { withTimezone: true }),
+    junkReason: text("junk_reason"),
     requesterEmail: text("requester_email").notNull(),
     requesterName: text("requester_name").notNull(),
     language: text("language").notNull().default("en"),

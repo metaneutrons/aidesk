@@ -17,6 +17,7 @@ import {
   Search,
   Send,
   Settings as SettingsIcon,
+  ShieldAlert,
   Sun,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
 import { Settings } from "./settings";
+import { Junk } from "./junk";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -37,6 +39,7 @@ const ticketSchema = z.object({
   language: z.string(),
   revision: z.number(),
   pendingSince: z.string().nullable(),
+  junkAt: z.string().nullable(),
   assigneeUserId: z.string().nullable(),
   assigneeAgentId: z.string().nullable(),
 });
@@ -127,7 +130,7 @@ function applyTheme(theme: Theme): void {
   if (theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
 }
-type View = "overview" | "inbox" | "overdue" | "waiting" | "resolved" | "settings";
+type View = "overview" | "inbox" | "overdue" | "waiting" | "resolved" | "junk" | "settings";
 export function Desk({
   projects,
   initialTickets,
@@ -279,6 +282,25 @@ export function Desk({
     setDraft(value);
     if (selected) localStorage.setItem(`aidesk:${operator.id}:${selected}:draft`, value);
   }
+  async function moveToJunk(): Promise<void> {
+    if (!selected) return;
+    setError(null);
+    const response = await fetch(`/api/v1/tickets/${selected}/junk`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).catch(() => null);
+    if (!response?.ok) {
+      setError("error");
+      return;
+    }
+    setSelected(null);
+    setConversation(null);
+    window.history.replaceState(null, "", "/");
+    transition(() => {
+      router.refresh();
+    });
+  }
   async function send(): Promise<void> {
     if (!conversation || !selected || !draft.trim()) return;
     setSending(true);
@@ -339,6 +361,7 @@ export function Desk({
     { view: "overdue", icon: Clock3 },
     { view: "waiting", icon: ArrowUpRight },
     { view: "resolved", icon: Check },
+    { view: "junk", icon: ShieldAlert },
     { view: "settings", icon: SettingsIcon },
   ];
   return (
@@ -487,7 +510,17 @@ export function Desk({
               )}
             </div>
           </header>
-          {view === "settings" ? (
+          {view === "junk" ? (
+            <Junk
+              projects={projects}
+              locale={initialLocale}
+              onRestored={() => {
+                transition(() => {
+                  router.refresh();
+                });
+              }}
+            />
+          ) : view === "settings" ? (
             <Settings
               viewerId={operator.id}
               owner={operator.owner}
@@ -649,7 +682,21 @@ export function Desk({
                           {conversation.ticket.requesterEmail}&gt;
                         </p>
                       </div>
-                      <span className="status-badge">{t(conversation.ticket.status)}</span>
+                      <span className="status-badge">
+                        {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
+                      </span>
+                      {conversation.actions.includes("ticket.junk") &&
+                        !conversation.ticket.junkAt && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => {
+                              void moveToJunk();
+                            }}
+                          >
+                            {t("moveToJunk")}
+                          </button>
+                        )}
                     </header>
                     <div className="message-list" ref={messageList}>
                       {conversation.messages.map((message) => (
