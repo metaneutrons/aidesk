@@ -224,6 +224,7 @@ export async function listJunk(principal: Principal, requested: string[] = []) {
       projectId: ingress.projectId,
       parsed: ingress.parsed,
       classification: ingress.classification,
+      origin: ingress.origin,
       at: ingress.receivedAt,
     })
     .from(ingress)
@@ -236,6 +237,7 @@ export async function listJunk(principal: Principal, requested: string[] = []) {
       kind: "ticket" as const,
       ...entry,
       canRestore: permits(principal, entry.projectId, "ticket.junk"),
+      mailbox: null,
       at: (entry.at ?? new Date(0)).toISOString(),
       reason: entry.reason ?? "operator",
     })),
@@ -248,6 +250,11 @@ export async function listJunk(principal: Principal, requested: string[] = []) {
       at: entry.at.toISOString(),
       reason: text(entry.classification?.reason) || "classified",
       canRestore: permits(principal, entry.projectId, "ticket.junk"),
+      // Whether the original in an IMAP mailbox has followed into junk.
+      mailbox:
+        entry.origin?.kind === "imap"
+          ? text((entry.origin.junkSync as { state?: unknown } | undefined)?.state) || "pending"
+          : null,
     })),
   ]
     .sort((a, b) => b.at.localeCompare(a.at))
@@ -311,6 +318,14 @@ export async function restoreJunkMail(principal: Principal, ingressId: string) {
       dedupKey: `ingest-restore:${entry.id}`,
       payload: { ingressId: entry.id },
     });
+    // The original in an IMAP mailbox goes back to the polled folder.
+    if (entry.origin?.kind === "imap")
+      await tx.insert(jobs).values({
+        projectId: entry.projectId,
+        type: "mail.junk_sync",
+        dedupKey: `junk-sync:${entry.id}:restore`,
+        payload: { ingressId: entry.id },
+      });
     await tx.insert(audit).values({
       projectId: entry.projectId,
       actorId: principal.id,
