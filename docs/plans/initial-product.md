@@ -497,11 +497,13 @@ connector; select and qualify the actual messenger subset separately. A persiste
 Signal connector runs outside Vercel functions and retains private account/key
 state securely. No messenger credentials, installation or live tests exist.
 
-Cloudflare is a required first-class inbound/outbound adapter in v1 alongside
-IMAP/SMTP. Persist and expose separate incoming/outgoing handler configuration,
-credentials, identity verification, health and tests. Support all four pairings:
-Cloudflare/Cloudflare, Cloudflare/SMTP, IMAP/Cloudflare and IMAP/SMTP, subject to
-real domain/sender prerequisites. Map project ingress routes to authorized
+Cloudflare is a required first-class inbound adapter in v1 alongside IMAP.
+Outbound mail uses SMTP (in operation: SMTP2GO). Persist and expose separate
+incoming/outgoing handler configuration, credentials, identity verification,
+health and tests. Qualify the pairings Cloudflare/SMTP and IMAP/SMTP with real
+domain/sender prerequisites. The Cloudflare Email Sending adapter stays
+available but is not qualified for v1: without the Workers Paid plan it
+delivers only to verified destination addresses of the account. Map project ingress routes to authorized
 outgoing identities/defaults, without coupling providers. All replies and
 acknowledgements use the selected outbound handler; thread across adapters with
 mail headers and aidesk identity. Junk capabilities follow inbound, while size/
@@ -573,8 +575,7 @@ traceable delivery state across both inbound and both outbound adapters.
   does not change that ticket's status or expose its content.
   Known classification outcomes qualify routing here; real AI quality and
   classifier failure behavior are qualified separately by M4-A6.
-- M2-A9: Qualify Cloudflare/Cloudflare, Cloudflare/SMTP, IMAP/Cloudflare and
-  IMAP/SMTP with real test connections. Each pairing preserves From/Reply-To,
+- M2-A9: Qualify Cloudflare/SMTP and IMAP/SMTP with real test connections. Each pairing preserves From/Reply-To,
   acknowledgement, HTML/text, attachment rules and a customer's reply in the
   same ticket. Configuration/health/tests are independent; adapter changes do
   not silently change the other direction. Verify junk behavior follows inbound
@@ -860,3 +861,9 @@ exists yet; this plan makes no cost or deadline commitment.
   Cloudflare assigns the Message-ID, which aidesk stores for threading. Without
   Workers Paid, sending is limited to verified destination addresses, which is
   enough for M2-A9 test connections but not for production.
+- 2026-10-12: The owner decided against the Cloudflare Workers Paid plan.
+  Outbound mail uses SMTP (SMTP2GO); M2-A9 qualifies Cloudflare/SMTP and
+  IMAP/SMTP only. The Cloudflare Email Sending adapter stays in the code and
+  is tested, but it is not part of v1 acceptance because it can reach only
+  verified destination addresses. Reintroducing it later needs a new decision
+  and its own qualification.
