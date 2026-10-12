@@ -8,10 +8,10 @@ import german from "../../i18n/de.json";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; sso?: string }>;
 }) {
   const locale = negotiateLocale((await headers()).get("accept-language"));
-  const { next } = await searchParams;
+  const { next, sso } = await searchParams;
   const returnTo = safeReturnTo(next);
   return (
     <NextIntlClientProvider
@@ -21,6 +21,7 @@ export default async function LoginPage({
     >
       <Login
         returnTo={returnTo}
+        ssoFailed={sso === "failed"}
         development={process.env.DEV_BOOTSTRAP === "true" && process.env.NODE_ENV === "development"}
       />
     </NextIntlClientProvider>

@@ -28,6 +28,32 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+  # Development identity provider for real OIDC and SAML sign-in. The browser
+  # reaches it on localhost:8080; the app uses the same issuer URL for tokens
+  # and the container name for its back channel.
+  keycloak:
+    image: quay.io/keycloak/keycloak@sha256:27b3230fbabb8c9ff3c66c864cf09dcd8a41aca82e5100679d109ef0eeb05741
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      DEV_SSO_OIDC_CLIENT_SECRET: ${DEV_SSO_OIDC_CLIENT_SECRET}
+      DEV_SSO_USER_PASSWORD: ${DEV_SSO_USER_PASSWORD}
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: ["./config/keycloak:/opt/keycloak/data/import:ro"]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 60
   mailpit:
     image: axllent/mailpit@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
@@ -56,6 +82,12 @@ services:
       # The source and .git are bind-mounted from the host. Hooks installed here
       # would point the host's Git at binaries that exist only in this container.
       AIDESK_SKIP_GIT_HOOKS: "true"
+      DEV_SSO_ISSUER: http://localhost:8080/realms/aidesk
+      DEV_SSO_INTERNAL_URL: http://keycloak:8080/realms/aidesk
+      DEV_SSO_OIDC_CLIENT_SECRET: ${DEV_SSO_OIDC_CLIENT_SECRET}
+      # The development IdP is on a private network; Better Auth only fetches
+      # from such hosts when their origins are trusted explicitly.
+      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:8080,http://keycloak:8080
       # Host edits do not raise file events inside Colima/virtiofs containers.
       # Set NEXT_WATCH_POLL_MS=0 in .env.development where file events work.
       NEXT_WATCH_POLL_MS: ${NEXT_WATCH_POLL_MS:-1000}
@@ -69,6 +101,8 @@ services:
       postgres:
         condition: service_healthy
       storage:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
       mailpit:
         condition: service_started

@@ -21,6 +21,18 @@ if [ ! -f .env.development ]; then
   } > .env.development
   printf '%s\n' 'Generated private local credentials in .env.development. Keep this file local.'
 fi
+# Later additions are appended to an existing file; present values are kept.
+ensure_secret() {
+  if ! grep -q "^$1=" .env.development; then
+    command -v openssl >/dev/null
+    [ -z "$(tail -c 1 .env.development)" ] || printf '\n' >> .env.development
+    (umask 077 && printf '%s=%s\n' "$1" "$(openssl rand -hex "$2")" >> .env.development)
+    printf 'Added %s to .env.development.\n' "$1"
+  fi
+}
+ensure_secret KEYCLOAK_ADMIN_PASSWORD 16
+ensure_secret DEV_SSO_OIDC_CLIENT_SECRET 32
+ensure_secret DEV_SSO_USER_PASSWORD 16
 if [ -n "${CODEX_PROXY_CERT:-}" ]; then
   exec docker compose --env-file .env.development -f compose.dev.yaml -f compose.cloud.yaml "$@"
 fi

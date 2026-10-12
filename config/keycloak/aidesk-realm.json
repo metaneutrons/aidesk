@@ -1,0 +1,95 @@
+{
+  "realm": "aidesk",
+  "displayName": "aidesk development IdP",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "clients": [
+    {
+      "clientId": "aidesk-dev-oidc",
+      "name": "aidesk (OIDC)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${DEV_SSO_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/api/auth/sso/callback/keycloak-oidc"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "aidesk-dev-saml",
+      "name": "aidesk (SAML)",
+      "protocol": "saml",
+      "enabled": true,
+      "frontchannelLogout": false,
+      "redirectUris": ["http://localhost:3000/api/auth/sso/saml2/sp/acs/keycloak-saml"],
+      "attributes": {
+        "saml_assertion_consumer_url_post": "http://localhost:3000/api/auth/sso/saml2/sp/acs/keycloak-saml",
+        "saml.assertion.signature": "true",
+        "saml.server.signature": "true",
+        "saml.client.signature": "false",
+        "saml.force.post.binding": "true",
+        "saml.authnstatement": "true",
+        "saml_force_name_id_format": "true",
+        "saml_name_id_format": "email",
+        "saml.signature.algorithm": "RSA_SHA256"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": { "user.attribute": "email", "attribute.name": "email", "attribute.nameformat": "Basic" }
+        },
+        {
+          "name": "firstName",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": { "user.attribute": "firstName", "attribute.name": "firstName", "attribute.nameformat": "Basic" }
+        },
+        {
+          "name": "lastName",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": { "user.attribute": "lastName", "attribute.name": "lastName", "attribute.nameformat": "Basic" }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice@oidc.aidesk.test",
+      "email": "alice@oidc.aidesk.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "OIDC",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "${DEV_SSO_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "username": "bob@saml.aidesk.test",
+      "email": "bob@saml.aidesk.test",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "SAML",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "${DEV_SSO_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "username": "mallory@oidc.aidesk.test",
+      "email": "mallory@oidc.aidesk.test",
+      "emailVerified": true,
+      "firstName": "Mallory",
+      "lastName": "Unprovisioned",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "${DEV_SSO_USER_PASSWORD}", "temporary": false }]
+    }
+  ]
+}

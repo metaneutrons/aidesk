@@ -17,6 +17,11 @@ function createAuth() {
       disableSignUp: true,
     },
     session: { expiresIn: 60 * 60 * 12, cookieCache: { enabled: false } },
+    // Provider tokens are not needed after sign-in but are kept by the
+    // account model; store them encrypted.
+    account: { encryptOAuthTokens: true },
+    // Identity providers must be registered by an owner and their domains
+    // verified. SSO never creates aidesk users; see the /sign-in/sso guard.
     plugins: [sso({ domainVerification: { enabled: true }, disableImplicitSignUp: true })],
     advanced: { database: { generateId: () => randomUUID() } },
     logger: { disabled: true },

@@ -34,6 +34,15 @@ an S3-compatible MinIO fork; its console is at `http://localhost:9001` with the
 dependency caches use named volumes. PostgreSQL and the S3 API are reachable only
 inside the Compose network. Editing `src/` reloads the app.
 
+A development Keycloak at `http://localhost:8080` provides real OIDC and SAML
+sign-in (realm `aidesk`; admin user `admin` with `KEYCLOAK_ADMIN_PASSWORD`). On
+the sign-in page, enter an IdP email and choose Continue with SSO. The IdP
+accounts use `DEV_SSO_USER_PASSWORD`: `alice@oidc.aidesk.test` signs in through
+OIDC as an Orbit operator, `bob@saml.aidesk.test` through SAML with read and note
+access to Harbor, and `mallory@oidc.aidesk.test` has no aidesk account and is
+refused. `scripts/dev.sh` adds missing development secrets to an existing
+`.env.development` without changing present values.
+
 ```sh
 sh scripts/dev.sh exec -T app pnpm lint
 sh scripts/dev.sh exec -T app pnpm typecheck

@@ -45,6 +45,7 @@ environment draft or copying any cloud proxy/CA variables.
 | App                      | `http://localhost:3000` |
 | Mailpit HTML/text viewer | `http://localhost:8025` |
 | Silo console (S3)        | `http://localhost:9001` |
+| Keycloak (OIDC and SAML) | `http://localhost:8080` |
 | Development SMTP         | `127.0.0.1:1025`        |
 
 PostgreSQL stays inside the Compose network and is not published to the host, so a
@@ -81,6 +82,22 @@ dependency volume.
 sh scripts/dev.sh down
 sh scripts/dev.sh up -d
 ```
+
+To reset the Next.js build cache, stop the app before removing its volume.
+Deleting `.next` while the dev server ran left Turbopack sending "HMR hash
+mismatch" on every connection, an endless page reload loop:
+
+```sh
+sh scripts/dev.sh stop worker app
+sh scripts/dev.sh rm -f app
+docker volume rm aidesk-dev_app-next
+sh scripts/dev.sh up -d
+```
+
+On Colima/virtiofs a process in the container can read a file the host is still
+writing. `prettier --write` in the container then wrote back truncated files. Run
+the formatter on the host (`pnpm exec prettier --write <files>`) right after
+editing; the container checks are fine once writes have settled.
 
 Normal stop/start retains PostgreSQL and S3 data. `down -v` deletes named volumes
 and is not a normal stop command. Mailpit's captured messages are ephemeral in

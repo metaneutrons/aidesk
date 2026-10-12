@@ -2,7 +2,15 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Layers3, LoaderCircle } from "lucide-react";
-export function Login({ returnTo, development }: { returnTo: string; development: boolean }) {
+export function Login({
+  returnTo,
+  development,
+  ssoFailed,
+}: {
+  returnTo: string;
+  development: boolean;
+  ssoFailed: boolean;
+}) {
   const t = useTranslations();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +29,15 @@ export function Login({ returnTo, development }: { returnTo: string; development
       const response = await fetch(`/api/auth/sign-in/${sso ? "sso" : "email"}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(sso ? { email, callbackURL: returnTo } : { email, password }),
+        body: JSON.stringify(
+          sso
+            ? {
+                email,
+                callbackURL: returnTo,
+                errorCallbackURL: `/login?sso=failed&next=${encodeURIComponent(returnTo)}`,
+              }
+            : { email, password },
+        ),
       });
       if (!response.ok) throw new Error("sign_in_failed");
       if (sso) {
@@ -86,9 +102,9 @@ export function Login({ returnTo, development }: { returnTo: string; development
                 />
               </label>
             )}
-            {failed && (
+            {(failed || ssoFailed) && (
               <p className="error" role="alert">
-                {t("loginError")}
+                {t(ssoFailed && !failed ? "ssoError" : "loginError")}
               </p>
             )}
             {development && (
