@@ -164,15 +164,27 @@ original stays available and the message records whether anything was removed.
 Processing is idempotent; lost leases are requeued and transient failures retry
 with backoff (at most six attempts in about a day), permanent ones go to review.
 
-Until the IMAP adapter exists, `scripts/dev-inbound.ts` feeds a raw message into a
-development project:
+The IMAP adapter polls every inbound IMAP connection (every five seconds in the
+development stack, otherwise every minute). Its cursor stores mailbox, UIDVALIDITY
+and the last UID and advances only after each message is durably accepted; a
+changed UIDVALIDITY rereads the mailbox and the core drops the duplicates. TLS is
+required except for connections marked development-only, a stored password is
+required, and failures mark the connection Degraded until a poll succeeds.
+
+The development stack includes GreenMail (SMTP on `127.0.0.1:3025`, IMAP on
+`127.0.0.1:3143`, any password, mailboxes created on delivery). The bootstrap
+connects Orbit and Harbor to the mailboxes `orbit@support.local` and
+`harbor@support.local`, so mail sent there through GreenMail's SMTP port becomes
+tickets. `scripts/dev-inbound.ts` still feeds a raw message directly:
 
 ```sh
 sh scripts/dev.sh exec -T app pnpm exec tsx scripts/dev-inbound.ts orbit < mail.eml
 ```
 
 Not yet implemented: attachments as private objects, acknowledgements, junk
-classification, language detection and the IMAP and Cloudflare adapters.
+classification and the IMAP Junk folder, language detection and the Cloudflare
+adapter. GreenMail is a real IMAP server but not a provider mailbox; real provider
+qualification is still open.
 
 ## What the slice supports
 

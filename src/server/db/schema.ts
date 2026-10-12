@@ -247,6 +247,17 @@ export const connections = pgTable(
   },
   (t) => [index("connection_project_idx").on(t.projectId)],
 );
+// Position of an inbound mailbox adapter. A changed UIDVALIDITY restarts
+// reading; duplicate Message-IDs are recognised by the inbound core.
+export const syncCursors = pgTable("sync_cursor", {
+  connectionId: uuid("connection_id")
+    .primaryKey()
+    .references(() => connections.id, { onDelete: "cascade" }),
+  mailbox: text("mailbox").notNull(),
+  uidValidity: text("uid_validity").notNull(),
+  lastUid: integer("last_uid").notNull().default(0),
+  updatedAt: updated(),
+});
 export const ingress = pgTable(
   "ingress",
   {

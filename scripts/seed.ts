@@ -14,6 +14,7 @@ import {
 import { actions } from "../src/domain/permissions";
 import { initializeStorage } from "../src/server/storage";
 import { ensureDevSso } from "./dev-sso";
+import { ensureDevMailboxes } from "./dev-mailboxes";
 if (process.env.DEV_BOOTSTRAP !== "true" || process.env.NODE_ENV !== "development") {
   throw new Error("Development bootstrap is restricted to private development.");
 }
@@ -109,6 +110,7 @@ if (!existing[0]) {
 }
 await initializeStorage();
 await ensureDevSso();
+await ensureDevMailboxes();
 const [testDatabase] = await sqlClient()`select 1 from pg_database where datname = 'aidesk_test'`;
 if (!testDatabase) await sqlClient()`create database aidesk_test`;
 await sqlClient().end();
