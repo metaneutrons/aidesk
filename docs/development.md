@@ -224,8 +224,18 @@ processing without classification and then threads like any arrival. The
 preview of a junk mail is sanitized; the original stays private. The AI
 classifier follows with M4.
 
-Not yet implemented: moving IMAP originals to the mailbox's Junk folder and
-language detection. GreenMail is a
+For mail read over IMAP, the original follows the decision: a junk mail is
+moved to the connection's `junkMailbox` (or the server's `\Junk` folder) and
+back to the polled mailbox when restored. The move runs as an idempotent
+`mail.junk_sync` job without a fixed direction, so a late or repeated run
+cannot undo a newer decision; a missing junk folder is retried with backoff
+and shown in the junk view. A run interrupted after the IMAP move finds the
+message by its Message-ID. A message moved back gets a new UID; its external
+key is recorded as an alias, and a byte-identical copy of a restored mail is
+treated as a duplicate, so the next poll neither reads it again nor classifies
+it as junk once more.
+
+Not yet implemented: language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 

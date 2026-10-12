@@ -11,6 +11,7 @@ const itemSchema = z.object({
   at: z.string(),
   reason: z.string(),
   canRestore: z.boolean(),
+  mailbox: z.string().nullable(),
 });
 const mailSchema = z.object({
   subject: z.string(),
@@ -30,6 +31,12 @@ interface Preview {
   from: string;
   html: string[];
 }
+const mailboxStates: Record<string, string> = {
+  pending: "junkMailboxPending",
+  retrying: "junkMailboxPending",
+  done: "junkMailboxDone",
+  failed: "junkMailboxFailed",
+};
 const reasons: Record<string, string> = {
   operator: "junkReasonOperator",
   spam_flag: "junkReasonSpamFilter",
@@ -138,6 +145,11 @@ export function Junk({
                     <span>{projectName(item.projectId)}</span>
                     <span>{t(reasons[item.reason] ?? "junkReasonClassified")}</span>
                   </span>
+                  {item.mailbox && (
+                    <span className="ticket-meta">
+                      <span>{t(mailboxStates[item.mailbox] ?? "junkMailboxPending")}</span>
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
