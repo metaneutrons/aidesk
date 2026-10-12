@@ -1,12 +1,18 @@
 // Connects a project to Cloudflare mail: inbound through the Email Worker and
 // R2 bucket in cloudflare/mail-ingest, outbound through Cloudflare Email
-// Sending. Creates the project if its slug is new and updates its Cloudflare
-// connections in place, so ingested mail keeps its connection and external
-// keys stay stable. Secrets are read from the
-// environment, sealed and never printed.
+// Sending or an SMTP submission server. Creates the project if its slug is new
+// and updates its connections in place, so ingested mail keeps its connection
+// and external keys stay stable. Secrets are read from the environment, sealed
+// and never printed.
 //
 //   tsx scripts/cloudflare-mail.ts --project <slug> --name <name> \
-//     --address <support address> [--grant <operator email>]...
+//     --address <support address> [--outbound cloudflare|smtp] \
+//     [--grant <operator email>]...
+//
+// --outbound smtp reads SMTP_HOST, SMTP_PORT (default 465, implicit TLS;
+// otherwise STARTTLS is required), SMTP_USER and SMTP_PASSWORD. With
+// SMTP2GO_API_KEY set, each send first checks the recipient against the
+// SMTP2GO suppression list.
 import { parseArgs } from "node:util";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, sqlClient } from "../src/server/db";
@@ -19,6 +25,7 @@ const { values } = parseArgs({
     project: { type: "string" },
     name: { type: "string" },
     address: { type: "string" },
+    outbound: { type: "string", default: "cloudflare" },
     grant: { type: "string", multiple: true, default: [] },
   },
 });
@@ -38,7 +45,39 @@ const r2Secret = {
     process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
   ),
 };
-const apiToken = required("CLOUDFLARE_SENDING_TOKEN", process.env.CLOUDFLARE_SENDING_TOKEN);
+if (values.outbound !== "cloudflare" && values.outbound !== "smtp")
+  throw new Error("--outbound must be cloudflare or smtp");
+const outboundKind = values.outbound;
+function outboundSettings() {
+  if (outboundKind === "cloudflare")
+    return {
+      name: `Cloudflare ${address}`,
+      config: { accountId, from: address, replyTo: address },
+      secret: {
+        apiToken: required("CLOUDFLARE_SENDING_TOKEN", process.env.CLOUDFLARE_SENDING_TOKEN),
+      },
+    };
+  const host = required("SMTP_HOST", process.env.SMTP_HOST);
+  const port = Number(process.env.SMTP_PORT ?? 465);
+  const apiKey = process.env.SMTP2GO_API_KEY;
+  return {
+    name: `SMTP ${host}`,
+    config: {
+      host,
+      port,
+      secure: port === 465,
+      from: address,
+      replyTo: address,
+      ...(apiKey ? { suppressionCheck: "smtp2go" } : {}),
+    },
+    secret: {
+      user: required("SMTP_USER", process.env.SMTP_USER),
+      pass: required("SMTP_PASSWORD", process.env.SMTP_PASSWORD),
+      ...(apiKey ? { apiKey } : {}),
+    },
+  };
+}
+const outboundSetup = outboundSettings();
 const endpoint =
   jurisdiction === "default"
     ? `https://${accountId}.r2.cloudflarestorage.com`
@@ -53,11 +92,17 @@ const result = await db().transaction(async (tx) => {
       .returning();
   }
   if (!project) throw new Error("project_creation_failed");
-  const upsert = async (direction: "inbound" | "outbound", config: object, secret: object) => {
+  const upsert = async (
+    kind: string,
+    name: string,
+    direction: "inbound" | "outbound",
+    config: object,
+    secret: object,
+  ) => {
     const values = {
       projectId: project.id,
-      kind: "cloudflare",
-      name: `Cloudflare ${address}`,
+      kind,
+      name,
       direction,
       status: "ready",
       lastErrorCode: null,
@@ -71,7 +116,7 @@ const result = await db().transaction(async (tx) => {
       .where(
         and(
           eq(connections.projectId, project.id),
-          eq(connections.kind, "cloudflare"),
+          eq(connections.kind, kind),
           eq(connections.direction, direction),
         ),
       );
@@ -84,11 +129,19 @@ const result = await db().transaction(async (tx) => {
       : await tx.insert(connections).values(values).returning({ id: connections.id });
     return saved;
   };
-  const inbound = await upsert("inbound", { endpoint, bucket, address }, r2Secret);
+  const inbound = await upsert(
+    "cloudflare",
+    `Cloudflare ${address}`,
+    "inbound",
+    { endpoint, bucket, address },
+    r2Secret,
+  );
   const outbound = await upsert(
+    outboundKind,
+    outboundSetup.name,
     "outbound",
-    { accountId, from: address, replyTo: address },
-    { apiToken },
+    outboundSetup.config,
+    outboundSetup.secret,
   );
   if (!inbound || !outbound) throw new Error("connection_creation_failed");
   await tx
