@@ -316,6 +316,26 @@ provisioning UI and owner recovery are not finished. MCP registration is filtere
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
 
+## Translation records
+
+`src/server/translation.ts` holds the lifecycle of derived translations; the
+provider that translates is M4 work and reports through `completeTranslation`
+and `failTranslation`, and the operator surfaces follow with M3. A translation is
+requested for one revision of a message and one target language (English or
+German for now) and is a record of its own: it never replaces the source, never
+becomes a message, does not touch the ticket or its response age, and is read
+with the rights to read the source. Asking again returns the same record, and a
+failed one is queued again. Pending, failed and stale translations are listed
+without text, so the source stays usable. A result is refused as failed when it
+changes code (fenced or inline), links, addresses or placeholders (`{{x}}`,
+`{x}`, `%s`, `%(x)s`) or adds one, which also stops an injected link. A result for
+an outdated revision is discarded as stale. A correction of a message that was
+not sent (a received message with `ticket.reply`, a private note with
+`ticket.note`) gives it a new revision, makes earlier translations stale and
+removes their text; it is audited. Deleting derived content is a separate
+action with `ticket.reply`; deleting a ticket removes its translations. Portal
+views do not include translations.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside
