@@ -212,6 +212,32 @@ export const messages = pgTable(
   },
   (t) => [index("message_ticket_idx").on(t.ticketId)],
 );
+// Files received with a message. Stored files are private and
+// content-addressed; a refused file keeps only its metadata and the reason.
+export const attachments = pgTable(
+  "attachment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Order within the message as received.
+    position: integer("position").notNull(),
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    checksum: text("checksum").notNull(),
+    objectKey: text("object_key"),
+    inline: boolean("inline").notNull().default(false),
+    contentId: text("content_id"),
+    refusal: text("refusal"),
+    createdAt: created(),
+  },
+  (t) => [index("attachment_message_idx").on(t.messageId)],
+);
 export const participants = pgTable(
   "participant",
   {

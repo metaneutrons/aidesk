@@ -625,6 +625,31 @@ label {
     padding: 16px;
     border-radius: 10px;
 }
+.attachments {
+    list-style: none;
+    margin: 8px 0 0;
+    padding-left: 39px;
+    display: grid;
+    gap: 4px;
+    font-size: 13px;
+}
+.attachments li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+.attachments a {
+    color: var(--accent);
+    overflow-wrap: anywhere;
+}
+.attachments .refused {
+    color: var(--warning);
+    overflow-wrap: anywhere;
+}
+.attachments small {
+    color: var(--muted);
+    white-space: nowrap;
+}
 .delivery-state {
     padding-left: 39px;
     font-size: 10px;

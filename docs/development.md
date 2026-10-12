@@ -181,8 +181,20 @@ tickets. `scripts/dev-inbound.ts` still feeds a raw message directly:
 sh scripts/dev.sh exec -T app pnpm exec tsx scripts/dev-inbound.ts orbit < mail.eml
 ```
 
-Not yet implemented: attachments as private objects, acknowledgements, junk
-classification and the IMAP Junk folder and language detection. GreenMail is a
+Attachments are stored as private objects under
+`attachments/<project>/<sha256>` before the message is committed; their
+metadata (name, type, size, position, inline flag and Content-ID) is a separate
+table. Names lose paths and control characters. Executable types and disk
+images (by extension or declared type), files over 15 MB and files beyond the
+25th are not stored; the message is kept and the file is listed with the
+reason. `GET /api/v1/attachments/:id` needs `ticket.read` on the project and
+always answers as a download (`application/octet-stream`, `nosniff`,
+`Content-Security-Policy: sandbox`, `no-store`); refused files, other projects
+and unknown ids all answer 404. Ticket responses list the metadata on every
+surface; MCP does not yet return file content.
+
+Not yet implemented: acknowledgements, junk classification and the IMAP Junk
+folder and language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 

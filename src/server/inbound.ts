@@ -3,9 +3,10 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { simpleParser, type AddressObject } from "mailparser";
 import TurndownService from "turndown";
 import { db } from "./db";
-import { ingress, jobs, messages, projects, tickets } from "./db/schema";
+import { attachments, ingress, jobs, messages, projects, tickets } from "./db/schema";
 import { getObject, putObject } from "./storage";
 import { extractReply } from "../domain/extraction";
+import { attachmentRefusal, safeFilename } from "../domain/attachments";
 import { isMessageId } from "../domain/threading";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
@@ -88,6 +89,30 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
   const references = referenceIds(mail.inReplyTo, mail.references);
   const subject = (mail.subject ?? "").trim() || "(no subject)";
   const receivedAt = entry.receivedAt;
+  // Files are stored before the transaction, like the original, under their
+  // checksum; storing the same file again is harmless. Refused files are not
+  // stored at all.
+  const files = mail.attachments.map((file, index) => {
+    const filename = safeFilename(file.filename, index);
+    const contentType = (file.contentType || "application/octet-stream").toLowerCase();
+    return {
+      filename,
+      contentType,
+      size: file.content.length,
+      checksum: createHash("sha256").update(file.content).digest("hex"),
+      inline: file.contentDisposition === "inline",
+      contentId: file.cid ? file.cid.slice(0, 200) : null,
+      refusal: attachmentRefusal({ filename, contentType, size: file.content.length }, index),
+      content: file.content,
+    };
+  });
+  for (const file of files)
+    if (!file.refusal)
+      await putObject(
+        `attachments/${entry.projectId}/${file.checksum}`,
+        file.content,
+        "application/octet-stream",
+      );
   return db().transaction(async (tx) => {
     // Serialise processing per project so duplicates and threading decisions
     // see each other's results.
@@ -149,20 +174,41 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       trimmed: extraction.trimmed,
       attachments: mail.attachments.length,
     };
-    const insertMessage = (ticketId: string, language: string, followUpOf?: string) =>
-      tx.insert(messages).values({
-        ticketId,
-        authorType: "customer",
-        authorName: sender.name,
-        authorEmail: sender.address,
-        markdown: extraction.markdown,
-        language,
-        receivedMessageId: messageId,
-        rawObjectKey: entry.rawObjectKey,
-        deliveryState: "received",
-        source: followUpOf ? { ...source, followUpOf } : source,
-        createdAt: receivedAt,
-      });
+    const insertMessage = async (ticketId: string, language: string, followUpOf?: string) => {
+      const [message] = await tx
+        .insert(messages)
+        .values({
+          ticketId,
+          authorType: "customer",
+          authorName: sender.name,
+          authorEmail: sender.address,
+          markdown: extraction.markdown,
+          language,
+          receivedMessageId: messageId,
+          rawObjectKey: entry.rawObjectKey,
+          deliveryState: "received",
+          source: followUpOf ? { ...source, followUpOf } : source,
+          createdAt: receivedAt,
+        })
+        .returning({ id: messages.id });
+      if (!message) throw new Error("message_creation_failed");
+      if (files.length)
+        await tx.insert(attachments).values(
+          files.map((file, position) => ({
+            messageId: message.id,
+            position,
+            projectId: entry.projectId,
+            filename: file.filename,
+            contentType: file.contentType,
+            size: file.size,
+            checksum: file.checksum,
+            objectKey: file.refusal ? null : `attachments/${entry.projectId}/${file.checksum}`,
+            inline: file.inline,
+            contentId: file.contentId,
+            refusal: file.refusal,
+          })),
+        );
+    };
     const recentlyResolved =
       target?.status === "resolved" &&
       target.resolvedAt !== null &&
