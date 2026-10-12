@@ -182,9 +182,53 @@ sh scripts/dev.sh exec -T app pnpm exec tsx scripts/dev-inbound.ts orbit < mail.
 ```
 
 Not yet implemented: attachments as private objects, acknowledgements, junk
-classification and the IMAP Junk folder, language detection and the Cloudflare
-adapter. GreenMail is a real IMAP server but not a provider mailbox; real provider
-qualification is still open.
+classification and the IMAP Junk folder and language detection. GreenMail is a
+real IMAP server but not a provider mailbox; real provider qualification is still
+open.
+
+## Cloudflare mail
+
+Inbound, Cloudflare Email Routing hands each message for a routed address to
+the Email Worker in `cloudflare/mail-ingest`. The worker stores the message
+unchanged in an R2 bucket under `inbound/<recipient>/<receipt time>-<random>.eml`
+and does nothing else. aidesk collects these objects through the S3 API at the
+same interval as IMAP, accepts each one through `acceptInbound` and deletes it
+only afterwards. While aidesk is unreachable, mail waits in the bucket. A crash
+between acceptance and deletion leaves the object in place; the next poll
+recognises its external key and only deletes it. The endpoint must use HTTPS
+unless the connection is marked development-only.
+
+Outbound, a Cloudflare connection sends replies through the Email Sending REST
+API with In-Reply-To and References. Cloudflare assigns the Message-ID itself;
+aidesk stores the returned value for later threading. A refusal before
+acceptance is recorded as `transport_rejected`; timeouts, server errors and
+responses that do not list the recipient as delivered or queued leave the
+outcome unknown. Both go to review and are never resent automatically.
+
+Without the Workers Paid plan and an onboarded sending domain, Cloudflare only
+delivers to verified destination addresses of the account. Each routing rule
+names one address and one worker.
+
+Setup for one address (bucket `aidesk-mail` in the EU jurisdiction):
+
+1. Create the bucket with the header `cf-r2-jurisdiction: eu`.
+2. Deploy the worker:
+   `pnpm dlx wrangler@4.143.0 deploy --config cloudflare/mail-ingest/wrangler.jsonc`.
+3. Add an Email Routing rule that sends the address to the worker
+   `aidesk-mail-ingest`.
+4. Create an R2 token limited to this bucket (object read and write) and a
+   token with Email Sending Write. R2 derives the S3 key pair from the token:
+   the access key ID is the token ID, the secret is the SHA-256 hex digest of
+   the token value.
+5. Connect a project; the script creates it if the slug is new and updates
+   existing Cloudflare connections in place:
+
+```sh
+sh scripts/dev.sh exec -T -e CLOUDFLARE_ACCOUNT_ID -e CLOUDFLARE_R2_ACCESS_KEY_ID \
+  -e CLOUDFLARE_R2_SECRET_ACCESS_KEY -e CLOUDFLARE_SENDING_TOKEN app \
+  pnpm exec tsx scripts/cloudflare-mail.ts --project <slug> --name <name> \
+  --address <address> --grant <operator email>
+```
 
 ## What the slice supports
 

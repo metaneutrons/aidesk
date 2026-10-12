@@ -851,3 +851,12 @@ exists yet; this plan makes no cost or deadline commitment.
   Docker object store in place of SeaweedFS; aidesk keeps using the generic S3
   boundary, so external object storage remains supported. Production key scoping,
   backup and restore for Silo remain M5 qualification.
+- 2026-10-12: Cloudflare inbound runs through an Email Worker that stores each
+  message unchanged in an R2 bucket (EU jurisdiction); aidesk collects and then
+  deletes the objects through the S3 API. Mail therefore waits while aidesk is
+  unreachable, and the same path works for local, Docker and Vercel
+  deployments. A push notification from the worker is a possible later latency
+  improvement, not a requirement. Outbound uses the Email Sending REST API;
+  Cloudflare assigns the Message-ID, which aidesk stores for threading. Without
+  Workers Paid, sending is limited to verified destination addresses, which is
+  enough for M2-A9 test connections but not for production.
