@@ -42,7 +42,16 @@ async function ticket(project = projectId, email = "alex@example.test") {
     })
     .returning();
   if (!created) throw new Error("ticket");
-  const base = { ticketId: created.id, language: "en" };
+  // Rows of one insert share the transaction time, so the order is set explicitly.
+  let tick = Date.now() - 60_000;
+  const base = {
+    ticketId: created.id,
+    language: "en",
+    get createdAt() {
+      tick += 1000;
+      return new Date(tick);
+    },
+  };
   await db()
     .insert(messages)
     .values([
