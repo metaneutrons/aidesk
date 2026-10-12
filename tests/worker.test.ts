@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { simpleParser } from "mailparser";
 import { and, eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
 import {
+  audit,
   connections,
   jobs,
   memberships,
@@ -13,6 +15,9 @@ import {
   user,
 } from "../src/server/db/schema";
 import { initializeStorage } from "../src/server/storage";
+import { createEmailDesign, selectEmailDesign } from "../src/server/email-design";
+import { seal } from "../src/server/crypto";
+import { env } from "../src/server/env";
 import { getSentSnapshot, getTicket } from "../src/server/operations";
 import { emailTemplateVersion } from "../src/server/email";
 import { runNext } from "../src/worker/jobs";
@@ -26,51 +31,82 @@ interface Options {
   resolve?: boolean;
   acknowledgement?: boolean;
   settings?: Record<string, unknown>;
+  transport?: "smtp" | "cloudflare";
+  design?: Record<string, unknown>;
+  // Queue another reply in a project that an earlier scenario set up.
+  existing?: { projectId: string; connectionId: string; operatorId: string };
 }
 // A ticket with a customer message, our queued reply and its send job, in a
 // project of its own so that the run is scoped to it.
 async function scenario(options: Options = {}) {
-  const projectId = randomUUID();
-  const connectionId = randomUUID();
-  const operatorId = `operator-${projectId}`;
-  projectIds.push(projectId);
-  userIds.push(operatorId);
-  await db()
-    .insert(projects)
-    .values({
-      id: projectId,
-      name: "Worker",
-      slug: `worker-${projectId}`,
-      settings: {
-        outboundConnectionId: connectionId,
-        acknowledgements: options.acknowledgement === true,
-        ...options.settings,
-      },
-    });
-  await db()
-    .insert(connections)
-    .values({
-      id: connectionId,
-      projectId,
-      kind: "smtp",
-      name: "Fake",
-      direction: "outbound",
-      status: "ready",
-      config: {
-        host: "127.0.0.1",
-        port: smtp.port,
-        secure: false,
-        from: "support@example.test",
-        replyTo: "support@example.test",
-        developmentOnly: true,
-      },
-    });
-  await db()
-    .insert(user)
-    .values({ id: operatorId, name: "Operator", email: `${operatorId}@example.test` });
-  await db()
-    .insert(memberships)
-    .values({ userId: operatorId, projectId, actions: ["ticket.reply", "ticket.resolve"] });
+  const projectId = options.existing?.projectId ?? randomUUID();
+  const connectionId = options.existing?.connectionId ?? randomUUID();
+  const operatorId = options.existing?.operatorId ?? `operator-${projectId}`;
+  if (!options.existing) {
+    projectIds.push(projectId);
+    userIds.push(operatorId);
+    await db()
+      .insert(projects)
+      .values({
+        id: projectId,
+        name: "Worker",
+        slug: `worker-${projectId}`,
+        settings: {
+          outboundConnectionId: connectionId,
+          acknowledgements: options.acknowledgement === true,
+          ...options.settings,
+        },
+      });
+    await db()
+      .insert(connections)
+      .values({
+        id: connectionId,
+        projectId,
+        kind: options.transport ?? "smtp",
+        name: "Fake",
+        direction: "outbound",
+        status: "ready",
+        config:
+          options.transport === "cloudflare"
+            ? {
+                accountId: "a".repeat(32),
+                from: "support@example.test",
+                replyTo: "support@example.test",
+              }
+            : {
+                host: "127.0.0.1",
+                port: smtp.port,
+                secure: false,
+                from: "support@example.test",
+                replyTo: "support@example.test",
+                developmentOnly: true,
+              },
+        secretCiphertext:
+          options.transport === "cloudflare"
+            ? seal(JSON.stringify({ apiToken: "token-value" }), env().ENCRYPTION_KEY)
+            : null,
+      });
+    if (options.design) {
+      const owner: Principal = {
+        id: "designer",
+        kind: "human",
+        active: true,
+        owner: false,
+        grants: [{ projectId, actions: ["project.read", "project.manage"] }],
+      };
+      await selectEmailDesign(
+        owner,
+        projectId,
+        (await createEmailDesign(owner, projectId, options.design)).version,
+      );
+    }
+    await db()
+      .insert(user)
+      .values({ id: operatorId, name: "Operator", email: `${operatorId}@example.test` });
+    await db()
+      .insert(memberships)
+      .values({ userId: operatorId, projectId, actions: ["ticket.reply", "ticket.resolve"] });
+  }
   const [ticket] = await db()
     .insert(tickets)
     .values({
@@ -161,6 +197,7 @@ afterAll(async () => {
   vi.unstubAllEnvs();
   await smtp.close();
   await db().delete(jobs).where(inArray(jobs.projectId, projectIds));
+  await db().delete(audit).where(inArray(audit.projectId, projectIds));
   await db().delete(tickets).where(inArray(tickets.projectId, projectIds));
   await db().delete(projects).where(inArray(projects.id, projectIds));
   await db().delete(user).where(inArray(user.id, userIds));
@@ -472,6 +509,124 @@ describe("leases and fencing", () => {
         .from(jobs)
         .where(and(inArray(jobs.id, [mine.jobId, other.jobId]), eq(jobs.status, "succeeded"))),
     ).toHaveLength(2);
+  });
+});
+describe("designs of two projects", () => {
+  const alpha = { accent: "#aa3355", headerText: "Alpha Support", footer: { en: "Alpha footer" } };
+  const beta = {
+    accent: "#118833",
+    headerText: "Beta Care",
+    footer: { en: "Beta footer" },
+    fontFamily: "serif",
+  };
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  async function bySmtp(options: Options) {
+    const entry = await scenario(options);
+    await entry.run();
+    const parsed = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    return { html: typeof parsed.html === "string" ? parsed.html : "", text: parsed.text ?? "" };
+  }
+  async function byCloudflare(options: Options) {
+    const entry = await scenario({ ...options, transport: "cloudflare" });
+    const fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          success: true,
+          errors: [],
+          messages: [],
+          result: {
+            delivered: ["alex@example.test"],
+            queued: [],
+            permanent_bounces: [],
+            message_id: "<id@example.test>",
+          },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await entry.run();
+    expect(await entry.job()).toMatchObject({ status: "succeeded" });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    return JSON.parse(init.body as string) as { html: string; text: string };
+  }
+  it("sends each project's own design and plain text through SMTP", async () => {
+    const [a, b, plain] = [
+      await bySmtp({ design: alpha }),
+      await bySmtp({ design: beta }),
+      await bySmtp({}),
+    ];
+    expect(a.html).toContain("#aa3355");
+    expect(a.html).toContain("Alpha Support");
+    expect(a.text).toContain("Alpha footer");
+    expect(b.html).toContain("#118833");
+    expect(b.html).toContain("Georgia");
+    expect(b.text).toContain("Beta footer");
+    for (const [mail, other] of [
+      [a, "Beta"],
+      [b, "Alpha"],
+    ] as const) {
+      expect(mail.html).not.toContain(other);
+      expect(mail.text).not.toContain(other);
+    }
+    // A project without a design keeps the built-in one.
+    expect(plain.html).not.toContain("#aa3355");
+    expect(plain.text).toContain("Worker");
+    expect(plain.text).not.toContain("footer");
+  });
+  it("sends the same designs through the Cloudflare API", async () => {
+    const [a, b] = [await byCloudflare({ design: alpha }), await byCloudflare({ design: beta })];
+    expect(a.html).toContain("#aa3355");
+    expect(a.text).toContain("Alpha footer");
+    expect(b.html).toContain("#118833");
+    expect(b.text).toContain("Beta footer");
+    expect(a.html).not.toContain("Beta");
+    expect(b.text).not.toContain("Alpha");
+    // Both transports render the same mail for the same design.
+    const viaSmtp = await bySmtp({ design: alpha });
+    expect(viaSmtp.text.trim()).toBe(a.text.trim());
+    expect(viaSmtp.html.replace(/\s+/g, "")).toBe(a.html.replace(/\s+/g, ""));
+  });
+  it("uses the version that is selected when the mail is sent", async () => {
+    const entry = await scenario({ design: alpha });
+    const owner: Principal = {
+      id: "designer",
+      kind: "human",
+      active: true,
+      owner: false,
+      grants: [{ projectId: entry.projectId, actions: ["project.read", "project.manage"] }],
+    };
+    // A newer version is saved but not selected: the queued mail keeps the selected one.
+    await createEmailDesign(owner, entry.projectId, beta);
+    await entry.run();
+    const first = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    expect(typeof first.html === "string" ? first.html : "").toContain("#aa3355");
+    // Selecting it changes what is sent from then on.
+    await selectEmailDesign(owner, entry.projectId, 2);
+    const later = await scenario({ existing: entry });
+    await later.run();
+    const second = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    expect(typeof second.html === "string" ? second.html : "").toContain("#118833");
+    // Each sent message names the version it was rendered with, and keeps it.
+    const reader: Principal = {
+      ...owner,
+      id: "reader",
+      grants: [{ projectId: entry.projectId, actions: ["ticket.read"] }],
+    };
+    expect((await getSentSnapshot(reader, entry.messageId)).designVersion).toBe(1);
+    expect((await getSentSnapshot(reader, later.messageId)).designVersion).toBe(2);
+    expect((await getSentSnapshot(reader, entry.messageId)).html).toContain("#aa3355");
+    const builtIn = await scenario();
+    await builtIn.run();
+    expect(
+      (
+        await getSentSnapshot(
+          { ...reader, grants: [{ projectId: builtIn.projectId, actions: ["ticket.read"] }] },
+          builtIn.messageId,
+        )
+      ).designVersion,
+    ).toBe(0);
   });
 });
 describe("snapshot of the sent mail", () => {

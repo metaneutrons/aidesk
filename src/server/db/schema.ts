@@ -351,6 +351,23 @@ export const audit = pgTable(
   },
   (t) => [index("audit_project_idx").on(t.projectId)],
 );
+// Versioned email designs of a project. A version is never changed; a new
+// one is added and then selected, so a mail that was sent can always name the
+// design it was rendered with.
+export const emailDesigns = pgTable(
+  "email_design",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("email_design_version_idx").on(t.projectId, t.version)],
+);
 export const translations = pgTable(
   "translation",
   {

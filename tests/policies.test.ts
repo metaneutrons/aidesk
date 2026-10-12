@@ -183,8 +183,12 @@ describe("communication rendering", () => {
         language: "en",
       })
     ).html;
-    expect(code).toMatch(/<pre style="[^"]*white-space:pre-wrap[^"]*"><code class="language-sh">/);
-    expect(code).toMatch(/<code style="[^"]*background:#f1f2f7[^"]*">token<\/code>/);
+    expect(code).toMatch(
+      /<pre class="mail-pre" style="[^"]*white-space:pre-wrap[^"]*"><code class="language-sh">/,
+    );
+    expect(code).toMatch(
+      /<code class="mail-code" style="[^"]*background:#f1f2f7[^"]*">token<\/code>/,
+    );
   });
   it("carries stable domain error codes without customer details", () => {
     const error = new DomainError("forbidden", 403);

@@ -162,6 +162,7 @@ const snapshot = z.object({
   subject: z.string(),
   language: z.string(),
   templateVersion: z.number(),
+  designVersion: z.number().optional(),
   markdown: z.string(),
   html: z.string(),
   text: z.string(),
@@ -169,8 +170,9 @@ const snapshot = z.object({
 function sentSummary(value: unknown) {
   const parsed = snapshot.safeParse(value);
   if (!parsed.success) return null;
-  const { at, transport, to, from, replyTo, subject, language, templateVersion } = parsed.data;
-  return { at, transport, to, from, replyTo, subject, language, templateVersion };
+  const { at, transport, to, from, replyTo, subject, language, templateVersion, designVersion } =
+    parsed.data;
+  return { at, transport, to, from, replyTo, subject, language, templateVersion, designVersion };
 }
 // The mail exactly as it was handed to the transport. Only messages that were
 // sent have one; everything else, and every message the principal may not
