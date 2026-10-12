@@ -15,6 +15,7 @@ import {
 } from "../domain/acknowledgement";
 import { isMessageId } from "../domain/threading";
 import { parseDeliveryReport } from "../domain/bounce";
+import { decideLanguage, detectLanguage } from "../domain/language";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
 // together. Processing is idempotent and may be retried.
@@ -109,6 +110,7 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       : (mail.text ?? "");
   const extraction = extractReply(body.trim() ? body : "(no text content)");
   const references = referenceIds(mail.inReplyTo, mail.references);
+  const detection = detectLanguage(extraction.markdown);
   const subject = (mail.subject ?? "").trim() || "(no subject)";
   const receivedAt = entry.receivedAt;
   // Files are stored before the transaction, like the original, under their
@@ -295,8 +297,14 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       trimmed: extraction.trimmed,
       uncertain: extraction.uncertain,
       attachments: mail.attachments.length,
+      languageDetection: { language: detection.language, reason: detection.reason },
     };
-    const insertMessage = async (ticketId: string, language: string, followUpOf?: string) => {
+    const insertMessage = async (
+      ticketId: string,
+      language: string,
+      followUpOf?: string,
+      decision?: object,
+    ) => {
       const [message] = await tx
         .insert(messages)
         .values({
@@ -309,7 +317,7 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
           receivedMessageId: messageId,
           rawObjectKey: entry.rawObjectKey,
           deliveryState: "received",
-          source: followUpOf ? { ...source, followUpOf } : source,
+          source: { ...source, ...(followUpOf ? { followUpOf } : {}), ...decision },
           createdAt: receivedAt,
         })
         .returning({ id: messages.id });
@@ -336,7 +344,8 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       target.resolvedAt !== null &&
       receivedAt.getTime() - target.resolvedAt.getTime() <= reopenWindowMs;
     if (target && (target.status !== "resolved" || recentlyResolved)) {
-      await insertMessage(target.id, target.language);
+      // The ticket keeps its language; the message records what it was written in.
+      await insertMessage(target.id, detection.language ?? target.language);
       await tx
         .update(tickets)
         .set({
@@ -358,7 +367,13 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       })
       .from(projects)
       .where(eq(projects.id, entry.projectId));
-    const language = project?.defaultLanguage ?? "en";
+    // A new ticket takes the language of its first message when that is clear,
+    // otherwise the project's default. The outcome is kept visible.
+    const decision = decideLanguage({
+      detection,
+      projectDefault: project?.defaultLanguage ?? "en",
+    });
+    const language = decision.language;
     const [ticket] = await tx
       .insert(tickets)
       .values({
@@ -372,7 +387,9 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       .returning({ id: tickets.id, number: tickets.number, revision: tickets.revision });
     if (!ticket) throw new Error("ticket_creation_failed");
     // A reply to a ticket resolved long ago starts a linked follow-up.
-    await insertMessage(ticket.id, language, target?.id);
+    await insertMessage(ticket.id, language, target?.id, {
+      languageDecision: { source: decision.source, undecided: decision.undecided },
+    });
     // An enabled project acknowledges a new ticket through its outgoing
     // connection, never to automatic mail and at most once an hour per sender.
     const connectionId = project?.settings.outboundConnectionId;
