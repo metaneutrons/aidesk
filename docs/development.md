@@ -330,6 +330,15 @@ automatically retry an uncertain send. A worker that lost its lease writes
 neither success nor failure; when that lease ends too, the dispatch goes to
 review instead of being sent again.
 
+When a message is accepted by the transport, the worker keeps a snapshot of it in
+the message: time, transport, recipient, sender and reply-to address, subject,
+language, template version, the final Markdown and the rendered HTML and text.
+Later changes of the ticket, the message or the template do not alter it. The
+ticket view shows the facts of the snapshot (`sent`), `getSentSnapshot` returns
+the whole mail to readers of the project, and only for sent public messages. The
+draft in the author's own language is not kept separately yet; translation of
+drafts follows with M4.
+
 REST begins at `/api/v1`, MCP at `/api/mcp`. The stateless Streamable HTTP MCP
 endpoint requires an active, unexpired project-scoped bearer agent token. Token
 provisioning UI and owner recovery are not finished. MCP registration is filtered

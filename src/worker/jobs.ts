@@ -13,7 +13,7 @@ import {
   tickets,
   user,
 } from "../server/db/schema";
-import { renderEmail } from "../server/email";
+import { emailTemplateVersion, renderEmail } from "../server/email";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
@@ -230,7 +230,9 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
             },
       ),
     );
+    const subject = `Re: ${ticket.subject}`;
     let outgoingId: string | null;
+    let sender: { from: string; replyTo: string };
     if (connection.kind === "cloudflare") {
       const { config, secret } = parseCloudflareOutbound(
         connection.config,
@@ -241,13 +243,14 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
         const sent = await sendViaCloudflare(config, secret, {
           fromName: project.name,
           to: ticket.requesterEmail,
-          subject: `Re: ${ticket.subject}`,
+          subject,
           ...thread,
           ...content,
           ticketId: ticket.id,
           automatic,
         });
         outgoingId = sent.messageId;
+        sender = { from: config.from, replyTo: config.replyTo };
       } catch (error) {
         if (error instanceof Error && error.message === "transport_rejected") code = error.message;
         throw error;
@@ -296,7 +299,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
           from: { name: project.name, address: config.from },
           replyTo: config.replyTo,
           to: ticket.requesterEmail,
-          subject: `Re: ${ticket.subject}`,
+          subject,
           messageId: outgoingId,
           ...thread,
           headers: {
@@ -313,6 +316,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
         });
       if (!accepted.accepted.map(String).includes(ticket.requesterEmail))
         throw new Error("recipient_not_accepted");
+      sender = { from: config.from, replyTo: config.replyTo };
     } else throw new Error("outbound_not_ready");
     await db().transaction(async (tx) => {
       const [owned] = await tx
@@ -325,7 +329,27 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       if (!owned) throw new Error("dispatch_lease_lost");
       await tx
         .update(messages)
-        .set({ deliveryState: "sent", source: { ...message.source, messageId: outgoingId } })
+        .set({
+          deliveryState: "sent",
+          source: {
+            ...message.source,
+            messageId: outgoingId,
+            // What was handed to the transport, kept as sent: later changes to
+            // the ticket, the template or the project do not alter it.
+            sent: {
+              at: new Date().toISOString(),
+              transport: connection.kind,
+              to: ticket.requesterEmail,
+              ...sender,
+              subject,
+              language: message.language,
+              templateVersion: emailTemplateVersion,
+              markdown: message.markdown,
+              html: content.html,
+              text: content.text,
+            },
+          },
+        })
         .where(eq(messages.id, message.id));
       // A newer inbound revision retains its response obligation. An
       // acknowledgement is not an answer and leaves the ticket unchanged.
