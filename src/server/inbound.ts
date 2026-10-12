@@ -72,6 +72,15 @@ function referenceIds(inReplyTo: string | undefined, references: string | string
   return [...new Set(all)];
 }
 const turndown = new TurndownService({ codeBlockStyle: "fenced", headingStyle: "atx" });
+// Signature blocks marked by Gmail and Outlook get the standard "-- "
+// delimiter, so the extraction treats them like a plain-text signature.
+turndown.addRule("signature", {
+  filter: (node) =>
+    node.nodeName === "DIV" &&
+    (/\bgmail_signature\b/.test(node.getAttribute("class") ?? "") ||
+      node.getAttribute("id") === "Signature"),
+  replacement: (content) => `\n\n-- \n${content}\n`,
+});
 export type IngestOutcome = "created" | "appended" | "reopened" | "duplicate" | "follow_up";
 export async function processIngress(ingressId: string): Promise<IngestOutcome | "done"> {
   const [entry] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
@@ -177,6 +186,7 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       subject,
       extraction: "parser",
       trimmed: extraction.trimmed,
+      uncertain: extraction.uncertain,
       attachments: mail.attachments.length,
     };
     const insertMessage = async (ticketId: string, language: string, followUpOf?: string) => {

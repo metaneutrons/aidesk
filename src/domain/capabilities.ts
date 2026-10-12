@@ -50,6 +50,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "messages.original": {
+    operation: "getOriginal",
+    action: "ticket.read",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "projects.create": {
     operation: "createProject",
     action: "workspace.project.create",

@@ -159,8 +159,13 @@ message.
 
 Content extraction works without AI: it removes quoted history after an
 attribution line, Outlook headers and signatures only at the end of the message
-and keeps inline replies between quotes. HTML is converted to Markdown. The
-original stays available and the message records whether anything was removed.
+and keeps inline replies between quotes. HTML is converted to Markdown; Gmail
+and Outlook signature blocks and the escaped `-- ` delimiter are recognised. The
+message records whether anything was removed and whether unquoted text was
+removed on a heuristic (a forwarded-style header block, a separator line or a
+signature longer than eight lines). Such uncertain trims are marked in the
+conversation, and readers of the ticket can download the private original
+(`GET /api/v1/messages/:id/original`, always as a download).
 Processing is idempotent; lost leases are requeued and transient failures retry
 with backoff (at most six attempts in about a day), permanent ones go to review.
 

@@ -6,7 +6,13 @@ export interface Extraction {
   markdown: string;
   // Whether anything was removed; the private original stays available.
   trimmed: boolean;
+  // Whether unquoted text was removed on a heuristic (a forwarded-style header
+  // block, a separator line or a long signature), so a person should be able
+  // to compare with the original.
+  uncertain: boolean;
 }
+// Signatures longer than this may hold content rather than contact details.
+const longSignature = 8;
 const attribution = [
   /^on\b.{0,200}\bwrote:\s*$/i,
   /^am\b.{0,200}\bschrieb\b.{0,200}:\s*$/i,
@@ -29,6 +35,7 @@ function onlyQuotesAfter(lines: string[], from: number): boolean {
 export function extractReply(text: string): Extraction {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   let end = lines.length;
+  let uncertain = false;
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]?.trim() ?? "";
     const isAttribution = attribution.some((pattern) => pattern.test(line));
@@ -39,22 +46,28 @@ export function extractReply(text: string): Extraction {
     // the quoted earlier message, or if it introduces an unquoted copy of it
     // (Outlook style) with nothing of the customer's own after it.
     if ((isAttribution || isHeaderBlock) && index > 0) {
-      if (onlyQuotesAfter(lines, index + 1) || isHeaderBlock || /^-{2,}|^_{10,}/.test(line)) {
+      const quotedOnly = onlyQuotesAfter(lines, index + 1);
+      if (quotedOnly || isHeaderBlock || /^-{2,}|^_{10,}/.test(line)) {
         end = index;
+        if (!quotedOnly) uncertain = true;
         break;
       }
     }
   }
   let kept = lines.slice(0, end);
-  // A signature after the standard delimiter "-- ".
-  const signature = kept.findIndex((line) => line === "-- " || line === "--");
-  if (signature > 0) kept = kept.slice(0, signature);
+  // A signature after the standard delimiter "-- ". HTML converted to
+  // Markdown escapes it as "\\--", followed by the spaces of a line break.
+  const signature = kept.findIndex((line) => /^\\?--\s*$/.test(line));
+  if (signature > 0) {
+    if (kept.length - signature - 1 > longSignature) uncertain = true;
+    kept = kept.slice(0, signature);
+  }
   // A trailing block of quoted lines with no reply after it.
   let last = kept.length;
   while (last > 0 && (isBlank(kept[last - 1] ?? "") || isQuote(kept[last - 1] ?? ""))) last -= 1;
   if (last > 0 && last < kept.length && kept.slice(last).some(isQuote)) kept = kept.slice(0, last);
   const markdown = kept.join("\n").trim();
   const original = lines.join("\n").trim();
-  if (!markdown) return { markdown: original, trimmed: false };
-  return { markdown, trimmed: markdown !== original };
+  if (!markdown) return { markdown: original, trimmed: false, uncertain: false };
+  return { markdown, trimmed: markdown !== original, uncertain };
 }
