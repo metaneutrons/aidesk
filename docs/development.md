@@ -235,6 +235,19 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
+A delivery status notification (RFC 3464, `multipart/report` with
+`report-type=delivery-status`) for a sent reply belongs to that reply and creates
+no ticket. It must name the Message-ID of one of the project's sent messages and
+the requester's address as the final recipient; anything else is processed like
+other mail. For `Action: failed` the reply moves to review with the reason
+"bounced" (status code and diagnostic stay in the message source), and the
+ticket is open again with its response obligation, even if the reply had
+resolved it. For an acknowledgement, or a ticket in junk, only the message is
+marked. A delay notice and a repeated report change nothing. SMTP2GO collects
+bounces itself under its own return path and does not forward them, so this path
+applies to transports whose return path reaches the project mailbox; a provider
+webhook is not implemented.
+
 Not yet implemented: language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
@@ -331,6 +344,23 @@ endpoint requires an active, unexpired project-scoped bearer agent token. Token
 provisioning UI and owner recovery are not finished. MCP registration is filtered
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
+
+## Portal grants
+
+`src/server/portal.ts` holds the model for customer access; the portal pages and
+REST routes follow with M3. A person with `ticket.reply` issues a grant for one
+ticket. It is a random token, stored only as a SHA-256 hash, bound to the
+ticket's requester (a participant of that ticket), valid for 30 days by default
+(1 to 90) and shown once. Issuing again replaces the earlier token, revoking
+disables it, and both are audited. A token resolves only while it is known,
+unexpired, not revoked, verified and while the ticket is not in junk; every
+other case answers the same `not_found`. The holder sees the public conversation
+of that one ticket: no private notes, no messages that were not delivered, no
+staff names or addresses (replies appear under the project name), and nothing of
+other tickets, participants or projects. A follow-up ticket needs its own grant.
+The requester counts as verified because the token goes to the address that
+wrote to us; other participants need their own verification, which is not
+implemented.
 
 ## Email designs
 
