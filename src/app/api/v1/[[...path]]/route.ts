@@ -3,6 +3,7 @@ import { identify, requireMutationOrigin } from "../../../../server/principal";
 import {
   createOperator,
   createProject,
+  getAttachment,
   getTicket,
   issueAgentToken,
   listAgentTokens,
@@ -18,6 +19,21 @@ import {
 import { DomainError } from "../../../../server/errors";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Attachments are always downloaded, never rendered by the browser: the stored
+// type is not trusted, so the response is opaque, sandboxed and not cached.
+function download(file: { filename: string; size: number; content: Buffer }): Response {
+  const ascii = file.filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  return new Response(new Uint8Array(file.content), {
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Length": String(file.content.length),
+      "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.filename).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`,
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox",
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
 async function dispatch(request: Request): Promise<Response> {
   try {
     const principal = await identify(request.headers);
@@ -33,6 +49,8 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await listAgentTokens(principal, identifier));
       if (resource === "tickets" && identifier && segments.length === 2)
         return Response.json(await getTicket(principal, identifier));
+      if (resource === "attachments" && identifier && segments.length === 2)
+        return download(await getAttachment(principal, identifier));
       if (resource === "tickets" && segments.length === 1)
         return Response.json(await listTickets(principal, url.searchParams.getAll("project")));
     }

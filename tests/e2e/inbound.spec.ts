@@ -32,6 +32,10 @@ test("turns a customer mail into a ticket and threads the reply to our answer", 
     to: mailboxAddress,
     subject,
     text: "The export stops at file 3.\n\n-- \nKim",
+    attachments: [
+      { filename: "export.log", content: "line 1\nline 2\n" },
+      { filename: "fix.exe", content: Buffer.from("MZ") },
+    ],
   });
   await signIn();
   let ticketId = "";
@@ -54,6 +58,13 @@ test("turns a customer mail into a ticket and threads the reply to our answer", 
   await expect(panel.getByText("The export stops at file 3.")).toBeVisible();
   await expect(panel.getByText("Kim", { exact: true })).toHaveCount(0);
   await expect(panel.getByText(`To Kim Customer <${customer}>`)).toBeVisible();
+  // The log is downloadable; the executable is listed as not stored.
+  const files = panel.getByRole("list", { name: "Attachments" });
+  await expect(files.getByText("fix.exe: not stored, file type not allowed")).toBeVisible();
+  const log = files.getByRole("link", { name: "export.log" });
+  const download = await page.request.get((await log.getAttribute("href")) ?? "");
+  expect(download.headers()["content-disposition"]).toContain('filename="export.log"');
+  expect(await download.text()).toBe("line 1\nline 2\n");
   const answer = `Answer ${randomUUID()}`;
   await panel.getByRole("textbox", { name: "Write your reply in Markdown…" }).fill(answer);
   await panel.getByRole("button", { name: "Send reply" }).click();

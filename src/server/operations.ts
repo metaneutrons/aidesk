@@ -5,6 +5,7 @@ import { db } from "./db";
 import {
   account,
   agents,
+  attachments,
   audit,
   connections,
   jobs,
@@ -17,6 +18,7 @@ import {
 } from "./db/schema";
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
+import { getObject } from "./storage";
 import {
   actions,
   allowedProjectIds,
@@ -59,7 +61,7 @@ export async function getTicket(principal: Principal, ticketId: string) {
   // One snapshot for ticket and messages. Read separately, a delivery that
   // commits in between returned the message as sent with the ticket still
   // open, and the desk stopped refreshing on that inconsistent state.
-  const { ticket, conversation } = await db().transaction(
+  const { ticket, conversation, files } = await db().transaction(
     async (tx) => {
       const [found] = await tx
         .select()
@@ -72,17 +74,74 @@ export async function getTicket(principal: Principal, ticketId: string) {
         .from(messages)
         .where(eq(messages.ticketId, found.id))
         .orderBy(messages.createdAt);
-      return { ticket: found, conversation: rows };
+      const files = rows.length
+        ? await tx
+            .select({
+              id: attachments.id,
+              messageId: attachments.messageId,
+              filename: attachments.filename,
+              contentType: attachments.contentType,
+              size: attachments.size,
+              inline: attachments.inline,
+              refusal: attachments.refusal,
+            })
+            .from(attachments)
+            .where(
+              inArray(
+                attachments.messageId,
+                rows.map((row) => row.id),
+              ),
+            )
+            .orderBy(attachments.messageId, attachments.position)
+        : [];
+      return { ticket: found, conversation: rows, files };
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },
   );
   return {
     ticket,
-    messages: conversation.map((message) => ({ ...message, html: markdownHtml(message.markdown) })),
+    messages: conversation.map((message) => ({
+      ...message,
+      html: markdownHtml(message.markdown),
+      attachments: files
+        .filter((file) => file.messageId === message.id)
+        .map(({ messageId: _messageId, ...file }) => file),
+    })),
     actions: principal.grants.find((grant) => grant.projectId === ticket.projectId)?.actions ?? [],
     sender: await senderIdentity(ticket.projectId),
     // The worker sends public replies to the requester only.
     recipients: [{ name: ticket.requesterName, address: ticket.requesterEmail }],
+  };
+}
+// A stored attachment of a ticket the principal may read. Refused files,
+// unknown ids and files of other projects all answer not_found.
+export async function getAttachment(principal: Principal, attachmentId: string) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  if (!allowed.length) throw new DomainError("not_found", 404);
+  const [file] = await db()
+    .select({
+      filename: attachments.filename,
+      contentType: attachments.contentType,
+      size: attachments.size,
+      objectKey: attachments.objectKey,
+    })
+    .from(attachments)
+    .innerJoin(messages, eq(messages.id, attachments.messageId))
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(
+      and(
+        eq(attachments.id, id.parse(attachmentId)),
+        inArray(tickets.projectId, allowed),
+        eq(attachments.projectId, tickets.projectId),
+      ),
+    )
+    .limit(1);
+  if (!file?.objectKey) throw new DomainError("not_found", 404);
+  return {
+    filename: file.filename,
+    contentType: file.contentType,
+    size: file.size,
+    content: await getObject(file.objectKey),
   };
 }
 // Name and address of the project's outgoing identity, without any other
