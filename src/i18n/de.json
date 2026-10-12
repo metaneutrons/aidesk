@@ -138,5 +138,9 @@
   "tokenExpires": "Läuft ab am {date}",
   "noTokens": "Für dieses Projekt gibt es keine Tokens.",
   "settingsNoAccess": "Du verwaltest kein Projekt.",
-  "operatorActions": "Aktionen"
+  "operatorActions": "Aktionen",
+  "projectSettingsTitle": "Projekte",
+  "acknowledgementHint": "Eine Eingangsbestätigung bestätigt dem Kunden jedes neue Ticket mit seiner Nummer. Sie geht nicht an automatische Absender wie Mailinglisten oder Unzustellbarkeitsmeldungen und höchstens einmal pro Stunde an dieselbe Adresse.",
+  "acknowledgementSetting": "{project}: Eingangsbestätigungen senden",
+  "acknowledgement": "Eingangsbestätigung"
 }
