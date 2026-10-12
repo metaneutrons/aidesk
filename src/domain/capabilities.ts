@@ -34,6 +34,14 @@ export const capabilities = {
     api: "src/app/api/v1/[[...path]]/route.ts",
     mcp: "src/server/mcp.ts",
   },
+  "attachments.get": {
+    operation: "getAttachment",
+    action: "ticket.read",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "projects.create": {
     operation: "createProject",
     action: "workspace.project.create",

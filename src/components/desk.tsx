@@ -48,8 +48,36 @@ const messageSchema = z.object({
   markdown: z.string(),
   html: z.string(),
   deliveryState: z.string(),
+  attachments: z.array(
+    z.object({
+      id: z.uuid(),
+      filename: z.string(),
+      size: z.number(),
+      refusal: z.string().nullable(),
+    }),
+  ),
   createdAt: z.string(),
 });
+// Bytes below 1 KB, otherwise kB or MB with at most one decimal.
+function formatSize(size: number, locale: string): string {
+  const [value, unit] =
+    size < 1024
+      ? [size, "byte"]
+      : size < 1_048_576
+        ? [size / 1024, "kilobyte"]
+        : [size / 1_048_576, "megabyte"];
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit,
+    unitDisplay: "short",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+const refusals: Record<string, string> = {
+  attachment_type_blocked: "attachmentTypeBlocked",
+  attachment_too_large: "attachmentTooLarge",
+  attachment_count_exceeded: "attachmentCountExceeded",
+};
 const addressSchema = z.object({ name: z.string(), address: z.string() });
 const conversationSchema = z.object({
   ticket: ticketSchema,
@@ -633,6 +661,25 @@ export function Desk({
                             className="prose"
                             dangerouslySetInnerHTML={{ __html: message.html }}
                           />
+                          {message.attachments.length > 0 && (
+                            <ul className="attachments" aria-label={t("attachments")}>
+                              {message.attachments.map((file) => (
+                                <li key={file.id}>
+                                  {file.refusal ? (
+                                    <span className="refused">
+                                      {file.filename}:{" "}
+                                      {t(refusals[file.refusal] ?? "attachmentRefused")}
+                                    </span>
+                                  ) : (
+                                    <a href={`/api/v1/attachments/${file.id}`} download>
+                                      {file.filename}
+                                    </a>
+                                  )}
+                                  <small>{formatSize(file.size, initialLocale)}</small>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                           {["queued", "sent", "review"].includes(message.deliveryState) && (
                             <small className="delivery-state">
                               {t(
