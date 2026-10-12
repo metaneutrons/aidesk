@@ -116,3 +116,62 @@ test("turns a customer mail into a ticket and threads the reply to our answer", 
     "customer",
   ]);
 });
+test("acknowledges a new ticket once switched on in settings", async ({ page, desk, signIn }) => {
+  const customer = `${desk.prefix}-ack@example.test`;
+  const subject = `Acknowledge ${randomUUID()}`;
+  await signIn();
+  await page.goto("/");
+  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  const toggle = page.getByLabel(`${desk.projects.alpha.name}: send acknowledgements`);
+  await toggle.check();
+  await expect(toggle).toBeChecked();
+  try {
+    await smtp.sendMail({
+      from: `Lee Customer <${customer}>`,
+      to: `${desk.prefix}-alpha@support.local`,
+      subject,
+      text: "Is the export fixed?",
+    });
+    const found = z.object({
+      messages: z.array(z.object({ ID: z.string(), Subject: z.string() })),
+    });
+    let id = "";
+    await expect
+      .poll(
+        async () => {
+          id =
+            found
+              .parse(
+                await (
+                  await page.request.get(
+                    `${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${customer}`)}`,
+                  )
+                ).json(),
+              )
+              .messages.find((message) => message.Subject === `Re: ${subject}`)?.ID ?? "";
+          return id;
+        },
+        { timeout: 45_000, intervals: [1000] },
+      )
+      .not.toBe("");
+    const headers = z
+      .record(z.string(), z.array(z.string()))
+      .parse(await (await page.request.get(`${mailpit}/api/v1/message/${id}/headers`)).json());
+    expect(headers["Auto-Submitted"]).toEqual(["auto-replied"]);
+    expect(headers["In-Reply-To"]?.[0]).toMatch(/^<.+@example\.test>$/);
+    const tickets = ticketList.parse(
+      await (await page.request.get(`/api/v1/tickets?project=${desk.projects.alpha.id}`)).json(),
+    );
+    const ticket = tickets.find((entry) => entry.subject === subject);
+    // An acknowledgement is not an answer: the ticket stays open.
+    expect(ticket?.status).toBe("open");
+    await page.goto(`/?ticket=${ticket?.id ?? ""}`);
+    await expect(
+      page.getByRole("region", { name: "Ticket" }).getByText("Acknowledgement", { exact: true }),
+    ).toBeVisible();
+  } finally {
+    await page.goto("/");
+    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await page.getByLabel(`${desk.projects.alpha.name}: send acknowledgements`).uncheck();
+  }
+});

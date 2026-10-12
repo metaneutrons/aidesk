@@ -7,6 +7,11 @@ import { attachments, ingress, jobs, messages, projects, tickets } from "./db/sc
 import { getObject, putObject } from "./storage";
 import { extractReply } from "../domain/extraction";
 import { attachmentRefusal, safeFilename } from "../domain/attachments";
+import {
+  acknowledgementInterval,
+  acknowledgementText,
+  isAutomaticMail,
+} from "../domain/acknowledgement";
 import { isMessageId } from "../domain/threading";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
@@ -229,7 +234,11 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       return finish(target.id, "processed", recentlyResolved ? "reopened" : "appended");
     }
     const [project] = await tx
-      .select({ defaultLanguage: projects.defaultLanguage })
+      .select({
+        name: projects.name,
+        defaultLanguage: projects.defaultLanguage,
+        settings: projects.settings,
+      })
       .from(projects)
       .where(eq(projects.id, entry.projectId));
     const language = project?.defaultLanguage ?? "en";
@@ -243,10 +252,62 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
         language,
         pendingSince: receivedAt,
       })
-      .returning({ id: tickets.id });
+      .returning({ id: tickets.id, number: tickets.number, revision: tickets.revision });
     if (!ticket) throw new Error("ticket_creation_failed");
     // A reply to a ticket resolved long ago starts a linked follow-up.
     await insertMessage(ticket.id, language, target?.id);
+    // An enabled project acknowledges a new ticket through its outgoing
+    // connection, never to automatic mail and at most once an hour per sender.
+    const connectionId = project?.settings.outboundConnectionId;
+    if (
+      project?.settings.acknowledgements === true &&
+      typeof connectionId === "string" &&
+      !isAutomaticMail(mail.headers, sender.address)
+    ) {
+      const [recent] = await tx
+        .select({ id: messages.id })
+        .from(messages)
+        .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+        .where(
+          and(
+            eq(tickets.projectId, entry.projectId),
+            eq(tickets.requesterEmail, sender.address),
+            eq(messages.authorType, "system"),
+            sql`${messages.source}->>'kind' = 'acknowledgement'`,
+            sql`${messages.createdAt} > now() - make_interval(secs => ${acknowledgementInterval / 1000})`,
+          ),
+        )
+        .limit(1);
+      if (!recent) {
+        const [acknowledgement] = await tx
+          .insert(messages)
+          .values({
+            ticketId: ticket.id,
+            authorType: "system",
+            authorName: project.name,
+            markdown: acknowledgementText(language, ticket.number),
+            language,
+            deliveryState: "queued",
+            source: { kind: "acknowledgement" },
+          })
+          .returning({ id: messages.id });
+        if (!acknowledgement) throw new Error("acknowledgement_creation_failed");
+        await tx.insert(jobs).values({
+          projectId: entry.projectId,
+          type: "mail.send",
+          dedupKey: `acknowledgement:${ticket.id}`,
+          payload: {
+            ticketId: ticket.id,
+            messageId: acknowledgement.id,
+            connectionId,
+            actorId: "system",
+            actorKind: "system",
+            expectedRevision: ticket.revision,
+            resolve: false,
+          },
+        });
+      }
+    }
     return finish(ticket.id, "processed", target ? "follow_up" : "created");
   });
 }

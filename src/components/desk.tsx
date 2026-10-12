@@ -661,6 +661,9 @@ export function Desk({
                             {message.internal && (
                               <span className="status-badge">{t("internal")}</span>
                             )}
+                            {message.authorType === "system" && (
+                              <span className="status-badge">{t("acknowledgement")}</span>
+                            )}
                             <time dateTime={message.createdAt}>
                               {new Intl.DateTimeFormat(initialLocale, {
                                 dateStyle: "medium",
