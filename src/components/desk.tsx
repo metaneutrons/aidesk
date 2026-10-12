@@ -48,6 +48,7 @@ const messageSchema = z.object({
   markdown: z.string(),
   html: z.string(),
   deliveryState: z.string(),
+  deliveryError: z.string().nullable(),
   attachments: z.array(
     z.object({
       id: z.uuid(),
@@ -58,6 +59,16 @@ const messageSchema = z.object({
   ),
   createdAt: z.string(),
 });
+// Why a reply needs checking. Codes without their own text keep the general
+// one; each text says whether the mail was sent.
+const deliveryErrors: Record<string, string> = {
+  recipient_suppressed: "deliveryRecipientSuppressed",
+  suppression_check_failed: "deliverySuppressionCheckFailed",
+  transport_rejected: "deliveryRejected",
+  recipient_not_accepted: "deliveryRejected",
+  transport_acceptance_unknown: "deliveryUnknown",
+  expired_dispatch_lease: "deliveryUnknown",
+};
 // Bytes below 1 KB, otherwise kB or MB with at most one decimal.
 function formatSize(size: number, locale: string): string {
   const [value, unit] =
@@ -684,10 +695,17 @@ export function Desk({
                             </ul>
                           )}
                           {["queued", "sent", "review"].includes(message.deliveryState) && (
-                            <small className="delivery-state">
+                            <small
+                              className={
+                                message.deliveryState === "review"
+                                  ? "delivery-state attention"
+                                  : "delivery-state"
+                              }
+                            >
                               {t(
                                 message.deliveryState === "review"
-                                  ? "deliveryFailed"
+                                  ? (deliveryErrors[message.deliveryError ?? ""] ??
+                                      "deliveryFailed")
                                   : message.deliveryState,
                               )}
                             </small>

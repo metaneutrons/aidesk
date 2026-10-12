@@ -655,6 +655,10 @@ label {
     font-size: 10px;
     color: var(--muted);
 }
+.delivery-state.attention {
+    color: var(--warning);
+    font-weight: 600;
+}
 .composer {
     border: 1px solid var(--line);
     border-radius: 12px;

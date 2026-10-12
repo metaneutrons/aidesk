@@ -129,6 +129,11 @@ export async function getTicket(principal: Principal, ticketId: string) {
     messages: conversation.map((message) => ({
       ...message,
       html: markdownHtml(message.markdown),
+      // Why a reply went to review; only meaningful while it is there.
+      deliveryError:
+        message.deliveryState === "review" && typeof message.source.deliveryError === "string"
+          ? message.source.deliveryError
+          : null,
       attachments: files
         .filter((file) => file.messageId === message.id)
         .map(({ messageId: _messageId, ...file }) => file),
