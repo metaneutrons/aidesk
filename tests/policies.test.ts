@@ -12,6 +12,7 @@ import { seal, unseal } from "../src/server/crypto";
 import { markdownHtml } from "../src/server/markdown";
 import { renderEmail } from "../src/server/email";
 import { isMessageId, threadHeaders } from "../src/domain/threading";
+import { extractReply } from "../src/domain/extraction";
 import { operatorRoles, roleOf, tokenRoles, within } from "../src/domain/roles";
 import { DomainError } from "../src/server/errors";
 import english from "../src/i18n/en.json";
@@ -229,6 +230,53 @@ describe("mail threading headers", () => {
         { messageId: "<x@example.test>\r\nBcc: victim@example.test", fromCustomer: true },
       ]),
     ).toEqual({});
+  });
+});
+describe("parser extraction of new inbound content", () => {
+  it("removes a quoted earlier message after an attribution line", () => {
+    const english = extractReply(
+      "Thanks, that works.\n\nOn Mon, 12 Oct 2026 at 10:00, Orbit <orbit@support.local> wrote:\n> Hi Alex,\n> try this.\n",
+    );
+    expect(english).toEqual({ markdown: "Thanks, that works.", trimmed: true });
+    const german = extractReply(
+      "Danke!\n\nAm 12.10.2026 um 10:00 schrieb Harbor <harbor@support.local>:\n> Hallo\n",
+    );
+    expect(german).toEqual({ markdown: "Danke!", trimmed: true });
+  });
+  it("keeps inline replies between quoted passages", () => {
+    const text =
+      "On Mon, Orbit wrote:\n> Which version do you use?\nVersion 2.3.\n> Does it fail every time?\nOnly on Mondays.";
+    expect(extractReply(text)).toEqual({ markdown: text, trimmed: false });
+    const mixed = "See below.\n\nOn Mon, Orbit wrote:\n> Which version?\n2.3\n> And the OS?\nLinux";
+    expect(extractReply(mixed).markdown).toContain("Linux");
+    expect(extractReply(mixed).markdown).toContain("> Which version?");
+  });
+  it("removes signatures and Outlook headers but keeps code", () => {
+    expect(extractReply("Here is the log:\n\n```\nERR 42\n```\n-- \nAlex\nACME Ltd")).toEqual({
+      markdown: "Here is the log:\n\n```\nERR 42\n```",
+      trimmed: true,
+    });
+    expect(
+      extractReply(
+        "Please check.\n\n-----Original Message-----\nFrom: Orbit\nSent: Monday\nOld text",
+      ).markdown,
+    ).toBe("Please check.");
+    expect(
+      extractReply(
+        "Neue Frage.\n\nVon: Harbor <h@support.local>\nGesendet: Montag\nAn: Alex\nAlte Antwort",
+      ).markdown,
+    ).toBe("Neue Frage.");
+    expect(extractReply("Reply\n\n> quoted only at the end\n> more").markdown).toBe("Reply");
+  });
+  it("never returns empty content", () => {
+    expect(extractReply("> only a forwarded quote\n> nothing else")).toEqual({
+      markdown: "> only a forwarded quote\n> nothing else",
+      trimmed: false,
+    });
+    expect(extractReply("Plain message without history")).toEqual({
+      markdown: "Plain message without history",
+      trimmed: false,
+    });
   });
 });
 describe("role presets", () => {
