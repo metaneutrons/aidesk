@@ -54,6 +54,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 60
+  # HTTPS entry point with a local CA, for MCP and REST clients that require
+  # TLS. Browsers keep using http://localhost:3000.
+  https:
+    image: caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    ports: ["127.0.0.1:8443:8443"]
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      app:
+        condition: service_healthy
   mailpit:
     image: axllent/mailpit@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
@@ -126,6 +137,7 @@ services:
       app:
         condition: service_healthy
 volumes:
+  caddy-data:
   postgres-data:
   silo-data:
   app-dependencies:

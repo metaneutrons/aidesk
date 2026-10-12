@@ -1,0 +1,12 @@
+# Local HTTPS for the development stack. Certificates come from Caddy's own
+# local CA; clients verify them against its root certificate, which
+# scripts/dev.sh https-ca exports. Not a production configuration.
+{
+	local_certs
+	skip_install_trust
+	admin off
+}
+
+https://localhost:8443 {
+	reverse_proxy app:3000
+}
