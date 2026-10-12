@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import {
+  account,
   agents,
   audit,
   connections,
@@ -10,6 +11,7 @@ import {
   memberships,
   messages,
   projects,
+  session,
   tickets,
   user,
 } from "./db/schema";
@@ -299,4 +301,152 @@ export async function revokeAgentToken(principal: Principal, agentId: string) {
     });
   });
   return { revoked: true };
+}
+
+// Operator administration. Owners create and disable operator identities;
+// project access is granted per project by people who manage that project,
+// never beyond the actions they hold there. Owner status alone does not grant
+// project access.
+function requireHuman(principal: Principal): void {
+  if (principal.kind !== "human" || !principal.active) throw new DomainError("forbidden", 403);
+}
+function requireOwner(principal: Principal): void {
+  requireHuman(principal);
+  if (!principal.owner) throw new DomainError("forbidden", 403);
+}
+export async function listOperators(principal: Principal) {
+  requireHuman(principal);
+  const managed = allowedProjectIds(principal, "project.manage");
+  if (!principal.owner && managed.length === 0) throw new DomainError("forbidden", 403);
+  const people = await db()
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      active: user.active,
+      owner: user.owner,
+    })
+    .from(user)
+    .orderBy(user.name);
+  const ids = people.map((person) => person.id);
+  const [grants, logins] = ids.length
+    ? await Promise.all([
+        managed.length
+          ? db()
+              .select({
+                userId: memberships.userId,
+                projectId: memberships.projectId,
+                actions: memberships.actions,
+              })
+              .from(memberships)
+              .where(and(inArray(memberships.userId, ids), inArray(memberships.projectId, managed)))
+          : Promise.resolve([]),
+        db()
+          .select({ userId: account.userId, providerId: account.providerId })
+          .from(account)
+          .where(inArray(account.userId, ids)),
+      ])
+    : [[], []];
+  return people.map((person) => ({
+    ...person,
+    signIn: logins
+      .filter((login) => login.userId === person.id)
+      .map((login) => (login.providerId === "credential" ? "password" : "sso"))
+      .filter((value, index, all) => all.indexOf(value) === index),
+    grants: grants
+      .filter((grant) => grant.userId === person.id)
+      .map((grant) => ({ projectId: grant.projectId, actions: grant.actions })),
+  }));
+}
+const operatorInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.email().max(254),
+});
+export async function createOperator(principal: Principal, input: unknown) {
+  requireOwner(principal);
+  const values = operatorInput.parse(input);
+  const email = values.email.toLowerCase();
+  const [existing] = await db().select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (existing) throw new DomainError("conflict", 409);
+  const operatorId = randomUUID();
+  await db().transaction(async (tx) => {
+    // SSO links an identity provider account to this operator by verified
+    // email; the address is the owner's assertion, hence emailVerified.
+    await tx.insert(user).values({ id: operatorId, name: values.name, email, emailVerified: true });
+    await tx.insert(audit).values({
+      actorId: principal.id,
+      action: "operator.create",
+      targetId: operatorId,
+      detail: { email },
+    });
+  });
+  return { id: operatorId, name: values.name, email };
+}
+const grantInput = z.object({
+  projectId: z.uuid(),
+  actions: z
+    .array(z.string())
+    .max(actions.length)
+    .transform((values) => [...new Set(values)]),
+});
+export async function setOperatorGrant(principal: Principal, operatorId: string, input: unknown) {
+  requireHuman(principal);
+  const values = grantInput.parse(input);
+  if (!permits(principal, values.projectId, "project.manage"))
+    throw new DomainError("not_found", 404);
+  const held =
+    principal.grants.find((grant) => grant.projectId === values.projectId)?.actions ?? [];
+  const granted: Action[] = [];
+  for (const action of values.actions) {
+    if (!isAction(action) || !held.includes(action)) throw new DomainError("forbidden", 403);
+    granted.push(action);
+  }
+  const target = id.parse(operatorId);
+  const [person] = await db().select({ id: user.id }).from(user).where(eq(user.id, target));
+  if (!person) throw new DomainError("not_found", 404);
+  await db().transaction(async (tx) => {
+    if (granted.length === 0)
+      await tx
+        .delete(memberships)
+        .where(and(eq(memberships.userId, target), eq(memberships.projectId, values.projectId)));
+    else
+      await tx
+        .insert(memberships)
+        .values({ userId: target, projectId: values.projectId, actions: granted })
+        .onConflictDoUpdate({
+          target: [memberships.userId, memberships.projectId],
+          set: { actions: granted },
+        });
+    await tx.insert(audit).values({
+      projectId: values.projectId,
+      actorId: principal.id,
+      action: "grant.set",
+      targetId: target,
+      detail: { actions: granted },
+    });
+  });
+  return { userId: target, projectId: values.projectId, actions: granted };
+}
+export async function setOperatorActive(principal: Principal, operatorId: string, input: unknown) {
+  requireOwner(principal);
+  const { active } = z.object({ active: z.boolean() }).parse(input);
+  const target = id.parse(operatorId);
+  if (target === principal.id) throw new DomainError("forbidden", 403);
+  const [person] = await db()
+    .select({ id: user.id, owner: user.owner })
+    .from(user)
+    .where(eq(user.id, target));
+  if (!person) throw new DomainError("not_found", 404);
+  // Owners are the recovery path; they are not disabled from here.
+  if (person.owner) throw new DomainError("forbidden", 403);
+  await db().transaction(async (tx) => {
+    await tx.update(user).set({ active, updatedAt: new Date() }).where(eq(user.id, target));
+    if (!active) await tx.delete(session).where(eq(session.userId, target));
+    await tx.insert(audit).values({
+      actorId: principal.id,
+      action: active ? "operator.enable" : "operator.disable",
+      targetId: target,
+    });
+  });
+  return { id: target, active };
 }
