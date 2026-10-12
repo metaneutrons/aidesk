@@ -317,6 +317,15 @@ automatically retry an uncertain send. A worker that lost its lease writes
 neither success nor failure; when that lease ends too, the dispatch goes to
 review instead of being sent again.
 
+When a message is accepted by the transport, the worker keeps a snapshot of it in
+the message: time, transport, recipient, sender and reply-to address, subject,
+language, template version, the final Markdown and the rendered HTML and text.
+Later changes of the ticket, the message or the template do not alter it. The
+ticket view shows the facts of the snapshot (`sent`), `getSentSnapshot` returns
+the whole mail to readers of the project, and only for sent public messages. The
+draft in the author's own language is not kept separately yet; translation of
+drafts follows with M4.
+
 REST begins at `/api/v1`, MCP at `/api/mcp`. The stateless Streamable HTTP MCP
 endpoint requires an active, unexpired project-scoped bearer agent token. Token
 provisioning UI and owner recovery are not finished. MCP registration is filtered
@@ -339,7 +348,9 @@ A version never changes. People with `project.manage` add a new one and select
 it (version 0 is the built-in design a project has until then); both steps are
 audited. The worker renders every reply and acknowledgement with the version
 that is selected when it sends, through the same renderer for SMTP and the
-Cloudflare API, with the plain-text body derived from the same content.
+Cloudflare API, with the plain-text body derived from the same content. The
+snapshot of a sent message names the design version it was rendered with (0 for
+the built-in design), so a later selection does not change what is recorded.
 `previewEmail` renders a sample like a real send, with the selected version by
 default, a saved version, or, for managers, an unsaved draft. The HTML carries a
 dark variant for programs that follow the system appearance and scales to the

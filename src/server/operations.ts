@@ -131,6 +131,9 @@ export async function getTicket(principal: Principal, ticketId: string) {
     ticket,
     messages: conversation.map(({ rawObjectKey, ...message }) => ({
       ...message,
+      // The rendered mail is read through getSentSnapshot; here only its facts.
+      source: Object.fromEntries(Object.entries(message.source).filter(([key]) => key !== "sent")),
+      sent: sentSummary(message.source.sent),
       html: markdownHtml(message.markdown),
       // The private original can be downloaded; the storage key stays inside.
       hasOriginal: rawObjectKey !== null,
@@ -149,6 +152,49 @@ export async function getTicket(principal: Principal, ticketId: string) {
     // The worker sends public replies to the requester only.
     recipients: [{ name: ticket.requesterName, address: ticket.requesterEmail }],
   };
+}
+const snapshot = z.object({
+  at: z.string(),
+  transport: z.string(),
+  to: z.string(),
+  from: z.string(),
+  replyTo: z.string(),
+  subject: z.string(),
+  language: z.string(),
+  templateVersion: z.number(),
+  designVersion: z.number().optional(),
+  markdown: z.string(),
+  html: z.string(),
+  text: z.string(),
+});
+function sentSummary(value: unknown) {
+  const parsed = snapshot.safeParse(value);
+  if (!parsed.success) return null;
+  const { at, transport, to, from, replyTo, subject, language, templateVersion, designVersion } =
+    parsed.data;
+  return { at, transport, to, from, replyTo, subject, language, templateVersion, designVersion };
+}
+// The mail exactly as it was handed to the transport. Only messages that were
+// sent have one; everything else, and every message the principal may not
+// read, answers not_found.
+export async function getSentSnapshot(principal: Principal, messageId: string) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  if (!allowed.length) throw new DomainError("not_found", 404);
+  const [found] = await db()
+    .select({ source: messages.source, projectId: tickets.projectId })
+    .from(messages)
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(
+      and(
+        eq(messages.id, id.parse(messageId)),
+        eq(messages.internal, false),
+        eq(messages.deliveryState, "sent"),
+      ),
+    );
+  const parsed = snapshot.safeParse(found?.source.sent);
+  if (!found || !allowed.includes(found.projectId) || !parsed.success)
+    throw new DomainError("not_found", 404);
+  return parsed.data;
 }
 // A stored attachment of a ticket the principal may read. Refused files,
 // unknown ids and files of other projects all answer not_found.
