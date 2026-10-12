@@ -25,6 +25,8 @@ import {
   user,
 } from "../src/server/db/schema";
 import { actions, type Action } from "../src/domain/permissions";
+import { seal } from "../src/server/crypto";
+import { env } from "../src/server/env";
 if (process.env.DEV_BOOTSTRAP !== "true" || process.env.NODE_ENV !== "development")
   throw new Error("Browser-test fixtures are restricted to private development.");
 const fixtureProjects: { key: string; label: string; grant: Action[] | null; language: string }[] =
@@ -114,6 +116,23 @@ async function setup() {
         .update(projects)
         .set({ settings: { e2eFixture: run, outboundConnectionId: outgoing.id } })
         .where(eq(projects.id, project.id));
+      // Inbound mail for this project arrives in its own GreenMail mailbox.
+      await tx.insert(connections).values({
+        projectId: project.id,
+        kind: "imap",
+        name: "Development GreenMail",
+        direction: "inbound",
+        status: "ready",
+        config: {
+          host: process.env.DEV_IMAP_HOST ?? "greenmail",
+          port: Number(process.env.DEV_IMAP_PORT ?? 3143),
+          secure: false,
+          user: `${prefix}-${key}@support.local`,
+          mailbox: "INBOX",
+          developmentOnly: true,
+        },
+        secretCiphertext: seal(JSON.stringify({ pass: "development" }), env().ENCRYPTION_KEY),
+      });
       const ids: string[] = [];
       for (const index of ["1", "2"]) {
         const [ticket] = await tx

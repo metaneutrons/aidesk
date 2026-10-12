@@ -72,6 +72,17 @@ jobs:
           done
           docker logs silo
           exit 1
+      - name: Start the mailbox server for the IMAP tests
+        run: |
+          docker run -d --name greenmail -p 127.0.0.1:3025:3025 -p 127.0.0.1:3143:3143 \
+            -e GREENMAIL_OPTS="-Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled" \
+            greenmail/standalone@sha256:1ef95a966418cd09b7ea91d504d8c0826bbe7a2f6e679a75c601a831587c1626
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/3143) 2>/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker logs greenmail
+          exit 1
       - run: pnpm test --coverage
       - run: pnpm check:gates
       - name: Check the package content

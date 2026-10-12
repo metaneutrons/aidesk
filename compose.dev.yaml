@@ -65,6 +65,16 @@ services:
     depends_on:
       app:
         condition: service_healthy
+  # Development mailbox server with SMTP (3025) and IMAP (3143). Mailboxes are
+  # created on first delivery and any password is accepted. Tests deliver
+  # customer mail here and the worker reads it over IMAP.
+  greenmail:
+    image: greenmail/standalone@sha256:1ef95a966418cd09b7ea91d504d8c0826bbe7a2f6e679a75c601a831587c1626
+    environment:
+      GREENMAIL_OPTS: >-
+        -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap
+        -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled
+    ports: ["127.0.0.1:3025:3025", "127.0.0.1:3143:3143"]
   mailpit:
     image: axllent/mailpit@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
@@ -90,6 +100,9 @@ services:
       DEV_OWNER_PASSWORD: ${DEV_OWNER_PASSWORD}
       DEV_SMTP_HOST: mailpit
       DEV_SMTP_PORT: "1025"
+      DEV_IMAP_HOST: greenmail
+      DEV_IMAP_PORT: "3143"
+      IMAP_POLL_SECONDS: "5"
       # The source and .git are bind-mounted from the host. Hooks installed here
       # would point the host's Git at binaries that exist only in this container.
       AIDESK_SKIP_GIT_HOOKS: "true"

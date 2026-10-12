@@ -19,6 +19,7 @@ import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
 import { processIngress } from "../server/inbound";
+import { pollImapConnection } from "../server/imap";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -350,9 +351,48 @@ async function runIngest(): Promise<boolean> {
   }
   return true;
 }
+// Inbound mailboxes are polled; Degraded connections keep being tried so they
+// recover on their own, and each result updates the connection status.
+const imapPollMs = Math.max(5, Number(process.env.IMAP_POLL_SECONDS) || 60) * 1000;
+let nextImapPoll = 0;
+async function pollMailboxes(): Promise<void> {
+  if (Date.now() < nextImapPoll) return;
+  nextImapPoll = Date.now() + imapPollMs;
+  const inbound = await db()
+    .select({ id: connections.id })
+    .from(connections)
+    .where(
+      and(
+        eq(connections.kind, "imap"),
+        eq(connections.direction, "inbound"),
+        inArray(connections.status, ["ready", "degraded"]),
+      ),
+    );
+  for (const connection of inbound) {
+    try {
+      const result = await pollImapConnection(connection.id);
+      await db()
+        .update(connections)
+        .set({ status: "ready", updatedAt: new Date() })
+        .where(eq(connections.id, connection.id));
+      if (result.accepted || result.duplicates || result.uidValidityChanged)
+        console.log(
+          JSON.stringify({ event: "imap.polled", connectionId: connection.id, ...result }),
+        );
+    } catch (error) {
+      await db()
+        .update(connections)
+        .set({ status: "degraded", updatedAt: new Date() })
+        .where(eq(connections.id, connection.id));
+      const code = error instanceof Error ? error.message.slice(0, 64) : "imap_failed";
+      console.log(JSON.stringify({ event: "imap.failed", connectionId: connection.id, code }));
+    }
+  }
+}
 console.log(JSON.stringify({ event: "worker.ready" }));
 while (!lifecycle.stopped) {
   try {
+    await pollMailboxes();
     const ingested = await runIngest();
     const sent = await runNext();
     if (!ingested && !sent) await delay(1000);
