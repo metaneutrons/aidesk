@@ -54,17 +54,26 @@ export async function listTickets(principal: Principal, requested: string[] = []
 export async function getTicket(principal: Principal, ticketId: string) {
   const allowed = allowedProjectIds(principal, "ticket.read");
   if (!allowed.length) throw new DomainError("not_found", 404);
-  const [ticket] = await db()
-    .select()
-    .from(tickets)
-    .where(and(eq(tickets.id, id.parse(ticketId)), inArray(tickets.projectId, allowed)))
-    .limit(1);
-  if (!ticket) throw new DomainError("not_found", 404);
-  const conversation = await db()
-    .select()
-    .from(messages)
-    .where(eq(messages.ticketId, ticket.id))
-    .orderBy(messages.createdAt);
+  // One snapshot for ticket and messages. Read separately, a delivery that
+  // commits in between returned the message as sent with the ticket still
+  // open, and the desk stopped refreshing on that inconsistent state.
+  const { ticket, conversation } = await db().transaction(
+    async (tx) => {
+      const [found] = await tx
+        .select()
+        .from(tickets)
+        .where(and(eq(tickets.id, id.parse(ticketId)), inArray(tickets.projectId, allowed)))
+        .limit(1);
+      if (!found) throw new DomainError("not_found", 404);
+      const rows = await tx
+        .select()
+        .from(messages)
+        .where(eq(messages.ticketId, found.id))
+        .orderBy(messages.createdAt);
+      return { ticket: found, conversation: rows };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
   return {
     ticket,
     messages: conversation.map((message) => ({ ...message, html: markdownHtml(message.markdown) })),
