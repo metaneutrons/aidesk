@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { test as base, expect } from "@playwright/test";
 import { z } from "zod";
 import { createIdpUser, deleteIdpUser } from "./keycloak";
+import { totp } from "./totp";
 const projectSchema = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -13,6 +14,9 @@ const deskSchema = z.object({
   prefix: z.string(),
   email: z.email(),
   password: z.string().min(16),
+  totpSecret: z.string().min(16),
+  backupCodes: z.array(z.string()),
+  plain: z.email(),
   projects: z.object({ alpha: projectSchema, beta: projectSchema, hidden: projectSchema }),
   sso: z.object({ oidc: z.email(), saml: z.email(), stranger: z.email() }),
 });
@@ -60,11 +64,17 @@ export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>
   ],
   signIn: async ({ page, desk, baseURL }, use) => {
     await use(async () => {
+      const headers = { origin: baseURL ?? "" };
       const response = await page.request.post("/api/auth/sign-in/email", {
         data: { email: desk.email, password: desk.password },
-        headers: { origin: baseURL ?? "" },
+        headers,
       });
-      expect(response.ok()).toBe(true);
+      expect(await response.json()).toMatchObject({ twoFactorRedirect: true });
+      const verified = await page.request.post("/api/auth/two-factor/verify-totp", {
+        data: { code: totp(desk.totpSecret) },
+        headers,
+      });
+      expect(verified.ok()).toBe(true);
     });
   },
 });

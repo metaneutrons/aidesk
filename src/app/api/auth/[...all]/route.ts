@@ -31,6 +31,18 @@ async function handle(request: Request): Promise<Response> {
       if (typeof body !== "object" || body === null || "requestSignUp" in body)
         throw new DomainError("invalid_input", 400);
     }
+    // Owners receive TOTP only through the claim; it cannot be removed or
+    // replaced over the API, and devices are never trusted to skip it.
+    if (path === "/two-factor/enable" || path === "/two-factor/disable")
+      throw new DomainError("forbidden", 403);
+    if (path.startsWith("/two-factor/verify") && request.method === "POST") {
+      const body: unknown = await request
+        .clone()
+        .json()
+        .catch(() => null);
+      if (typeof body !== "object" || body === null || "trustDevice" in body)
+        throw new DomainError("invalid_input", 400);
+    }
     if (managementPaths.has(path)) {
       const principal = await identify(request.headers);
       if (principal.kind !== "human" || !principal.owner) throw new DomainError("forbidden", 403);

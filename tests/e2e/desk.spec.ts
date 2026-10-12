@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { expect, mailpit, test } from "./fixtures";
+import { totp } from "./totp";
 const conversation = (page: Page) => page.getByRole("region", { name: "Ticket" });
 async function openInbox(page: Page) {
   await page.goto("/");
@@ -20,6 +21,8 @@ test("rejects a wrong password and opens a deep-linked ticket after sign-in", as
   await expect(page.getByRole("alert").filter({ hasText: "Sign-in failed" })).toBeVisible();
   await page.getByLabel("Password").fill(desk.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Authentication code").fill(totp(desk.totpSecret));
+  await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(new RegExp(`\\?ticket=${ticket}$`));
   await expect(conversation(page).getByRole("heading", { level: 2 })).toHaveText(
     `${desk.projects.alpha.name} request 1`,

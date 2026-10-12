@@ -32,6 +32,7 @@ export const user = pgTable("auth_user", {
   active: boolean("active").notNull().default(true),
   owner: boolean("owner").notNull().default(false),
   locale: text("locale"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
 });
 export const session = pgTable(
   "auth_session",
@@ -84,6 +85,23 @@ export const verification = pgTable(
     updatedAt: updated(),
   },
   (t) => [index("verification_identifier_idx").on(t.identifier)],
+);
+// Better Auth two-factor plugin. The secret and backup codes are encrypted by
+// Better Auth itself with BETTER_AUTH_SECRET, so these are plain text columns.
+export const twoFactor = pgTable(
+  "auth_two_factor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  },
+  (t) => [index("two_factor_user_idx").on(t.userId), index("two_factor_secret_idx").on(t.secret)],
 );
 export const ssoProvider = pgTable("sso_provider", {
   id: text("id").primaryKey(),

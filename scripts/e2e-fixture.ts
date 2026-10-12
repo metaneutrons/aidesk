@@ -7,7 +7,7 @@
 //   disable <email>           deactivates a fixture user
 //   revoke-sessions <email>   deletes a fixture user's sessions
 import { randomBytes, randomUUID } from "node:crypto";
-import { hashPassword } from "better-auth/crypto";
+import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
 import { eq, inArray, like, or } from "drizzle-orm";
 import { db, sqlClient } from "../src/server/db";
 import {
@@ -21,6 +21,7 @@ import {
   projects,
   session,
   tickets,
+  twoFactor,
   user,
 } from "../src/server/db/schema";
 import { actions, type Action } from "../src/domain/permissions";
@@ -39,6 +40,13 @@ async function setup() {
   const password = randomBytes(16).toString("hex");
   const userId = randomUUID();
   const hashed = await hashPassword(password);
+  // Owners need TOTP for password sign-in; the tests compute codes from this
+  // secret, and the backup codes cover single use.
+  const totpSecret = randomBytes(24).toString("base64url");
+  const backupCodes = ["e2e01-aaaaa", "e2e02-bbbbb"];
+  const authSecret = process.env.BETTER_AUTH_SECRET ?? "";
+  const plain = `${prefix}-plain@aidesk.local`;
+  const plainId = randomUUID();
   const result = await db().transaction(async (tx) => {
     await tx.insert(user).values({
       id: userId,
@@ -46,12 +54,31 @@ async function setup() {
       email,
       emailVerified: true,
       owner: true,
+      twoFactorEnabled: true,
     });
     await tx.insert(account).values({
       id: randomUUID(),
       accountId: userId,
       providerId: "credential",
       userId,
+      password: hashed,
+    });
+    await tx.insert(twoFactor).values({
+      id: randomUUID(),
+      userId,
+      secret: await symmetricEncrypt({ key: authSecret, data: totpSecret }),
+      backupCodes: await symmetricEncrypt({ key: authSecret, data: JSON.stringify(backupCodes) }),
+      verified: true,
+    });
+    // A non-owner with a password, which must not be able to use it.
+    await tx
+      .insert(user)
+      .values({ id: plainId, name: `E2E plain ${run}`, email: plain, emailVerified: true });
+    await tx.insert(account).values({
+      id: randomUUID(),
+      accountId: plainId,
+      providerId: "credential",
+      userId: plainId,
       password: hashed,
     });
     const created: Record<string, { id: string; name: string; tickets: string[] }> = {};
@@ -136,7 +163,7 @@ async function setup() {
         .values({ userId: id, projectId: alpha.id, actions: [...actions] });
     }
   });
-  return { run, prefix, email, password, projects: result, sso };
+  return { run, prefix, email, password, totpSecret, backupCodes, plain, projects: result, sso };
 }
 async function teardown(run: string) {
   if (!/^[a-f0-9]{8}$/.test(run)) throw new Error("Invalid run identifier.");
