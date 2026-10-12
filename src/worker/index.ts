@@ -146,6 +146,7 @@ async function runNext(): Promise<boolean> {
       !connection ||
       // An acknowledgement does not depend on the ticket's later changes.
       (payload.actorKind !== "system" && ticket.revision !== payload.expectedRevision) ||
+      ticket.junkAt !== null ||
       project.settings.pauseOutgoing === true ||
       project.settings.outboundConnectionId !== connection.id
     )

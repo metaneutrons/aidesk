@@ -38,6 +38,7 @@ export default async function Home({
     updatedAt: ticket.updatedAt.toISOString(),
     pendingSince: ticket.pendingSince?.toISOString() ?? null,
     resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
+    junkAt: ticket.junkAt?.toISOString() ?? null,
   }));
   return (
     <NextIntlClientProvider

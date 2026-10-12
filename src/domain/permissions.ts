@@ -6,6 +6,7 @@ export const actions = [
   "ticket.note",
   "ticket.assign",
   "ticket.resolve",
+  "ticket.junk",
   "intake.manage",
   "integration.manage",
   "agent.manage",
