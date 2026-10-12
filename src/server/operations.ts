@@ -38,10 +38,36 @@ export async function listProjects(principal: Principal) {
       name: projects.name,
       color: projects.color,
       defaultLanguage: projects.defaultLanguage,
+      acknowledgements: sql<boolean>`coalesce((${projects.settings}->>'acknowledgements')::boolean, false)`,
     })
     .from(projects)
     .where(inArray(projects.id, allowed))
     .orderBy(projects.name);
+}
+// Project behaviour that people with project.manage may change. Only the
+// listed fields are accepted; other settings are kept as they are.
+const projectSettingsInput = z.object({ acknowledgements: z.boolean() }).strict();
+export async function setProjectSettings(principal: Principal, projectId: string, input: unknown) {
+  const project = id.parse(projectId);
+  if (principal.kind !== "human" || !permits(principal, project, "project.manage"))
+    throw new DomainError("forbidden", 403);
+  const values = projectSettingsInput.parse(input);
+  return db().transaction(async (tx) => {
+    const [updated] = await tx
+      .update(projects)
+      .set({ settings: sql`${projects.settings} || ${JSON.stringify(values)}::jsonb` })
+      .where(eq(projects.id, project))
+      .returning({ id: projects.id });
+    if (!updated) throw new DomainError("not_found", 404);
+    await tx.insert(audit).values({
+      projectId: project,
+      actorId: principal.id,
+      action: "project.settings",
+      targetId: project,
+      detail: values,
+    });
+    return values;
+  });
 }
 export async function listTickets(principal: Principal, requested: string[] = []) {
   const allowed = allowedProjectIds(principal, "ticket.read");

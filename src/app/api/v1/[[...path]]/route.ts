@@ -15,6 +15,7 @@ import {
   setLocale,
   setOperatorActive,
   setOperatorGrant,
+  setProjectSettings,
 } from "../../../../server/operations";
 import { DomainError } from "../../../../server/errors";
 export const dynamic = "force-dynamic";
@@ -69,6 +70,13 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await setOperatorActive(principal, identifier, input));
       if (resource === "projects" && identifier && operation === "agents" && segments.length === 3)
         return Response.json(await issueAgentToken(principal, identifier, input), { status: 201 });
+      if (
+        resource === "projects" &&
+        identifier &&
+        operation === "settings" &&
+        segments.length === 3
+      )
+        return Response.json(await setProjectSettings(principal, identifier, input));
       if (resource === "agents" && identifier && operation === "revoke" && segments.length === 3)
         return Response.json(await revokeAgentToken(principal, identifier));
       if (resource === "tickets" && identifier && operation === "reply" && segments.length === 3)

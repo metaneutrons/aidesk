@@ -118,6 +118,8 @@ export interface OutgoingMail {
   inReplyTo?: string;
   references?: string;
   ticketId: string;
+  // An acknowledgement or other automatic mail (RFC 3834).
+  automatic?: boolean;
 }
 const sendResponse = z.object({
   success: z.boolean(),
@@ -144,6 +146,10 @@ export async function sendViaCloudflare(
   mail: OutgoingMail,
 ): Promise<{ messageId: string | null }> {
   const headers: Record<string, string> = { "X-Aidesk-Ticket": mail.ticketId };
+  if (mail.automatic) {
+    headers["Auto-Submitted"] = "auto-replied";
+    headers["X-Auto-Response-Suppress"] = "All";
+  }
   if (isMessageId(mail.inReplyTo)) headers["In-Reply-To"] = mail.inReplyTo;
   if (mail.references?.split(" ").every(isMessageId)) headers.References = mail.references;
   let response: Response;
