@@ -99,6 +99,33 @@ TOTP codes, so a code can be reused within its 90-second window by someone who
 also knows the password. Further owners, re-enrolment after a lost authenticator
 and owner management are not implemented yet.
 
+## Remote MCP over HTTPS
+
+The development stack serves the app through Caddy at `https://localhost:8443`
+with certificates from Caddy's local CA. Clients verify them against its root
+certificate; `sh scripts/dev.sh https-ca` prints it. The MCP endpoint is
+`/api/mcp` (stateless Streamable HTTP) and needs a project-scoped bearer token.
+
+People with `agent.manage` on a project issue tokens through `POST
+/api/v1/projects/:id/agents` (`name`, `actions`, `expiresInDays` up to 90) and
+revoke them with `POST /api/v1/agents/:id/revoke`. A token never gets an action
+its issuer lacks or `agent.manage`, agents cannot issue tokens, the value is
+returned once and only its SHA-256 hash is stored, and issue and revoke are
+audited. A settings UI for tokens is M3 work.
+
+Claude Code was qualified as a real remote client: with a token for one project it
+saw only that project and its tickets; without the root certificate and after
+revocation it had no aidesk tools. To repeat it, export the certificate and add
+the server with the token in a header:
+
+```sh
+sh scripts/dev.sh https-ca > .local/https-ca.crt
+NODE_EXTRA_CA_CERTS=.local/https-ca.crt claude mcp add --transport http aidesk https://localhost:8443/api/mcp --header "Authorization: Bearer <token>"
+```
+
+Interactive OAuth discovery with PKCE and resource binding for MCP clients is not
+implemented; clients use issued bearer tokens.
+
 ## What the slice supports
 
 Staff can log in with the generated development credentials, see only explicitly
