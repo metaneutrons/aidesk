@@ -235,7 +235,22 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
-Not yet implemented: language detection. GreenMail is a
+A new ticket takes the language of its first message when it can be named
+reliably, otherwise the project's default language. The detection
+(`src/domain/language.ts`) counts function words that belong to only one of the
+supported languages (English, German) in what the person wrote, without quoted
+history, code and links. It needs at least eight words, three function words
+of one language and clearly more than of the other; a short, mixed or neutral
+text yields no language instead of a guess. Each message records the detection
+and the first message the decision (`ticket`, `requester`, `detected` or
+`project`, and whether the project default was used because detection was
+open). The order is explicit ticket choice, requester preference, detection,
+project default; the operator's interface language is no input. A later message
+in another language keeps the ticket language and records its own. Requester
+preferences and enabled target languages per project follow with the portal and
+translation work.
+
+Not yet implemented: translation. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 
