@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { z } from "zod";
 import { db, sqlClient } from "../server/db";
@@ -18,6 +18,7 @@ import { renderEmail } from "../server/email";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
+import { processIngress } from "../server/inbound";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -276,10 +277,85 @@ async function runNext(): Promise<boolean> {
   }
   return true;
 }
+// Inbound processing is idempotent, so a lost lease is simply requeued and
+// transient failures retry with backoff: at most six attempts in about a day.
+const ingestBackoffMinutes = [1, 5, 30, 120, 360, 1440];
+async function runIngest(): Promise<boolean> {
+  await db()
+    .update(jobs)
+    .set({ status: "retry", leaseUntil: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(jobs.status, "running"),
+        eq(jobs.type, "mail.ingest"),
+        sql`${jobs.leaseUntil} < now()`,
+      ),
+    );
+  const leaseToken = randomUUID();
+  const job = await db().transaction(async (tx) => {
+    const [due] = await tx
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          inArray(jobs.status, ["queued", "retry"]),
+          eq(jobs.type, "mail.ingest"),
+          sql`${jobs.runAfter} <= now()`,
+        ),
+      )
+      .orderBy(jobs.runAfter)
+      .limit(1)
+      .for("update", { skipLocked: true });
+    if (!due) return null;
+    const [claimed] = await tx
+      .update(jobs)
+      .set({
+        status: "running",
+        leaseToken,
+        leaseUntil: new Date(Date.now() + 120_000),
+        attempts: due.attempts + 1,
+      })
+      .where(eq(jobs.id, due.id))
+      .returning();
+    return claimed ?? null;
+  });
+  if (!job) return false;
+  const owned = and(eq(jobs.id, job.id), eq(jobs.leaseToken, leaseToken));
+  try {
+    const outcome = await processIngress(z.uuid().parse(job.payload.ingressId));
+    await db()
+      .update(jobs)
+      .set({ status: "succeeded", leaseUntil: null, updatedAt: new Date() })
+      .where(owned);
+    console.log(JSON.stringify({ event: "mail.ingested", jobId: job.id, outcome }));
+  } catch (error) {
+    const code = error instanceof Error ? error.message.slice(0, 64) : "ingest_failed";
+    const permanent = code === "inbound_sender_missing" || code === "ingress_missing";
+    const delay = ingestBackoffMinutes[job.attempts - 1];
+    await db()
+      .update(jobs)
+      .set(
+        permanent || delay === undefined || job.attempts >= ingestBackoffMinutes.length
+          ? { status: "review", lastErrorCode: code, leaseUntil: null, updatedAt: new Date() }
+          : {
+              status: "retry",
+              lastErrorCode: code,
+              leaseUntil: null,
+              runAfter: new Date(Date.now() + delay * 60_000 * (0.8 + Math.random() * 0.4)),
+              updatedAt: new Date(),
+            },
+      )
+      .where(owned);
+    console.log(JSON.stringify({ event: "mail.ingest_failed", jobId: job.id, code }));
+  }
+  return true;
+}
 console.log(JSON.stringify({ event: "worker.ready" }));
 while (!lifecycle.stopped) {
   try {
-    if (!(await runNext())) await delay(1000);
+    const ingested = await runIngest();
+    const sent = await runNext();
+    if (!ingested && !sent) await delay(1000);
   } catch {
     console.log(JSON.stringify({ event: "worker.database_unavailable" }));
     await delay(3000);

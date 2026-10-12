@@ -1,0 +1,206 @@
+import { createHash } from "node:crypto";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { simpleParser, type AddressObject } from "mailparser";
+import TurndownService from "turndown";
+import { db } from "./db";
+import { ingress, jobs, messages, projects, tickets } from "./db/schema";
+import { getObject, putObject } from "./storage";
+import { extractReply } from "../domain/extraction";
+import { isMessageId } from "../domain/threading";
+// Inbound mail, independent of the adapter that received it. The original is
+// stored first, then the ingress record and its processing job are committed
+// together. Processing is idempotent and may be retried.
+const maxRawBytes = 25 * 1024 * 1024;
+const reopenWindowMs = 30 * 86_400_000;
+export async function acceptInbound(input: {
+  projectId: string;
+  connectionId: string | null;
+  // Namespaced by the adapter, for example imap:<connection>:<uidvalidity>:<uid>.
+  externalKey: string;
+  raw: Buffer;
+}): Promise<{ ingressId: string; duplicate: boolean }> {
+  if (input.raw.length === 0 || input.raw.length > maxRawBytes) throw new Error("inbound_size");
+  const checksum = createHash("sha256").update(input.raw).digest("hex");
+  const rawObjectKey = `inbound/${input.projectId}/${checksum}.eml`;
+  await putObject(rawObjectKey, input.raw, "message/rfc822");
+  return db().transaction(async (tx) => {
+    const [created] = await tx
+      .insert(ingress)
+      .values({
+        projectId: input.projectId,
+        connectionId: input.connectionId,
+        externalKey: input.externalKey,
+        rawObjectKey,
+        checksum,
+      })
+      .onConflictDoNothing({ target: ingress.externalKey })
+      .returning({ id: ingress.id });
+    if (!created) {
+      const [existing] = await tx
+        .select({ id: ingress.id })
+        .from(ingress)
+        .where(eq(ingress.externalKey, input.externalKey));
+      if (!existing) throw new Error("inbound_conflict");
+      return { ingressId: existing.id, duplicate: true };
+    }
+    await tx.insert(jobs).values({
+      projectId: input.projectId,
+      type: "mail.ingest",
+      dedupKey: `ingest:${created.id}`,
+      payload: { ingressId: created.id },
+    });
+    return { ingressId: created.id, duplicate: false };
+  });
+}
+function firstAddress(value: AddressObject | AddressObject[] | undefined) {
+  const list = Array.isArray(value) ? value : value ? [value] : [];
+  const entry = list.flatMap((item) => item.value).find((item) => item.address);
+  return entry?.address
+    ? { address: entry.address.toLowerCase(), name: entry.name || entry.address }
+    : null;
+}
+function referenceIds(inReplyTo: string | undefined, references: string | string[] | undefined) {
+  const all = [inReplyTo, ...(Array.isArray(references) ? references : [references])]
+    .flatMap((value) => value?.split(/\s+/) ?? [])
+    .filter((value) => isMessageId(value));
+  return [...new Set(all)];
+}
+const turndown = new TurndownService({ codeBlockStyle: "fenced", headingStyle: "atx" });
+export type IngestOutcome = "created" | "appended" | "reopened" | "duplicate" | "follow_up";
+export async function processIngress(ingressId: string): Promise<IngestOutcome | "done"> {
+  const [entry] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
+  if (!entry) throw new Error("ingress_missing");
+  if (entry.state !== "queued") return "done";
+  const mail = await simpleParser(await getObject(entry.rawObjectKey));
+  const sender = firstAddress(mail.from);
+  if (!sender) {
+    await db().update(ingress).set({ state: "review" }).where(eq(ingress.id, entry.id));
+    throw new Error("inbound_sender_missing");
+  }
+  const messageId = isMessageId(mail.messageId) ? mail.messageId : null;
+  // HTML keeps lists, links and code better than the derived text part;
+  // quoted history becomes "> " lines that the extraction recognises.
+  const body =
+    typeof mail.html === "string" && mail.html.trim()
+      ? turndown.turndown(mail.html)
+      : (mail.text ?? "");
+  const extraction = extractReply(body.trim() ? body : "(no text content)");
+  const references = referenceIds(mail.inReplyTo, mail.references);
+  const subject = (mail.subject ?? "").trim() || "(no subject)";
+  const receivedAt = entry.receivedAt;
+  return db().transaction(async (tx) => {
+    // Serialise processing per project so duplicates and threading decisions
+    // see each other's results.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`ingest:${entry.projectId}`}))`);
+    const [current] = await tx
+      .select({ state: ingress.state })
+      .from(ingress)
+      .where(eq(ingress.id, entry.id))
+      .for("update");
+    if (current?.state !== "queued") return "done";
+    const finish = async (ticketId: string | null, state: string, outcome: IngestOutcome) => {
+      await tx
+        .update(ingress)
+        .set({
+          state,
+          ticketId,
+          parsed: { messageId, from: sender.address, subject, references, outcome },
+        })
+        .where(eq(ingress.id, entry.id));
+      return outcome;
+    };
+    if (messageId) {
+      const [seen] = await tx
+        .select({ ticketId: messages.ticketId })
+        .from(messages)
+        .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+        .where(
+          and(eq(tickets.projectId, entry.projectId), eq(messages.receivedMessageId, messageId)),
+        )
+        .limit(1);
+      if (seen) return finish(seen.ticketId, "duplicate", "duplicate");
+    }
+    // A reply continues a ticket only through a reference to one of its
+    // messages in this project and only from the ticket's requester. Claimed
+    // identifiers alone, or another sender, start a separate ticket.
+    let target: typeof tickets.$inferSelect | undefined;
+    if (references.length) {
+      const [match] = await tx
+        .select({ ticket: tickets })
+        .from(messages)
+        .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+        .where(
+          and(
+            eq(tickets.projectId, entry.projectId),
+            or(
+              inArray(messages.receivedMessageId, references),
+              inArray(sql<string>`${messages.source}->>'messageId'`, references),
+            ),
+          ),
+        )
+        .orderBy(sql`${messages.createdAt} desc`)
+        .limit(1);
+      if (match?.ticket.requesterEmail.toLowerCase() === sender.address) target = match.ticket;
+    }
+    const source = {
+      from: sender.address,
+      subject,
+      extraction: "parser",
+      trimmed: extraction.trimmed,
+      attachments: mail.attachments.length,
+    };
+    const insertMessage = (ticketId: string, language: string, followUpOf?: string) =>
+      tx.insert(messages).values({
+        ticketId,
+        authorType: "customer",
+        authorName: sender.name,
+        authorEmail: sender.address,
+        markdown: extraction.markdown,
+        language,
+        receivedMessageId: messageId,
+        rawObjectKey: entry.rawObjectKey,
+        deliveryState: "received",
+        source: followUpOf ? { ...source, followUpOf } : source,
+        createdAt: receivedAt,
+      });
+    const recentlyResolved =
+      target?.status === "resolved" &&
+      target.resolvedAt !== null &&
+      receivedAt.getTime() - target.resolvedAt.getTime() <= reopenWindowMs;
+    if (target && (target.status !== "resolved" || recentlyResolved)) {
+      await insertMessage(target.id, target.language);
+      await tx
+        .update(tickets)
+        .set({
+          status: "open",
+          resolvedAt: null,
+          // The obligation starts at the first still-unanswered message.
+          pendingSince: target.pendingSince ?? receivedAt,
+          revision: sql`${tickets.revision} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(tickets.id, target.id));
+      return finish(target.id, "processed", recentlyResolved ? "reopened" : "appended");
+    }
+    const [project] = await tx
+      .select({ defaultLanguage: projects.defaultLanguage })
+      .from(projects)
+      .where(eq(projects.id, entry.projectId));
+    const language = project?.defaultLanguage ?? "en";
+    const [ticket] = await tx
+      .insert(tickets)
+      .values({
+        projectId: entry.projectId,
+        subject,
+        requesterEmail: sender.address,
+        requesterName: sender.name,
+        language,
+        pendingSince: receivedAt,
+      })
+      .returning({ id: tickets.id });
+    if (!ticket) throw new Error("ticket_creation_failed");
+    // A reply to a ticket resolved long ago starts a linked follow-up.
+    await insertMessage(ticket.id, language, target?.id);
+    return finish(ticket.id, "processed", target ? "follow_up" : "created");
+  });
+}

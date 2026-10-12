@@ -126,6 +126,39 @@ NODE_EXTRA_CA_CERTS=.local/https-ca.crt claude mcp add --transport http aidesk h
 Interactive OAuth discovery with PKCE and resource binding for MCP clients is not
 implemented; clients use issued bearer tokens.
 
+## Inbound mail
+
+Adapters hand raw messages to `acceptInbound`. The original is stored first in
+private object storage under its SHA-256 checksum; then the ingress record and its
+`mail.ingest` job are committed together. A repeated external key (for example the
+same IMAP UID) is recognised as a duplicate before any processing.
+
+The worker parses the message and decides per project under a lock. A Message-ID
+already seen in the project is a duplicate. A reply continues a ticket only when
+it references one of that ticket's messages in this project and comes from the
+ticket's requester; claimed identifiers alone or another sender start a separate
+ticket, so no history leaks. Replies reopen Waiting tickets and tickets resolved
+within 30 days; later replies start a follow-up linked to the old ticket. The
+response obligation starts at the trusted receipt time of the first unanswered
+message.
+
+Content extraction works without AI: it removes quoted history after an
+attribution line, Outlook headers and signatures only at the end of the message
+and keeps inline replies between quotes. HTML is converted to Markdown. The
+original stays available and the message records whether anything was removed.
+Processing is idempotent; lost leases are requeued and transient failures retry
+with backoff (at most six attempts in about a day), permanent ones go to review.
+
+Until the IMAP adapter exists, `scripts/dev-inbound.ts` feeds a raw message into a
+development project:
+
+```sh
+sh scripts/dev.sh exec -T app pnpm exec tsx scripts/dev-inbound.ts orbit < mail.eml
+```
+
+Not yet implemented: attachments as private objects, acknowledgements, junk
+classification, language detection and the IMAP and Cloudflare adapters.
+
 ## What the slice supports
 
 Staff can log in with the generated development credentials, see only explicitly
