@@ -159,8 +159,13 @@ message.
 
 Content extraction works without AI: it removes quoted history after an
 attribution line, Outlook headers and signatures only at the end of the message
-and keeps inline replies between quotes. HTML is converted to Markdown. The
-original stays available and the message records whether anything was removed.
+and keeps inline replies between quotes. HTML is converted to Markdown; Gmail
+and Outlook signature blocks and the escaped `-- ` delimiter are recognised. The
+message records whether anything was removed and whether unquoted text was
+removed on a heuristic (a forwarded-style header block, a separator line or a
+signature longer than eight lines). Such uncertain trims are marked in the
+conversation, and readers of the ticket can download the private original
+(`GET /api/v1/messages/:id/original`, always as a download).
 Processing is idempotent; lost leases are requeued and transient failures retry
 with backoff (at most six attempts in about a day), permanent ones go to review.
 
@@ -219,8 +224,18 @@ processing without classification and then threads like any arrival. The
 preview of a junk mail is sanitized; the original stays private. The AI
 classifier follows with M4.
 
-Not yet implemented: moving IMAP originals to the mailbox's Junk folder and
-language detection. GreenMail is a
+For mail read over IMAP, the original follows the decision: a junk mail is
+moved to the connection's `junkMailbox` (or the server's `\Junk` folder) and
+back to the polled mailbox when restored. The move runs as an idempotent
+`mail.junk_sync` job without a fixed direction, so a late or repeated run
+cannot undo a newer decision; a missing junk folder is retried with backoff
+and shown in the junk view. A run interrupted after the IMAP move finds the
+message by its Message-ID. A message moved back gets a new UID; its external
+key is recorded as an alias, and a byte-identical copy of a restored mail is
+treated as a duplicate, so the next poll neither reads it again nor classifies
+it as junk once more.
+
+Not yet implemented: language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 

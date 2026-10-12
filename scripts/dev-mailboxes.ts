@@ -1,7 +1,9 @@
 // Development-only: gives each example project an inbound IMAP connection to
 // the GreenMail mailbox of its support address, so mail sent there becomes
-// tickets. Runs on every boot and only adds what is missing.
+// tickets, and a Junk folder there for mail classified as junk. Runs on every
+// boot and only adds what is missing.
 import { and, eq } from "drizzle-orm";
+import { ImapFlow } from "imapflow";
 import { db } from "../src/server/db";
 import { connections, projects } from "../src/server/db/schema";
 import { seal } from "../src/server/crypto";
@@ -25,6 +27,21 @@ export async function ensureDevMailboxes(): Promise<void> {
           eq(connections.direction, "inbound"),
         ),
       );
+    const port = Number(process.env.DEV_IMAP_PORT ?? 3143);
+    const client = new ImapFlow({
+      host,
+      port,
+      secure: false,
+      auth: { user: `${slug}@support.local`, pass: "development" },
+      logger: false,
+    });
+    await client.connect();
+    try {
+      if (!(await client.list()).some((mailbox) => mailbox.path === "Junk"))
+        await client.mailboxCreate("Junk");
+    } finally {
+      await client.logout();
+    }
     if (existing) continue;
     await db()
       .insert(connections)
@@ -36,10 +53,11 @@ export async function ensureDevMailboxes(): Promise<void> {
         status: "ready",
         config: {
           host,
-          port: Number(process.env.DEV_IMAP_PORT ?? 3143),
+          port,
           secure: false,
           user: `${slug}@support.local`,
           mailbox: "INBOX",
+          junkMailbox: "Junk",
           developmentOnly: true,
         },
         secretCiphertext: seal(JSON.stringify({ pass: "development" }), env().ENCRYPTION_KEY),

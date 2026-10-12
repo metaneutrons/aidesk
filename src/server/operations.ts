@@ -129,9 +129,12 @@ export async function getTicket(principal: Principal, ticketId: string) {
   );
   return {
     ticket,
-    messages: conversation.map((message) => ({
+    messages: conversation.map(({ rawObjectKey, ...message }) => ({
       ...message,
       html: markdownHtml(message.markdown),
+      // The private original can be downloaded; the storage key stays inside.
+      hasOriginal: rawObjectKey !== null,
+      extractionUncertain: message.source.uncertain === true,
       // Why a reply went to review; only meaningful while it is there.
       deliveryError:
         message.deliveryState === "review" && typeof message.source.deliveryError === "string"
@@ -178,6 +181,23 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
     content: await getObject(file.objectKey),
   };
 }
+// The received original of a message, for a person who may read its ticket,
+// for example to check a shortened extraction.
+export async function getOriginal(principal: Principal, messageId: string) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  if (!allowed.length) throw new DomainError("not_found", 404);
+  const [found] = await db()
+    .select({ rawObjectKey: messages.rawObjectKey, number: tickets.number })
+    .from(messages)
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(and(eq(messages.id, id.parse(messageId)), inArray(tickets.projectId, allowed)))
+    .limit(1);
+  if (!found?.rawObjectKey) throw new DomainError("not_found", 404);
+  return {
+    filename: `ticket-${String(found.number)}-${messageId.slice(0, 8)}.eml`,
+    content: await getObject(found.rawObjectKey),
+  };
+}
 // Junk: tickets moved there by a person and inbound mail classified as junk
 // before it became a ticket. Both stay out of the inbox until restored.
 export async function listJunk(principal: Principal, requested: string[] = []) {
@@ -204,6 +224,7 @@ export async function listJunk(principal: Principal, requested: string[] = []) {
       projectId: ingress.projectId,
       parsed: ingress.parsed,
       classification: ingress.classification,
+      origin: ingress.origin,
       at: ingress.receivedAt,
     })
     .from(ingress)
@@ -216,6 +237,7 @@ export async function listJunk(principal: Principal, requested: string[] = []) {
       kind: "ticket" as const,
       ...entry,
       canRestore: permits(principal, entry.projectId, "ticket.junk"),
+      mailbox: null,
       at: (entry.at ?? new Date(0)).toISOString(),
       reason: entry.reason ?? "operator",
     })),
@@ -228,6 +250,11 @@ export async function listJunk(principal: Principal, requested: string[] = []) {
       at: entry.at.toISOString(),
       reason: text(entry.classification?.reason) || "classified",
       canRestore: permits(principal, entry.projectId, "ticket.junk"),
+      // Whether the original in an IMAP mailbox has followed into junk.
+      mailbox:
+        entry.origin?.kind === "imap"
+          ? text((entry.origin.junkSync as { state?: unknown } | undefined)?.state) || "pending"
+          : null,
     })),
   ]
     .sort((a, b) => b.at.localeCompare(a.at))
@@ -291,6 +318,14 @@ export async function restoreJunkMail(principal: Principal, ingressId: string) {
       dedupKey: `ingest-restore:${entry.id}`,
       payload: { ingressId: entry.id },
     });
+    // The original in an IMAP mailbox goes back to the polled folder.
+    if (entry.origin?.kind === "imap")
+      await tx.insert(jobs).values({
+        projectId: entry.projectId,
+        type: "mail.junk_sync",
+        dedupKey: `junk-sync:${entry.id}:restore`,
+        payload: { ingressId: entry.id },
+      });
     await tx.insert(audit).values({
       projectId: entry.projectId,
       actorId: principal.id,

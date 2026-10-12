@@ -4,6 +4,7 @@ import {
   createOperator,
   createProject,
   getAttachment,
+  getOriginal,
   getJunkMail,
   getTicket,
   issueAgentToken,
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 // Attachments are always downloaded, never rendered by the browser: the stored
 // type is not trusted, so the response is opaque, sandboxed and not cached.
-function download(file: { filename: string; size: number; content: Buffer }): Response {
+function download(file: { filename: string; content: Buffer }): Response {
   const ascii = file.filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
   return new Response(new Uint8Array(file.content), {
     headers: {
@@ -55,6 +56,13 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await listAgentTokens(principal, identifier));
       if (resource === "tickets" && identifier && segments.length === 2)
         return Response.json(await getTicket(principal, identifier));
+      if (
+        resource === "messages" &&
+        identifier &&
+        operation === "original" &&
+        segments.length === 3
+      )
+        return download(await getOriginal(principal, identifier));
       if (resource === "junk" && segments.length === 1)
         return Response.json(await listJunk(principal, url.searchParams.getAll("project")));
       if (resource === "junk" && identifier && segments.length === 2)

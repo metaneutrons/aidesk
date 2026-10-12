@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
@@ -77,15 +77,22 @@ export function Settings({
   const [tokenRole, setTokenRole] = useState<TokenRole>("read");
   const [tokenDays, setTokenDays] = useState(30);
   const [issued, setIssued] = useState<string | null>(null);
-  const [acknowledging, setAcknowledging] = useState<Record<string, boolean>>({});
+  // null until the stored values are loaded; the switches stay disabled so a
+  // late load cannot overwrite a click.
+  const [acknowledging, setAcknowledging] = useState<Record<string, boolean> | null>(null);
+  // Each load and each click takes a new number; only the newest load may
+  // apply its answer, so neither a duplicate effect run nor a slow response
+  // can undo a later click.
+  const projectRequest = useRef(0);
   const loadProjects = useCallback(async () => {
+    const request = ++projectRequest.current;
     const response = await fetch("/api/v1/projects").catch(() => null);
     const parsed = response?.ok
       ? z
           .array(z.object({ id: z.string(), acknowledgements: z.boolean() }))
           .safeParse(await response.json())
       : null;
-    if (parsed?.success)
+    if (parsed?.success && request === projectRequest.current)
       setAcknowledging(
         Object.fromEntries(parsed.data.map((project) => [project.id, project.acknowledgements])),
       );
@@ -280,13 +287,15 @@ export function Settings({
                   <label>
                     <input
                       type="checkbox"
-                      checked={acknowledging[grant.projectId] ?? false}
+                      checked={acknowledging?.[grant.projectId] ?? false}
+                      disabled={acknowledging === null}
                       onChange={(event) => {
                         const enabled = event.target.checked;
+                        projectRequest.current += 1;
                         // Shown at once; reloading afterwards restores the
                         // stored value if the change was refused.
                         setAcknowledging((current) => ({
-                          ...current,
+                          ...(current ?? {}),
                           [grant.projectId]: enabled,
                         }));
                         void act(
