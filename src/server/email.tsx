@@ -1,5 +1,8 @@
 import { render, toPlainText } from "@react-email/render";
 import { markdownHtml } from "./markdown";
+// Recorded with every sent message, so a later change of the template is
+// recognisable next to the mail that was actually sent.
+export const emailTemplateVersion = 1;
 const mono = "SFMono-Regular,Menlo,Consolas,monospace";
 // Mail clients drop or ignore style sheets, so code formatting is inlined.
 function mailHtml(markdown: string): string {

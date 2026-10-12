@@ -13,7 +13,10 @@ import {
   user,
 } from "../src/server/db/schema";
 import { initializeStorage } from "../src/server/storage";
+import { getSentSnapshot, getTicket } from "../src/server/operations";
+import { emailTemplateVersion } from "../src/server/email";
 import { runNext } from "../src/worker/jobs";
+import type { Principal } from "../src/domain/permissions";
 import { startFakeSmtp, type FakeSmtp } from "./support/smtp";
 let smtp: FakeSmtp;
 const projectIds: string[] = [];
@@ -469,5 +472,91 @@ describe("leases and fencing", () => {
         .from(jobs)
         .where(and(inArray(jobs.id, [mine.jobId, other.jobId]), eq(jobs.status, "succeeded"))),
     ).toHaveLength(2);
+  });
+});
+describe("snapshot of the sent mail", () => {
+  it("keeps the mail as it was handed over and shows only its facts in the ticket", async () => {
+    const entry = await scenario();
+    await entry.run();
+    const reader: Principal = {
+      id: "reader",
+      kind: "human",
+      active: true,
+      owner: false,
+      grants: [{ projectId: entry.projectId, actions: ["project.read", "ticket.read"] }],
+    };
+    const snapshot = await getSentSnapshot(reader, entry.messageId);
+    expect(snapshot).toMatchObject({
+      transport: "smtp",
+      to: "alex@example.test",
+      from: "support@example.test",
+      replyTo: "support@example.test",
+      subject: "Re: Help",
+      language: "en",
+      templateVersion: emailTemplateVersion,
+      markdown: "Answer",
+    });
+    expect(snapshot.html).toContain("Answer");
+    expect(snapshot.text).toContain("Answer");
+    // What the transport received carries the same subject and text.
+    expect(smtp.messages[0]).toContain(`Subject: ${snapshot.subject}`);
+    expect(smtp.messages[0]).toContain(snapshot.text.split("\n")[0] ?? "");
+    // Later changes of the ticket or the message do not alter it.
+    await db().update(tickets).set({ subject: "Changed" }).where(eq(tickets.id, entry.ticketId));
+    await db()
+      .update(messages)
+      .set({ markdown: "Edited later" })
+      .where(eq(messages.id, entry.messageId));
+    expect((await getSentSnapshot(reader, entry.messageId)).subject).toBe("Re: Help");
+    // The ticket view carries the facts, not the rendered mail.
+    const shown = (await getTicket(reader, entry.ticketId)).messages.find(
+      (message) => message.id === entry.messageId,
+    );
+    expect(shown?.sent).toMatchObject({
+      subject: "Re: Help",
+      templateVersion: emailTemplateVersion,
+    });
+    expect(JSON.stringify(shown)).not.toContain("<html");
+    expect(shown?.source).toMatchObject({ messageId: `<${entry.messageId}@example.test>` });
+    expect(shown?.source).not.toHaveProperty("sent");
+  });
+  it("exists only for sent messages and only for readers of the project", async () => {
+    const sent = await scenario();
+    await sent.run();
+    const failed = await scenario();
+    smtp.behaviour.rcpt = "550 5.1.1 User unknown";
+    await failed.run();
+    const reader = (
+      projectId: string,
+      actions: ("ticket.read" | "project.read")[] = ["ticket.read"],
+    ): Principal => ({
+      id: "reader",
+      kind: "human",
+      active: true,
+      owner: false,
+      grants: [{ projectId, actions }],
+    });
+    await expect(getSentSnapshot(reader(failed.projectId), failed.messageId)).rejects.toMatchObject(
+      { code: "not_found" },
+    );
+    await expect(
+      getSentSnapshot(reader(sent.projectId, ["project.read"]), sent.messageId),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(getSentSnapshot(reader(failed.projectId), sent.messageId)).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(
+      getSentSnapshot({ ...reader(sent.projectId), grants: [] }, sent.messageId),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(getSentSnapshot(reader(sent.projectId), randomUUID())).rejects.toMatchObject({
+      code: "not_found",
+    });
+    // A message hidden as a note is not served even if it carries one.
+    await db().update(messages).set({ internal: true }).where(eq(messages.id, sent.messageId));
+    await expect(getSentSnapshot(reader(sent.projectId), sent.messageId)).rejects.toMatchObject({
+      code: "not_found",
+    });
+    expect((await sent.message())?.deliveryState).toBe("sent");
+    expect((await failed.message())?.source).not.toHaveProperty("sent");
   });
 });
