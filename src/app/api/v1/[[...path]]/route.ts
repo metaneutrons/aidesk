@@ -1,15 +1,19 @@
 import { ZodError } from "zod";
 import { identify, requireMutationOrigin } from "../../../../server/principal";
 import {
+  createOperator,
   createProject,
   getTicket,
   issueAgentToken,
   listAgentTokens,
+  listOperators,
   listProjects,
   listTickets,
   reply,
   revokeAgentToken,
   setLocale,
+  setOperatorActive,
+  setOperatorGrant,
 } from "../../../../server/operations";
 import { DomainError } from "../../../../server/errors";
 export const dynamic = "force-dynamic";
@@ -23,6 +27,8 @@ async function dispatch(request: Request): Promise<Response> {
     if (request.method === "GET") {
       if (resource === "projects" && segments.length === 1)
         return Response.json(await listProjects(principal));
+      if (resource === "operators" && segments.length === 1)
+        return Response.json(await listOperators(principal));
       if (resource === "projects" && identifier && operation === "agents" && segments.length === 3)
         return Response.json(await listAgentTokens(principal, identifier));
       if (resource === "tickets" && identifier && segments.length === 2)
@@ -37,6 +43,12 @@ async function dispatch(request: Request): Promise<Response> {
       const input: unknown = text ? JSON.parse(text) : {};
       if (resource === "projects" && segments.length === 1)
         return Response.json(await createProject(principal, input), { status: 201 });
+      if (resource === "operators" && segments.length === 1)
+        return Response.json(await createOperator(principal, input), { status: 201 });
+      if (resource === "operators" && identifier && operation === "grants" && segments.length === 3)
+        return Response.json(await setOperatorGrant(principal, identifier, input));
+      if (resource === "operators" && identifier && operation === "active" && segments.length === 3)
+        return Response.json(await setOperatorActive(principal, identifier, input));
       if (resource === "projects" && identifier && operation === "agents" && segments.length === 3)
         return Response.json(await issueAgentToken(principal, identifier, input), { status: 201 });
       if (resource === "agents" && identifier && operation === "revoke" && segments.length === 3)

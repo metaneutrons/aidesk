@@ -13,6 +13,7 @@ import { markdownHtml } from "../src/server/markdown";
 import { renderEmail } from "../src/server/email";
 import { isMessageId, threadHeaders } from "../src/domain/threading";
 import { extractReply } from "../src/domain/extraction";
+import { operatorRoles, roleOf, tokenRoles, within } from "../src/domain/roles";
 import { DomainError } from "../src/server/errors";
 import english from "../src/i18n/en.json";
 import german from "../src/i18n/de.json";
@@ -276,5 +277,18 @@ describe("parser extraction of new inbound content", () => {
       markdown: "Plain message without history",
       trimmed: false,
     });
+  });
+});
+describe("role presets", () => {
+  it("maps actions to presets and limits presets to held actions", () => {
+    expect(roleOf(operatorRoles, ["ticket.read", "project.read"])).toBe("read");
+    expect(roleOf(operatorRoles, [])).toBe("none");
+    expect(roleOf(operatorRoles, ["ticket.read"])).toBe("custom");
+    expect(roleOf(tokenRoles, ["project.read", "ticket.read", "ticket.note"])).toBe("notes");
+    expect(within(operatorRoles.respond, ["project.read", "ticket.read", "ticket.note"])).toEqual([
+      "project.read",
+      "ticket.read",
+      "ticket.note",
+    ]);
   });
 });

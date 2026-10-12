@@ -16,6 +16,7 @@ import {
   Plus,
   Search,
   Send,
+  Settings as SettingsIcon,
   Sun,
   X,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
+import { Settings } from "./settings";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -84,7 +86,7 @@ function applyTheme(theme: Theme): void {
   if (theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
 }
-type View = "overview" | "inbox" | "overdue" | "waiting" | "resolved";
+type View = "overview" | "inbox" | "overdue" | "waiting" | "resolved" | "settings";
 export function Desk({
   projects,
   initialTickets,
@@ -296,6 +298,7 @@ export function Desk({
     { view: "overdue", icon: Clock3 },
     { view: "waiting", icon: ArrowUpRight },
     { view: "resolved", icon: Check },
+    { view: "settings", icon: SettingsIcon },
   ];
   return (
     <Dialog.Root open={creating} onOpenChange={setCreating}>
@@ -443,7 +446,14 @@ export function Desk({
               )}
             </div>
           </header>
-          {view === "overview" ? (
+          {view === "settings" ? (
+            <Settings
+              viewerId={operator.id}
+              owner={operator.owner}
+              projects={projects}
+              locale={initialLocale}
+            />
+          ) : view === "overview" ? (
             <section className="overview">
               <h2 className="eyebrow">{t("attention")}</h2>
               <div className="metric-grid">
