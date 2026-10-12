@@ -235,6 +235,19 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
+A delivery status notification (RFC 3464, `multipart/report` with
+`report-type=delivery-status`) for a sent reply belongs to that reply and creates
+no ticket. It must name the Message-ID of one of the project's sent messages and
+the requester's address as the final recipient; anything else is processed like
+other mail. For `Action: failed` the reply moves to review with the reason
+"bounced" (status code and diagnostic stay in the message source), and the
+ticket is open again with its response obligation, even if the reply had
+resolved it. For an acknowledgement, or a ticket in junk, only the message is
+marked. A delay notice and a repeated report change nothing. SMTP2GO collects
+bounces itself under its own return path and does not forward them, so this path
+applies to transports whose return path reaches the project mailbox; a provider
+webhook is not implemented.
+
 Not yet implemented: language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
@@ -258,8 +271,10 @@ acceptance is recorded as `transport_rejected`; timeouts, server errors and
 responses that do not list the recipient as delivered or queued leave the
 outcome unknown. Both go to review and are never resent automatically. SMTP
 sends follow the same rule: a failure reply from the server, a failed
-connection or a failed login counts as `transport_rejected`; a timeout or a
-dropped connection while the message is in flight leaves the outcome unknown.
+connection or a failed login before the DATA command counts as
+`transport_rejected`; a timeout or a dropped connection once DATA was sent
+leaves the outcome unknown. The mailer labels every lost connection alike, so
+the worker follows the command log to tell the two apart.
 The worker logs the SMTP command, reply code and enhanced status code, but not
 the reply text or any address.
 
@@ -306,15 +321,46 @@ Staff can log in with the generated development credentials, see only explicitly
 granted projects, filter a shared inbox, read a Markdown conversation, preserve
 a per-ticket browser draft, record a private note and queue a same-language
 public reply. The worker rechecks current permissions, configuration, revision
-and outgoing pause before SMTP dispatch. The earliest unanswered clock completes
-only after transport acceptance. Ambiguous/expired dispatches require review;
-this initial worker does not automatically retry an uncertain send.
+and outgoing pause before SMTP dispatch; a refusal at that point keeps its
+reason (changed ticket revision, paused or changed connection, revoked
+permission, disabled acknowledgements, connection not ready) in the review. The
+earliest unanswered clock completes only after transport acceptance.
+Ambiguous/expired dispatches require review; this initial worker does not
+automatically retry an uncertain send. A worker that lost its lease writes
+neither success nor failure; when that lease ends too, the dispatch goes to
+review instead of being sent again.
+
+When a message is accepted by the transport, the worker keeps a snapshot of it in
+the message: time, transport, recipient, sender and reply-to address, subject,
+language, template version, the final Markdown and the rendered HTML and text.
+Later changes of the ticket, the message or the template do not alter it. The
+ticket view shows the facts of the snapshot (`sent`), `getSentSnapshot` returns
+the whole mail to readers of the project, and only for sent public messages. The
+draft in the author's own language is not kept separately yet; translation of
+drafts follows with M4.
 
 REST begins at `/api/v1`, MCP at `/api/mcp`. The stateless Streamable HTTP MCP
 endpoint requires an active, unexpired project-scoped bearer agent token. Token
 provisioning UI and owner recovery are not finished. MCP registration is filtered
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
+
+## Portal grants
+
+`src/server/portal.ts` holds the model for customer access; the portal pages and
+REST routes follow with M3. A person with `ticket.reply` issues a grant for one
+ticket. It is a random token, stored only as a SHA-256 hash, bound to the
+ticket's requester (a participant of that ticket), valid for 30 days by default
+(1 to 90) and shown once. Issuing again replaces the earlier token, revoking
+disables it, and both are audited. A token resolves only while it is known,
+unexpired, not revoked, verified and while the ticket is not in junk; every
+other case answers the same `not_found`. The holder sees the public conversation
+of that one ticket: no private notes, no messages that were not delivered, no
+staff names or addresses (replies appear under the project name), and nothing of
+other tickets, participants or projects. A follow-up ticket needs its own grant.
+The requester counts as verified because the token goes to the address that
+wrote to us; other participants need their own verification, which is not
+implemented.
 
 ## Translation records
 
