@@ -82,6 +82,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "projects.settings": {
+    operation: "setProjectSettings",
+    action: "project.manage",
+    ui: "src/components/settings.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "projects.create": {
     operation: "createProject",
     action: "workspace.project.create",

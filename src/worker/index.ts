@@ -32,7 +32,7 @@ const payloadSchema = z.object({
   messageId: z.uuid(),
   connectionId: z.uuid(),
   actorId: z.string(),
-  actorKind: z.enum(["human", "agent"]),
+  actorKind: z.enum(["human", "agent", "system"]),
   expectedRevision: z.number().int(),
   resolve: z.boolean(),
 });
@@ -45,6 +45,12 @@ const smtpSchema = z.object({
   developmentOnly: z.boolean().default(false),
   suppressionCheck: z.enum(["smtp2go"]).optional(),
 });
+// Marks automatic mail (RFC 3834) and asks Exchange not to answer it with
+// its own automatic replies.
+const automaticHeaders = {
+  "Auto-Submitted": "auto-replied",
+  "X-Auto-Response-Suppress": "All",
+};
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
   lifecycle.stopped = true;
@@ -133,7 +139,8 @@ async function runNext(): Promise<boolean> {
       message.internal ||
       !project ||
       !connection ||
-      ticket.revision !== payload.expectedRevision ||
+      // An acknowledgement does not depend on the ticket's later changes.
+      (payload.actorKind !== "system" && ticket.revision !== payload.expectedRevision) ||
       ticket.junkAt !== null ||
       project.settings.pauseOutgoing === true ||
       project.settings.outboundConnectionId !== connection.id
@@ -153,6 +160,11 @@ async function runNext(): Promise<boolean> {
         (payload.resolve && !grant.actions.includes("ticket.resolve"))
       )
         throw new Error("dispatch_grant_revoked");
+    } else if (payload.actorKind === "system") {
+      // Only acknowledgements are sent without a person or agent, and only
+      // while the project still has them enabled.
+      if (message.source.kind !== "acknowledgement" || project.settings.acknowledgements !== true)
+        throw new Error("acknowledgement_not_enabled");
     } else {
       const [agent] = await db().select().from(agents).where(eq(agents.id, payload.actorId));
       if (
@@ -168,6 +180,7 @@ async function runNext(): Promise<boolean> {
         throw new Error("autonomous_dispatch_not_enabled");
     }
     if (connection.status !== "ready") throw new Error("outbound_not_ready");
+    const automatic = payload.actorKind === "system";
     const content = await renderEmail({
       project: project.name,
       markdown: message.markdown,
@@ -215,6 +228,7 @@ async function runNext(): Promise<boolean> {
           ...thread,
           ...content,
           ticketId: ticket.id,
+          automatic,
         });
         outgoingId = sent.messageId;
       } catch (error) {
@@ -265,7 +279,10 @@ async function runNext(): Promise<boolean> {
           subject: `Re: ${ticket.subject}`,
           messageId: outgoingId,
           ...thread,
-          headers: { "X-Aidesk-Ticket": ticket.id },
+          headers: {
+            "X-Aidesk-Ticket": ticket.id,
+            ...(automatic ? automaticHeaders : {}),
+          },
           ...content,
         })
         .catch((error: unknown) => {
@@ -290,16 +307,18 @@ async function runNext(): Promise<boolean> {
         .update(messages)
         .set({ deliveryState: "sent", source: { ...message.source, messageId: outgoingId } })
         .where(eq(messages.id, message.id));
-      // A newer inbound revision retains its response obligation.
-      await tx
-        .update(tickets)
-        .set({
-          pendingSince: null,
-          status: payload.resolve ? "resolved" : "waiting",
-          resolvedAt: payload.resolve ? new Date() : null,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, payload.expectedRevision)));
+      // A newer inbound revision retains its response obligation. An
+      // acknowledgement is not an answer and leaves the ticket unchanged.
+      if (!automatic)
+        await tx
+          .update(tickets)
+          .set({
+            pendingSince: null,
+            status: payload.resolve ? "resolved" : "waiting",
+            resolvedAt: payload.resolve ? new Date() : null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, payload.expectedRevision)));
       await tx
         .update(jobs)
         .set({ status: "succeeded", leaseUntil: null, updatedAt: new Date() })

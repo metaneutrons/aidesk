@@ -149,5 +149,9 @@
   "junkReasonClassified": "Als Junk erkannt",
   "noSubject": "(kein Betreff)",
   "junkError": "Die Aktion konnte nicht ausgeführt werden.",
-  "junkLoading": "Wird geladen …"
+  "junkLoading": "Wird geladen …",
+  "projectSettingsTitle": "Projekte",
+  "acknowledgementHint": "Eine Eingangsbestätigung bestätigt dem Kunden jedes neue Ticket mit seiner Nummer. Sie geht nicht an automatische Absender wie Mailinglisten oder Unzustellbarkeitsmeldungen und höchstens einmal pro Stunde an dieselbe Adresse.",
+  "acknowledgementSetting": "{project}: Eingangsbestätigungen senden",
+  "acknowledgement": "Eingangsbestätigung"
 }

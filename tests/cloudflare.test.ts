@@ -13,6 +13,7 @@ import { db, sqlClient } from "../src/server/db";
 import { connections, ingress, jobs, projects, tickets } from "../src/server/db/schema";
 import {
   inboundPrefix,
+  parseCloudflareOutbound,
   pollCloudflareConnection,
   sendViaCloudflare,
 } from "../src/server/cloudflare";
@@ -208,6 +209,38 @@ describe("Cloudflare outbound", () => {
         References: "<a@example.test> <b@example.test>",
       },
     });
+  });
+  it("marks automatic mail and reads its sealed configuration", async () => {
+    const withoutThread = Object.fromEntries(
+      Object.entries(outgoing).filter(([key]) => key !== "inReplyTo"),
+    ) as Omit<typeof outgoing, "inReplyTo">;
+    const fetch = reply(200, {
+      success: true,
+      errors: [],
+      messages: [],
+      result: { delivered: ["customer@example.test"], queued: [], permanent_bounces: [] },
+    });
+    expect(
+      await sendViaCloudflare(
+        { accountId, from: "support@example.test", replyTo: "support@example.test" },
+        { apiToken: "token-value" },
+        { ...withoutThread, references: "not a message id", automatic: true },
+      ),
+    ).toEqual({ messageId: null });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect((JSON.parse(init.body as string) as { headers: unknown }).headers).toEqual({
+      "X-Aidesk-Ticket": "ticket-1",
+      "Auto-Submitted": "auto-replied",
+      "X-Auto-Response-Suppress": "All",
+    });
+    const config = { accountId, from: "support@example.test", replyTo: "support@example.test" };
+    expect(
+      parseCloudflareOutbound(
+        config,
+        seal(JSON.stringify({ apiToken: "t" }), env().ENCRYPTION_KEY),
+      ),
+    ).toEqual({ config, secret: { apiToken: "t" } });
+    expect(() => parseCloudflareOutbound(config, null)).toThrow("cloudflare_secret_missing");
   });
   it("tells a refusal apart from an unknown outcome", async () => {
     reply(403, {

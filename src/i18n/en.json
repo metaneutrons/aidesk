@@ -149,5 +149,9 @@
   "junkReasonClassified": "Classified as junk",
   "noSubject": "(no subject)",
   "junkError": "The action could not be completed.",
-  "junkLoading": "Loading…"
+  "junkLoading": "Loading…",
+  "projectSettingsTitle": "Projects",
+  "acknowledgementHint": "An acknowledgement confirms each new ticket to the customer with its number. It is not sent to automatic senders such as mailing lists or bounce messages, and at most once an hour to the same address.",
+  "acknowledgementSetting": "{project}: send acknowledgements",
+  "acknowledgement": "Acknowledgement"
 }

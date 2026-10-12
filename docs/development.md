@@ -193,6 +193,19 @@ always answers as a download (`application/octet-stream`, `nosniff`,
 and unknown ids all answer 404. Ticket responses list the metadata on every
 surface; MCP does not yet return file content.
 
+A project can send acknowledgements (Settings, Projects; requires
+`project.manage`; off by default). For each new ticket the inbound core then
+adds a system message with the ticket number in the ticket language and queues
+it through the project's outgoing connection in the same transaction. It is not
+sent to automatic mail (`Auto-Submitted` other than `no`, `Precedence`
+bulk/list/junk, list headers, `X-Auto-Response-Suppress` with All/AutoReply/OOF,
+an empty return path, or senders such as `mailer-daemon` and `noreply`), not
+for replies in an existing ticket, and at most once an hour per sender and
+project. The mail carries `Auto-Submitted: auto-replied` and
+`X-Auto-Response-Suppress: All`. An acknowledgement is not an answer: the ticket
+stays open and its response obligation is unchanged. The worker sends it only
+while the project still has acknowledgements enabled.
+
 Junk has its own view. Inbound mail that an upstream spam filter marked
 (`X-Spam-Flag: YES`, `X-Spam-Status: Yes`, `X-Spam: yes`) is classified before
 threading: it creates no ticket, is not added to an existing ticket (even one it
@@ -206,8 +219,8 @@ processing without classification and then threads like any arrival. The
 preview of a junk mail is sanitized; the original stays private. The AI
 classifier follows with M4.
 
-Not yet implemented: acknowledgements, moving IMAP originals to the mailbox's
-Junk folder and language detection. GreenMail is a
+Not yet implemented: moving IMAP originals to the mailbox's Junk folder and
+language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 

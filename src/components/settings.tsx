@@ -77,6 +77,19 @@ export function Settings({
   const [tokenRole, setTokenRole] = useState<TokenRole>("read");
   const [tokenDays, setTokenDays] = useState(30);
   const [issued, setIssued] = useState<string | null>(null);
+  const [acknowledging, setAcknowledging] = useState<Record<string, boolean>>({});
+  const loadProjects = useCallback(async () => {
+    const response = await fetch("/api/v1/projects").catch(() => null);
+    const parsed = response?.ok
+      ? z
+          .array(z.object({ id: z.string(), acknowledgements: z.boolean() }))
+          .safeParse(await response.json())
+      : null;
+    if (parsed?.success)
+      setAcknowledging(
+        Object.fromEntries(parsed.data.map((project) => [project.id, project.acknowledgements])),
+      );
+  }, []);
   const load = useCallback(async () => {
     const response = await fetch("/api/v1/operators").catch(() => null);
     if (response?.status === 403) {
@@ -101,7 +114,8 @@ export function Settings({
   }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadProjects();
+  }, [load, loadProjects]);
   useEffect(() => {
     void loadTokens(tokenProject);
   }, [tokenProject, loadTokens]);
@@ -253,6 +267,42 @@ export function Settings({
             {t("operatorAdd")}
           </button>
         </form>
+      )}
+      {managed.some((grant) => grant.actions.includes("project.manage")) && (
+        <>
+          <h2>{t("projectSettingsTitle")}</h2>
+          <p className="muted">{t("acknowledgementHint")}</p>
+          <ul className="project-settings">
+            {managed
+              .filter((grant) => grant.actions.includes("project.manage"))
+              .map((grant) => (
+                <li key={grant.projectId}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={acknowledging[grant.projectId] ?? false}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+                        // Shown at once; reloading afterwards restores the
+                        // stored value if the change was refused.
+                        setAcknowledging((current) => ({
+                          ...current,
+                          [grant.projectId]: enabled,
+                        }));
+                        void act(
+                          send(`/projects/${grant.projectId}/settings`, {
+                            acknowledgements: enabled,
+                          }),
+                          loadProjects,
+                        );
+                      }}
+                    />
+                    {t("acknowledgementSetting", { project: projectName(grant.projectId) })}
+                  </label>
+                </li>
+              ))}
+          </ul>
+        </>
       )}
       {tokenProjects.length > 0 && (
         <>
