@@ -271,8 +271,10 @@ acceptance is recorded as `transport_rejected`; timeouts, server errors and
 responses that do not list the recipient as delivered or queued leave the
 outcome unknown. Both go to review and are never resent automatically. SMTP
 sends follow the same rule: a failure reply from the server, a failed
-connection or a failed login counts as `transport_rejected`; a timeout or a
-dropped connection while the message is in flight leaves the outcome unknown.
+connection or a failed login before the DATA command counts as
+`transport_rejected`; a timeout or a dropped connection once DATA was sent
+leaves the outcome unknown. The mailer labels every lost connection alike, so
+the worker follows the command log to tell the two apart.
 The worker logs the SMTP command, reply code and enhanced status code, but not
 the reply text or any address.
 
@@ -319,9 +321,14 @@ Staff can log in with the generated development credentials, see only explicitly
 granted projects, filter a shared inbox, read a Markdown conversation, preserve
 a per-ticket browser draft, record a private note and queue a same-language
 public reply. The worker rechecks current permissions, configuration, revision
-and outgoing pause before SMTP dispatch. The earliest unanswered clock completes
-only after transport acceptance. Ambiguous/expired dispatches require review;
-this initial worker does not automatically retry an uncertain send.
+and outgoing pause before SMTP dispatch; a refusal at that point keeps its
+reason (changed ticket revision, paused or changed connection, revoked
+permission, disabled acknowledgements, connection not ready) in the review. The
+earliest unanswered clock completes only after transport acceptance.
+Ambiguous/expired dispatches require review; this initial worker does not
+automatically retry an uncertain send. A worker that lost its lease writes
+neither success nor failure; when that lease ends too, the dispatch goes to
+review instead of being sent again.
 
 REST begins at `/api/v1`, MCP at `/api/mcp`. The stateless Streamable HTTP MCP
 endpoint requires an active, unexpired project-scoped bearer agent token. Token

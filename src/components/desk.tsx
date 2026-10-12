@@ -74,6 +74,13 @@ const deliveryErrors: Record<string, string> = {
   transport_acceptance_unknown: "deliveryUnknown",
   expired_dispatch_lease: "deliveryUnknown",
   bounced: "deliveryBounced",
+  stale_or_paused_dispatch: "deliveryStale",
+  dispatch_grant_revoked: "deliveryNotAllowed",
+  acknowledgement_not_enabled: "deliveryNotAllowed",
+  autonomous_dispatch_not_enabled: "deliveryNotAllowed",
+  outbound_not_ready: "deliveryConnection",
+  development_connection_not_allowed: "deliveryConnection",
+  smtp_tls_required: "deliveryConnection",
 };
 // Bytes below 1 KB, otherwise kB or MB with at most one decimal.
 function formatSize(size: number, locale: string): string {
