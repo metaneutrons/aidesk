@@ -75,6 +75,30 @@ callback and SAML response, refusal of an unprovisioned IdP user, the sign-up
 flag, revoked sessions and disabled operators. Production IdPs, owner recovery
 with MFA and SSO on a Vercel deployment are not qualified yet.
 
+## Owner setup and recovery
+
+Owners are the only operators with a local credential, a password plus TOTP. It is
+their way in when the identity provider is unavailable; everyone else signs in
+through SSO. Password sign-in is refused for anyone who is not an active owner
+with TOTP, with the same response as a wrong password. The generated development
+owner is the one exception, so the private stack works without an authenticator.
+
+The first owner is claimed once at `/setup` with the deployment secret
+`OWNER_CLAIM_TOKEN`. Step one checks the token and prepares TOTP: the secret and
+ten backup codes are shown once and kept encrypted for ten minutes as a pending
+claim. Step two creates the owner only with a valid TOTP code, so an owner never
+exists without a second factor. An advisory lock serialises concurrent claims;
+once an owner exists, the setup endpoints refuse every request. The claim and
+every recovery sign-in (TOTP or backup code) are written to the audit log. Remove
+`OWNER_CLAIM_TOKEN` after the claim.
+
+TOTP comes from Better Auth's two-factor plugin. aidesk refuses `trustDevice`,
+which would skip TOTP for 30 days, and blocks enabling or disabling TOTP over the
+API. Backup codes work once. Known limitation: the plugin does not remember used
+TOTP codes, so a code can be reused within its 90-second window by someone who
+also knows the password. Further owners, re-enrolment after a lost authenticator
+and owner management are not implemented yet.
+
 ## What the slice supports
 
 Staff can log in with the generated development credentials, see only explicitly

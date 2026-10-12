@@ -83,9 +83,11 @@ sh scripts/dev.sh down
 sh scripts/dev.sh up -d
 ```
 
-To reset the Next.js build cache, stop the app before removing its volume.
-Deleting `.next` while the dev server ran left Turbopack sending "HMR hash
-mismatch" on every connection, an endless page reload loop:
+Twice on 2026-10-12 the dev server sent "HMR hash mismatch" on every connection
+after a restart that followed many file changes, so the page reloaded endlessly.
+The cause is not identified; a counter-probe with Turbopack's persistent dev cache
+switched off and on reproduced it in neither case. A fresh build cache fixed it
+each time; stop the app before removing its volume:
 
 ```sh
 sh scripts/dev.sh stop worker app
