@@ -3,6 +3,7 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     setupFiles: ["tests/setup-env.ts"],
+    globalSetup: ["tests/global-setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/domain/**/*.ts", "src/server/**/*.ts", "src/server/**/*.tsx"],
