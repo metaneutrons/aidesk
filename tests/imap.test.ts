@@ -15,11 +15,12 @@ import {
   tickets,
 } from "../src/server/db/schema";
 import { pollImapConnection, syncImapJunk } from "../src/server/imap";
+import { simpleParser } from "mailparser";
 import { processIngress } from "../src/server/inbound";
 import { runIdempotentJob } from "../src/server/jobs";
 import { listJunk, restoreJunkMail } from "../src/server/operations";
 import type { Principal } from "../src/domain/permissions";
-import { initializeStorage } from "../src/server/storage";
+import { getObject, initializeStorage } from "../src/server/storage";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
 // Against the development GreenMail server (SMTP 3025, IMAP 3143), which
@@ -174,6 +175,19 @@ describe("IMAP junk folder", () => {
       .createTransport({ host, port: 3025, secure: false, ignoreTLS: true })
       .sendMail({ envelope: { from: "customer@example.test", to: user }, raw });
   }
+  // Polls until the mail with this subject has been read; delivery into the
+  // mailbox can lag behind the SMTP answer under load.
+  async function receive(id: string, subject: string) {
+    await expect
+      .poll(
+        async () => {
+          await pollImapConnection(id);
+          return (await entryFor(id, subject)) !== undefined;
+        },
+        { timeout: 10_000, interval: 200 },
+      )
+      .toBe(true);
+  }
   async function drain() {
     const outcomes: string[] = [];
     for (
@@ -195,9 +209,17 @@ describe("IMAP junk folder", () => {
       }
     });
   }
+  // Before processing, the subject is only in the stored original.
   async function entryFor(id: string, subject: string) {
     const entries = await db().select().from(ingress).where(eq(ingress.connectionId, id));
-    return entries.find((entry) => entry.parsed?.subject === subject);
+    for (const entry of entries) {
+      const found =
+        typeof entry.parsed?.subject === "string"
+          ? entry.parsed.subject
+          : (await simpleParser(await getObject(entry.rawObjectKey))).subject;
+      if (found === subject && entry.state !== "alias") return entry;
+    }
+    return undefined;
   }
   it("moves junk into the junk folder and back without reading it twice", async () => {
     const junk = `Junk-${randomUUID().slice(0, 8)}`;
@@ -207,7 +229,7 @@ describe("IMAP junk folder", () => {
     await pollImapConnection(id);
     const subject = `Spam ${randomUUID()}`;
     await deliverSpam(subject);
-    expect(await pollImapConnection(id)).toMatchObject({ accepted: 1 });
+    await receive(id, subject);
     expect(await drain()).toEqual(
       expect.arrayContaining(["mail.ingest:junk", "mail.junk_sync:moved"]),
     );
@@ -238,7 +260,7 @@ describe("IMAP junk folder", () => {
     await pollImapConnection(id);
     const subject = `Spam ${randomUUID()}`;
     await deliverSpam(subject);
-    await pollImapConnection(id);
+    await receive(id, subject);
     // The junk folder does not exist yet: the move waits and says so.
     expect(await drain()).toEqual(
       expect.arrayContaining([
@@ -293,9 +315,23 @@ describe("idempotent job edge cases", () => {
     await nodemailer
       .createTransport({ host, port: 3025, secure: false, ignoreTLS: true })
       .sendMail({ envelope: { from: "customer@example.test", to: user }, raw });
-    await pollImapConnection(id);
-    const entries = await db().select().from(ingress).where(eq(ingress.connectionId, id));
-    const entry = entries.find((row) => row.parsed?.subject === subject) ?? entries.at(-1);
+    // Delivery into the mailbox can lag behind the SMTP answer under load.
+    let entry: typeof ingress.$inferSelect | undefined;
+    await expect
+      .poll(
+        async () => {
+          await pollImapConnection(id);
+          const entries = await db().select().from(ingress).where(eq(ingress.connectionId, id));
+          for (const row of entries) {
+            if (row.state !== "queued") continue;
+            const parsed = await simpleParser(await getObject(row.rawObjectKey));
+            if (parsed.subject === subject) entry = row;
+          }
+          return entry !== undefined;
+        },
+        { timeout: 10_000, interval: 200 },
+      )
+      .toBe(true);
     await processIngress(entry?.id ?? "");
     // Without a configured folder, the server's folder named Junk is used.
     expect(await syncImapJunk(entry?.id ?? "")).toBe("moved");
