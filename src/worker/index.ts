@@ -19,6 +19,7 @@ import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
 import { classifySmtpFailure } from "../domain/delivery";
+import { smtp2goSuppressed } from "../server/smtp2go";
 import { processIngress } from "../server/inbound";
 import { pollImapConnection } from "../server/imap";
 import {
@@ -42,6 +43,7 @@ const smtpSchema = z.object({
   from: z.email(),
   replyTo: z.email(),
   developmentOnly: z.boolean().default(false),
+  suppressionCheck: z.enum(["smtp2go"]).optional(),
 });
 // Records why a reply went to review on the message itself, so every surface
 // that shows the message can show the reason.
@@ -232,17 +234,26 @@ async function runNext(): Promise<boolean> {
         throw new Error("development_connection_not_allowed");
       const secret = connection.secretCiphertext
         ? z
-            .object({ user: z.string(), pass: z.string() })
+            .object({ user: z.string(), pass: z.string(), apiKey: z.string().min(1).optional() })
             .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
         : undefined;
       if (!config.developmentOnly && !config.secure && config.port !== 587)
         throw new Error("smtp_tls_required");
+      if (config.suppressionCheck === "smtp2go") {
+        code = "suppression_check_failed";
+        if (!secret?.apiKey) throw new Error(code);
+        if (await smtp2goSuppressed(secret.apiKey, ticket.requesterEmail)) {
+          code = "recipient_suppressed";
+          throw new Error(code);
+        }
+        code = "dispatch_needs_review";
+      }
       const transport = nodemailer.createTransport({
         host: config.host,
         port: config.port,
         secure: config.secure,
         requireTLS: !config.developmentOnly && !config.secure,
-        auth: secret,
+        auth: secret ? { user: secret.user, pass: secret.pass } : undefined,
         connectionTimeout: 15_000,
         greetingTimeout: 15_000,
         socketTimeout: 30_000,

@@ -210,6 +210,14 @@ dropped connection while the message is in flight leaves the outcome unknown.
 The worker logs the SMTP command, reply code and enhanced status code, but not
 the reply text or any address.
 
+SMTP2GO accepts mail for a suppressed recipient (for example after an
+unsubscribe through its `List-Unsubscribe` header) with 250 and drops it later.
+An SMTP connection with `suppressionCheck: "smtp2go"` and an API key in its
+secret therefore checks the recipient against the SMTP2GO suppression list
+before each send. A listed recipient stops the send as `recipient_suppressed`;
+if the list cannot be read, the send stops as `suppression_check_failed`. Both
+go to review without contacting the SMTP server.
+
 Without the Workers Paid plan and an onboarded sending domain, Cloudflare only
 delivers to verified destination addresses of the account. Each routing rule
 names one address and one worker.
