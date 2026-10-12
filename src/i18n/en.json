@@ -42,6 +42,7 @@
   "deliverySuppressionCheckFailed": "Not sent: the mail provider's unsubscribe list could not be checked",
   "deliveryRejected": "Not sent: rejected by the mail transport",
   "deliveryUnknown": "Unknown whether the mail transport accepted it",
+  "deliveryBounced": "Not delivered: the recipient's mail server returned it after accepting it",
   "attachments": "Attachments",
   "attachmentTypeBlocked": "not stored, file type not allowed",
   "attachmentTooLarge": "not stored, larger than 15 MB",

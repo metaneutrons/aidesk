@@ -235,6 +235,19 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
+A delivery status notification (RFC 3464, `multipart/report` with
+`report-type=delivery-status`) for a sent reply belongs to that reply and creates
+no ticket. It must name the Message-ID of one of the project's sent messages and
+the requester's address as the final recipient; anything else is processed like
+other mail. For `Action: failed` the reply moves to review with the reason
+"bounced" (status code and diagnostic stay in the message source), and the
+ticket is open again with its response obligation, even if the reply had
+resolved it. For an acknowledgement, or a ticket in junk, only the message is
+marked. A delay notice and a repeated report change nothing. SMTP2GO collects
+bounces itself under its own return path and does not forward them, so this path
+applies to transports whose return path reaches the project mailbox; a provider
+webhook is not implemented.
+
 Not yet implemented: language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.

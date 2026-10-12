@@ -73,6 +73,7 @@ const deliveryErrors: Record<string, string> = {
   recipient_not_accepted: "deliveryRejected",
   transport_acceptance_unknown: "deliveryUnknown",
   expired_dispatch_lease: "deliveryUnknown",
+  bounced: "deliveryBounced",
 };
 // Bytes below 1 KB, otherwise kB or MB with at most one decimal.
 function formatSize(size: number, locale: string): string {

@@ -42,6 +42,7 @@
   "deliverySuppressionCheckFailed": "Nicht gesendet: Abmeldeliste des Mailanbieters nicht abrufbar",
   "deliveryRejected": "Nicht gesendet: vom Mailtransport abgelehnt",
   "deliveryUnknown": "Unklar, ob der Mailtransport angenommen hat",
+  "deliveryBounced": "Nicht zugestellt: Der Mailserver des Empfängers hat sie nach der Annahme zurückgewiesen",
   "attachments": "Anhänge",
   "attachmentTypeBlocked": "nicht gespeichert, Dateityp nicht erlaubt",
   "attachmentTooLarge": "nicht gespeichert, größer als 15 MB",
