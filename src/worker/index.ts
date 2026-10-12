@@ -43,6 +43,11 @@ const smtpSchema = z.object({
   replyTo: z.email(),
   developmentOnly: z.boolean().default(false),
 });
+// Records why a reply went to review on the message itself, so every surface
+// that shows the message can show the reason.
+function deliveryError(code: string) {
+  return sql`${messages.source} || ${JSON.stringify({ deliveryError: code })}::jsonb`;
+}
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
   lifecycle.stopped = true;
@@ -74,7 +79,7 @@ async function runNext(): Promise<boolean> {
       if (messageId.success)
         await tx
           .update(messages)
-          .set({ deliveryState: "review" })
+          .set({ deliveryState: "review", source: deliveryError("expired_dispatch_lease") })
           .where(eq(messages.id, messageId.data));
     }
   });
@@ -306,7 +311,7 @@ async function runNext(): Promise<boolean> {
       if (failed && typeof failed.payload.messageId === "string")
         await tx
           .update(messages)
-          .set({ deliveryState: "review" })
+          .set({ deliveryState: "review", source: deliveryError(code) })
           .where(eq(messages.id, failed.payload.messageId));
     });
     console.log(JSON.stringify({ event: "mail.review", jobId: job.id, code }));

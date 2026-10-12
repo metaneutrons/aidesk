@@ -78,7 +78,15 @@ export async function getTicket(principal: Principal, ticketId: string) {
   );
   return {
     ticket,
-    messages: conversation.map((message) => ({ ...message, html: markdownHtml(message.markdown) })),
+    messages: conversation.map((message) => ({
+      ...message,
+      html: markdownHtml(message.markdown),
+      // Why a reply went to review; only meaningful while it is there.
+      deliveryError:
+        message.deliveryState === "review" && typeof message.source.deliveryError === "string"
+          ? message.source.deliveryError
+          : null,
+    })),
     actions: principal.grants.find((grant) => grant.projectId === ticket.projectId)?.actions ?? [],
     sender: await senderIdentity(ticket.projectId),
     // The worker sends public replies to the requester only.

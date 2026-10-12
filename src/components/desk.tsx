@@ -48,8 +48,19 @@ const messageSchema = z.object({
   markdown: z.string(),
   html: z.string(),
   deliveryState: z.string(),
+  deliveryError: z.string().nullable(),
   createdAt: z.string(),
 });
+// Why a reply needs checking. Codes without their own text keep the general
+// one; each text says whether the mail was sent.
+const deliveryErrors: Record<string, string> = {
+  recipient_suppressed: "deliveryRecipientSuppressed",
+  suppression_check_failed: "deliverySuppressionCheckFailed",
+  transport_rejected: "deliveryRejected",
+  recipient_not_accepted: "deliveryRejected",
+  transport_acceptance_unknown: "deliveryUnknown",
+  expired_dispatch_lease: "deliveryUnknown",
+};
 const addressSchema = z.object({ name: z.string(), address: z.string() });
 const conversationSchema = z.object({
   ticket: ticketSchema,
@@ -637,7 +648,8 @@ export function Desk({
                             <small className="delivery-state">
                               {t(
                                 message.deliveryState === "review"
-                                  ? "deliveryFailed"
+                                  ? (deliveryErrors[message.deliveryError ?? ""] ??
+                                      "deliveryFailed")
                                   : message.deliveryState,
                               )}
                             </small>
