@@ -195,7 +195,7 @@ export async function syncImapJunk(ingressId: string): Promise<JunkSyncResult> {
             state: "alias",
             origin: { kind: "imap", aliasOf: entry.id, ...next },
           })
-          .onConflictDoNothing({ target: ingress.externalKey });
+          .onConflictDoNothing({ target: [ingress.projectId, ingress.externalKey] });
       await tx
         .update(ingress)
         .set({ origin: { ...origin, location: next } })

@@ -377,6 +377,52 @@ The requester counts as verified because the token goes to the address that
 wrote to us; other participants need their own verification, which is not
 implemented.
 
+## Translation records
+
+`src/server/translation.ts` holds the lifecycle of derived translations; the
+provider that translates is M4 work and reports through `completeTranslation`
+and `failTranslation`, and the operator surfaces follow with M3. A translation is
+requested for one revision of a message and one target language (English or
+German for now) and is a record of its own: it never replaces the source, never
+becomes a message, does not touch the ticket or its response age, and is read
+with the rights to read the source. Asking again returns the same record, and a
+failed one is queued again. Pending, failed and stale translations are listed
+without text, so the source stays usable. A result is refused as failed when it
+changes code (fenced or inline), links, addresses or placeholders (`{{x}}`,
+`{x}`, `%s`, `%(x)s`) or adds one, which also stops an injected link. A result for
+an outdated revision is discarded as stale. A correction of a message that was
+not sent (a received message with `ticket.reply`, a private note with
+`ticket.note`) gives it a new revision, makes earlier translations stale and
+removes their text; it is audited. Deleting derived content is a separate
+action with `ticket.reply`; deleting a ticket removes its translations. Portal
+views do not include translations.
+
+## Email designs
+
+Each project can have versioned designs for its outgoing mail
+(`src/server/email-design.ts`; the settings pages follow with M3). A design holds
+accent color, font family (sans, serif or mono), header text, an optional logo,
+a footer and a signature per language (English, German). It holds no raw HTML:
+texts are escaped, a signature is Markdown that goes through the same
+sanitizing as message content, and a logo is a public `https` address without
+credentials that recipients' mail programs load; private attachments are never a
+source for it. A footer or signature for a recipient language that is missing
+falls back to the project's default language, and then to nothing.
+
+A version never changes. People with `project.manage` add a new one and select
+it (version 0 is the built-in design a project has until then); both steps are
+audited. The worker renders every reply and acknowledgement with the version
+that is selected when it sends, through the same renderer for SMTP and the
+Cloudflare API, with the plain-text body derived from the same content. The
+snapshot of a sent message names the design version it was rendered with (0 for
+the built-in design), so a later selection does not change what is recorded.
+`previewEmail` renders a sample like a real send, with the selected version by
+default, a saved version, or, for managers, an unsaved draft. The HTML carries a
+dark variant for programs that follow the system appearance and scales to the
+screen width. There is no test send yet; it needs a ticket-independent send job.
+Rendering in Gmail, Apple Mail and Outlook has not been checked and cannot be
+replaced by the browser preview.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside

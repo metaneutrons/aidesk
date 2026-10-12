@@ -26,7 +26,14 @@ export async function initializeStorage(): Promise<void> {
       "$metadata" in error &&
       (error as { $metadata: { httpStatusCode?: number } }).$metadata.httpStatusCode === 404
     ) {
-      await client.send(new CreateBucketCommand({ Bucket: env().S3_BUCKET }));
+      // Several processes may start on an empty store; the one that loses
+      // the race finds the bucket already created, which is the goal.
+      try {
+        await client.send(new CreateBucketCommand({ Bucket: env().S3_BUCKET }));
+      } catch (created) {
+        const name = (created as { name?: unknown } | null)?.name;
+        if (name !== "BucketAlreadyOwnedByYou" && name !== "BucketAlreadyExists") throw created;
+      }
     } else {
       throw error;
     }

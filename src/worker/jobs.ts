@@ -14,6 +14,7 @@ import {
   user,
 } from "../server/db/schema";
 import { emailTemplateVersion, renderEmail } from "../server/email";
+import { activeEmailDesign } from "../server/email-design";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
@@ -198,11 +199,14 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
     }
     if (connection.status !== "ready") throw new Error("outbound_not_ready");
     const automatic = payload.actorKind === "system";
+    const design = await activeEmailDesign(project.id, project.settings);
     const content = await renderEmail({
       project: project.name,
       markdown: message.markdown,
       language: message.language,
       color: project.color,
+      fallbackLanguage: project.defaultLanguage,
+      ...(design ? { design: design.config } : {}),
     });
     const earlier = await db()
       .select({
@@ -344,6 +348,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
               subject,
               language: message.language,
               templateVersion: emailTemplateVersion,
+              designVersion: design?.version ?? 0,
               markdown: message.markdown,
               html: content.html,
               text: content.text,

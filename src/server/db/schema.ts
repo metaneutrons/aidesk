@@ -296,7 +296,7 @@ export const ingress = pgTable(
       .notNull()
       .references(() => projects.id),
     connectionId: uuid("connection_id").references(() => connections.id),
-    externalKey: text("external_key").notNull().unique(),
+    externalKey: text("external_key").notNull(),
     rawObjectKey: text("raw_object_key").notNull(),
     checksum: text("checksum").notNull(),
     state: text("state").notNull().default("queued"),
@@ -308,7 +308,12 @@ export const ingress = pgTable(
     ticketId: uuid("ticket_id").references(() => tickets.id),
     receivedAt: created(),
   },
-  (t) => [index("ingress_project_idx").on(t.projectId)],
+  (t) => [
+    index("ingress_project_idx").on(t.projectId),
+    // An adapter's key is only unique within the project it delivers to, so a
+    // colliding key of another account or project can never swallow a mail.
+    uniqueIndex("ingress_project_key_idx").on(t.projectId, t.externalKey),
+  ],
 );
 export const jobStatus = pgEnum("job_status", [
   "queued",
@@ -350,6 +355,23 @@ export const audit = pgTable(
     createdAt: created(),
   },
   (t) => [index("audit_project_idx").on(t.projectId)],
+);
+// Versioned email designs of a project. A version is never changed; a new
+// one is added and then selected, so a mail that was sent can always name the
+// design it was rendered with.
+export const emailDesigns = pgTable(
+  "email_design",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("email_design_version_idx").on(t.projectId, t.version)],
 );
 export const translations = pgTable(
   "translation",
