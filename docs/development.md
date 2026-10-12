@@ -41,6 +41,40 @@ GHSA-67mh-4wv8-2f99. It is an explicit compatibility boundary: frozen installati
 Drizzle generation, auth, tests and framework build must remain qualified when
 the override or parent package changes. No advisory is suppressed.
 
+## Single sign-on
+
+Operators sign in through SSO providers registered by an owner. Better Auth's SSO
+plugin handles OIDC (authorization code with PKCE and a database-backed,
+single-use state; no OIDC nonce) and SAML (signed assertions required, issuer,
+audience, destination, InResponseTo and time checks, and a one-time assertion ID
+cache against replay). Provider configuration, including client secrets, is stored
+encrypted (`encryptedText` columns); OAuth tokens are encrypted as well, and the
+development OIDC provider requests no `offline_access`.
+
+SSO never creates aidesk users. The plugin's `disableImplicitSignUp` can be
+overridden by an unauthenticated `requestSignUp` flag for OIDC; the auth route
+therefore refuses any `/sign-in/sso` request carrying that flag. An IdP account
+reaches aidesk only when an operator with the same, verified email exists; the
+plugin links the account when the provider's domain is verified and the email
+domain matches. Project access still comes only from explicit grants, and a
+disabled operator or a revoked session loses access immediately.
+
+Provider domains are verified through DNS TXT records in production. The
+development bootstrap (`scripts/dev-sso.ts`) registers the local Keycloak realm as
+`keycloak-oidc` and `keycloak-saml` through the plugin API as the development
+owner, marks the reserved `.test` domains verified, and provisions the two test
+operators. Better Auth fetches only from public hosts unless an origin is trusted;
+the development stack trusts the Keycloak origins through
+`BETTER_AUTH_TRUSTED_ORIGINS`. Keycloak's realm descriptor always requests signed
+AuthnRequests, so the SAML provider is registered with the IdP entity ID and
+signing certificate instead of the metadata XML.
+
+Browser tests in `tests/e2e/sso.spec.ts` create per-run IdP accounts through the
+Keycloak admin API from the host and cover OIDC and SAML sign-in, a replayed OIDC
+callback and SAML response, refusal of an unprovisioned IdP user, the sign-up
+flag, revoked sessions and disabled operators. Production IdPs, owner recovery
+with MFA and SSO on a Vercel deployment are not qualified yet.
+
 ## What the slice supports
 
 Staff can log in with the generated development credentials, see only explicitly

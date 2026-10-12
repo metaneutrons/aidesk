@@ -79,5 +79,6 @@
   "themeLight": "Helle Darstellung",
   "themeDark": "Dunkle Darstellung",
   "fromSender": "Von {sender}",
-  "toRecipients": "An {recipients}"
+  "toRecipients": "An {recipients}",
+  "ssoError": "Die SSO-Anmeldung ist fehlgeschlagen. Dein Konto ist eventuell nicht in aidesk eingerichtet; wende dich an deinen Administrator."
 }

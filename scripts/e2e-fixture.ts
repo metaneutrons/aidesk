@@ -1,8 +1,11 @@
 // Isolated browser-test data inside the private development stack. Every run
 // gets its own operator and projects under an `e2e-<run>` prefix, so tests do
 // not touch the development desk and parallel browsers do not share tickets.
-//   setup             prints the fixture as JSON on stdout
-//   teardown <run>    deletes everything created for that run
+//   setup                     prints the fixture as JSON on stdout
+//   teardown <run>            deletes everything created for that run
+//   user-count <email>        number of aidesk users with that email
+//   disable <email>           deactivates a fixture user
+//   revoke-sessions <email>   deletes a fixture user's sessions
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { eq, inArray, like, or } from "drizzle-orm";
@@ -16,6 +19,7 @@ import {
   memberships,
   messages,
   projects,
+  session,
   tickets,
   user,
 } from "../src/server/db/schema";
@@ -112,7 +116,27 @@ async function setup() {
     }
     return created;
   });
-  return { run, prefix, email, password, projects: result };
+  // Operators who sign in through the development IdP. Their IdP accounts are
+  // created by the browser tests through the Keycloak admin API.
+  const sso = {
+    oidc: `${prefix}-oidc@oidc.aidesk.test`,
+    saml: `${prefix}-saml@saml.aidesk.test`,
+    stranger: `${prefix}-stranger@oidc.aidesk.test`,
+  };
+  const alpha = result.alpha;
+  if (!alpha) throw new Error("Alpha project missing");
+  await db().transaction(async (tx) => {
+    for (const operator of [sso.oidc, sso.saml]) {
+      const id = randomUUID();
+      await tx
+        .insert(user)
+        .values({ id, name: `E2E SSO ${run}`, email: operator, emailVerified: true });
+      await tx
+        .insert(memberships)
+        .values({ userId: id, projectId: alpha.id, actions: [...actions] });
+    }
+  });
+  return { run, prefix, email, password, projects: result, sso };
 }
 async function teardown(run: string) {
   if (!/^[a-f0-9]{8}$/.test(run)) throw new Error("Invalid run identifier.");
@@ -147,12 +171,35 @@ async function teardown(run: string) {
   });
   return { run, projects: projectIds.length, users: userIds.length };
 }
+function fixtureEmail(value: string | undefined): string {
+  if (!value || !/^e2e-[a-f0-9]{8}-[a-z]+@[a-z.]+$/.test(value))
+    throw new Error("Only fixture users can be changed.");
+  return value;
+}
+async function userCount(email: string) {
+  return { count: (await db().select().from(user).where(eq(user.email, email))).length };
+}
+async function disable(email: string) {
+  await db().update(user).set({ active: false }).where(eq(user.email, email));
+  return { disabled: email };
+}
+async function revokeSessions(email: string) {
+  const [target] = await db().select().from(user).where(eq(user.email, email));
+  if (target) await db().delete(session).where(eq(session.userId, target.id));
+  return { revoked: email };
+}
 const [command, argument] = process.argv.slice(2);
+const write = (value: unknown) => process.stdout.write(JSON.stringify(value) + "\n");
 try {
-  if (command === "setup") process.stdout.write(JSON.stringify(await setup()) + "\n");
-  else if (command === "teardown" && argument)
-    process.stdout.write(JSON.stringify(await teardown(argument)) + "\n");
-  else throw new Error("Usage: e2e-fixture.ts setup | teardown <run>");
+  if (command === "setup") write(await setup());
+  else if (command === "teardown" && argument) write(await teardown(argument));
+  else if (command === "user-count") write(await userCount(fixtureEmail(argument)));
+  else if (command === "disable") write(await disable(fixtureEmail(argument)));
+  else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
+  else
+    throw new Error(
+      "Usage: e2e-fixture.ts setup | teardown <run> | user-count|disable|revoke-sessions <email>",
+    );
 } finally {
   await sqlClient().end();
 }

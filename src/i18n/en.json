@@ -79,5 +79,6 @@
   "themeLight": "Light appearance",
   "themeDark": "Dark appearance",
   "fromSender": "From {sender}",
-  "toRecipients": "To {recipients}"
+  "toRecipients": "To {recipients}",
+  "ssoError": "SSO sign-in failed. Your account may not be set up in aidesk; contact your administrator."
 }
