@@ -157,5 +157,7 @@
   "projectSettingsTitle": "Projects",
   "acknowledgementHint": "An acknowledgement confirms each new ticket to the customer with its number. It is not sent to automatic senders such as mailing lists or bounce messages, and at most once an hour to the same address.",
   "acknowledgementSetting": "{project}: send acknowledgements",
-  "acknowledgement": "Acknowledgement"
+  "acknowledgement": "Acknowledgement",
+  "originalMail": "Original (.eml)",
+  "extractionUncertain": "Shortened automatically; compare with the original."
 }
