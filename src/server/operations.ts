@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import {
@@ -7,6 +7,7 @@ import {
   agents,
   attachments,
   audit,
+  ingress,
   connections,
   jobs,
   memberships,
@@ -19,6 +20,8 @@ import {
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
 import { getObject } from "./storage";
+import { htmlToMarkdown } from "./inbound";
+import { simpleParser } from "mailparser";
 import {
   actions,
   allowedProjectIds,
@@ -51,7 +54,7 @@ export async function listTickets(principal: Principal, requested: string[] = []
   return db()
     .select()
     .from(tickets)
-    .where(inArray(tickets.projectId, filtered))
+    .where(and(inArray(tickets.projectId, filtered), isNull(tickets.junkAt)))
     .orderBy(sql`${tickets.pendingSince} asc nulls last`, desc(tickets.updatedAt))
     .limit(250);
 }
@@ -144,6 +147,160 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
     content: await getObject(file.objectKey),
   };
 }
+// Junk: tickets moved there by a person and inbound mail classified as junk
+// before it became a ticket. Both stay out of the inbox until restored.
+export async function listJunk(principal: Principal, requested: string[] = []) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
+  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  if (filtered.length === 0) return [];
+  const junkTickets = await db()
+    .select({
+      id: tickets.id,
+      projectId: tickets.projectId,
+      subject: tickets.subject,
+      from: tickets.requesterEmail,
+      at: tickets.junkAt,
+      reason: tickets.junkReason,
+    })
+    .from(tickets)
+    .where(and(inArray(tickets.projectId, filtered), isNotNull(tickets.junkAt)))
+    .orderBy(desc(tickets.junkAt))
+    .limit(250);
+  const junkMail = await db()
+    .select({
+      id: ingress.id,
+      projectId: ingress.projectId,
+      parsed: ingress.parsed,
+      classification: ingress.classification,
+      at: ingress.receivedAt,
+    })
+    .from(ingress)
+    .where(and(inArray(ingress.projectId, filtered), eq(ingress.state, "junk")))
+    .orderBy(desc(ingress.receivedAt))
+    .limit(250);
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+  return [
+    ...junkTickets.map((entry) => ({
+      kind: "ticket" as const,
+      ...entry,
+      canRestore: permits(principal, entry.projectId, "ticket.junk"),
+      at: (entry.at ?? new Date(0)).toISOString(),
+      reason: entry.reason ?? "operator",
+    })),
+    ...junkMail.map((entry) => ({
+      kind: "mail" as const,
+      id: entry.id,
+      projectId: entry.projectId,
+      subject: text(entry.parsed?.subject),
+      from: text(entry.parsed?.from),
+      at: entry.at.toISOString(),
+      reason: text(entry.classification?.reason) || "classified",
+      canRestore: permits(principal, entry.projectId, "ticket.junk"),
+    })),
+  ]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 250);
+}
+async function junkMailOf(principal: Principal, ingressId: string, action: Action) {
+  const allowed = allowedProjectIds(principal, action);
+  if (!allowed.length) throw new DomainError("not_found", 404);
+  const [entry] = await db()
+    .select()
+    .from(ingress)
+    .where(and(eq(ingress.id, id.parse(ingressId)), inArray(ingress.projectId, allowed)))
+    .limit(1);
+  if (!entry) throw new DomainError("not_found", 404);
+  return entry;
+}
+// A junk mail with a sanitized preview of its content. The original stays
+// private; nothing from it is fetched or executed.
+export async function getJunkMail(principal: Principal, ingressId: string) {
+  const entry = await junkMailOf(principal, ingressId, "ticket.read");
+  if (entry.state !== "junk") throw new DomainError("not_found", 404);
+  const mail = await simpleParser(await getObject(entry.rawObjectKey));
+  const body =
+    typeof mail.html === "string" && mail.html.trim()
+      ? htmlToMarkdown(mail.html)
+      : (mail.text ?? "");
+  return {
+    id: entry.id,
+    projectId: entry.projectId,
+    subject: (mail.subject ?? "").trim() || "(no subject)",
+    from: typeof entry.parsed?.from === "string" ? entry.parsed.from : "",
+    receivedAt: entry.receivedAt.toISOString(),
+    reason:
+      typeof entry.classification?.reason === "string" ? entry.classification.reason : "classified",
+    attachments: mail.attachments.length,
+    html: markdownHtml(body.trim() || "(no text content)"),
+  };
+}
+// Hands a junk mail back to inbound processing, which then threads it like
+// any other mail. Restoring twice has no further effect.
+export async function restoreJunkMail(principal: Principal, ingressId: string) {
+  if (principal.kind !== "human") throw new DomainError("forbidden", 403);
+  const entry = await junkMailOf(principal, ingressId, "ticket.read");
+  if (!permits(principal, entry.projectId, "ticket.junk")) throw new DomainError("forbidden", 403);
+  return db().transaction(async (tx) => {
+    const [restored] = await tx
+      .update(ingress)
+      .set({
+        state: "queued",
+        classification: {
+          ...entry.classification,
+          restored: { by: principal.id, at: new Date().toISOString() },
+        },
+      })
+      .where(and(eq(ingress.id, entry.id), eq(ingress.state, "junk")))
+      .returning({ id: ingress.id });
+    if (!restored) throw new DomainError("conflict", 409);
+    await tx.insert(jobs).values({
+      projectId: entry.projectId,
+      type: "mail.ingest",
+      dedupKey: `ingest-restore:${entry.id}`,
+      payload: { ingressId: entry.id },
+    });
+    await tx.insert(audit).values({
+      projectId: entry.projectId,
+      actorId: principal.id,
+      action: "junk.restore",
+      targetId: entry.id,
+    });
+    return { restored: true };
+  });
+}
+async function setTicketJunk(principal: Principal, ticketId: string, junk: boolean) {
+  if (principal.kind !== "human") throw new DomainError("forbidden", 403);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.junk")) throw new DomainError("forbidden", 403);
+  return db().transaction(async (tx) => {
+    const [changed] = await tx
+      .update(tickets)
+      .set(
+        junk
+          ? { junkAt: new Date(), junkReason: "operator", updatedAt: new Date() }
+          : { junkAt: null, junkReason: null, updatedAt: new Date() },
+      )
+      .where(
+        and(eq(tickets.id, ticket.id), junk ? isNull(tickets.junkAt) : isNotNull(tickets.junkAt)),
+      )
+      .returning({ id: tickets.id });
+    if (!changed) throw new DomainError("conflict", 409);
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: junk ? "ticket.junk" : "ticket.restore",
+      targetId: ticket.id,
+    });
+    return { junk };
+  });
+}
+export async function moveTicketToJunk(principal: Principal, ticketId: string) {
+  return setTicketJunk(principal, ticketId, true);
+}
+export async function restoreTicket(principal: Principal, ticketId: string) {
+  return setTicketJunk(principal, ticketId, false);
+}
 // Name and address of the project's outgoing identity, without any other
 // connection settings.
 async function senderIdentity(projectId: string) {
@@ -206,6 +363,8 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
   )
     throw new DomainError("forbidden", 403);
   if (values.resolve && values.internal) throw new DomainError("invalid_input", 400);
+  // A ticket in junk gets no public reply until a person restores it.
+  if (!values.internal && ticket.junkAt) throw new DomainError("conflict", 409);
   const project = await db()
     .select()
     .from(projects)

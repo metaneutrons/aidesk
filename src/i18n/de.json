@@ -138,5 +138,16 @@
   "tokenExpires": "Läuft ab am {date}",
   "noTokens": "Für dieses Projekt gibt es keine Tokens.",
   "settingsNoAccess": "Du verwaltest kein Projekt.",
-  "operatorActions": "Aktionen"
+  "operatorActions": "Aktionen",
+  "junkHint": "Beim Eingang als Junk erkannte Mails und hierher verschobene Tickets. Nichts davon erscheint im Posteingang, und es geht keine Antwort oder Eingangsbestätigung raus. Eine wiederhergestellte Mail wird wie eine neu eingegangene verarbeitet.",
+  "junkEmpty": "Kein Junk.",
+  "junkPreview": "Junk-Vorschau",
+  "notJunk": "Kein Junk",
+  "moveToJunk": "In Junk verschieben",
+  "junkReasonOperator": "Von einem Operator verschoben",
+  "junkReasonSpamFilter": "Vom Spamfilter markiert",
+  "junkReasonClassified": "Als Junk erkannt",
+  "noSubject": "(kein Betreff)",
+  "junkError": "Die Aktion konnte nicht ausgeführt werden.",
+  "junkLoading": "Wird geladen …"
 }

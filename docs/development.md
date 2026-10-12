@@ -193,8 +193,21 @@ always answers as a download (`application/octet-stream`, `nosniff`,
 and unknown ids all answer 404. Ticket responses list the metadata on every
 surface; MCP does not yet return file content.
 
-Not yet implemented: acknowledgements, junk classification and the IMAP Junk
-folder and language detection. GreenMail is a
+Junk has its own view. Inbound mail that an upstream spam filter marked
+(`X-Spam-Flag: YES`, `X-Spam-Status: Yes`, `X-Spam: yes`) is classified before
+threading: it creates no ticket, is not added to an existing ticket (even one it
+references), and gets no acknowledgement. Operators with `ticket.junk` (part of
+the Respond and Manage roles; migration 0005 adds it to existing grants with
+`ticket.reply`) can also move a ticket to junk. A ticket in junk keeps its
+status and history, leaves the inbox and the ticket list of every surface,
+accepts private notes but no public reply, and the worker sends nothing queued
+for it. "Not junk" restores a ticket as it was; a junk mail returns to inbound
+processing without classification and then threads like any arrival. The
+preview of a junk mail is sanitized; the original stays private. The AI
+classifier follows with M4.
+
+Not yet implemented: acknowledgements, moving IMAP originals to the mailbox's
+Junk folder and language detection. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 

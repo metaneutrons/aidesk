@@ -1104,3 +1104,52 @@ label {
     clip-path: inset(50%);
     white-space: nowrap;
 }
+.junk {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+}
+.junk-list {
+    width: 350px;
+    flex-shrink: 0;
+    overflow: auto;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+}
+.junk-list > p {
+    padding: 16px 22px 0;
+    margin: 0;
+}
+.junk-list ul {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+}
+.junk-preview {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding: 28px 32px;
+    background: var(--panel);
+}
+.junk-preview header {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    margin-bottom: 20px;
+}
+.junk-preview h2 {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+    .junk {
+        flex-direction: column;
+        overflow: auto;
+    }
+    .junk-list {
+        width: auto;
+        border-right: 0;
+    }
+}

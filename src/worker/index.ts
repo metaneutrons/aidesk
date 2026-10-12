@@ -134,6 +134,7 @@ async function runNext(): Promise<boolean> {
       !project ||
       !connection ||
       ticket.revision !== payload.expectedRevision ||
+      ticket.junkAt !== null ||
       project.settings.pauseOutgoing === true ||
       project.settings.outboundConnectionId !== connection.id
     )

@@ -138,5 +138,16 @@
   "tokenExpires": "Expires {date}",
   "noTokens": "No tokens for this project.",
   "settingsNoAccess": "You do not manage any project.",
-  "operatorActions": "Actions"
+  "operatorActions": "Actions",
+  "junkHint": "Mail classified as junk on arrival and tickets moved here. Nothing here appears in the inbox, and no reply or acknowledgement is sent. Restoring a mail processes it like a new arrival.",
+  "junkEmpty": "No junk.",
+  "junkPreview": "Junk preview",
+  "notJunk": "Not junk",
+  "moveToJunk": "Move to junk",
+  "junkReasonOperator": "Moved by an operator",
+  "junkReasonSpamFilter": "Marked by the spam filter",
+  "junkReasonClassified": "Classified as junk",
+  "noSubject": "(no subject)",
+  "junkError": "The action could not be completed.",
+  "junkLoading": "Loading…"
 }

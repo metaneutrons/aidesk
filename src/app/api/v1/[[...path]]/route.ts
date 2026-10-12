@@ -4,13 +4,18 @@ import {
   createOperator,
   createProject,
   getAttachment,
+  getJunkMail,
   getTicket,
   issueAgentToken,
   listAgentTokens,
+  listJunk,
   listOperators,
   listProjects,
   listTickets,
+  moveTicketToJunk,
   reply,
+  restoreJunkMail,
+  restoreTicket,
   revokeAgentToken,
   setLocale,
   setOperatorActive,
@@ -49,6 +54,10 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await listAgentTokens(principal, identifier));
       if (resource === "tickets" && identifier && segments.length === 2)
         return Response.json(await getTicket(principal, identifier));
+      if (resource === "junk" && segments.length === 1)
+        return Response.json(await listJunk(principal, url.searchParams.getAll("project")));
+      if (resource === "junk" && identifier && segments.length === 2)
+        return Response.json(await getJunkMail(principal, identifier));
       if (resource === "attachments" && identifier && segments.length === 2)
         return download(await getAttachment(principal, identifier));
       if (resource === "tickets" && segments.length === 1)
@@ -71,6 +80,12 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await issueAgentToken(principal, identifier, input), { status: 201 });
       if (resource === "agents" && identifier && operation === "revoke" && segments.length === 3)
         return Response.json(await revokeAgentToken(principal, identifier));
+      if (resource === "tickets" && identifier && operation === "junk" && segments.length === 3)
+        return Response.json(await moveTicketToJunk(principal, identifier));
+      if (resource === "tickets" && identifier && operation === "restore" && segments.length === 3)
+        return Response.json(await restoreTicket(principal, identifier));
+      if (resource === "junk" && identifier && operation === "restore" && segments.length === 3)
+        return Response.json(await restoreJunkMail(principal, identifier));
       if (resource === "tickets" && identifier && operation === "reply" && segments.length === 3)
         return Response.json(await reply(principal, identifier, input), { status: 202 });
       if (resource === "me" && identifier === "locale" && segments.length === 2) {
