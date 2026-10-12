@@ -203,7 +203,12 @@ API with In-Reply-To and References. Cloudflare assigns the Message-ID itself;
 aidesk stores the returned value for later threading. A refusal before
 acceptance is recorded as `transport_rejected`; timeouts, server errors and
 responses that do not list the recipient as delivered or queued leave the
-outcome unknown. Both go to review and are never resent automatically.
+outcome unknown. Both go to review and are never resent automatically. SMTP
+sends follow the same rule: a failure reply from the server, a failed
+connection or a failed login counts as `transport_rejected`; a timeout or a
+dropped connection while the message is in flight leaves the outcome unknown.
+The worker logs the SMTP command, reply code and enhanced status code, but not
+the reply text or any address.
 
 Without the Workers Paid plan and an onboarded sending domain, Cloudflare only
 delivers to verified destination addresses of the account. Each routing rule
