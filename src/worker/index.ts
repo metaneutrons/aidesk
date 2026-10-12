@@ -18,6 +18,7 @@ import { renderEmail } from "../server/email";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
+import { classifySmtpFailure } from "../domain/delivery";
 import { processIngress } from "../server/inbound";
 import { pollImapConnection } from "../server/imap";
 import {
@@ -244,16 +245,23 @@ async function runNext(): Promise<boolean> {
       code = "transport_acceptance_unknown";
       const senderDomain = config.from.slice(config.from.lastIndexOf("@") + 1);
       outgoingId = `<${message.id}@${senderDomain}>`;
-      const accepted = await transport.sendMail({
-        from: { name: project.name, address: config.from },
-        replyTo: config.replyTo,
-        to: ticket.requesterEmail,
-        subject: `Re: ${ticket.subject}`,
-        messageId: outgoingId,
-        ...thread,
-        headers: { "X-Aidesk-Ticket": ticket.id },
-        ...content,
-      });
+      const accepted = await transport
+        .sendMail({
+          from: { name: project.name, address: config.from },
+          replyTo: config.replyTo,
+          to: ticket.requesterEmail,
+          subject: `Re: ${ticket.subject}`,
+          messageId: outgoingId,
+          ...thread,
+          headers: { "X-Aidesk-Ticket": ticket.id },
+          ...content,
+        })
+        .catch((error: unknown) => {
+          const failure = classifySmtpFailure(error);
+          code = failure.outcome;
+          console.log(JSON.stringify({ event: "smtp.send_failed", jobId: job.id, ...failure }));
+          throw error;
+        });
       if (!accepted.accepted.map(String).includes(ticket.requesterEmail))
         throw new Error("recipient_not_accepted");
     } else throw new Error("outbound_not_ready");
