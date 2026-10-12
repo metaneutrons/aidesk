@@ -73,6 +73,7 @@ const deliveryErrors: Record<string, string> = {
   recipient_not_accepted: "deliveryRejected",
   transport_acceptance_unknown: "deliveryUnknown",
   expired_dispatch_lease: "deliveryUnknown",
+  bounced: "deliveryBounced",
   stale_or_paused_dispatch: "deliveryStale",
   dispatch_grant_revoked: "deliveryNotAllowed",
   acknowledgement_not_enabled: "deliveryNotAllowed",
