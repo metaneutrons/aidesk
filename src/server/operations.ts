@@ -129,9 +129,12 @@ export async function getTicket(principal: Principal, ticketId: string) {
   );
   return {
     ticket,
-    messages: conversation.map((message) => ({
+    messages: conversation.map(({ rawObjectKey, ...message }) => ({
       ...message,
       html: markdownHtml(message.markdown),
+      // The private original can be downloaded; the storage key stays inside.
+      hasOriginal: rawObjectKey !== null,
+      extractionUncertain: message.source.uncertain === true,
       // Why a reply went to review; only meaningful while it is there.
       deliveryError:
         message.deliveryState === "review" && typeof message.source.deliveryError === "string"
@@ -176,6 +179,23 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
     contentType: file.contentType,
     size: file.size,
     content: await getObject(file.objectKey),
+  };
+}
+// The received original of a message, for a person who may read its ticket,
+// for example to check a shortened extraction.
+export async function getOriginal(principal: Principal, messageId: string) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  if (!allowed.length) throw new DomainError("not_found", 404);
+  const [found] = await db()
+    .select({ rawObjectKey: messages.rawObjectKey, number: tickets.number })
+    .from(messages)
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(and(eq(messages.id, id.parse(messageId)), inArray(tickets.projectId, allowed)))
+    .limit(1);
+  if (!found?.rawObjectKey) throw new DomainError("not_found", 404);
+  return {
+    filename: `ticket-${String(found.number)}-${messageId.slice(0, 8)}.eml`,
+    content: await getObject(found.rawObjectKey),
   };
 }
 // Junk: tickets moved there by a person and inbound mail classified as junk

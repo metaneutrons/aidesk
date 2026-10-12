@@ -160,5 +160,7 @@
   "acknowledgement": "Acknowledgement",
   "junkMailboxPending": "Mailbox: move to the junk folder pending",
   "junkMailboxDone": "Mailbox: in the junk folder",
-  "junkMailboxFailed": "Mailbox: could not move to the junk folder"
+  "junkMailboxFailed": "Mailbox: could not move to the junk folder",
+  "originalMail": "Original (.eml)",
+  "extractionUncertain": "Shortened automatically; compare with the original."
 }

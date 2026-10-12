@@ -52,6 +52,8 @@ const messageSchema = z.object({
   html: z.string(),
   deliveryState: z.string(),
   deliveryError: z.string().nullable(),
+  hasOriginal: z.boolean(),
+  extractionUncertain: z.boolean(),
   attachments: z.array(
     z.object({
       id: z.uuid(),
@@ -722,6 +724,16 @@ export function Desk({
                             className="prose"
                             dangerouslySetInnerHTML={{ __html: message.html }}
                           />
+                          {message.authorType === "customer" && message.hasOriginal && (
+                            <p className="message-original">
+                              {message.extractionUncertain && (
+                                <span className="attention">{t("extractionUncertain")}</span>
+                              )}
+                              <a href={`/api/v1/messages/${message.id}/original`} download>
+                                {t("originalMail")}
+                              </a>
+                            </p>
+                          )}
                           {message.attachments.length > 0 && (
                             <ul className="attachments" aria-label={t("attachments")}>
                               {message.attachments.map((file) => (

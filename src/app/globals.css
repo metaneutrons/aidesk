@@ -1170,3 +1170,19 @@ label {
     gap: 8px;
     align-items: center;
 }
+
+.message-original {
+    margin: 6px 0 0;
+    padding-left: 39px;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 12px;
+}
+.message-original a {
+    color: var(--accent);
+}
+.message-original .attention {
+    color: var(--warning);
+    font-weight: 600;
+}
