@@ -323,6 +323,30 @@ provisioning UI and owner recovery are not finished. MCP registration is filtere
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
 
+## Email designs
+
+Each project can have versioned designs for its outgoing mail
+(`src/server/email-design.ts`; the settings pages follow with M3). A design holds
+accent color, font family (sans, serif or mono), header text, an optional logo,
+a footer and a signature per language (English, German). It holds no raw HTML:
+texts are escaped, a signature is Markdown that goes through the same
+sanitizing as message content, and a logo is a public `https` address without
+credentials that recipients' mail programs load; private attachments are never a
+source for it. A footer or signature for a recipient language that is missing
+falls back to the project's default language, and then to nothing.
+
+A version never changes. People with `project.manage` add a new one and select
+it (version 0 is the built-in design a project has until then); both steps are
+audited. The worker renders every reply and acknowledgement with the version
+that is selected when it sends, through the same renderer for SMTP and the
+Cloudflare API, with the plain-text body derived from the same content.
+`previewEmail` renders a sample like a real send, with the selected version by
+default, a saved version, or, for managers, an unsaved draft. The HTML carries a
+dark variant for programs that follow the system appearance and scales to the
+screen width. There is no test send yet; it needs a ticket-independent send job.
+Rendering in Gmail, Apple Mail and Outlook has not been checked and cannot be
+replaced by the browser preview.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside
