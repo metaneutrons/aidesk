@@ -99,6 +99,21 @@ TOTP codes, so a code can be reused within its 90-second window by someone who
 also knows the password. Further owners, re-enrolment after a lost authenticator
 and owner management are not implemented yet.
 
+## Operator administration
+
+The Settings view lists operators. Owners add operators by name and email and
+disable or re-enable them; owners themselves and the caller cannot be disabled
+there, and disabling ends the operator's sessions. An added operator signs in
+through SSO with that email: the identity provider account is linked when the
+provider's domain is verified and the email domain matches.
+
+Project access is set per project with the roles No access, Read, Respond and
+Manage, or kept as Custom. Only people who manage a project change its access, and
+never beyond the actions they hold there; owner status alone gives no project
+access. Changes are audited. The same view issues and revokes service tokens for
+projects where the caller has `agent.manage`. REST offers the same operations
+(`/api/v1/operators`); MCP does not, as recorded in the capability ledger.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`

@@ -1003,3 +1003,79 @@ label {
     border-radius: 9px;
     text-decoration: none;
 }
+.settings {
+    padding: 32px 40px;
+    overflow: auto;
+    display: grid;
+    gap: 16px;
+    align-content: start;
+}
+.settings h2 {
+    margin: 8px 0 0;
+    font-size: 18px;
+}
+.settings h3 {
+    margin: 0;
+    font-size: 14px;
+}
+.settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.settings-table th,
+.settings-table td {
+    text-align: left;
+    padding: 10px 12px 10px 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+}
+.settings-table td small {
+    display: block;
+    color: var(--muted);
+}
+.settings-form {
+    display: grid;
+    gap: 10px;
+    max-width: 420px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+}
+.settings-form label,
+.inline-field {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    max-width: 420px;
+}
+.token-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+}
+.token-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    align-items: center;
+}
+.issued-token code {
+    display: block;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

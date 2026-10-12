@@ -24,16 +24,20 @@ import {
 } from "../src/server/db/schema";
 import { actions, type Principal } from "../src/domain/permissions";
 import {
+  createOperator,
   createProject,
   getTicket,
   issueAgentToken,
   listAgentTokens,
+  listOperators,
   listProjects,
   listTickets,
   operatorInfo,
   reply,
   revokeAgentToken,
   setLocale,
+  setOperatorActive,
+  setOperatorGrant,
 } from "../src/server/operations";
 import { identify, requireMutationOrigin, tokenHash } from "../src/server/principal";
 import { mcpRequest } from "../src/server/mcp";
@@ -612,5 +616,133 @@ describe("project-scoped agent tokens", () => {
         expiresInDays: 365,
       }),
     ).rejects.toThrow();
+  });
+});
+describe("operator administration", () => {
+  it("lets owners create and disable operators but not owners or themselves", async () => {
+    const email = `${randomUUID()}@Example.test`;
+    const created = await createOperator(principal, { name: "New operator", email });
+    expect(created.email).toBe(email.toLowerCase());
+    await expect(createOperator(principal, { name: "Again", email })).rejects.toMatchObject({
+      code: "conflict",
+    });
+    const nonOwner: Principal = { ...principal, owner: false };
+    await expect(
+      createOperator(nonOwner, { name: "X", email: "x@example.test" }),
+    ).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(
+      createOperator({ ...principal, kind: "agent" }, { name: "X", email: "y@example.test" }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await db()
+      .insert(schema.session)
+      .values({
+        id: randomUUID(),
+        token: randomUUID(),
+        userId: created.id,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+    expect(await setOperatorActive(principal, created.id, { active: false })).toEqual({
+      id: created.id,
+      active: false,
+    });
+    expect(
+      await db().select().from(schema.session).where(eq(schema.session.userId, created.id)),
+    ).toEqual([]);
+    await expect(setOperatorActive(principal, actorId, { active: false })).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(setOperatorActive(nonOwner, created.id, { active: true })).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    const otherOwner = randomUUID();
+    await db()
+      .insert(schema.user)
+      .values({
+        id: otherOwner,
+        name: "Other owner",
+        email: `${otherOwner}@example.test`,
+        owner: true,
+      });
+    await expect(setOperatorActive(principal, otherOwner, { active: false })).rejects.toMatchObject(
+      {
+        code: "forbidden",
+      },
+    );
+    await expect(
+      setOperatorActive(principal, randomUUID(), { active: false }),
+    ).rejects.toMatchObject({
+      code: "not_found",
+    });
+    const actions = (
+      await db()
+        .select()
+        .from(schema.audit)
+        .where(inArray(schema.audit.targetId, [created.id]))
+    ).map((entry) => entry.action);
+    expect(actions.sort()).toEqual(["operator.create", "operator.disable"]);
+    await db()
+      .delete(schema.audit)
+      .where(inArray(schema.audit.targetId, [created.id]));
+    await db()
+      .delete(schema.user)
+      .where(inArray(schema.user.id, [created.id, otherOwner]));
+  });
+  it("grants project access only within the manager's own actions", async () => {
+    const operator = await createOperator(principal, {
+      name: "Grant target",
+      email: `${randomUUID()}@example.test`,
+    });
+    const granted = await setOperatorGrant(principal, operator.id, {
+      projectId,
+      actions: ["project.read", "ticket.read", "ticket.read"],
+    });
+    expect(granted.actions).toEqual(["project.read", "ticket.read"]);
+    const listed = await listOperators(principal);
+    expect(listed.find((person) => person.id === operator.id)).toMatchObject({
+      active: true,
+      signIn: [],
+      grants: [{ projectId, actions: ["project.read", "ticket.read"] }],
+    });
+    const narrow: Principal = {
+      ...principal,
+      owner: false,
+      grants: [{ projectId, actions: ["project.read", "ticket.read", "project.manage"] }],
+    };
+    await expect(
+      setOperatorGrant(narrow, operator.id, { projectId, actions: ["ticket.reply"] }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      setOperatorGrant(principal, operator.id, { projectId: hiddenId, actions: ["ticket.read"] }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      setOperatorGrant(principal, randomUUID(), { projectId, actions: ["ticket.read"] }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      setOperatorGrant(principal, operator.id, { projectId, actions: ["no.such.action"] }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    // A project manager sees only the projects they manage.
+    expect(
+      (
+        await listOperators({
+          ...narrow,
+          grants: [{ projectId: hiddenId, actions: ["project.manage"] }],
+        })
+      ).find((person) => person.id === operator.id)?.grants,
+    ).toEqual([]);
+    await expect(
+      listOperators({
+        ...principal,
+        owner: false,
+        grants: [{ projectId, actions: ["ticket.read"] }],
+      }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await setOperatorGrant(principal, operator.id, { projectId, actions: [] });
+    expect(
+      await db().select().from(memberships).where(eq(memberships.userId, operator.id)),
+    ).toEqual([]);
+    await db().delete(schema.audit).where(eq(schema.audit.targetId, operator.id));
+    await db().delete(schema.user).where(eq(schema.user.id, operator.id));
   });
 });

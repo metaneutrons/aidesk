@@ -12,6 +12,7 @@ import { seal, unseal } from "../src/server/crypto";
 import { markdownHtml } from "../src/server/markdown";
 import { renderEmail } from "../src/server/email";
 import { isMessageId, threadHeaders } from "../src/domain/threading";
+import { operatorRoles, roleOf, tokenRoles, within } from "../src/domain/roles";
 import { DomainError } from "../src/server/errors";
 import english from "../src/i18n/en.json";
 import german from "../src/i18n/de.json";
@@ -228,5 +229,18 @@ describe("mail threading headers", () => {
         { messageId: "<x@example.test>\r\nBcc: victim@example.test", fromCustomer: true },
       ]),
     ).toEqual({});
+  });
+});
+describe("role presets", () => {
+  it("maps actions to presets and limits presets to held actions", () => {
+    expect(roleOf(operatorRoles, ["ticket.read", "project.read"])).toBe("read");
+    expect(roleOf(operatorRoles, [])).toBe("none");
+    expect(roleOf(operatorRoles, ["ticket.read"])).toBe("custom");
+    expect(roleOf(tokenRoles, ["project.read", "ticket.read", "ticket.note"])).toBe("notes");
+    expect(within(operatorRoles.respond, ["project.read", "ticket.read", "ticket.note"])).toEqual([
+      "project.read",
+      "ticket.read",
+      "ticket.note",
+    ]);
   });
 });
