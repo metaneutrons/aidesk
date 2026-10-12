@@ -248,7 +248,22 @@ bounces itself under its own return path and does not forward them, so this path
 applies to transports whose return path reaches the project mailbox; a provider
 webhook is not implemented.
 
-Not yet implemented: language detection. GreenMail is a
+A new ticket takes the language of its first message when it can be named
+reliably, otherwise the project's default language. The detection
+(`src/domain/language.ts`) counts function words that belong to only one of the
+supported languages (English, German) in what the person wrote, without quoted
+history, code and links. It needs at least eight words, three function words
+of one language and clearly more than of the other; a short, mixed or neutral
+text yields no language instead of a guess. Each message records the detection
+and the first message the decision (`ticket`, `requester`, `detected` or
+`project`, and whether the project default was used because detection was
+open). The order is explicit ticket choice, requester preference, detection,
+project default; the operator's interface language is no input. A later message
+in another language keeps the ticket language and records its own. Requester
+preferences and enabled target languages per project follow with the portal and
+translation work.
+
+Not yet implemented: translation. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 
@@ -361,6 +376,26 @@ other tickets, participants or projects. A follow-up ticket needs its own grant.
 The requester counts as verified because the token goes to the address that
 wrote to us; other participants need their own verification, which is not
 implemented.
+
+## Translation records
+
+`src/server/translation.ts` holds the lifecycle of derived translations; the
+provider that translates is M4 work and reports through `completeTranslation`
+and `failTranslation`, and the operator surfaces follow with M3. A translation is
+requested for one revision of a message and one target language (English or
+German for now) and is a record of its own: it never replaces the source, never
+becomes a message, does not touch the ticket or its response age, and is read
+with the rights to read the source. Asking again returns the same record, and a
+failed one is queued again. Pending, failed and stale translations are listed
+without text, so the source stays usable. A result is refused as failed when it
+changes code (fenced or inline), links, addresses or placeholders (`{{x}}`,
+`{x}`, `%s`, `%(x)s`) or adds one, which also stops an injected link. A result for
+an outdated revision is discarded as stale. A correction of a message that was
+not sent (a received message with `ticket.reply`, a private note with
+`ticket.note`) gives it a new revision, makes earlier translations stale and
+removes their text; it is audited. Deleting derived content is a separate
+action with `ticket.reply`; deleting a ticket removes its translations. Portal
+views do not include translations.
 
 ## Email designs
 
