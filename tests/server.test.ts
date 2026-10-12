@@ -176,6 +176,43 @@ describe("persistent project boundaries", () => {
       ).actions,
     ).toEqual(["ticket.read"]);
   });
+  it("explains a reply in review and nothing else", async () => {
+    const [review, sent] = await db()
+      .insert(schema.messages)
+      .values([
+        {
+          ticketId,
+          authorType: "human",
+          authorName: "Agent",
+          markdown: "Blocked reply",
+          language: "en",
+          deliveryState: "review",
+          source: { deliveryError: "recipient_suppressed" },
+        },
+        {
+          ticketId,
+          authorType: "human",
+          authorName: "Agent",
+          markdown: "Delivered later",
+          language: "en",
+          deliveryState: "sent",
+          source: { deliveryError: "transport_acceptance_unknown" },
+        },
+      ])
+      .returning({ id: schema.messages.id });
+    const shown = (await getTicket(principal, ticketId)).messages;
+    expect(shown.find((message) => message.id === review?.id)?.deliveryError).toBe(
+      "recipient_suppressed",
+    );
+    expect(shown.find((message) => message.id === sent?.id)?.deliveryError).toBeNull();
+    expect(shown.filter((message) => message.deliveryState === "received")).not.toHaveLength(0);
+    expect(
+      shown.filter((message) => message.deliveryState !== "review").map((m) => m.deliveryError),
+    ).toEqual(shown.filter((message) => message.deliveryState !== "review").map(() => null));
+    await db()
+      .delete(schema.messages)
+      .where(inArray(schema.messages.id, [review?.id ?? "", sent?.id ?? ""]));
+  });
   it("creates projects with an explicit creator grant and audit", async () => {
     for (const changed of [
       { ...principal, owner: false },
