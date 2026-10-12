@@ -6,6 +6,7 @@ import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { db, sqlClient } from "../src/server/db";
 import {
+  audit,
   connections,
   ingress,
   jobs,
@@ -13,8 +14,11 @@ import {
   syncCursors,
   tickets,
 } from "../src/server/db/schema";
-import { pollImapConnection } from "../src/server/imap";
+import { pollImapConnection, syncImapJunk } from "../src/server/imap";
 import { processIngress } from "../src/server/inbound";
+import { runIdempotentJob } from "../src/server/jobs";
+import { listJunk, restoreJunkMail } from "../src/server/operations";
+import type { Principal } from "../src/domain/permissions";
 import { initializeStorage } from "../src/server/storage";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
@@ -84,6 +88,7 @@ afterAll(async () => {
   await db().delete(jobs).where(eq(jobs.projectId, projectId));
   await db().delete(ingress).where(eq(ingress.projectId, projectId));
   await db().delete(tickets).where(eq(tickets.projectId, projectId));
+  await db().delete(audit).where(eq(audit.projectId, projectId));
   await db().delete(connections).where(eq(connections.projectId, projectId));
   await db().delete(projects).where(eq(projects.id, projectId));
   await sqlClient().end();
@@ -153,5 +158,196 @@ describe("IMAP adapter", () => {
     await db()
       .delete(connections)
       .where(inArray(connections.id, [plain, development, unsecured]));
+  });
+});
+describe("IMAP junk folder", () => {
+  const triager: Principal = {
+    id: `triager-${projectId}`,
+    kind: "human",
+    active: true,
+    owner: false,
+    grants: [{ projectId, actions: ["project.read", "ticket.read", "ticket.junk"] }],
+  };
+  async function deliverSpam(subject: string) {
+    const raw = message(subject).replace("MIME-Version", "X-Spam-Flag: YES\r\nMIME-Version");
+    await nodemailer
+      .createTransport({ host, port: 3025, secure: false, ignoreTLS: true })
+      .sendMail({ envelope: { from: "customer@example.test", to: user }, raw });
+  }
+  async function drain() {
+    const outcomes: string[] = [];
+    for (
+      let ran = await runIdempotentJob({ projectId });
+      ran;
+      ran = await runIdempotentJob({ projectId })
+    )
+      outcomes.push(`${ran.type}:${ran.outcome}`);
+    return outcomes;
+  }
+  async function find(folder: string, subject: string): Promise<number[]> {
+    return mailbox(async (client) => {
+      const lock = await client.getMailboxLock(folder);
+      try {
+        const found = await client.search({ subject }, { uid: true });
+        return Array.isArray(found) ? found : [];
+      } finally {
+        lock.release();
+      }
+    });
+  }
+  async function entryFor(id: string, subject: string) {
+    const entries = await db().select().from(ingress).where(eq(ingress.connectionId, id));
+    return entries.find((entry) => entry.parsed?.subject === subject);
+  }
+  it("moves junk into the junk folder and back without reading it twice", async () => {
+    const junk = `Junk-${randomUUID().slice(0, 8)}`;
+    await mailbox((client) => client.mailboxCreate(junk));
+    const id = await connection({ mailbox: "INBOX", junkMailbox: junk });
+    // Start after anything earlier tests left in the inbox.
+    await pollImapConnection(id);
+    const subject = `Spam ${randomUUID()}`;
+    await deliverSpam(subject);
+    expect(await pollImapConnection(id)).toMatchObject({ accepted: 1 });
+    expect(await drain()).toEqual(
+      expect.arrayContaining(["mail.ingest:junk", "mail.junk_sync:moved"]),
+    );
+    expect(await find("INBOX", subject)).toEqual([]);
+    expect(await find(junk, subject)).toHaveLength(1);
+    const entry = await entryFor(id, subject);
+    expect(entry?.origin).toMatchObject({
+      location: { mailbox: junk },
+      junkSync: { state: "done" },
+    });
+    expect((await listJunk(triager)).find((item) => item.id === entry?.id)?.mailbox).toBe("done");
+    // Restoring brings the original back to the inbox under a new UID.
+    await restoreJunkMail(triager, entry?.id ?? "");
+    expect(await drain()).toEqual(
+      expect.arrayContaining(["mail.ingest:created", "mail.junk_sync:moved"]),
+    );
+    expect(await find(junk, subject)).toEqual([]);
+    expect(await find("INBOX", subject)).toHaveLength(1);
+    // The next poll recognises it as the restored mail, not as new junk.
+    expect(await pollImapConnection(id)).toMatchObject({ accepted: 0, duplicates: 1 });
+    expect(await drain()).toEqual([]);
+    const created = await db().select().from(tickets).where(eq(tickets.subject, subject));
+    expect(created).toHaveLength(1);
+  });
+  it("retries a failed move and picks up an interrupted one", async () => {
+    const junk = `Later-${randomUUID().slice(0, 8)}`;
+    const id = await connection({ mailbox: "INBOX", junkMailbox: junk });
+    await pollImapConnection(id);
+    const subject = `Spam ${randomUUID()}`;
+    await deliverSpam(subject);
+    await pollImapConnection(id);
+    // The junk folder does not exist yet: the move waits and says so.
+    expect(await drain()).toEqual(
+      expect.arrayContaining([
+        "mail.ingest:junk",
+        "mail.junk_sync:failed:imap_junk_mailbox_missing",
+      ]),
+    );
+    const entry = await entryFor(id, subject);
+    expect(entry?.origin).toMatchObject({ junkSync: { state: "retrying" } });
+    const [waiting] = await db()
+      .select()
+      .from(jobs)
+      .where(eq(jobs.dedupKey, `junk-sync:${entry?.id ?? ""}:junk`));
+    expect(waiting).toMatchObject({ status: "retry", lastErrorCode: "imap_junk_mailbox_missing" });
+    expect(await find("INBOX", subject)).toHaveLength(1);
+    // The folder appears, and the message is moved there by hand before the
+    // retry runs, as if the earlier run had moved it and then crashed. The
+    // job was also left running when the worker stopped.
+    await mailbox(async (client) => {
+      await client.mailboxCreate(junk);
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        const uids = await client.search({ subject }, { uid: true });
+        if (Array.isArray(uids)) await client.messageMove(uids, junk, { uid: true });
+      } finally {
+        lock.release();
+      }
+    });
+    await db()
+      .update(jobs)
+      .set({ status: "running", leaseUntil: new Date(Date.now() - 1000), runAfter: new Date() })
+      .where(eq(jobs.id, waiting?.id ?? ""));
+    expect(await drain()).toEqual(["mail.junk_sync:moved"]);
+    expect(await find(junk, subject)).toHaveLength(1);
+    expect(await find("INBOX", subject)).toEqual([]);
+    expect((await entryFor(id, subject))?.origin).toMatchObject({
+      location: { mailbox: junk },
+      junkSync: { state: "done" },
+    });
+  });
+});
+describe("idempotent job edge cases", () => {
+  it("finds the junk folder by name, stays in place and stops on permanent errors", async () => {
+    await mailbox(async (client) => {
+      const existing = (await client.list()).some((entry) => entry.path === "Junk");
+      if (!existing) await client.mailboxCreate("Junk");
+    });
+    const id = await connection({ mailbox: "INBOX" });
+    await pollImapConnection(id);
+    const subject = `Spam ${randomUUID()}`;
+    const raw = message(subject).replace("MIME-Version", "X-Spam-Flag: YES\r\nMIME-Version");
+    await nodemailer
+      .createTransport({ host, port: 3025, secure: false, ignoreTLS: true })
+      .sendMail({ envelope: { from: "customer@example.test", to: user }, raw });
+    await pollImapConnection(id);
+    const entries = await db().select().from(ingress).where(eq(ingress.connectionId, id));
+    const entry = entries.find((row) => row.parsed?.subject === subject) ?? entries.at(-1);
+    await processIngress(entry?.id ?? "");
+    // Without a configured folder, the server's folder named Junk is used.
+    expect(await syncImapJunk(entry?.id ?? "")).toBe("moved");
+    expect(await syncImapJunk(entry?.id ?? "")).toBe("in_place");
+    // A recorded location whose UIDVALIDITY no longer matches is not guessed at.
+    const [moved] = await db()
+      .select()
+      .from(ingress)
+      .where(eq(ingress.id, entry?.id ?? ""));
+    await db()
+      .update(ingress)
+      .set({
+        state: "queued",
+        origin: { ...moved?.origin, location: { mailbox: "Junk", uidValidity: "1", uid: 1 } },
+      })
+      .where(eq(ingress.id, entry?.id ?? ""));
+    await expect(syncImapJunk(entry?.id ?? "")).rejects.toThrow("imap_uidvalidity_changed");
+    await expect(syncImapJunk(randomUUID())).rejects.toThrow("ingress_missing");
+    // The runner sends permanent failures, broken payloads and exhausted
+    // retries to review instead of retrying them.
+    const base = { projectId, type: "mail.junk_sync", status: "queued" as const };
+    const [permanentFailure, broken, exhausted] = await db()
+      .insert(jobs)
+      .values([
+        { ...base, dedupKey: `edge:${randomUUID()}`, payload: { ingressId: entry?.id ?? "" } },
+        { ...base, dedupKey: `edge:${randomUUID()}`, payload: { ingressId: "not-a-uuid" } },
+        {
+          ...base,
+          type: "mail.ingest",
+          dedupKey: `edge:${randomUUID()}`,
+          payload: { ingressId: randomUUID() },
+          attempts: 6,
+        },
+      ])
+      .returning({ id: jobs.id });
+    for (
+      let ran = await runIdempotentJob({ projectId });
+      ran;
+      ran = await runIdempotentJob({ projectId })
+    );
+    const states = await db()
+      .select({ id: jobs.id, status: jobs.status, code: jobs.lastErrorCode })
+      .from(jobs)
+      .where(inArray(jobs.id, [permanentFailure?.id ?? "", broken?.id ?? "", exhausted?.id ?? ""]));
+    expect(
+      states
+        .map(({ status, code }) => ({ status, code }))
+        .sort((a, b) => (a.code ?? "").localeCompare(b.code ?? "")),
+    ).toEqual([
+      { status: "review", code: "imap_uidvalidity_changed" },
+      { status: "review", code: "ingress_missing" },
+      { status: "review", code: "ingress_missing" },
+    ]);
   });
 });
