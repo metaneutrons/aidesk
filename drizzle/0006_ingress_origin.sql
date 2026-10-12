@@ -1,0 +1,1 @@
+ALTER TABLE "ingress" ADD COLUMN "origin" jsonb;

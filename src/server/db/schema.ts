@@ -302,6 +302,9 @@ export const ingress = pgTable(
     state: text("state").notNull().default("queued"),
     parsed: jsonb("parsed").$type<Record<string, unknown>>(),
     classification: jsonb("classification").$type<Record<string, unknown>>(),
+    // Where the adapter found the message and where it is now, for example
+    // IMAP mailbox, UIDVALIDITY and UID, and the state of a pending move.
+    origin: jsonb("origin").$type<Record<string, unknown>>(),
     ticketId: uuid("ticket_id").references(() => tickets.id),
     receivedAt: created(),
   },

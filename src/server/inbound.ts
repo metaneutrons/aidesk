@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { simpleParser, type AddressObject } from "mailparser";
 import TurndownService from "turndown";
 import { db } from "./db";
@@ -25,6 +25,7 @@ export async function acceptInbound(input: {
   // Namespaced by the adapter, for example imap:<connection>:<uidvalidity>:<uid>.
   externalKey: string;
   raw: Buffer;
+  origin?: Record<string, unknown>;
 }): Promise<{ ingressId: string; duplicate: boolean }> {
   if (input.raw.length === 0 || input.raw.length > maxRawBytes) throw new Error("inbound_size");
   const checksum = createHash("sha256").update(input.raw).digest("hex");
@@ -39,6 +40,7 @@ export async function acceptInbound(input: {
         externalKey: input.externalKey,
         rawObjectKey,
         checksum,
+        origin: input.origin ?? null,
       })
       .onConflictDoNothing({ target: ingress.externalKey })
       .returning({ id: ingress.id });
@@ -164,10 +166,35 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
         .limit(1);
       if (seen) return finish(seen.ticketId, "duplicate", "duplicate");
     }
+    // A byte-identical copy of a mail a person restored from junk, such as the
+    // original moved back into the polled mailbox, is the same message.
+    if (!entry.classification?.restored) {
+      const [restoredCopy] = await tx
+        .select({ id: ingress.id, ticketId: ingress.ticketId })
+        .from(ingress)
+        .where(
+          and(
+            eq(ingress.projectId, entry.projectId),
+            eq(ingress.checksum, entry.checksum),
+            ne(ingress.id, entry.id),
+            sql`${ingress.classification} ? 'restored'`,
+          ),
+        )
+        .limit(1);
+      if (restoredCopy) return finish(restoredCopy.ticketId, "duplicate", "duplicate");
+    }
     // Junk stays out of the inbox: no ticket, nothing added to an existing
     // ticket, no acknowledgement. A restored mail is not classified again.
     const verdict = entry.classification?.restored ? null : classifyJunk(mail.headers);
     if (verdict?.junk) {
+      // The original in an IMAP mailbox follows into its junk folder.
+      if (entry.origin?.kind === "imap")
+        await tx.insert(jobs).values({
+          projectId: entry.projectId,
+          type: "mail.junk_sync",
+          dedupKey: `junk-sync:${entry.id}:junk`,
+          payload: { ingressId: entry.id },
+        });
       await tx
         .update(ingress)
         .set({
