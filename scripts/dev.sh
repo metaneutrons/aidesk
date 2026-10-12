@@ -33,6 +33,12 @@ ensure_secret() {
 ensure_secret KEYCLOAK_ADMIN_PASSWORD 16
 ensure_secret DEV_SSO_OIDC_CLIENT_SECRET 32
 ensure_secret DEV_SSO_USER_PASSWORD 16
+# Prints the root certificate of the local HTTPS proxy, for clients that
+# verify TLS (for example NODE_EXTRA_CA_CERTS).
+if [ "${1:-}" = "https-ca" ]; then
+  exec docker compose --env-file .env.development -f compose.dev.yaml exec -T https \
+    cat /data/caddy/pki/authorities/local/root.crt
+fi
 if [ -n "${CODEX_PROXY_CERT:-}" ]; then
   exec docker compose --env-file .env.development -f compose.dev.yaml -f compose.cloud.yaml "$@"
 fi

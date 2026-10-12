@@ -40,13 +40,14 @@ before fetching/checking out the implementation branch. Do not reset or overwrit
 an existing checkout. Local development does not require publishing the cloud
 environment draft or copying any cloud proxy/CA variables.
 
-| Service                  | Local address           |
-| ------------------------ | ----------------------- |
-| App                      | `http://localhost:3000` |
-| Mailpit HTML/text viewer | `http://localhost:8025` |
-| Silo console (S3)        | `http://localhost:9001` |
-| Keycloak (OIDC and SAML) | `http://localhost:8080` |
-| Development SMTP         | `127.0.0.1:1025`        |
+| Service                  | Local address            |
+| ------------------------ | ------------------------ |
+| App                      | `http://localhost:3000`  |
+| Mailpit HTML/text viewer | `http://localhost:8025`  |
+| Silo console (S3)        | `http://localhost:9001`  |
+| Keycloak (OIDC and SAML) | `http://localhost:8080`  |
+| HTTPS proxy (MCP, REST)  | `https://localhost:8443` |
+| Development SMTP         | `127.0.0.1:1025`         |
 
 PostgreSQL stays inside the Compose network and is not published to the host, so a
 host database on port 5432 does not collide. These ports must be free. If there is

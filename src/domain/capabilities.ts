@@ -50,4 +50,28 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "agents.issue": {
+    operation: "issueAgentToken",
+    action: "agent.manage",
+    ui: null,
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "agents.list": {
+    operation: "listAgentTokens",
+    action: "agent.manage",
+    ui: null,
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "agents.revoke": {
+    operation: "revokeAgentToken",
+    action: "agent.manage",
+    ui: null,
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
 } as const;

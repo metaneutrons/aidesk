@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import {
+  agents,
   audit,
   connections,
   jobs,
@@ -14,7 +15,14 @@ import {
 } from "./db/schema";
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
-import { actions, allowedProjectIds, permits, type Principal } from "../domain/permissions";
+import {
+  actions,
+  allowedProjectIds,
+  isAction,
+  permits,
+  type Action,
+  type Principal,
+} from "../domain/permissions";
 const id = z.uuid();
 export async function listProjects(principal: Principal) {
   const allowed = allowedProjectIds(principal);
@@ -205,4 +213,90 @@ export async function operatorInfo(principal: Principal) {
     .where(eq(user.id, principal.id));
   if (!operator) throw new DomainError("unauthenticated", 401);
   return operator;
+}
+
+// Project-scoped service tokens for MCP and REST clients. Only people issue
+// them, never with more than they hold themselves and never with agent
+// management, so a token cannot extend its own lifetime or reach.
+const issueInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  actions: z
+    .array(z.string())
+    .min(1)
+    .transform((values) => [...new Set(values)]),
+  expiresInDays: z.number().int().min(1).max(90).default(30),
+});
+function requireAgentManager(principal: Principal, projectId: string): void {
+  if (principal.kind !== "human" || !permits(principal, projectId, "agent.manage"))
+    throw new DomainError("not_found", 404);
+}
+export async function issueAgentToken(principal: Principal, projectId: string, input: unknown) {
+  const project = id.parse(projectId);
+  requireAgentManager(principal, project);
+  const values = issueInput.parse(input);
+  const held = principal.grants.find((grant) => grant.projectId === project)?.actions ?? [];
+  const requested: Action[] = [];
+  for (const action of values.actions) {
+    if (!isAction(action) || action === "agent.manage" || !held.includes(action))
+      throw new DomainError("forbidden", 403);
+    requested.push(action);
+  }
+  const token = `aidesk_${randomBytes(32).toString("base64url")}`;
+  const expiresAt = new Date(Date.now() + values.expiresInDays * 86_400_000);
+  return db().transaction(async (tx) => {
+    const [agent] = await tx
+      .insert(agents)
+      .values({
+        name: values.name,
+        projectId: project,
+        actions: requested,
+        tokenHash: createHash("sha256").update(token).digest("hex"),
+        expiresAt,
+      })
+      .returning({ id: agents.id });
+    if (!agent) throw new DomainError("conflict", 409);
+    await tx.insert(audit).values({
+      projectId: project,
+      actorId: principal.id,
+      action: "agent.issue",
+      targetId: agent.id,
+      detail: { actions: requested, expiresAt: expiresAt.toISOString() },
+    });
+    return { id: agent.id, token, actions: requested, expiresAt };
+  });
+}
+export async function listAgentTokens(principal: Principal, projectId: string) {
+  const project = id.parse(projectId);
+  requireAgentManager(principal, project);
+  return db()
+    .select({
+      id: agents.id,
+      name: agents.name,
+      actions: agents.actions,
+      active: agents.active,
+      expiresAt: agents.expiresAt,
+      createdAt: agents.createdAt,
+    })
+    .from(agents)
+    .where(eq(agents.projectId, project))
+    .orderBy(desc(agents.createdAt));
+}
+export async function revokeAgentToken(principal: Principal, agentId: string) {
+  const [agent] = await db()
+    .select({ id: agents.id, projectId: agents.projectId })
+    .from(agents)
+    .where(eq(agents.id, id.parse(agentId)))
+    .limit(1);
+  if (!agent) throw new DomainError("not_found", 404);
+  requireAgentManager(principal, agent.projectId);
+  await db().transaction(async (tx) => {
+    await tx.update(agents).set({ active: false }).where(eq(agents.id, agent.id));
+    await tx.insert(audit).values({
+      projectId: agent.projectId,
+      actorId: principal.id,
+      action: "agent.revoke",
+      targetId: agent.id,
+    });
+  });
+  return { revoked: true };
 }

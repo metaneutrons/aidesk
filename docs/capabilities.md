@@ -13,6 +13,9 @@ open delivery records, not exemptions from the product plan.
 | tickets.note | Composer | POST /tickets/:id/reply with internal=true | tickets_reply with internal=true | Same operation and separate note permission |
 | projects.create | Owner dialog | POST /projects | Pending | Current MCP credentials are project-scoped agents; workspace delegation/provisioning remains M1 work |
 | operator.locale | Staff preference | POST /me/locale | Pending | Human preference; a scoped agent is not a human operator |
+| agents.issue | Pending | POST /projects/:id/agents | Not offered | Tokens are issued by people only; an agent issuing tokens could extend its own reach and lifetime. Settings UI is M3 work |
+| agents.list | Pending | GET /projects/:id/agents | Not offered | Same boundary as agents.issue; never returns token values or hashes |
+| agents.revoke | Pending | POST /agents/:id/revoke | Not offered | Same boundary as agents.issue |
 
 SSO protocol endpoints belong to Better Auth. The application restricts provider
 management to active human owners. Per-project discovery still requires explicit

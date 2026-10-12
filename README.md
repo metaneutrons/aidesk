@@ -34,6 +34,10 @@ an S3-compatible MinIO fork; its console is at `http://localhost:9001` with the
 dependency caches use named volumes. PostgreSQL and the S3 API are reachable only
 inside the Compose network. Editing `src/` reloads the app.
 
+MCP and REST clients that need TLS use `https://localhost:8443` (Caddy with a
+local CA); `sh scripts/dev.sh https-ca` prints the root certificate to trust. See
+the [development notes](docs/development.md) for issuing project-scoped tokens.
+
 A development Keycloak at `http://localhost:8080` provides real OIDC and SAML
 sign-in (realm `aidesk`; admin user `admin` with `KEYCLOAK_ADMIN_PASSWORD`). On
 the sign-in page, enter an IdP email and choose Continue with SSO. The IdP

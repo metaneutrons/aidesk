@@ -26,10 +26,13 @@ import { actions, type Principal } from "../src/domain/permissions";
 import {
   createProject,
   getTicket,
+  issueAgentToken,
+  listAgentTokens,
   listProjects,
   listTickets,
   operatorInfo,
   reply,
+  revokeAgentToken,
   setLocale,
 } from "../src/server/operations";
 import { identify, requireMutationOrigin, tokenHash } from "../src/server/principal";
@@ -542,5 +545,72 @@ describe("persistence and private storage", () => {
     } finally {
       send.mockRestore();
     }
+  });
+});
+describe("project-scoped agent tokens", () => {
+  it("issues tokens within the issuer's own grant and revokes them", async () => {
+    const issued = await issueAgentToken(principal, projectId, {
+      name: "Remote client",
+      actions: ["project.read", "ticket.read", "ticket.read"],
+      expiresInDays: 7,
+    });
+    expect(issued.token).toMatch(/^aidesk_[A-Za-z0-9_-]{43}$/);
+    expect(issued.actions).toEqual(["project.read", "ticket.read"]);
+    expect(issued.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(7 * 86_400_000);
+    const agent = await identify(new Headers({ authorization: `Bearer ${issued.token}` }));
+    expect(agent).toMatchObject({
+      kind: "agent",
+      grants: [{ projectId, actions: ["project.read", "ticket.read"] }],
+    });
+    const listed = await listAgentTokens(principal, projectId);
+    expect(listed.find((entry) => entry.id === issued.id)).toMatchObject({ active: true });
+    expect(JSON.stringify(listed)).not.toContain(issued.token);
+    expect(JSON.stringify(listed)).not.toContain(tokenHash(issued.token));
+    await expect(listAgentTokens(agent, projectId)).rejects.toMatchObject({ code: "not_found" });
+    await expect(revokeAgentToken(agent, issued.id)).rejects.toMatchObject({ code: "not_found" });
+    expect(await revokeAgentToken(principal, issued.id)).toEqual({ revoked: true });
+    await expect(
+      identify(new Headers({ authorization: `Bearer ${issued.token}` })),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    const logged = await db()
+      .select({ action: schema.audit.action })
+      .from(schema.audit)
+      .where(eq(schema.audit.targetId, issued.id));
+    expect(logged.map((entry) => entry.action).sort()).toEqual(["agent.issue", "agent.revoke"]);
+    await expect(revokeAgentToken(principal, randomUUID())).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+  it("refuses wider, self-managing or agent-issued tokens", async () => {
+    const narrow: Principal = {
+      ...principal,
+      grants: [{ projectId, actions: ["project.read", "ticket.read", "agent.manage"] }],
+    };
+    const input = { name: "Too wide", actions: ["ticket.reply"] };
+    await expect(issueAgentToken(narrow, projectId, input)).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(
+      issueAgentToken(principal, projectId, { ...input, actions: ["agent.manage"] }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      issueAgentToken(principal, projectId, { ...input, actions: ["not.an.action"] }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      issueAgentToken({ ...principal, kind: "agent" }, projectId, {
+        ...input,
+        actions: ["ticket.read"],
+      }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      issueAgentToken(principal, hiddenId, { ...input, actions: ["ticket.read"] }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      issueAgentToken(principal, projectId, {
+        ...input,
+        actions: ["ticket.read"],
+        expiresInDays: 365,
+      }),
+    ).rejects.toThrow();
   });
 });
