@@ -6,6 +6,7 @@ import { db } from "./db";
 import { attachments, ingress, jobs, messages, projects, tickets } from "./db/schema";
 import { getObject, putObject } from "./storage";
 import { extractReply } from "../domain/extraction";
+import { classifyJunk } from "../domain/junk";
 import { attachmentRefusal, safeFilename } from "../domain/attachments";
 import {
   acknowledgementInterval,
@@ -72,7 +73,13 @@ function referenceIds(inReplyTo: string | undefined, references: string | string
   return [...new Set(all)];
 }
 const turndown = new TurndownService({ codeBlockStyle: "fenced", headingStyle: "atx" });
-export type IngestOutcome = "created" | "appended" | "reopened" | "duplicate" | "follow_up";
+// HTML keeps lists, links and code better than the derived text part;
+// quoted history becomes "> " lines that the extraction recognises.
+export function htmlToMarkdown(html: string): string {
+  return turndown.turndown(html);
+}
+export type IngestOutcome =
+  "created" | "appended" | "reopened" | "duplicate" | "follow_up" | "junk";
 export async function processIngress(ingressId: string): Promise<IngestOutcome | "done"> {
   const [entry] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
   if (!entry) throw new Error("ingress_missing");
@@ -84,11 +91,9 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
     throw new Error("inbound_sender_missing");
   }
   const messageId = isMessageId(mail.messageId) ? mail.messageId : null;
-  // HTML keeps lists, links and code better than the derived text part;
-  // quoted history becomes "> " lines that the extraction recognises.
   const body =
     typeof mail.html === "string" && mail.html.trim()
-      ? turndown.turndown(mail.html)
+      ? htmlToMarkdown(mail.html)
       : (mail.text ?? "");
   const extraction = extractReply(body.trim() ? body : "(no text content)");
   const references = referenceIds(mail.inReplyTo, mail.references);
@@ -149,6 +154,24 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
         )
         .limit(1);
       if (seen) return finish(seen.ticketId, "duplicate", "duplicate");
+    }
+    // Junk stays out of the inbox: no ticket, nothing added to an existing
+    // ticket, no acknowledgement. A restored mail is not classified again.
+    const verdict = entry.classification?.restored ? null : classifyJunk(mail.headers);
+    if (verdict?.junk) {
+      await tx
+        .update(ingress)
+        .set({
+          classification: {
+            ...entry.classification,
+            verdict: "junk",
+            reason: verdict.reason,
+            source: "rules",
+            at: new Date().toISOString(),
+          },
+        })
+        .where(eq(ingress.id, entry.id));
+      return finish(null, "junk", "junk");
     }
     // A reply continues a ticket only through a reference to one of its
     // messages in this project and only from the ticket's requester. Claimed

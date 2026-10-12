@@ -116,6 +116,72 @@ test("turns a customer mail into a ticket and threads the reply to our answer", 
     "customer",
   ]);
 });
+test("keeps spam out of the inbox and moves tickets to and from junk", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  const spamSubject = `Cheap offer ${randomUUID()}`;
+  await smtp.sendMail({
+    from: `Spam Sender <${desk.prefix}-spam@example.test>`,
+    to: `${desk.prefix}-alpha@support.local`,
+    subject: spamSubject,
+    text: "Buy now.",
+    headers: { "X-Spam-Flag": "YES" },
+  });
+  await signIn();
+  const junkList = z.array(z.object({ id: z.string(), kind: z.string(), subject: z.string() }));
+  await expect
+    .poll(
+      async () =>
+        junkList
+          .parse(await (await page.request.get("/api/v1/junk")).json())
+          .some((item) => item.subject === spamSubject),
+      { timeout: 45_000, intervals: [1000] },
+    )
+    .toBe(true);
+  const inbox = () =>
+    page.request
+      .get(`/api/v1/tickets?project=${desk.projects.alpha.id}`)
+      .then(async (response) => ticketList.parse(await response.json()));
+  expect((await inbox()).some((ticket) => ticket.subject === spamSubject)).toBe(false);
+  await page.goto("/");
+  await page.getByRole("navigation").getByRole("button", { name: "Junk" }).click();
+  const junk = page.getByRole("region", { name: "Junk" });
+  await junk.getByRole("button", { name: new RegExp(spamSubject) }).click();
+  const preview = page.getByRole("article", { name: "Junk preview" });
+  await expect(preview.getByText("Buy now.")).toBeVisible();
+  await expect(preview.getByText("Marked by the spam filter")).toHaveCount(0);
+  await expect(junk.getByText("Marked by the spam filter").first()).toBeVisible();
+  await preview.getByRole("button", { name: "Not junk" }).click();
+  await expect(junk.getByRole("button", { name: new RegExp(spamSubject) })).toHaveCount(0);
+  let restoredId = "";
+  await expect
+    .poll(
+      async () => {
+        restoredId = (await inbox()).find((ticket) => ticket.subject === spamSubject)?.id ?? "";
+        return restoredId;
+      },
+      { timeout: 45_000, intervals: [1000] },
+    )
+    .not.toBe("");
+  // The restored ticket can be moved to junk again and back.
+  await page.goto(`/?ticket=${restoredId}`);
+  await page
+    .getByRole("region", { name: "Ticket" })
+    .getByRole("button", { name: "Move to junk" })
+    .click();
+  await expect
+    .poll(async () => (await inbox()).some((ticket) => ticket.id === restoredId))
+    .toBe(false);
+  await page.getByRole("navigation").getByRole("button", { name: "Junk" }).click();
+  await junk.getByRole("button", { name: new RegExp(spamSubject) }).click();
+  await expect(preview.getByText("Buy now.")).toBeVisible();
+  await preview.getByRole("button", { name: "Not junk" }).click();
+  await expect
+    .poll(async () => (await inbox()).some((ticket) => ticket.id === restoredId))
+    .toBe(true);
+});
 test("acknowledges a new ticket once switched on in settings", async ({ page, desk, signIn }) => {
   const customer = `${desk.prefix}-ack@example.test`;
   const subject = `Acknowledge ${randomUUID()}`;

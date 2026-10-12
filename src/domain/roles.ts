@@ -8,6 +8,7 @@ const respond: Action[] = [
   "ticket.note",
   "ticket.resolve",
   "ticket.assign",
+  "ticket.junk",
 ];
 export const operatorRoles = {
   none: [],
