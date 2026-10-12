@@ -14,6 +14,7 @@ import {
   isAutomaticMail,
 } from "../domain/acknowledgement";
 import { isMessageId } from "../domain/threading";
+import { parseDeliveryReport } from "../domain/bounce";
 import { decideLanguage, detectLanguage } from "../domain/language";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
@@ -91,7 +92,7 @@ export function htmlToMarkdown(html: string): string {
   return turndown.turndown(html);
 }
 export type IngestOutcome =
-  "created" | "appended" | "reopened" | "duplicate" | "follow_up" | "junk";
+  "created" | "appended" | "reopened" | "duplicate" | "follow_up" | "junk" | "bounced" | "report";
 export async function processIngress(ingressId: string): Promise<IngestOutcome | "done"> {
   const [entry] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
   if (!entry) throw new Error("ingress_missing");
@@ -210,6 +211,62 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
         })
         .where(eq(ingress.id, entry.id));
       return finish(null, "junk", "junk");
+    }
+    // A delivery report for one of our sent messages belongs to that message,
+    // not to a new ticket. It must name our identifier and the recipient we
+    // wrote to; anything else is processed like other mail.
+    const report = parseDeliveryReport(
+      mail.headers.get("content-type"),
+      mail.text ?? "",
+      mail.attachments
+        .filter((file) => ["text/rfc822-headers", "message/rfc822"].includes(file.contentType))
+        .map((file) => file.content.toString("utf8")),
+    );
+    if (report?.originalMessageId) {
+      const [sent] = await tx
+        .select({ message: messages, ticket: tickets })
+        .from(messages)
+        .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+        .where(
+          and(
+            eq(tickets.projectId, entry.projectId),
+            inArray(messages.deliveryState, ["sent", "review"]),
+            sql`${messages.source}->>'messageId' = ${report.originalMessageId}`,
+          ),
+        )
+        .limit(1)
+        .for("update", { of: [messages, tickets] });
+      const addressed = sent?.ticket.requesterEmail.toLowerCase() === report.recipient;
+      if (sent && addressed) {
+        // Further reports about a failure already recorded change nothing.
+        if (report.action !== "failed" || sent.message.source.deliveryError === "bounced")
+          return finish(sent.ticket.id, "processed", "report");
+        await tx
+          .update(messages)
+          .set({
+            deliveryState: "review",
+            source: {
+              ...sent.message.source,
+              deliveryError: "bounced",
+              bounce: { status: report.status, diagnostic: report.diagnostic, at: receivedAt },
+            },
+          })
+          .where(eq(messages.id, sent.message.id));
+        // A reply that did not arrive leaves the obligation to answer open, except
+        // for an acknowledgement, which was never an answer.
+        if (sent.message.source.kind !== "acknowledgement" && sent.ticket.junkAt === null)
+          await tx
+            .update(tickets)
+            .set({
+              status: "open",
+              resolvedAt: null,
+              pendingSince: sent.ticket.pendingSince ?? receivedAt,
+              revision: sql`${tickets.revision} + 1`,
+              updatedAt: new Date(),
+            })
+            .where(eq(tickets.id, sent.ticket.id));
+        return finish(sent.ticket.id, "processed", "bounced");
+      }
     }
     // A reply continues a ticket only through a reference to one of its
     // messages in this project and only from the ticket's requester. Claimed
