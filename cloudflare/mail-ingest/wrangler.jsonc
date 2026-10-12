@@ -1,0 +1,16 @@
+// Deploy with: pnpm dlx wrangler@4.143.0 deploy --config cloudflare/mail-ingest/wrangler.jsonc
+// The bucket and the routing rule are described in docs/development.md.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "aidesk-mail-ingest",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "r2_buckets": [
+    {
+      "binding": "MAIL",
+      "bucket_name": "aidesk-mail",
+      "jurisdiction": "eu"
+    }
+  ]
+}

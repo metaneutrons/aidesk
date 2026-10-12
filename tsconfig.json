@@ -25,6 +25,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/**/*.ts",
+    "cloudflare/**/*.ts",
     "tests/**/*.ts",
     "*.ts",
     ".next/types/**/*.ts",

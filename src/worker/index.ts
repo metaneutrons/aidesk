@@ -20,6 +20,11 @@ import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
 import { processIngress } from "../server/inbound";
 import { pollImapConnection } from "../server/imap";
+import {
+  parseCloudflareOutbound,
+  pollCloudflareConnection,
+  sendViaCloudflare,
+} from "../server/cloudflare";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -158,31 +163,7 @@ async function runNext(): Promise<boolean> {
       )
         throw new Error("autonomous_dispatch_not_enabled");
     }
-    if (connection.kind !== "smtp" || connection.status !== "ready")
-      throw new Error("outbound_not_ready");
-    const config = smtpSchema.parse(connection.config);
-    if (
-      config.developmentOnly &&
-      (process.env.NODE_ENV !== "development" || process.env.DEV_BOOTSTRAP !== "true")
-    )
-      throw new Error("development_connection_not_allowed");
-    const secret = connection.secretCiphertext
-      ? z
-          .object({ user: z.string(), pass: z.string() })
-          .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
-      : undefined;
-    if (!config.developmentOnly && !config.secure && config.port !== 587)
-      throw new Error("smtp_tls_required");
-    const transport = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      requireTLS: !config.developmentOnly && !config.secure,
-      auth: secret,
-      connectionTimeout: 15_000,
-      greetingTimeout: 15_000,
-      socketTimeout: 30_000,
-    });
+    if (connection.status !== "ready") throw new Error("outbound_not_ready");
     const content = await renderEmail({
       project: project.name,
       markdown: message.markdown,
@@ -215,21 +196,67 @@ async function runNext(): Promise<boolean> {
             },
       ),
     );
-    code = "transport_acceptance_unknown";
-    const senderDomain = config.from.slice(config.from.lastIndexOf("@") + 1);
-    const outgoingId = `<${message.id}@${senderDomain}>`;
-    const accepted = await transport.sendMail({
-      from: { name: project.name, address: config.from },
-      replyTo: config.replyTo,
-      to: ticket.requesterEmail,
-      subject: `Re: ${ticket.subject}`,
-      messageId: outgoingId,
-      ...thread,
-      headers: { "X-Aidesk-Ticket": ticket.id },
-      ...content,
-    });
-    if (!accepted.accepted.map(String).includes(ticket.requesterEmail))
-      throw new Error("recipient_not_accepted");
+    let outgoingId: string | null;
+    if (connection.kind === "cloudflare") {
+      const { config, secret } = parseCloudflareOutbound(
+        connection.config,
+        connection.secretCiphertext,
+      );
+      code = "transport_acceptance_unknown";
+      try {
+        const sent = await sendViaCloudflare(config, secret, {
+          fromName: project.name,
+          to: ticket.requesterEmail,
+          subject: `Re: ${ticket.subject}`,
+          ...thread,
+          ...content,
+          ticketId: ticket.id,
+        });
+        outgoingId = sent.messageId;
+      } catch (error) {
+        if (error instanceof Error && error.message === "transport_rejected") code = error.message;
+        throw error;
+      }
+    } else if (connection.kind === "smtp") {
+      const config = smtpSchema.parse(connection.config);
+      if (
+        config.developmentOnly &&
+        (process.env.NODE_ENV !== "development" || process.env.DEV_BOOTSTRAP !== "true")
+      )
+        throw new Error("development_connection_not_allowed");
+      const secret = connection.secretCiphertext
+        ? z
+            .object({ user: z.string(), pass: z.string() })
+            .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
+        : undefined;
+      if (!config.developmentOnly && !config.secure && config.port !== 587)
+        throw new Error("smtp_tls_required");
+      const transport = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        requireTLS: !config.developmentOnly && !config.secure,
+        auth: secret,
+        connectionTimeout: 15_000,
+        greetingTimeout: 15_000,
+        socketTimeout: 30_000,
+      });
+      code = "transport_acceptance_unknown";
+      const senderDomain = config.from.slice(config.from.lastIndexOf("@") + 1);
+      outgoingId = `<${message.id}@${senderDomain}>`;
+      const accepted = await transport.sendMail({
+        from: { name: project.name, address: config.from },
+        replyTo: config.replyTo,
+        to: ticket.requesterEmail,
+        subject: `Re: ${ticket.subject}`,
+        messageId: outgoingId,
+        ...thread,
+        headers: { "X-Aidesk-Ticket": ticket.id },
+        ...content,
+      });
+      if (!accepted.accepted.map(String).includes(ticket.requesterEmail))
+        throw new Error("recipient_not_accepted");
+    } else throw new Error("outbound_not_ready");
     await db().transaction(async (tx) => {
       const [owned] = await tx
         .select()
@@ -351,41 +378,51 @@ async function runIngest(): Promise<boolean> {
   }
   return true;
 }
-// Inbound mailboxes are polled; Degraded connections keep being tried so they
-// recover on their own, and each result updates the connection status.
+// Inbound mailboxes and Cloudflare buckets are polled; degraded connections
+// keep being tried so they recover on their own, and each result updates the
+// connection status.
 const imapPollMs = Math.max(5, Number(process.env.IMAP_POLL_SECONDS) || 60) * 1000;
 let nextImapPoll = 0;
 async function pollMailboxes(): Promise<void> {
   if (Date.now() < nextImapPoll) return;
   nextImapPoll = Date.now() + imapPollMs;
   const inbound = await db()
-    .select({ id: connections.id })
+    .select({ id: connections.id, kind: connections.kind })
     .from(connections)
     .where(
       and(
-        eq(connections.kind, "imap"),
+        inArray(connections.kind, ["imap", "cloudflare"]),
         eq(connections.direction, "inbound"),
         inArray(connections.status, ["ready", "degraded"]),
       ),
     );
   for (const connection of inbound) {
     try {
-      const result = await pollImapConnection(connection.id);
+      const result =
+        connection.kind === "imap"
+          ? await pollImapConnection(connection.id)
+          : await pollCloudflareConnection(connection.id);
       await db()
         .update(connections)
-        .set({ status: "ready", updatedAt: new Date() })
+        .set({ status: "ready", lastErrorCode: null, updatedAt: new Date() })
         .where(eq(connections.id, connection.id));
-      if (result.accepted || result.duplicates || result.uidValidityChanged)
+      if (Object.values(result).some(Boolean))
         console.log(
-          JSON.stringify({ event: "imap.polled", connectionId: connection.id, ...result }),
+          JSON.stringify({
+            event: `${connection.kind}.polled`,
+            connectionId: connection.id,
+            ...result,
+          }),
         );
     } catch (error) {
+      const code = error instanceof Error ? error.message.slice(0, 64) : "poll_failed";
       await db()
         .update(connections)
-        .set({ status: "degraded", updatedAt: new Date() })
+        .set({ status: "degraded", lastErrorCode: code, updatedAt: new Date() })
         .where(eq(connections.id, connection.id));
-      const code = error instanceof Error ? error.message.slice(0, 64) : "imap_failed";
-      console.log(JSON.stringify({ event: "imap.failed", connectionId: connection.id, code }));
+      console.log(
+        JSON.stringify({ event: `${connection.kind}.failed`, connectionId: connection.id, code }),
+      );
     }
   }
 }
