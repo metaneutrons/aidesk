@@ -228,7 +228,9 @@ Setup for one address (bucket `aidesk-mail` in the EU jurisdiction):
 5. Connect a project; the script creates it if the slug is new and updates
    existing connections in place. `--outbound smtp` sends through an SMTP
    submission server instead (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
-   `SMTP_PASSWORD`; port 465 uses implicit TLS, other ports require STARTTLS):
+   `SMTP_PASSWORD`; port 465 uses implicit TLS, other ports require STARTTLS).
+   With `SMTP2GO_API_KEY` set, the connection also checks the SMTP2GO
+   suppression list before each send:
 
 ```sh
 sh scripts/dev.sh exec -T -e CLOUDFLARE_ACCOUNT_ID -e CLOUDFLARE_R2_ACCESS_KEY_ID \

@@ -10,7 +10,9 @@
 //     [--grant <operator email>]...
 //
 // --outbound smtp reads SMTP_HOST, SMTP_PORT (default 465, implicit TLS;
-// otherwise STARTTLS is required), SMTP_USER and SMTP_PASSWORD.
+// otherwise STARTTLS is required), SMTP_USER and SMTP_PASSWORD. With
+// SMTP2GO_API_KEY set, each send first checks the recipient against the
+// SMTP2GO suppression list.
 import { parseArgs } from "node:util";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, sqlClient } from "../src/server/db";
@@ -57,12 +59,21 @@ function outboundSettings() {
     };
   const host = required("SMTP_HOST", process.env.SMTP_HOST);
   const port = Number(process.env.SMTP_PORT ?? 465);
+  const apiKey = process.env.SMTP2GO_API_KEY;
   return {
     name: `SMTP ${host}`,
-    config: { host, port, secure: port === 465, from: address, replyTo: address },
+    config: {
+      host,
+      port,
+      secure: port === 465,
+      from: address,
+      replyTo: address,
+      ...(apiKey ? { suppressionCheck: "smtp2go" } : {}),
+    },
     secret: {
       user: required("SMTP_USER", process.env.SMTP_USER),
       pass: required("SMTP_PASSWORD", process.env.SMTP_PASSWORD),
+      ...(apiKey ? { apiKey } : {}),
     },
   };
 }
