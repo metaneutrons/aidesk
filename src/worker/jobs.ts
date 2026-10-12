@@ -17,7 +17,7 @@ import { renderEmail } from "../server/email";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
-import { classifySmtpFailure } from "../domain/delivery";
+import { classifySmtpFailure, smtpProgress } from "../domain/delivery";
 import { smtp2goSuppressed } from "../server/smtp2go";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
@@ -51,11 +51,25 @@ function deliveryError(code: string) {
 }
 // Marks automatic mail (RFC 3834) and asks Exchange not to answer it with
 // its own automatic replies.
+// Refusals that happen before anything is handed to a transport. Their codes
+// are kept for the review; any other error stays the general code, so that
+// internal details never reach the stored reason.
+const refusalCodes = new Set([
+  "stale_or_paused_dispatch",
+  "dispatch_grant_revoked",
+  "acknowledgement_not_enabled",
+  "autonomous_dispatch_not_enabled",
+  "outbound_not_ready",
+  "development_connection_not_allowed",
+  "smtp_tls_required",
+]);
 const automaticHeaders = {
   "Auto-Submitted": "auto-replied",
   "X-Auto-Response-Suppress": "All",
 };
-export async function runNext(): Promise<boolean> {
+// A scope limits the run to one project, which lets tests share a database.
+export async function runNext(scope?: { projectId: string }): Promise<boolean> {
+  const inScope = scope ? eq(jobs.projectId, scope.projectId) : undefined;
   // An expired dispatch may have reached the transport. Never replay it blindly.
   await db().transaction(async (tx) => {
     const expired = await tx
@@ -71,6 +85,7 @@ export async function runNext(): Promise<boolean> {
           eq(jobs.status, "running"),
           eq(jobs.type, "mail.send"),
           sql`${jobs.leaseUntil} < now()`,
+          inScope,
         ),
       )
       .returning();
@@ -89,7 +104,12 @@ export async function runNext(): Promise<boolean> {
       .select()
       .from(jobs)
       .where(
-        and(eq(jobs.status, "queued"), eq(jobs.type, "mail.send"), sql`${jobs.runAfter} <= now()`),
+        and(
+          eq(jobs.status, "queued"),
+          eq(jobs.type, "mail.send"),
+          sql`${jobs.runAfter} <= now()`,
+          inScope,
+        ),
       )
       .orderBy(jobs.runAfter)
       .limit(1)
@@ -255,7 +275,10 @@ export async function runNext(): Promise<boolean> {
         }
         code = "dispatch_needs_review";
       }
+      const progress = smtpProgress();
       const transport = nodemailer.createTransport({
+        transactionLog: true,
+        logger: progress.logger,
         host: config.host,
         port: config.port,
         secure: config.secure,
@@ -283,7 +306,7 @@ export async function runNext(): Promise<boolean> {
           ...content,
         })
         .catch((error: unknown) => {
-          const failure = classifySmtpFailure(error);
+          const failure = classifySmtpFailure(error, progress.dataSent);
           code = failure.outcome;
           console.log(JSON.stringify({ event: "smtp.send_failed", jobId: job.id, ...failure }));
           throw error;
@@ -322,7 +345,13 @@ export async function runNext(): Promise<boolean> {
         .where(eq(jobs.id, job.id));
     });
     console.log(JSON.stringify({ event: "mail.accepted", jobId: job.id }));
-  } catch {
+  } catch (error) {
+    if (
+      code === "dispatch_needs_review" &&
+      error instanceof Error &&
+      refusalCodes.has(error.message)
+    )
+      code = error.message;
     await db().transaction(async (tx) => {
       const [failed] = await tx
         .update(jobs)
