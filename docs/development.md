@@ -235,7 +235,35 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
-Not yet implemented: language detection. GreenMail is a
+A delivery status notification (RFC 3464, `multipart/report` with
+`report-type=delivery-status`) for a sent reply belongs to that reply and creates
+no ticket. It must name the Message-ID of one of the project's sent messages and
+the requester's address as the final recipient; anything else is processed like
+other mail. For `Action: failed` the reply moves to review with the reason
+"bounced" (status code and diagnostic stay in the message source), and the
+ticket is open again with its response obligation, even if the reply had
+resolved it. For an acknowledgement, or a ticket in junk, only the message is
+marked. A delay notice and a repeated report change nothing. SMTP2GO collects
+bounces itself under its own return path and does not forward them, so this path
+applies to transports whose return path reaches the project mailbox; a provider
+webhook is not implemented.
+
+A new ticket takes the language of its first message when it can be named
+reliably, otherwise the project's default language. The detection
+(`src/domain/language.ts`) counts function words that belong to only one of the
+supported languages (English, German) in what the person wrote, without quoted
+history, code and links. It needs at least eight words, three function words
+of one language and clearly more than of the other; a short, mixed or neutral
+text yields no language instead of a guess. Each message records the detection
+and the first message the decision (`ticket`, `requester`, `detected` or
+`project`, and whether the project default was used because detection was
+open). The order is explicit ticket choice, requester preference, detection,
+project default; the operator's interface language is no input. A later message
+in another language keeps the ticket language and records its own. Requester
+preferences and enabled target languages per project follow with the portal and
+translation work.
+
+Not yet implemented: translation. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 
@@ -317,11 +345,83 @@ automatically retry an uncertain send. A worker that lost its lease writes
 neither success nor failure; when that lease ends too, the dispatch goes to
 review instead of being sent again.
 
+When a message is accepted by the transport, the worker keeps a snapshot of it in
+the message: time, transport, recipient, sender and reply-to address, subject,
+language, template version, the final Markdown and the rendered HTML and text.
+Later changes of the ticket, the message or the template do not alter it. The
+ticket view shows the facts of the snapshot (`sent`), `getSentSnapshot` returns
+the whole mail to readers of the project, and only for sent public messages. The
+draft in the author's own language is not kept separately yet; translation of
+drafts follows with M4.
+
 REST begins at `/api/v1`, MCP at `/api/mcp`. The stateless Streamable HTTP MCP
 endpoint requires an active, unexpired project-scoped bearer agent token. Token
 provisioning UI and owner recovery are not finished. MCP registration is filtered
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
+
+## Portal grants
+
+`src/server/portal.ts` holds the model for customer access; the portal pages and
+REST routes follow with M3. A person with `ticket.reply` issues a grant for one
+ticket. It is a random token, stored only as a SHA-256 hash, bound to the
+ticket's requester (a participant of that ticket), valid for 30 days by default
+(1 to 90) and shown once. Issuing again replaces the earlier token, revoking
+disables it, and both are audited. A token resolves only while it is known,
+unexpired, not revoked, verified and while the ticket is not in junk; every
+other case answers the same `not_found`. The holder sees the public conversation
+of that one ticket: no private notes, no messages that were not delivered, no
+staff names or addresses (replies appear under the project name), and nothing of
+other tickets, participants or projects. A follow-up ticket needs its own grant.
+The requester counts as verified because the token goes to the address that
+wrote to us; other participants need their own verification, which is not
+implemented.
+
+## Translation records
+
+`src/server/translation.ts` holds the lifecycle of derived translations; the
+provider that translates is M4 work and reports through `completeTranslation`
+and `failTranslation`, and the operator surfaces follow with M3. A translation is
+requested for one revision of a message and one target language (English or
+German for now) and is a record of its own: it never replaces the source, never
+becomes a message, does not touch the ticket or its response age, and is read
+with the rights to read the source. Asking again returns the same record, and a
+failed one is queued again. Pending, failed and stale translations are listed
+without text, so the source stays usable. A result is refused as failed when it
+changes code (fenced or inline), links, addresses or placeholders (`{{x}}`,
+`{x}`, `%s`, `%(x)s`) or adds one, which also stops an injected link. A result for
+an outdated revision is discarded as stale. A correction of a message that was
+not sent (a received message with `ticket.reply`, a private note with
+`ticket.note`) gives it a new revision, makes earlier translations stale and
+removes their text; it is audited. Deleting derived content is a separate
+action with `ticket.reply`; deleting a ticket removes its translations. Portal
+views do not include translations.
+
+## Email designs
+
+Each project can have versioned designs for its outgoing mail
+(`src/server/email-design.ts`; the settings pages follow with M3). A design holds
+accent color, font family (sans, serif or mono), header text, an optional logo,
+a footer and a signature per language (English, German). It holds no raw HTML:
+texts are escaped, a signature is Markdown that goes through the same
+sanitizing as message content, and a logo is a public `https` address without
+credentials that recipients' mail programs load; private attachments are never a
+source for it. A footer or signature for a recipient language that is missing
+falls back to the project's default language, and then to nothing.
+
+A version never changes. People with `project.manage` add a new one and select
+it (version 0 is the built-in design a project has until then); both steps are
+audited. The worker renders every reply and acknowledgement with the version
+that is selected when it sends, through the same renderer for SMTP and the
+Cloudflare API, with the plain-text body derived from the same content. The
+snapshot of a sent message names the design version it was rendered with (0 for
+the built-in design), so a later selection does not change what is recorded.
+`previewEmail` renders a sample like a real send, with the selected version by
+default, a saved version, or, for managers, an unsaved draft. The HTML carries a
+dark variant for programs that follow the system appearance and scales to the
+screen width. There is no test send yet; it needs a ticket-independent send job.
+Rendering in Gmail, Apple Mail and Outlook has not been checked and cannot be
+replaced by the browser preview.
 
 ## Reproduce the local check
 
