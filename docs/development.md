@@ -360,6 +360,23 @@ provisioning UI and owner recovery are not finished. MCP registration is filtere
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
 
+## Portal grants
+
+`src/server/portal.ts` holds the model for customer access; the portal pages and
+REST routes follow with M3. A person with `ticket.reply` issues a grant for one
+ticket. It is a random token, stored only as a SHA-256 hash, bound to the
+ticket's requester (a participant of that ticket), valid for 30 days by default
+(1 to 90) and shown once. Issuing again replaces the earlier token, revoking
+disables it, and both are audited. A token resolves only while it is known,
+unexpired, not revoked, verified and while the ticket is not in junk; every
+other case answers the same `not_found`. The holder sees the public conversation
+of that one ticket: no private notes, no messages that were not delivered, no
+staff names or addresses (replies appear under the project name), and nothing of
+other tickets, participants or projects. A follow-up ticket needs its own grant.
+The requester counts as verified because the token goes to the address that
+wrote to us; other participants need their own verification, which is not
+implemented.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside
