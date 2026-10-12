@@ -645,7 +645,13 @@ export function Desk({
                             dangerouslySetInnerHTML={{ __html: message.html }}
                           />
                           {["queued", "sent", "review"].includes(message.deliveryState) && (
-                            <small className="delivery-state">
+                            <small
+                              className={
+                                message.deliveryState === "review"
+                                  ? "delivery-state attention"
+                                  : "delivery-state"
+                              }
+                            >
                               {t(
                                 message.deliveryState === "review"
                                   ? (deliveryErrors[message.deliveryError ?? ""] ??
