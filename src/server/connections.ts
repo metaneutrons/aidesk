@@ -20,7 +20,7 @@ import {
   typeKey,
   type ConnectionTypeKey,
 } from "../domain/connections";
-import { hostRefused } from "../domain/hosts";
+import { checkHost } from "./host-guard";
 import { permits, type Principal } from "../domain/permissions";
 import type { ConfigDiffEntry } from "../domain/configuration";
 import { seal, unseal } from "./crypto";
@@ -77,30 +77,44 @@ export async function listConnections(principal: Principal, projectId: string) {
 // rules the adapters enforce, so a connection that is saved can be used, and
 // the hosts a connection may not point at. A development stack may use plain
 // connections to its local services.
-function checkDefinition(key: ConnectionTypeKey, config: Record<string, unknown>) {
+async function checkDefinition(key: ConnectionTypeKey, config: Record<string, unknown>) {
   const development = developmentStack();
   if (config.developmentOnly === true && !development)
     invalid(["config", "developmentOnly"], "Only a development stack accepts this");
   const plain = config.developmentOnly === true;
   if (plain) return;
-  if (key === "imap:inbound") {
-    if (config.secure !== true) invalid(["config", "secure"], "TLS is required");
-    if (hostRefused(String(config.host))) invalid(["config", "host"], "This host is not allowed");
-  }
-  if (key === "smtp:outbound") {
-    if (config.secure !== true && config.port !== 587)
-      invalid(["config", "port"], "Use TLS, or port 587 with STARTTLS");
-    if (hostRefused(String(config.host))) invalid(["config", "host"], "This host is not allowed");
-  }
+  if (key === "imap:inbound" && config.secure !== true)
+    invalid(["config", "secure"], "TLS is required");
+  if (key === "smtp:outbound" && config.secure !== true && config.port !== 587)
+    invalid(["config", "port"], "Use TLS, or port 587 with STARTTLS");
   if (key === "cloudflare:inbound") {
     const url = new URL(String(config.endpoint));
     if (url.protocol !== "https:") invalid(["config", "endpoint"], "HTTPS is required");
-    if (hostRefused(url.hostname)) invalid(["config", "endpoint"], "This host is not allowed");
+  }
+  const target = hostOf(key, config);
+  if (target) {
+    const verdict = await checkHost(target.host);
+    if (verdict === "refused") invalid(target.path, "This host is not allowed");
+    if (verdict === "unresolved") invalid(target.path, "This host does not resolve");
   }
 }
-function parseConfig(key: ConnectionTypeKey, value: unknown): Record<string, unknown> {
+// The host a connection reaches, and the field that names it.
+function hostOf(
+  key: ConnectionTypeKey,
+  config: Record<string, unknown>,
+): { host: string; path: string[] } | null {
+  if (key === "imap:inbound" || key === "smtp:outbound")
+    return { host: String(config.host), path: ["config", "host"] };
+  if (key === "cloudflare:inbound")
+    return { host: new URL(String(config.endpoint)).hostname, path: ["config", "endpoint"] };
+  return null;
+}
+async function parseConfig(
+  key: ConnectionTypeKey,
+  value: unknown,
+): Promise<Record<string, unknown>> {
   const parsed: Record<string, unknown> = connectionTypes[key].config.parse(value);
-  checkDefinition(key, parsed);
+  await checkDefinition(key, parsed);
   return parsed;
 }
 function parseSecret(key: ConnectionTypeKey, value: unknown): Record<string, unknown> {
@@ -254,7 +268,7 @@ export async function createConnection(
   const request = parseConnectionCreate(input);
   const key = typeKey(request.kind, request.direction);
   if (!key) throw new DomainError("invalid_input", 400);
-  const config = parseConfig(key, request.config);
+  const config = await parseConfig(key, request.config);
   const secret = request.secret === undefined ? null : parseSecret(key, request.secret);
   return submit(
     principal,
@@ -292,6 +306,20 @@ export async function updateConnection(
   options: { validate?: boolean } = {},
 ) {
   const request = connectionUpdate.parse(input);
+  // The definition is checked before the write starts, because resolving a host
+  // takes a moment and the project is locked while a change is made. The kind of
+  // a connection never changes.
+  const project = id.parse(projectId);
+  manageable(principal, project);
+  const [existing] = await db()
+    .select({ kind: connections.kind, direction: connections.direction })
+    .from(connections)
+    .where(and(eq(connections.id, id.parse(connectionId)), eq(connections.projectId, project)));
+  if (!existing) throw new DomainError("not_found", 404);
+  const key = typeKey(existing.kind, existing.direction);
+  if (!key) throw new DomainError("conflict", 409);
+  const config = request.config === undefined ? undefined : await parseConfig(key, request.config);
+  const secret = request.secret === undefined ? undefined : parseSecret(key, request.secret);
   return submit(
     principal,
     projectId,
@@ -302,10 +330,6 @@ export async function updateConnection(
       idempotencyKey: request.idempotencyKey,
       build: (row) => {
         if (!row) throw new DomainError("not_found", 404);
-        const key = typeKey(row.kind, row.direction);
-        if (!key) throw new DomainError("conflict", 409);
-        const config = request.config === undefined ? undefined : parseConfig(key, request.config);
-        const secret = request.secret === undefined ? undefined : parseSecret(key, request.secret);
         const diff: ConfigDiffEntry[] = [
           ...(request.name !== undefined && request.name !== row.name
             ? [{ pointer: "/name", from: row.name, to: request.name }]
@@ -363,6 +387,7 @@ export function failureCode(error: unknown): string {
   };
   const text = (value: unknown) => (typeof value === "string" ? value : "");
   const code = text(info.code) || text(info.cause?.code);
+  if (code === "HOST_REFUSED") return "host_refused";
   if (info.authenticationFailed === true || code === "EAUTH" || code === "AUTHENTICATIONFAILED")
     return "auth_failed";
   if (
@@ -381,6 +406,15 @@ export function failureCode(error: unknown): string {
   return "failed";
 }
 const timeout = 15_000;
+// A test checks the host again, so an address that changed since the connection
+// was saved is caught here. A development-only connection is exempt.
+async function guardHost(row: Row): Promise<void> {
+  const key = typeKey(row.kind, row.direction);
+  if (!key || row.config.developmentOnly === true) return;
+  const target = hostOf(key, row.config);
+  if (target && (await checkHost(target.host)) !== "allowed")
+    throw Object.assign(new Error("host"), { code: "HOST_REFUSED" });
+}
 async function probe(row: Row): Promise<void> {
   const key = typeKey(row.kind, row.direction);
   if (!key) throw new Error("unknown_kind");
@@ -479,6 +513,7 @@ export async function testConnection(
   if (row.status === "disabled") throw new DomainError("conflict", 409);
   let code: string | null = null;
   try {
+    await guardHost(row);
     await probe(row);
   } catch (error) {
     code = failureCode(error);

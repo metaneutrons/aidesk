@@ -1,5 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+// Names resolve through this table: an unknown name resolves to a public address,
+// an empty list is a name that does not exist.
+const dns = vi.hoisted(() => ({ table: new Map<string, string[]>() }));
+vi.mock("node:dns/promises", () => ({
+  lookup: (host: string) => {
+    const found = dns.table.get(host) ?? ["93.184.216.34"];
+    if (host === "empty.example.test") return Promise.resolve([]);
+    if (found.length === 0)
+      return Promise.reject(Object.assign(new Error("nx"), { code: "ENOTFOUND" }));
+    return Promise.resolve(
+      found.map((address) => ({ address, family: address.includes(":") ? 6 : 4 })),
+    );
+  },
+}));
 import { ImapFlow } from "imapflow";
 import { S3Client } from "@aws-sdk/client-s3";
 import { eq, inArray } from "drizzle-orm";
@@ -115,7 +129,11 @@ describe("hosts that a connection may not point at", () => {
       "169.254.169.254",
       "::1",
       "[::1]",
+      "0:0:0:0:0:0:0:1",
       "fe80::1",
+      "::ffff:127.0.0.1",
+      "::ffff:7f00:1",
+      "::ffff:169.254.169.254",
       "metadata.google.internal",
     ])
       expect(hostRefused(host), host).toBe(true);
@@ -125,6 +143,7 @@ describe("hosts that a connection may not point at", () => {
       "192.168.1.2",
       "172.16.0.1",
       "2001:db8::1",
+      "::ffff:8.8.8.8",
     ])
       expect(hostRefused(host), host).toBe(false);
   });
@@ -652,6 +671,125 @@ describe("the checks of the other kinds", () => {
   });
 });
 
+describe("names that point at refused addresses", () => {
+  afterEach(() => {
+    dns.table.clear();
+  });
+  const refusedAt = async (host: string, pointer: string) => {
+    const error = await createConnection(
+      manager,
+      projectId,
+      smtp({
+        config: {
+          host,
+          port: 587,
+          secure: false,
+          from: "a@example.test",
+          replyTo: "a@example.test",
+        },
+      }),
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ZodError);
+    expect(
+      JSON.stringify(
+        (error as ZodError).issues.map((issue) => [issue.path.join("/"), issue.message]),
+      ),
+    ).toContain(pointer);
+  };
+  it("refuses a name that resolves to the machine, the metadata range or a mapped address", async () => {
+    await reset();
+    for (const [name, addresses] of [
+      ["inner.example.test", ["127.0.0.1"]],
+      ["meta.example.test", ["169.254.169.254"]],
+      ["six.example.test", ["::1"]],
+      ["mapped.example.test", ["::ffff:127.0.0.1"]],
+      ["mixed.example.test", ["93.184.216.34", "127.0.0.1"]],
+    ] as const) {
+      dns.table.set(name, [...addresses]);
+      await refusedAt(name, "This host is not allowed");
+    }
+    expect(await listConnections(manager, projectId)).toEqual([]);
+  });
+  it("refuses a name that does not resolve and allows one that resolves to a private or public address", async () => {
+    await reset();
+    dns.table.set("gone.example.test", []);
+    await refusedAt("gone.example.test", "This host does not resolve");
+    // A lookup that answers with no address at all.
+    await refusedAt("empty.example.test", "This host does not resolve");
+    dns.table.set("lan.example.test", ["10.1.2.3"]);
+    expect(
+      (
+        await createConnection(
+          manager,
+          projectId,
+          smtp({
+            config: {
+              host: "lan.example.test",
+              port: 587,
+              secure: false,
+              from: "a@example.test",
+              replyTo: "a@example.test",
+            },
+          }),
+        )
+      ).outcome,
+    ).toBe("applied");
+  });
+  it("checks a changed host on update and on every test", async () => {
+    await reset();
+    dns.table.set("shift.example.test", ["93.184.216.34"]);
+    const id =
+      (
+        await createConnection(
+          manager,
+          projectId,
+          smtp({
+            config: {
+              host: "shift.example.test",
+              port: 587,
+              secure: false,
+              from: "a@example.test",
+              replyTo: "a@example.test",
+            },
+          }),
+        )
+      ).connectionId ?? "";
+    dns.table.set("moved.example.test", ["127.0.0.1"]);
+    await expect(
+      updateConnection(manager, projectId, id, {
+        expectedVersion: 1,
+        config: {
+          host: "moved.example.test",
+          port: 587,
+          secure: false,
+          from: "a@example.test",
+          replyTo: "a@example.test",
+        },
+      }),
+    ).rejects.toBeInstanceOf(ZodError);
+    // The name that was fine when it was saved now points at the machine itself.
+    dns.table.set("shift.example.test", ["169.254.169.254"]);
+    const tested = await testConnection(manager, projectId, id);
+    expect(tested).toMatchObject({ status: "degraded", lastErrorCode: "host_refused" });
+    expect(JSON.stringify(tested)).not.toContain("shift.example.test");
+    expect(JSON.stringify(tested)).not.toContain("169.254");
+  });
+  it("checks the host of an endpoint, and leaves a development-only connection alone", async () => {
+    await reset();
+    dns.table.set("r2.inner.test", ["127.0.0.1"]);
+    const error = await createConnection(manager, projectId, {
+      kind: "cloudflare",
+      direction: "inbound",
+      name: "R2",
+      config: { endpoint: "https://r2.inner.test", bucket: "b", address: "a@example.test" },
+      secret: { accessKeyId: "k", secretAccessKey: "s" },
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ZodError);
+    expect(JSON.stringify((error as ZodError).issues.map((issue) => issue.path))).toContain(
+      "endpoint",
+    );
+  });
+});
 describe("remaining paths", () => {
   it("answers not_found for a project that does not exist and reports a validated disable and update", async () => {
     const ghost = randomUUID();
