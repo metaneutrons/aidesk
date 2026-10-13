@@ -154,8 +154,8 @@ Outcome: the remaining configuration reachable through the same mechanism.
   templates per project and language with placeholders validated on write; the
   built-in German and English texts are the defaults, and a missing translation
   falls back to them.
-- C3-A3: Response-clock thresholds are project settings with the current values as
-  defaults and are used by the overview, the list and the portal.
+- C3-A3: The overdue limit of the response clock is a project setting with the
+  current value (24 hours) as default and is used by the overview and the list.
 - C3-A4: The web interface shows the same configuration it can write and records
   the difference to REST in the ledger where one remains.
 
@@ -202,3 +202,9 @@ Open questions:
 
 2026-10-13: plan created; approval default and per-project switch decided by the
 product owner.
+
+2026-10-13: C3-A3 corrected before acceptance. The customer page shows no response
+timing, so the portal is not a place where the limit is used, and the warning limit
+(4 hours) is shown nowhere, so only the overdue limit becomes a setting. Evidence:
+the PR that made `overdueHours` a project setting. The criterion text is the only
+change; no acceptance was recorded against the earlier wording.
