@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { Configuration } from "./configuration";
+import { Connections } from "./connections";
 import { Designs } from "./designs";
 import {
   operatorRoles,
@@ -78,6 +79,8 @@ export function Settings({
   const [tokenName, setTokenName] = useState("");
   const [tokenRole, setTokenRole] = useState<TokenRole>("read");
   const [tokenDays, setTokenDays] = useState(30);
+  // Raised when a connection changed, so other sections that list them reload.
+  const [connectionsStamp, setConnectionsStamp] = useState(0);
   const [issued, setIssued] = useState<string | null>(null);
   // null until the stored values are loaded; the switches stay disabled so a
   // late load cannot overwrite a click.
@@ -485,6 +488,19 @@ export function Settings({
             name={projectName(grant.projectId)}
             canWrite={grant.actions.includes("config.write")}
             canApprove={grant.actions.includes("config.approve")}
+            connectionsStamp={connectionsStamp}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("integration.manage"))
+        .map((grant) => (
+          <Connections
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            onChanged={() => {
+              setConnectionsStamp((stamp) => stamp + 1);
+            }}
           />
         ))}
       <Designs

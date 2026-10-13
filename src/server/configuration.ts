@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import {
   configDecision,
   configDocument,
@@ -11,7 +11,8 @@ import {
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
 import { db } from "./db";
-import { audit, configChanges, projects } from "./db/schema";
+import { applyConnectionPayload } from "./connections";
+import { audit, configChanges, connections, projects } from "./db/schema";
 import { DomainError } from "./errors";
 const id = z.uuid();
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
@@ -26,6 +27,12 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     portalLinks: settings.portalLinks === true,
     aiMode: settings.aiMode === "autonomous" ? "autonomous" : "off",
     approvalPolicy: settings.approvalPolicy === "direct" ? "direct" : "review",
+    outboundConnectionId:
+      typeof settings.outboundConnectionId === "string" &&
+      z.uuid().safeParse(settings.outboundConnectionId).success
+        ? settings.outboundConnectionId
+        : null,
+    pauseOutgoing: settings.pauseOutgoing === true,
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -50,6 +57,7 @@ export async function supersedeOlder(tx: Tx, project: string, version: number): 
       and(
         eq(configChanges.projectId, project),
         eq(configChanges.status, "pending"),
+        eq(configChanges.kind, "config"),
         lt(configChanges.baseVersion, version),
       ),
     );
@@ -76,6 +84,8 @@ function sqlMerge(config: ConfigDocument) {
     portalLinks: config.portalLinks,
     aiMode: config.aiMode,
     approvalPolicy: config.approvalPolicy,
+    outboundConnectionId: config.outboundConnectionId,
+    pauseOutgoing: config.pauseOutgoing,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }
@@ -134,6 +144,21 @@ export async function putConfig(
       }
     }
     if (request.expectedVersion !== row.configVersion) throw new DomainError("stale_version", 409);
+    const outbound = request.config.outboundConnectionId;
+    if (outbound !== null) {
+      const [connection] = await tx
+        .select({ direction: connections.direction, status: connections.status })
+        .from(connections)
+        .where(and(eq(connections.id, outbound), eq(connections.projectId, project)));
+      if (connection?.direction !== "outbound" || connection.status === "disabled")
+        throw new ZodError([
+          {
+            code: "custom",
+            path: ["config", "outboundConnectionId"],
+            message: "An outgoing connection of this project that is not disabled",
+          },
+        ]);
+    }
     const current = configOf(row);
     const diff = diffConfig(current, request.config);
     if (diff.length === 0)
@@ -226,6 +251,8 @@ export async function listConfigChanges(principal: Principal, projectId: string,
   return rows.map((row) => ({
     id: row.id,
     projectId: row.projectId,
+    kind: row.kind,
+    target: row.target,
     status: row.status,
     baseVersion: row.baseVersion,
     appliedVersion: row.appliedVersion,
@@ -284,6 +311,51 @@ export async function decideConfigChange(principal: Principal, changeId: string,
         detail: { reason: decided.reason },
       });
       return { value: { id: change, status: "rejected" as const, version: row.configVersion } };
+    }
+    if (proposal.kind !== "config") {
+      // A connection change applies to the connection version it was made on.
+      let stale = false;
+      if (proposal.kind !== "connection.create") {
+        const [connection] = await tx
+          .select({ version: connections.version })
+          .from(connections)
+          .where(and(eq(connections.id, proposal.target ?? ""), eq(connections.projectId, row.id)))
+          .for("update");
+        stale = connection?.version !== proposal.baseVersion;
+      }
+      if (stale) {
+        await tx
+          .update(configChanges)
+          .set({ status: "superseded", ...decided })
+          .where(eq(configChanges.id, change));
+        return { error: new DomainError("stale_version", 409) };
+      }
+      const applied = await applyConnectionPayload(
+        tx,
+        row.id,
+        proposal.kind,
+        proposal.target,
+        proposal.payload,
+        principal.id,
+        proposal.diff,
+      );
+      await tx
+        .update(configChanges)
+        .set({
+          status: "applied",
+          appliedVersion: applied.version,
+          target: applied.connectionId,
+          ...decided,
+        })
+        .where(eq(configChanges.id, change));
+      await tx.insert(audit).values({
+        projectId: row.id,
+        actorId: principal.id,
+        action: "config.approve",
+        targetId: change,
+        detail: { kind: proposal.kind, diff: proposal.diff },
+      });
+      return { value: { id: change, status: "applied" as const, version: applied.version } };
     }
     if (proposal.baseVersion !== row.configVersion) {
       await tx

@@ -4,18 +4,10 @@ import { z } from "zod";
 import { db } from "./db";
 import { connections, ingress, syncCursors } from "./db/schema";
 import { unseal } from "./crypto";
+import { imapConfig, imapSecret } from "../domain/connections";
 import { env } from "./env";
 import { acceptInbound } from "./inbound";
-const imapConfig = z.object({
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  user: z.string().min(1),
-  mailbox: z.string().min(1).default("INBOX"),
-  // Folder for junk; when absent, the server's \\Junk folder is used.
-  junkMailbox: z.string().min(1).optional(),
-  developmentOnly: z.boolean().default(false),
-});
+
 export interface PollResult {
   accepted: number;
   duplicates: number;
@@ -43,9 +35,9 @@ async function openConnection(connectionId: string) {
   if (config.developmentOnly && !development) throw new Error("development_connection_not_allowed");
   if (!config.developmentOnly && !config.secure) throw new Error("imap_tls_required");
   if (!connection.secretCiphertext) throw new Error("imap_secret_missing");
-  const secret = z
-    .object({ pass: z.string().min(1) })
-    .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)));
+  const secret = imapSecret.parse(
+    JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
+  );
   const client = new ImapFlow({
     host: config.host,
     port: config.port,

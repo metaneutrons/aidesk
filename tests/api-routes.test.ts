@@ -180,6 +180,23 @@ describe("the router", () => {
     expect(fine.status).toBe(200);
     expect(await fine.json()).toEqual({ ok: true });
   });
+  it("answers an unexpected failure with unavailable and tells nothing about it", async () => {
+    const broken: Route = {
+      id: "test.broken",
+      method: "GET",
+      path: "/test-broken",
+      tag: "Test",
+      summary: "A route that fails unexpectedly",
+      access: "any",
+      response: z.object({}),
+      run: () => Promise.reject(new Error("database password is hunter2")),
+    };
+    routes.push(broken);
+    added.push(broken);
+    const response = await handle(request("/test-broken"), owner);
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe('{"error":"unavailable"}');
+  });
   it("answers invalid JSON with invalid_input and a foreign origin with forbidden", async () => {
     const bad = await handle(
       request("/me/locale", {

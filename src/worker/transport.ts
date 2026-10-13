@@ -1,10 +1,10 @@
 import nodemailer from "nodemailer";
-import { z } from "zod";
 import type { connections, projects } from "../server/db/schema";
 import { unseal } from "../server/crypto";
 import { env } from "../server/env";
 import { classifySmtpFailure, smtpProgress } from "../domain/delivery";
 import { smtp2goSuppressed } from "../server/smtp2go";
+import { smtpConfig, smtpSecret } from "../domain/connections";
 import { parseCloudflareOutbound, sendViaCloudflare } from "../server/cloudflare";
 // Hands one mail to the outgoing connection of a project. Shared by replies
 // and test mails, so both go through the same configuration checks, the same
@@ -12,15 +12,7 @@ import { parseCloudflareOutbound, sendViaCloudflare } from "../server/cloudflare
 // the code that describes the failure if this function throws: it starts at the
 // general review code, and says "unknown" from the moment the mail may have
 // left.
-const smtpSchema = z.object({
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  from: z.email(),
-  replyTo: z.email(),
-  developmentOnly: z.boolean().default(false),
-  suppressionCheck: z.enum(["smtp2go"]).optional(),
-});
+
 // Marks automatic mail (RFC 3834) and asks Exchange not to answer it with
 // its own automatic replies.
 const automaticHeaders = {
@@ -72,16 +64,14 @@ export async function deliver(input: Delivery): Promise<{
     }
   }
   if (connection.kind !== "smtp") throw new Error("outbound_not_ready");
-  const config = smtpSchema.parse(connection.config);
+  const config = smtpConfig.parse(connection.config);
   if (
     config.developmentOnly &&
     (process.env.NODE_ENV !== "development" || process.env.DEV_BOOTSTRAP !== "true")
   )
     throw new Error("development_connection_not_allowed");
   const secret = connection.secretCiphertext
-    ? z
-        .object({ user: z.string(), pass: z.string(), apiKey: z.string().min(1).optional() })
-        .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
+    ? smtpSecret.parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
     : undefined;
   if (!config.developmentOnly && !config.secure && config.port !== 587)
     throw new Error("smtp_tls_required");

@@ -517,8 +517,9 @@ route.
 ## Project configuration
 
 The editable configuration of a project is one document: name, colour, default
-language, acknowledgements, portal links, AI mode and approval policy. Connections,
-secrets and texts are not part of it. It is read with `GET
+language, acknowledgements, portal links, AI mode, approval policy, the outgoing
+connection and a pause for outgoing mail. Connections themselves, secrets and texts
+are not part of it. It is read with `GET
 /api/v1/projects/{id}/config`, which also returns its `version`, and replaced with
 `PUT` on the same path. A write names the version it read (`expectedVersion`); a
 change made in between answers `409 stale_version`. An optional
@@ -541,6 +542,48 @@ superseded and never applies. The approval policy itself is changed only by a
 person with `config.approve`. Every applied and proposed change is kept with its
 diff in `config_change` and audited. The older settings route
 `POST /projects/{id}/settings` still works and raises the version as well.
+
+## Connections
+
+A project reads mail through inbound connections (IMAP, or Cloudflare Email
+Routing through R2) and sends it through one outgoing connection (SMTP, or the
+Cloudflare Email Sending API). Connections are managed through the API under the
+action `integration.manage`:
+
+- `GET /api/v1/projects/{id}/connections` lists them. A connection shows its
+  non-secret configuration, `status` (`draft`, `ready`, `degraded`, `disabled`),
+  `lastErrorCode`, `version` and whether a secret is stored (`secretSet`). The
+  secret is never returned, not in a diff, a proposal or an audit entry.
+- `POST .../connections` defines one. The body names `kind`, `direction`, `name`,
+  `config` and `secret`; the published definition lists the fields of each kind. A
+  connection is accepted only if the adapter can use it: IMAP needs TLS, SMTP needs
+  TLS or port 587, Cloudflare inbound needs HTTPS, and a connection may not point at
+  the machine itself or the link-local range (`127.0.0.0/8`, `169.254.0.0/16`, `::1`,
+  `fe80::/10`, `localhost`). Private networks stay allowed; names are not
+  resolved, so this limits mistakes and does not replace network policy. The flag
+  `developmentOnly` is accepted only on the development stack.
+- `PUT .../connections/{id}` changes the name, the configuration or the secret. It
+  names the version that was read (`expectedVersion`). A changed connection returns
+  to `draft`, and nothing is sent or read through a `draft` connection until a test
+  succeeds. Leaving the secret out keeps the stored one.
+- `POST .../connections/{id}/test` checks login and mailbox (IMAP), the bucket
+  (Cloudflare inbound), the login (SMTP) or that the token is active (Cloudflare
+  outbound) and records `ready`, or `degraded` with a code (`auth_failed`,
+  `connect_failed`, `timeout`, `tls_failed`, `not_found`, `failed`) that names no host
+  or credential. It sends and reads no mail. For Cloudflare outbound it cannot tell
+  whether the token may send; that is known only by sending.
+- `POST .../connections/{id}/disable` stops all use of the connection.
+
+Every write accepts `?validate=true`, which reports the diff without writing, and an
+`idempotencyKey`. The approval policy of the project applies as it does to the
+configuration: a person applies directly, an agent proposes under `review`, and a
+person with `config.approve` decides at `/config/changes/{id}/decision`. A proposal
+keeps the secret sealed with the encryption key, like the stored one. The outgoing
+connection is chosen in the project configuration (`outboundConnectionId`), which
+accepts only an outgoing connection of the project that is not disabled.
+
+The settings page lists the connections with their status and offers test and
+disable; it has no form for credentials.
 
 ## Overview and list size
 
