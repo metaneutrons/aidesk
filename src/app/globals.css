@@ -1218,7 +1218,46 @@ label {
     gap: 8px 12px;
     align-items: center;
 }
-
+.portal-link {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.portal-link input {
+    min-width: 280px;
+}
+.portal {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+    display: grid;
+    gap: 20px;
+}
+.portal-messages {
+    display: grid;
+    gap: 12px;
+}
+.portal-messages article {
+    border: 1px solid var(--line, #e3e5ee);
+    border-radius: 10px;
+    padding: 12px 16px;
+}
+.portal-messages article.own {
+    background: var(--surface-alt, rgba(86, 104, 232, 0.06));
+}
+.portal-messages article > header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+.portal-reply {
+    display: grid;
+    gap: 8px;
+}
+.portal-reply textarea {
+    width: 100%;
+}
 .designs {
     margin-top: 32px;
     display: grid;

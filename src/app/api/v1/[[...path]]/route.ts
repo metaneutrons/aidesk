@@ -32,6 +32,8 @@ import {
   selectEmailDesign,
   sendTestMail,
 } from "../../../../server/email-design";
+import { env } from "../../../../server/env";
+import { issuePortalGrant, revokePortalGrant } from "../../../../server/portal";
 import { DomainError } from "../../../../server/errors";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -136,6 +138,29 @@ async function dispatch(request: Request): Promise<Response> {
       }
       if (resource === "agents" && identifier && operation === "revoke" && segments.length === 3)
         return Response.json(await revokeAgentToken(principal, identifier));
+      if (
+        resource === "tickets" &&
+        identifier &&
+        operation === "portal-link" &&
+        segments.length === 3
+      ) {
+        const grant = await issuePortalGrant(principal, identifier, input);
+        return Response.json(
+          {
+            url: `${new URL(env().APP_URL).origin}/portal/${grant.token}`,
+            expiresAt: grant.expiresAt,
+          },
+          { status: 201, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      if (
+        resource === "tickets" &&
+        identifier &&
+        operation === "portal-link" &&
+        segments[3] === "revoke" &&
+        segments.length === 4
+      )
+        return Response.json(await revokePortalGrant(principal, identifier));
       if (resource === "tickets" && identifier && operation === "junk" && segments.length === 3)
         return Response.json(await moveTicketToJunk(principal, identifier));
       if (resource === "tickets" && identifier && operation === "restore" && segments.length === 3)

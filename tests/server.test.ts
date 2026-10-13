@@ -367,6 +367,13 @@ describe("authenticated API and MCP principal", () => {
     expect((await post(`projects/${hiddenId}/designs/preview`)).status).toBe(404);
     expect((await get(`test-mails/${randomUUID()}`)).status).toBe(404);
     expect((await get("test-mails/not-a-uuid")).status).toBe(400);
+    // Portal links: an agent token never opens customer access.
+    expect((await post(`tickets/${ticketId}/portal-link`)).status).toBe(403);
+    expect((await post(`tickets/${ticketId}/portal-link/revoke`)).status).toBe(403);
+    // An agent is refused before the ticket is looked up, so a hidden one is not revealed.
+    expect((await post(`tickets/${hiddenTicket}/portal-link`)).status).toBe(403);
+    expect((await post(`tickets/${ticketId}/portal-link/extra`)).status).toBe(404);
+    expect((await get(`tickets/${ticketId}/portal-link`)).status).toBe(404);
     const denied = await POST(
       new Request(`http://localhost:3000/api/v1/tickets/${ticketId}/reply`, {
         method: "POST",

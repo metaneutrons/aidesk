@@ -373,22 +373,37 @@ provisioning UI and owner recovery are not finished. MCP registration is filtere
 by permissions, and the shared operations check each requested resource again.
 The [capability ledger](capabilities.md) records current interface differences.
 
-## Portal grants
+## Customer portal
 
-`src/server/portal.ts` holds the model for customer access; the portal pages and
-REST routes follow with M3. A person with `ticket.reply` issues a grant for one
-ticket. It is a random token, stored only as a SHA-256 hash, bound to the
+A person with `ticket.reply` creates a portal link for the requester of a ticket
+(button "Create portal link" in the ticket header, `POST /api/v1/tickets/:id/portal-link`).
+The link is `<APP_URL>/portal/<token>` and is shown once; "Disable portal link"
+ends the access. The token is random, stored only as a SHA-256 hash, bound to the
 ticket's requester (a participant of that ticket), valid for 30 days by default
-(1 to 90) and shown once. Issuing again replaces the earlier token, revoking
-disables it, and both are audited. A token resolves only while it is known,
-unexpired, not revoked, verified and while the ticket is not in junk; every
-other case answers the same `not_found`. The holder sees the public conversation
-of that one ticket: no private notes, no messages that were not delivered, no
+(1 to 90), and a new link replaces the earlier one. Issuing and disabling are
+audited. A token resolves only while it is known, unexpired, not revoked,
+verified and while the ticket is not in junk; every other case shows the same
+page ("This link does not work") and answers `not_found`.
+
+The holder sees the public conversation of that one ticket in English or German
+by browser language: no private notes, no messages that were not delivered, no
 staff names or addresses (replies appear under the project name), and nothing of
-other tickets, participants or projects. A follow-up ticket needs its own grant.
-The requester counts as verified because the token goes to the address that
+other tickets, participants or projects. The page is not indexed and sends no
+referrer, because the link is the credential. A follow-up ticket needs its own
+link. The requester counts as verified because the link goes to the address that
 wrote to us; other participants need their own verification, which is not
 implemented.
+
+The customer can reply in the page (`POST /api/portal/reply`, which accepts
+requests from the application's own origin only). The reply becomes a message of
+the requester with `source.channel = "portal"` and no raw original: the ticket
+opens again, the response obligation starts if there was none, and the language
+of the text is detected and recorded like for mail while the ticket keeps its
+language. A key makes a repeated submission harmless, twenty replies per hour and
+link are accepted, and a ticket resolved more than 30 days ago answers
+"closed" instead (the customer then writes a new message). Attachments and
+custom domains are not part of this slice; a link in outgoing mail needs a
+decision about how a stable token is kept, because only its hash is stored.
 
 ## Translation records
 
