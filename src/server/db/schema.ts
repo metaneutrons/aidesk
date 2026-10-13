@@ -251,7 +251,8 @@ export const participants = pgTable(
       .references(() => tickets.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     verified: boolean("verified").notNull().default(false),
-    portalTokenHash: text("portal_token_hash").unique(),
+    // Raised to replace the earlier link; the link itself is derived, not stored.
+    portalEpoch: integer("portal_epoch").notNull().default(0),
     grantExpiresAt: timestamp("grant_expires_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: created(),

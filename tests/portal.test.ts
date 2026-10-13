@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -7,6 +7,7 @@ import { audit, messages, participants, projects, tickets } from "../src/server/
 import {
   getPortalTicket,
   issuePortalGrant,
+  portalLinkForMail,
   portalReply,
   resolvePortalGrant,
   revokePortalGrant,
@@ -128,11 +129,16 @@ describe("portal grants", () => {
     const id = await ticket();
     const { token, expiresAt } = await issuePortalGrant(staff, id);
     expect(expiresAt.getTime() - Date.now()).toBeGreaterThan(29 * 86_400_000);
-    // Only the hash is stored.
+    // No link is stored: it is derived from the participant and the epoch.
     const [stored] = await db().select().from(participants).where(eq(participants.ticketId, id));
-    expect(stored).toMatchObject({ email: "alex@example.test", verified: true });
-    expect(stored?.portalTokenHash).toBe(createHash("sha256").update(token).digest("hex"));
+    expect(stored).toMatchObject({ email: "alex@example.test", verified: true, portalEpoch: 0 });
     expect(JSON.stringify(stored)).not.toContain(token);
+    expect(JSON.stringify(stored)).not.toContain(token.split(".")[1] ?? "x");
+    expect(
+      token.startsWith(
+        `${Buffer.from((stored?.id ?? "").replaceAll("-", ""), "hex").toString("base64url")}.`,
+      ),
+    ).toBe(true);
     const view = await getPortalTicket(token);
     expect(view.ticket).toMatchObject({ subject: "Portal", status: "open" });
     expect(view.messages.map((message) => message.markdown)).toEqual(["Question", "Public answer"]);
@@ -252,6 +258,83 @@ describe("portal grants", () => {
     await expect(revokePortalGrant(outsider, id)).rejects.toMatchObject({ code: "not_found" });
     expect(await revokePortalGrant(staff, id)).toEqual({ revoked: true });
     await expect(revokePortalGrant(staff, id)).rejects.toMatchObject({ code: "conflict" });
+  });
+});
+describe("derived links", () => {
+  it("refuses a link that was altered or assembled from parts of others", async () => {
+    const first = await ticket();
+    const second = await ticket();
+    const a = await issuePortalGrant(staff, first);
+    const b = await issuePortalGrant(staff, second);
+    const [idA, macA] = a.token.split(".") as [string, string];
+    const [idB, macB] = b.token.split(".") as [string, string];
+    const flipped = `${macA.slice(0, -1)}${macA.endsWith("A") ? "B" : "A"}`;
+    for (const forged of [
+      `${idA}.${flipped}`,
+      `${idA}.${macB}`,
+      `${idB}.${macA}`,
+      `${idA}.${macA.slice(0, -1)}`,
+      `${idA.slice(0, -1)}.${macA}`,
+      `${idA}.${macA}.x`,
+      `${idA}${macA}`,
+      `${Buffer.alloc(16).toString("base64url")}.${macA}`,
+    ])
+      expect(await resolvePortalGrant(forged), forged).toBeNull();
+    expect((await resolvePortalGrant(a.token))?.ticketId).toBe(first);
+    expect((await resolvePortalGrant(b.token))?.ticketId).toBe(second);
+  });
+  it("gives mail about a ticket one stable link", async () => {
+    const id = await ticket();
+    expect(
+      await db().select().from(participants).where(eq(participants.ticketId, id)),
+    ).toHaveLength(0);
+    const first = await portalLinkForMail(id);
+    expect(first).not.toBeNull();
+    expect((await resolvePortalGrant(first))?.ticketId).toBe(id);
+    expect(await portalLinkForMail(id)).toBe(first);
+    const [row] = await db().select().from(participants).where(eq(participants.ticketId, id));
+    expect(row).toMatchObject({ verified: true, portalEpoch: 0 });
+    expect((row?.grantExpiresAt?.getTime() ?? 0) - Date.now()).toBeGreaterThan(29 * 86_400_000);
+    // A link created by a person and one for mail are the same participant; a
+    // new link from a person replaces the one in earlier mail.
+    const issued = await issuePortalGrant(staff, id);
+    expect(await resolvePortalGrant(first)).toBeNull();
+    expect(await portalLinkForMail(id)).toBe(issued.token);
+    expect(
+      await db().select().from(participants).where(eq(participants.ticketId, id)),
+    ).toHaveLength(1);
+  });
+  it("renews a grant that ran out but never a revoked one", async () => {
+    const id = await ticket();
+    const link = await portalLinkForMail(id);
+    await db()
+      .update(participants)
+      .set({ grantExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(participants.ticketId, id));
+    expect(await resolvePortalGrant(link)).toBeNull();
+    expect(await portalLinkForMail(id)).toBe(link);
+    expect(await resolvePortalGrant(link)).not.toBeNull();
+    await revokePortalGrant(staff, id);
+    expect(await portalLinkForMail(id)).toBeNull();
+    expect(await resolvePortalGrant(link)).toBeNull();
+    const [row] = await db().select().from(participants).where(eq(participants.ticketId, id));
+    expect(row?.revokedAt).not.toBeNull();
+  });
+  it("gives no link for a ticket in junk, an unknown ticket or an unverified requester", async () => {
+    const junk = await ticket();
+    await db().update(tickets).set({ junkAt: new Date() }).where(eq(tickets.id, junk));
+    expect(await portalLinkForMail(junk)).toBeNull();
+    expect(await portalLinkForMail(randomUUID())).toBeNull();
+    const id = await ticket();
+    await portalLinkForMail(id);
+    await db().update(participants).set({ verified: false }).where(eq(participants.ticketId, id));
+    expect(await portalLinkForMail(id)).toBeNull();
+    expect(
+      await db()
+        .select()
+        .from(participants)
+        .where(and(eq(participants.ticketId, junk))),
+    ).toHaveLength(0);
   });
 });
 describe("portal replies", () => {

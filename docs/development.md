@@ -378,12 +378,25 @@ The [capability ledger](capabilities.md) records current interface differences.
 A person with `ticket.reply` creates a portal link for the requester of a ticket
 (button "Create portal link" in the ticket header, `POST /api/v1/tickets/:id/portal-link`).
 The link is `<APP_URL>/portal/<token>` and is shown once; "Disable portal link"
-ends the access. The token is random, stored only as a SHA-256 hash, bound to the
-ticket's requester (a participant of that ticket), valid for 30 days by default
-(1 to 90), and a new link replaces the earlier one. Issuing and disabling are
-audited. A token resolves only while it is known, unexpired, not revoked,
-verified and while the ticket is not in junk; every other case shows the same
-page ("This link does not work") and answers `not_found`.
+ends the access. A link is not stored: it is the participant's identifier plus a
+MAC over that identifier and the participant's epoch, made with a key derived
+from `ENCRYPTION_KEY`. A database copy therefore contains no link, a new link
+raises the epoch and replaces the earlier one, and changing the encryption key
+ends all links. A grant is valid for 30 days by default (1 to 90), can be
+revoked, and is bound to the ticket's requester (a participant of that ticket).
+Issuing and disabling are audited. A link resolves only while the MAC fits, the
+grant is not revoked or expired and the ticket is not in junk; every other case
+shows the same page ("This link does not work") and answers `not_found`.
+
+With the project setting "add a link to the ticket page" (Settings, project
+settings), replies and acknowledgements carry the link below the message, with
+a line in the recipient's language, in HTML and plain text. It is the same link
+in every mail about the ticket, so earlier mail keeps working. The worker
+creates the grant when there is none and renews one that ran out, because the
+mail goes to the requester anyway; a revoked grant stays revoked and the mail
+has no link. The stored snapshot of a sent mail keeps the text with
+`{portal-link}` in place of the address (`portalLink` says whether there was
+one), because the address is a credential.
 
 The holder sees the public conversation of that one ticket in English or German
 by browser language: no private notes, no messages that were not delivered, no
@@ -401,9 +414,8 @@ opens again, the response obligation starts if there was none, and the language
 of the text is detected and recorded like for mail while the ticket keeps its
 language. A key makes a repeated submission harmless, twenty replies per hour and
 link are accepted, and a ticket resolved more than 30 days ago answers
-"closed" instead (the customer then writes a new message). Attachments and
-custom domains are not part of this slice; a link in outgoing mail needs a
-decision about how a stable token is kept, because only its hash is stored.
+"closed" instead (the customer then writes a new message). Attachments in
+replies and custom domains for the portal are not implemented.
 
 ## Translation records
 

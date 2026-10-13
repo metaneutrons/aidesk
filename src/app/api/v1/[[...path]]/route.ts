@@ -32,8 +32,7 @@ import {
   selectEmailDesign,
   sendTestMail,
 } from "../../../../server/email-design";
-import { env } from "../../../../server/env";
-import { issuePortalGrant, revokePortalGrant } from "../../../../server/portal";
+import { issuePortalGrant, portalUrl, revokePortalGrant } from "../../../../server/portal";
 import { DomainError } from "../../../../server/errors";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -147,7 +146,7 @@ async function dispatch(request: Request): Promise<Response> {
         const grant = await issuePortalGrant(principal, identifier, input);
         return Response.json(
           {
-            url: `${new URL(env().APP_URL).origin}/portal/${grant.token}`,
+            url: portalUrl(grant.token),
             expiresAt: grant.expiresAt,
           },
           { status: 201, headers: { "Cache-Control": "no-store" } },

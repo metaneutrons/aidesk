@@ -10,6 +10,7 @@ import {
   jobs,
   memberships,
   messages,
+  participants,
   projects,
   tickets,
   user,
@@ -25,6 +26,7 @@ import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
 import { getSentSnapshot, getTicket } from "../src/server/operations";
 import { emailTemplateVersion } from "../src/server/email";
+import { resolvePortalGrant, revokePortalGrant } from "../src/server/portal";
 import { runNext, runTestSend } from "../src/worker/jobs";
 import type { Principal } from "../src/domain/permissions";
 import { startFakeSmtp, type FakeSmtp } from "./support/smtp";
@@ -989,5 +991,142 @@ describe("test send of a design", () => {
     };
     await runTestSend({ projectId: entry.projectId });
     expect(await getTestMail(manager, id)).toMatchObject({ status: "running" });
+  });
+});
+describe("portal link in mail", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const link = /https?:\/\/[^\s"<>]+\/portal\/([A-Za-z0-9_.-]+)/;
+  async function sent(options: Options = {}) {
+    const entry = await scenario({ settings: { portalLinks: true }, ...options });
+    await entry.run();
+    const parsed = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    return {
+      entry,
+      html: typeof parsed.html === "string" ? parsed.html : "",
+      text: parsed.text ?? "",
+    };
+  }
+  const reader = (projectId: string): Principal => ({
+    id: "reader",
+    kind: "human",
+    active: true,
+    owner: false,
+    grants: [{ projectId, actions: ["ticket.read"] }],
+  });
+  it("adds the link of the ticket to replies and acknowledgements when the project asks for it", async () => {
+    for (const options of [{}, { acknowledgement: true }] as Options[]) {
+      const { entry, html, text } = await sent(options);
+      const token = link.exec(html)?.[1];
+      expect(token, "html").toBeDefined();
+      expect(link.exec(text)?.[1]).toBe(token);
+      expect(html).toContain("View this request online and reply:");
+      expect((await resolvePortalGrant(token))?.ticketId).toBe(entry.ticketId);
+    }
+  });
+  it("adds nothing when the setting is off, and nothing for a revoked grant", async () => {
+    const off = await scenario();
+    await off.run();
+    expect(smtp.messages.at(-1)).not.toContain("/portal/");
+    const entry = await scenario({ settings: { portalLinks: true } });
+    await db().insert(participants).values({
+      ticketId: entry.ticketId,
+      email: "alex@example.test",
+      verified: true,
+      revokedAt: new Date(),
+    });
+    await entry.run();
+    expect(smtp.messages.at(-1)).not.toContain("/portal/");
+    expect((await entry.job())?.status).toBe("succeeded");
+  });
+  it("is the same link in every mail about a ticket and renews the grant", async () => {
+    const first = await sent();
+    const token = link.exec(first.html)?.[1];
+    // A second reply in the same ticket: queue it by hand.
+    const [reply] = await db()
+      .insert(messages)
+      .values({
+        ticketId: first.entry.ticketId,
+        authorType: "human",
+        authorName: "Operator",
+        markdown: "Second answer",
+        language: "en",
+        deliveryState: "queued",
+      })
+      .returning();
+    const [ticket] = await db().select().from(tickets).where(eq(tickets.id, first.entry.ticketId));
+    await db()
+      .insert(jobs)
+      .values({
+        projectId: first.entry.projectId,
+        type: "mail.send",
+        dedupKey: `worker-test:${randomUUID()}`,
+        payload: {
+          ticketId: first.entry.ticketId,
+          messageId: reply?.id,
+          connectionId: first.entry.connectionId,
+          actorId: first.entry.operatorId,
+          actorKind: "human",
+          expectedRevision: ticket?.revision,
+          resolve: false,
+        },
+      });
+    await first.entry.run();
+    const second = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    expect(link.exec(typeof second.html === "string" ? second.html : "")?.[1]).toBe(token);
+    expect((await resolvePortalGrant(token))?.ticketId).toBe(first.entry.ticketId);
+  });
+  it("keeps the link out of the stored snapshot", async () => {
+    const { entry, html } = await sent();
+    const token = link.exec(html)?.[1] ?? "";
+    const snapshot = await getSentSnapshot(reader(entry.projectId), entry.messageId);
+    expect(snapshot.portalLink).toBe(true);
+    expect(snapshot.html).toContain("{portal-link}");
+    expect(snapshot.html).not.toContain(token);
+    expect(snapshot.text).not.toContain(token);
+    expect(JSON.stringify((await entry.message())?.source)).not.toContain(token);
+    // Without a link the snapshot says so.
+    const plain = await scenario();
+    await plain.run();
+    expect((await getSentSnapshot(reader(plain.projectId), plain.messageId)).portalLink).toBe(
+      false,
+    );
+  });
+  it("goes through the Cloudflare API too", async () => {
+    const entry = await scenario({ settings: { portalLinks: true }, transport: "cloudflare" });
+    const fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          success: true,
+          errors: [],
+          messages: [],
+          result: {
+            delivered: ["alex@example.test"],
+            queued: [],
+            permanent_bounces: [],
+            message_id: "<l@example.test>",
+          },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await entry.run();
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { html: string; text: string };
+    const token = link.exec(body.html)?.[1];
+    expect(token).toBeDefined();
+    expect(link.exec(body.text)?.[1]).toBe(token);
+    await revokePortalGrant(
+      {
+        id: "x",
+        kind: "human",
+        active: true,
+        owner: false,
+        grants: [{ projectId: entry.projectId, actions: ["ticket.read", "ticket.reply"] }],
+      },
+      entry.ticketId,
+    );
+    expect(await resolvePortalGrant(token)).toBeNull();
   });
 });
