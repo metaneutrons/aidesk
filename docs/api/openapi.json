@@ -3226,6 +3226,11 @@
                         },
                         "pauseOutgoing": {
                           "type": "boolean"
+                        },
+                        "overdueHours": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 720
                         }
                       },
                       "required": [
@@ -3237,7 +3242,8 @@
                         "aiMode",
                         "approvalPolicy",
                         "outboundConnectionId",
-                        "pauseOutgoing"
+                        "pauseOutgoing",
+                        "overdueHours"
                       ],
                       "additionalProperties": false
                     }
@@ -3359,6 +3365,11 @@
                       },
                       "pauseOutgoing": {
                         "type": "boolean"
+                      },
+                      "overdueHours": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 720
                       }
                     },
                     "required": [
@@ -3370,7 +3381,8 @@
                       "aiMode",
                       "approvalPolicy",
                       "outboundConnectionId",
-                      "pauseOutgoing"
+                      "pauseOutgoing",
+                      "overdueHours"
                     ],
                     "additionalProperties": false
                   },
@@ -5300,6 +5312,9 @@
           },
           "portalLinks": {
             "type": "boolean"
+          },
+          "overdueHours": {
+            "type": "number"
           }
         },
         "required": [
@@ -5309,7 +5324,8 @@
           "color",
           "defaultLanguage",
           "acknowledgements",
-          "portalLinks"
+          "portalLinks",
+          "overdueHours"
         ],
         "additionalProperties": false
       },

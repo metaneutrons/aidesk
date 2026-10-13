@@ -48,6 +48,7 @@ export async function listProjects(principal: Principal) {
       defaultLanguage: projects.defaultLanguage,
       acknowledgements: sql<boolean>`coalesce((${projects.settings}->>'acknowledgements')::boolean, false)`,
       portalLinks: sql<boolean>`coalesce((${projects.settings}->>'portalLinks')::boolean, false)`,
+      overdueHours: sql<number>`coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours})`,
     })
     .from(projects)
     .where(inArray(projects.id, allowed))
@@ -121,7 +122,6 @@ export async function getOverview(
   const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
   if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
   if (filtered.length === 0) return { projects: [], oldest: [] };
-  const cutoff = new Date(now.getTime() - defaultOverdueHours * 3_600_000).toISOString();
   const instant = now.toISOString();
   const counted = (condition: ReturnType<typeof sql>) =>
     sql<number>`(count(*) filter (where ${condition}))::int`;
@@ -130,7 +130,10 @@ export async function getOverview(
       .select({
         projectId: tickets.projectId,
         total: sql<number>`count(*)::int`,
-        overdue: counted(sql`${tickets.pendingSince} <= ${cutoff}::timestamptz`),
+        // The limit is the project's own, 24 hours unless it set another.
+        overdue: counted(
+          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
+        ),
         unassigned: counted(
           sql`${tickets.status} = 'open' and ${tickets.assigneeUserId} is null and ${tickets.assigneeAgentId} is null`,
         ),
@@ -138,6 +141,7 @@ export async function getOverview(
         waiting: counted(sql`${tickets.status} = 'waiting'`),
       })
       .from(tickets)
+      .innerJoin(projects, eq(projects.id, tickets.projectId))
       .where(and(inArray(tickets.projectId, filtered), isNull(tickets.junkAt)))
       .groupBy(tickets.projectId),
     Promise.all(

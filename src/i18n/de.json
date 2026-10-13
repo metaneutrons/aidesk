@@ -285,5 +285,6 @@
   "connectionProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren.",
   "configOutgoing": "Ausgehende Verbindung",
   "configOutgoingNone": "Keine",
-  "configPause": "Ausgehende Mails pausieren"
+  "configPause": "Ausgehende Mails pausieren",
+  "configOverdue": "Überfällig nach (Stunden)"
 }

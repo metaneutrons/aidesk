@@ -20,6 +20,8 @@ export const configDocument = z
     outboundConnectionId: z.uuid().nullable(),
     // Stops all outgoing mail of the project without removing the connection.
     pauseOutgoing: z.boolean(),
+    // How long a ticket may wait for an answer before it counts as overdue.
+    overdueHours: z.number().int().min(1).max(720),
   })
   .strict();
 export type ConfigDocument = z.infer<typeof configDocument>;

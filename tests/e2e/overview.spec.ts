@@ -44,3 +44,56 @@ test("shows the counts the server reports and narrows them by project", async ({
   await expect(metric("Unassigned")).toHaveText(String(sum(one.projects, "unassigned")));
   await expect(metric("Waiting")).toHaveText(String(sum(one.projects, "waiting")));
 });
+test("counts overdue by the limit of the project", async ({ page, desk, signIn, baseURL }) => {
+  const { alpha } = desk.projects;
+  const headers = { origin: baseURL ?? "" };
+  await signIn();
+  const read = async () =>
+    z
+      .object({ version: z.number(), config: z.record(z.string(), z.unknown()) })
+      .parse(await (await page.request.get(`/api/v1/projects/${alpha.id}/config`)).json());
+  // What the server reports is compared with a count over the tickets of the
+  // project, whatever earlier tests did to them.
+  const reported = async () =>
+    overviewSchema.parse(
+      await (await page.request.get(`/api/v1/overview?project=${alpha.id}`)).json(),
+    ).projects[0]?.overdue ?? 0;
+  const expected = async (hours: number) => {
+    const list = z
+      .array(z.object({ pendingSince: z.string().nullable() }))
+      .parse(await (await page.request.get(`/api/v1/tickets?project=${alpha.id}`)).json());
+    return list.filter(
+      (ticket) =>
+        ticket.pendingSince !== null &&
+        Date.now() - Date.parse(ticket.pendingSince) >= hours * 3_600_000,
+    ).length;
+  };
+  const original = await read();
+  const setLimit = async (hours: number) => {
+    const now = await read();
+    const response = await page.request.put(`/api/v1/projects/${alpha.id}/config`, {
+      headers,
+      data: { config: { ...now.config, overdueHours: hours }, expectedVersion: now.version },
+    });
+    expect(response.ok()).toBe(true);
+  };
+  try {
+    const counts: number[] = [];
+    for (const hours of [1, 24, 720]) {
+      await setLimit(hours);
+      counts.push(await reported());
+      expect(counts.at(-1)).toBe(await expected(hours));
+    }
+    // A longer limit never counts more.
+    expect(counts[0]).toBeGreaterThanOrEqual(counts[1] ?? 0);
+    expect(counts[1]).toBeGreaterThanOrEqual(counts[2] ?? 0);
+    // The page shows the sum over all projects the person may read.
+    const all = overviewSchema.parse(await (await page.request.get("/api/v1/overview")).json());
+    await page.goto("/");
+    await expect(page.locator(".metric", { hasText: "Overdue" }).locator("strong")).toHaveText(
+      String(all.projects.reduce((total, row) => total + row.overdue, 0)),
+    );
+  } finally {
+    await setLimit(Number(original.config.overdueHours));
+  }
+});

@@ -518,7 +518,8 @@ route.
 
 The editable configuration of a project is one document: name, colour, default
 language, acknowledgements, portal links, AI mode, approval policy, the outgoing
-connection and a pause for outgoing mail. Connections themselves, secrets and texts
+connection, a pause for outgoing mail and the hours after which an unanswered
+ticket is overdue (24 by default, 1 to 720). Connections themselves, secrets and texts
 are not part of it. It is read with `GET
 /api/v1/projects/{id}/config`, which also returns its `version`, and replaced with
 `PUT` on the same path. A write names the version it read (`expectedVersion`); a
@@ -589,8 +590,8 @@ disable; it has no form for credentials.
 
 The overview counts in the database over every ticket of the authorized
 projects, not over the loaded part of the list (`getOverview`, `GET
-/api/v1/overview`): per project the total, the tickets unanswered for more than
-24 hours, the open ones nobody handles, the due reminders and the ones waiting
+/api/v1/overview`): per project the total, the overdue tickets (unanswered
+for 24 hours unless the project set another limit), the open ones nobody handles, the due reminders and the ones waiting
 for the customer, plus the eight oldest unanswered tickets of each project.
 Junk is not counted. The desk sums the projects that the project filter
 selects.
