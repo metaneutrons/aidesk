@@ -3,6 +3,7 @@ import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { audit, messages, participants, projects, tickets } from "./db/schema";
+import { detectLanguage } from "../domain/language";
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
 import { getTicket } from "./operations";
@@ -118,6 +119,7 @@ export async function getPortalTicket(token: unknown) {
       number: tickets.number,
       subject: tickets.subject,
       status: tickets.status,
+      resolvedAt: tickets.resolvedAt,
       language: tickets.language,
       createdAt: tickets.createdAt,
       project: projects.name,
@@ -137,16 +139,114 @@ export async function getPortalTicket(token: unknown) {
       ),
     )
     .orderBy(asc(messages.createdAt));
-  const { project, ...ticket } = row;
   return {
-    ticket,
+    ticket: {
+      number: row.number,
+      subject: row.subject,
+      status: row.status,
+      language: row.language,
+      createdAt: row.createdAt,
+    },
+    canReply: repliesAllowed(row.status, row.resolvedAt),
     messages: conversation.map((message) => ({
       id: message.id,
       from: message.authorType === "customer" ? ("you" as const) : ("team" as const),
-      authorName: message.authorType === "customer" ? message.authorName : project,
+      authorName: message.authorType === "customer" ? message.authorName : row.project,
       markdown: message.markdown,
       html: markdownHtml(message.markdown),
       createdAt: message.createdAt,
     })),
   };
+}
+
+// A resolved ticket can be answered for 30 days, like by mail; after that the
+// customer starts a new request.
+const reopenWindowMs = 30 * 86_400_000;
+function repliesAllowed(status: string, resolvedAt: Date | null): boolean {
+  if (status !== "resolved") return true;
+  if (!resolvedAt) return false;
+  return Date.now() - resolvedAt.getTime() <= reopenWindowMs;
+}
+const replyLimit = 20;
+// A reply written in the portal by the holder of a token. It becomes a message
+// of the requester like a mail would, reopens the ticket and starts the
+// response obligation if there is none. The key makes a repeated submission
+// harmless, and the number of replies per hour is limited.
+export async function portalReply(token: unknown, input: unknown) {
+  const values = z
+    .object({ markdown: z.string().trim().min(1).max(20_000), idempotencyKey: z.uuid() })
+    .strict()
+    .parse(input);
+  const grant = await resolvePortalGrant(token);
+  if (!grant) throw new DomainError("not_found", 404);
+  return db().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`portal:${grant.ticketId}`}))`);
+    const [ticket] = await tx
+      .select()
+      .from(tickets)
+      .where(eq(tickets.id, grant.ticketId))
+      .for("update");
+    if (ticket?.junkAt !== null) throw new DomainError("not_found", 404);
+    const [again] = await tx
+      .select({ id: messages.id })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.ticketId, ticket.id),
+          sql`${messages.source}->>'idempotencyKey' = ${values.idempotencyKey}`,
+        ),
+      );
+    if (again) return { id: again.id, duplicate: true };
+    if (!repliesAllowed(ticket.status, ticket.resolvedAt)) throw new DomainError("conflict", 409);
+    const [recent] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.ticketId, ticket.id),
+          sql`${messages.source}->>'participantId' = ${grant.participantId}`,
+          sql`${messages.createdAt} > now() - interval '1 hour'`,
+        ),
+      );
+    if ((recent?.count ?? 0) >= replyLimit) throw new DomainError("rate_limited", 429);
+    const detection = detectLanguage(values.markdown);
+    const now = new Date();
+    const [message] = await tx
+      .insert(messages)
+      .values({
+        ticketId: ticket.id,
+        authorType: "customer",
+        authorName: ticket.requesterName,
+        authorEmail: grant.email,
+        markdown: values.markdown,
+        language: detection.language ?? ticket.language,
+        deliveryState: "received",
+        source: {
+          channel: "portal",
+          participantId: grant.participantId,
+          idempotencyKey: values.idempotencyKey,
+          languageDetection: { language: detection.language, reason: detection.reason },
+        },
+        createdAt: now,
+      })
+      .returning({ id: messages.id });
+    if (!message) throw new DomainError("conflict", 409);
+    await tx
+      .update(tickets)
+      .set({
+        status: "open",
+        resolvedAt: null,
+        pendingSince: ticket.pendingSince ?? now,
+        revision: sql`${tickets.revision} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(tickets.id, ticket.id));
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: `portal:${grant.participantId}`,
+      action: "portal.reply",
+      targetId: ticket.id,
+    });
+    return { id: message.id, duplicate: false };
+  });
 }
