@@ -39,7 +39,7 @@ const branded = {
   headerText: "Acme Support",
   logoUrl: "https://assets.example.test/logo.png",
   footer: { en: "Acme Ltd., Main Street 1", de: "Acme GmbH, Hauptstraße 1" },
-  signature: { en: "Kind regards,\nThe Acme team", de: "Viele Grüße\nIhr Acme-Team" },
+  signature: { en: "Kind regards,\nThe Acme team", de: "Viele Grüße\nDein Acme-Team" },
 };
 beforeAll(async () => {
   await migrate(db(), { migrationsFolder: "drizzle" });
@@ -113,7 +113,7 @@ describe("rendering with a design", () => {
     expect(mail.text).toContain("Acme Ltd., Main Street 1");
     const german = await render(branded, "de");
     expect(german.html).toContain("Hauptstraße 1");
-    expect(german.text).toContain("Ihr Acme-Team");
+    expect(german.text).toContain("Dein Acme-Team");
     expect(german.html).not.toContain("Main Street");
     // Without a logo the header text is shown.
     const plain = await render({ headerText: "Acme Support" });
