@@ -1,6 +1,6 @@
 # Initiative plan: API definition and AI-editable configuration
 
-Epic: pending (filled when the tracking records exist).
+Epic: [#68](https://github.com/metaneutrons/aidesk/issues/68).
 Decision state: accepted 2026-10-13 by the product owner in chat: the REST API
 publishes a machine-readable definition, every configuration and template of
 every project is reachable through it, and AI changes are drafts that a human
@@ -101,7 +101,7 @@ version, and the design routes move to the route table.
 
 ### C1: API definition from a route table
 
-Execution: pending.
+Execution: [C1 #69](https://github.com/metaneutrons/aidesk/issues/69).
 Dependencies: none.
 Outcome: one source for routes, schemas, permissions and the published definition.
 
@@ -120,7 +120,7 @@ Outcome: one source for routes, schemas, permissions and the published definitio
 
 ### C2: Configuration core
 
-Execution: pending.
+Execution: [C2 #70](https://github.com/metaneutrons/aidesk/issues/70).
 Dependencies: C1.
 Outcome: safe, versioned, permissioned configuration writes with the approval policy.
 
@@ -142,7 +142,7 @@ Outcome: safe, versioned, permissioned configuration writes with the approval po
 
 ### C3: Connections and texts
 
-Execution: pending.
+Execution: [C3 #71](https://github.com/metaneutrons/aidesk/issues/71).
 Dependencies: C2.
 Outcome: the remaining configuration reachable through the same mechanism.
 
@@ -161,7 +161,7 @@ Outcome: the remaining configuration reachable through the same mechanism.
 
 ### C4: Parity and the remaining gaps
 
-Execution: pending.
+Execution: [C4 #72](https://github.com/metaneutrons/aidesk/issues/72).
 Dependencies: C1, C2.
 Outcome: MCP and REST cover the same operations; ticket work is complete over REST.
 
