@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { Dialog } from "@base-ui/react/dialog";
+import { PortalLink } from "./portal-link";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
@@ -693,6 +694,14 @@ export function Desk({
                       <span className="status-badge">
                         {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
                       </span>
+                      {conversation.actions.includes("ticket.reply") &&
+                        !conversation.ticket.junkAt && (
+                          <PortalLink
+                            key={conversation.ticket.id}
+                            ticketId={conversation.ticket.id}
+                            locale={initialLocale}
+                          />
+                        )}
                       {conversation.actions.includes("ticket.junk") &&
                         !conversation.ticket.junkAt && (
                           <button
