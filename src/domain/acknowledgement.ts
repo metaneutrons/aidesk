@@ -43,9 +43,9 @@ export function isAutomaticMail(headers: ReadonlyMap<string, HeaderValue>, sende
 }
 const texts: Record<string, (number: number) => string> = {
   de: (number) =>
-    `Wir haben Ihre Nachricht erhalten und unter der Nummer #${String(number)} erfasst. ` +
-    "Wir antworten Ihnen, sobald wir sie bearbeitet haben.\n\n" +
-    "Wenn Sie etwas ergänzen möchten, antworten Sie einfach auf diese E-Mail.",
+    `Wir haben deine Nachricht erhalten und unter der Nummer #${String(number)} erfasst. ` +
+    "Wir antworten dir, sobald wir sie bearbeitet haben.\n\n" +
+    "Wenn du etwas ergänzen möchtest, antworte einfach auf diese E-Mail.",
   en: (number) =>
     `We have received your message and recorded it as #${String(number)}. ` +
     "We will reply as soon as we have looked into it.\n\n" +

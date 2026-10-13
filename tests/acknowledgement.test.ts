@@ -147,6 +147,9 @@ describe("automatic mail detection", () => {
   });
   it("writes the confirmation in the ticket language", () => {
     expect(acknowledgementText("de", 42)).toContain("unter der Nummer #42 erfasst");
+    // German texts address the reader with "du", never "Sie".
+    expect(acknowledgementText("de", 42)).toMatch(/deine Nachricht.*antworten dir/s);
+    expect(acknowledgementText("de", 42)).not.toMatch(/\b(Sie|Ihre|Ihnen)\b/);
     expect(acknowledgementText("en-GB", 7)).toContain("recorded it as #7");
     expect(acknowledgementText("fr", 7)).toContain("recorded it as #7");
   });
