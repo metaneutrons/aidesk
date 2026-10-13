@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
@@ -83,33 +83,6 @@ export function Settings({
   // Raised when a connection changed, so other sections that list them reload.
   const [connectionsStamp, setConnectionsStamp] = useState(0);
   const [issued, setIssued] = useState<string | null>(null);
-  // null until the stored values are loaded; the switches stay disabled so a
-  // late load cannot overwrite a click.
-  const [acknowledging, setAcknowledging] = useState<Record<string, boolean> | null>(null);
-  const [linking, setLinking] = useState<Record<string, boolean> | null>(null);
-  // Each load and each click takes a new number; only the newest load may
-  // apply its answer, so neither a duplicate effect run nor a slow response
-  // can undo a later click.
-  const projectRequest = useRef(0);
-  const loadProjects = useCallback(async () => {
-    const request = ++projectRequest.current;
-    const response = await fetch("/api/v1/projects").catch(() => null);
-    const parsed = response?.ok
-      ? z
-          .array(
-            z.object({ id: z.string(), acknowledgements: z.boolean(), portalLinks: z.boolean() }),
-          )
-          .safeParse(await response.json())
-      : null;
-    if (parsed?.success && request === projectRequest.current) {
-      setAcknowledging(
-        Object.fromEntries(parsed.data.map((project) => [project.id, project.acknowledgements])),
-      );
-      setLinking(
-        Object.fromEntries(parsed.data.map((project) => [project.id, project.portalLinks])),
-      );
-    }
-  }, []);
   const load = useCallback(async () => {
     const response = await fetch("/api/v1/operators").catch(() => null);
     if (response?.status === 403) {
@@ -134,8 +107,7 @@ export function Settings({
   }, []);
   useEffect(() => {
     void load();
-    void loadProjects();
-  }, [load, loadProjects]);
+  }, [load]);
   useEffect(() => {
     void loadTokens(tokenProject);
   }, [tokenProject, loadTokens]);
@@ -287,65 +259,6 @@ export function Settings({
             {t("operatorAdd")}
           </button>
         </form>
-      )}
-      {managed.some((grant) => grant.actions.includes("project.manage")) && (
-        <>
-          <h2>{t("projectSettingsTitle")}</h2>
-          <p className="muted">{t("acknowledgementHint")}</p>
-          <p className="muted">{t("portalLinksHint")}</p>
-          <ul className="project-settings">
-            {managed
-              .filter((grant) => grant.actions.includes("project.manage"))
-              .map((grant) => (
-                <li key={grant.projectId}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={acknowledging?.[grant.projectId] ?? false}
-                      disabled={acknowledging === null}
-                      onChange={(event) => {
-                        const enabled = event.target.checked;
-                        projectRequest.current += 1;
-                        // Shown at once; reloading afterwards restores the
-                        // stored value if the change was refused.
-                        setAcknowledging((current) => ({
-                          ...(current ?? {}),
-                          [grant.projectId]: enabled,
-                        }));
-                        void act(
-                          send(`/projects/${grant.projectId}/settings`, {
-                            acknowledgements: enabled,
-                          }),
-                          loadProjects,
-                        );
-                      }}
-                    />
-                    {t("acknowledgementSetting", { project: projectName(grant.projectId) })}
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={linking?.[grant.projectId] ?? false}
-                      disabled={linking === null}
-                      onChange={(event) => {
-                        const enabled = event.target.checked;
-                        projectRequest.current += 1;
-                        setLinking((current) => ({
-                          ...(current ?? {}),
-                          [grant.projectId]: enabled,
-                        }));
-                        void act(
-                          send(`/projects/${grant.projectId}/settings`, { portalLinks: enabled }),
-                          loadProjects,
-                        );
-                      }}
-                    />
-                    {t("portalLinksSetting", { project: projectName(grant.projectId) })}
-                  </label>
-                </li>
-              ))}
-          </ul>
-        </>
       )}
       {tokenProjects.length > 0 && (
         <>

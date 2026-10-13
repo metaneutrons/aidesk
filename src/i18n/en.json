@@ -158,9 +158,7 @@
   "noSubject": "(no subject)",
   "junkError": "The action could not be completed.",
   "junkLoading": "Loading…",
-  "projectSettingsTitle": "Projects",
   "acknowledgementHint": "An acknowledgement confirms each new ticket to the customer with its number. It is not sent to automatic senders such as mailing lists or bounce messages, and at most once an hour to the same address.",
-  "acknowledgementSetting": "{project}: send acknowledgements",
   "acknowledgement": "Acknowledgement",
   "junkMailboxPending": "Mailbox: move to the junk folder pending",
   "junkMailboxDone": "Mailbox: in the junk folder",
@@ -219,7 +217,6 @@
   "designSignature": "Signature",
   "designPreviewDraft": "Preview draft",
   "designCreate": "Save as new version",
-  "portalLinksSetting": "{project}: add a link to the ticket page",
   "portalLinksHint": "With the link setting, replies and acknowledgements carry a link to the customer's page for the ticket. The link stays the same for every mail about the ticket; disabling it for a ticket stops further mail from carrying one.",
   "searchResults": "{count, plural, one {# match} other {# matches}} in all authorized projects",
   "noSearchResults": "No ticket matches this text",
@@ -293,5 +290,7 @@
   "textSave": "Save {language} text",
   "textReset": "Use the built-in wording ({language})",
   "textApplied": "Saved.",
-  "textProposed": "Proposed. A person with approval rights has to activate it."
+  "textProposed": "Proposed. A person with approval rights has to activate it.",
+  "configAcknowledgements": "Send an acknowledgement for each new ticket",
+  "configPortalLinks": "Add a link to the ticket page to mails"
 }

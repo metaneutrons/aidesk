@@ -158,9 +158,7 @@
   "noSubject": "(kein Betreff)",
   "junkError": "Die Aktion konnte nicht ausgeführt werden.",
   "junkLoading": "Wird geladen …",
-  "projectSettingsTitle": "Projekte",
   "acknowledgementHint": "Eine Eingangsbestätigung bestätigt dem Kunden jedes neue Ticket mit seiner Nummer. Sie geht nicht an automatische Absender wie Mailinglisten oder Unzustellbarkeitsmeldungen und höchstens einmal pro Stunde an dieselbe Adresse.",
-  "acknowledgementSetting": "{project}: Eingangsbestätigungen senden",
   "acknowledgement": "Eingangsbestätigung",
   "junkMailboxPending": "Postfach: Verschieben in den Junk-Ordner ausstehend",
   "junkMailboxDone": "Postfach: im Junk-Ordner",
@@ -219,7 +217,6 @@
   "designSignature": "Signatur",
   "designPreviewDraft": "Entwurf anzeigen",
   "designCreate": "Als neue Version speichern",
-  "portalLinksSetting": "{project}: Link zur Ticketseite hinzufügen",
   "portalLinksHint": "Mit dieser Einstellung enthalten Antworten und Eingangsbestätigungen einen Link zur Seite des Kunden für das Ticket. Der Link bleibt für alle Mails zum Ticket gleich; wird er für ein Ticket deaktiviert, enthalten weitere Mails keinen.",
   "searchResults": "{count, plural, one {# Treffer} other {# Treffer}} in allen berechtigten Projekten",
   "noSearchResults": "Kein Ticket enthält diesen Text",
@@ -293,5 +290,7 @@
   "textSave": "{language}-Text speichern",
   "textReset": "Eingebauten Wortlaut verwenden ({language})",
   "textApplied": "Gespeichert.",
-  "textProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren."
+  "textProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren.",
+  "configAcknowledgements": "Für jedes neue Ticket eine Eingangsbestätigung senden",
+  "configPortalLinks": "Mails einen Link zur Ticketseite hinzufügen"
 }

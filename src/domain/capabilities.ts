@@ -196,7 +196,7 @@ export const capabilities = {
   "projects.settings": {
     operation: "setProjectSettings",
     action: "project.manage",
-    ui: "src/components/settings.tsx",
+    ui: null,
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",

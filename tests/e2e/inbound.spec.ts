@@ -190,8 +190,13 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
   await signIn();
   await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-  const toggle = page.getByLabel(`${desk.projects.alpha.name}: send acknowledgements`);
+  const section = page.getByRole("region", {
+    name: `Configuration of ${desk.projects.alpha.name}`,
+  });
+  const toggle = section.getByLabel("Send an acknowledgement for each new ticket");
   await toggle.check();
+  await section.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(section.getByText("Saved.")).toBeVisible();
   await expect(toggle).toBeChecked();
   try {
     await smtp.sendMail({
@@ -240,7 +245,12 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
   } finally {
     await page.goto("/");
     await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-    await page.getByLabel(`${desk.projects.alpha.name}: send acknowledgements`).uncheck();
+    const back = page.getByRole("region", {
+      name: `Configuration of ${desk.projects.alpha.name}`,
+    });
+    await back.getByLabel("Send an acknowledgement for each new ticket").uncheck();
+    await back.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(back.getByText("Saved.")).toBeVisible();
   }
 });
 test("previews the original mail safely and returns focus when it closes", async ({
