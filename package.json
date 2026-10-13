@@ -20,6 +20,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "check:catalogs": "tsx scripts/check-catalogs.ts",
+    "api:docs": "tsx scripts/api-docs.ts",
     "check:gates": "node scripts/verify-gates.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -61,6 +62,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
     "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.64.0",

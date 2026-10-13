@@ -54,7 +54,7 @@ export async function listProjects(principal: Principal) {
 }
 // Project behaviour that people with project.manage may change. Only the
 // listed fields are accepted; other settings are kept as they are.
-const projectSettingsInput = z
+export const projectSettingsInput = z
   .object({ acknowledgements: z.boolean(), portalLinks: z.boolean() })
   .partial()
   .strict()
@@ -230,7 +230,7 @@ export async function searchTickets(principal: Principal, text: unknown, request
 // private to the team, does not change the conversation (so the revision that
 // protects replies stays as it is), and stays until it is changed or cleared.
 // A time in the past is due at once; more than a year ahead or back is refused.
-const reminderInput = z
+export const reminderInput = z
   .object({ remindAt: z.union([z.iso.datetime({ offset: true }), z.null()]) })
   .strict();
 export async function setReminder(principal: Principal, ticketId: string, input: unknown) {
@@ -259,7 +259,7 @@ export async function setReminder(principal: Principal, ticketId: string, input:
 // and replace the earlier list as a whole. Like reminders they do not change
 // the conversation, so the revision that protects replies stays as it is.
 export { maxTags, normalizeTag };
-const tagsInput = z
+export const tagsInput = z
   .object({
     tags: z
       .array(z.string().max(60))
@@ -669,19 +669,18 @@ async function senderIdentity(projectId: string) {
   const address = connection?.config.from;
   return typeof address === "string" ? { name: project.name, address } : null;
 }
+export const createProjectInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .max(60),
+  defaultLanguage: z.enum(["en", "de"]).default("en"),
+});
 export async function createProject(principal: Principal, input: unknown) {
   if (!principal.active || !principal.owner || principal.kind !== "human")
     throw new DomainError("forbidden", 403);
-  const values = z
-    .object({
-      name: z.string().trim().min(1).max(100),
-      slug: z
-        .string()
-        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-        .max(60),
-      defaultLanguage: z.enum(["en", "de"]).default("en"),
-    })
-    .parse(input);
+  const values = createProjectInput.parse(input);
   return db().transaction(async (tx) => {
     const [project] = await tx.insert(projects).values(values).returning();
     if (!project) throw new DomainError("conflict", 409);
@@ -697,7 +696,7 @@ export async function createProject(principal: Principal, input: unknown) {
     return project;
   });
 }
-const replyInput = z.object({
+export const replyInput = z.object({
   markdown: z.string().trim().min(1).max(100_000),
   internal: z.boolean().default(false),
   expectedRevision: z.number().int().positive(),
@@ -781,9 +780,10 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
     return { id: messageId, duplicate: false };
   });
 }
+export const localeInput = z.object({ locale: z.enum(["en", "de"]).nullable() });
 export async function setLocale(principal: Principal, input: unknown): Promise<void> {
   if (principal.kind !== "human") throw new DomainError("forbidden", 403);
-  const { locale } = z.object({ locale: z.enum(["en", "de"]).nullable() }).parse(input);
+  const { locale } = localeInput.parse(input);
   await db().update(user).set({ locale }).where(eq(user.id, principal.id));
 }
 export async function operatorInfo(principal: Principal) {
@@ -799,7 +799,7 @@ export async function operatorInfo(principal: Principal) {
 // Project-scoped service tokens for MCP and REST clients. Only people issue
 // them, never with more than they hold themselves and never with agent
 // management, so a token cannot extend its own lifetime or reach.
-const issueInput = z.object({
+export const issueInput = z.object({
   name: z.string().trim().min(1).max(100),
   actions: z
     .array(z.string())
@@ -937,7 +937,7 @@ export async function listOperators(principal: Principal) {
       .map((grant) => ({ projectId: grant.projectId, actions: grant.actions })),
   }));
 }
-const operatorInput = z.object({
+export const operatorInput = z.object({
   name: z.string().trim().min(1).max(100),
   email: z.email().max(254),
 });
@@ -961,7 +961,7 @@ export async function createOperator(principal: Principal, input: unknown) {
   });
   return { id: operatorId, name: values.name, email };
 }
-const grantInput = z.object({
+export const grantInput = z.object({
   projectId: z.uuid(),
   actions: z
     .array(z.string())
@@ -1006,9 +1006,10 @@ export async function setOperatorGrant(principal: Principal, operatorId: string,
   });
   return { userId: target, projectId: values.projectId, actions: granted };
 }
+export const activeInput = z.object({ active: z.boolean() });
 export async function setOperatorActive(principal: Principal, operatorId: string, input: unknown) {
   requireOwner(principal);
-  const { active } = z.object({ active: z.boolean() }).parse(input);
+  const { active } = activeInput.parse(input);
   const target = id.parse(operatorId);
   if (target === principal.id) throw new DomainError("forbidden", 403);
   const [person] = await db()

@@ -70,6 +70,7 @@ export async function createEmailDesign(principal: Principal, projectId: string,
 }
 // Selects the design for mail sent from now on. Mail that was sent keeps the
 // design it was rendered with. Version 0 returns to the built-in design.
+export const selectInput = z.object({ version: z.number().int().min(0) });
 export async function selectEmailDesign(
   principal: Principal,
   projectId: string,
@@ -78,7 +79,7 @@ export async function selectEmailDesign(
   const project = id.parse(projectId);
   readable(principal, project);
   manage(principal, project);
-  const target = z.number().int().min(0).parse(selected);
+  const target = selectInput.shape.version.parse(selected);
   return db().transaction(async (tx) => {
     if (target > 0) {
       const [exists] = await tx
@@ -137,23 +138,22 @@ export async function designForVersion(
 // The mail a design produces for a sample text, rendered like a real send.
 // A saved version (the selected one by default) may be previewed by anyone who
 // can read the project; a draft configuration needs the right to manage it.
+export const previewInput = z.object({
+  markdown: z
+    .string()
+    .min(1)
+    .max(20_000)
+    .default(
+      "Hello,\n\nthis is a preview of your design.\n\n`code` and [a link](https://example.test).",
+    ),
+  language: z.enum(["en", "de"]).default("en"),
+  version: z.number().int().min(0).optional(),
+  config: z.unknown().optional(),
+});
 export async function previewEmail(principal: Principal, projectId: string, input: unknown) {
   const project = id.parse(projectId);
   readable(principal, project);
-  const values = z
-    .object({
-      markdown: z
-        .string()
-        .min(1)
-        .max(20_000)
-        .default(
-          "Hello,\n\nthis is a preview of your design.\n\n`code` and [a link](https://example.test).",
-        ),
-      language: z.enum(["en", "de"]).default("en"),
-      version: z.number().int().min(0).optional(),
-      config: z.unknown().optional(),
-    })
-    .parse(input);
+  const values = previewInput.parse(input);
   const [row] = await db()
     .select({
       name: projects.name,
@@ -192,17 +192,17 @@ export function sampleMarkdown(language: string): string {
 // chosen, so this is no way to send mail to anyone else. It creates no ticket
 // and no message. At most ten per person and hour.
 const testLimit = 10;
+export const testMailInput = z
+  .object({
+    version: z.number().int().min(0).optional(),
+    language: z.enum(["en", "de"]).default("en"),
+  })
+  .strict();
 export async function sendTestMail(principal: Principal, projectId: string, input: unknown) {
   const project = id.parse(projectId);
   readable(principal, project);
   manage(principal, project);
-  const values = z
-    .object({
-      version: z.number().int().min(0).optional(),
-      language: z.enum(["en", "de"]).default("en"),
-    })
-    .strict()
-    .parse(input ?? {});
+  const values = testMailInput.parse(input ?? {});
   const [row] = await db()
     .select({ settings: projects.settings })
     .from(projects)

@@ -54,6 +54,9 @@ async function manageable(principal: Principal, ticketId: string) {
     throw new DomainError("forbidden", 403);
   return ticket;
 }
+export const portalLinkInput = z.object({
+  days: z.number().int().min(1).max(90).default(defaultDays),
+});
 // Issues a new link for the ticket's requester and invalidates an earlier one.
 // The link is returned once and can be derived again by the server for mail.
 export async function issuePortalGrant(
@@ -61,9 +64,7 @@ export async function issuePortalGrant(
   ticketId: string,
   input: unknown = {},
 ) {
-  const { days } = z
-    .object({ days: z.number().int().min(1).max(90).default(defaultDays) })
-    .parse(input);
+  const { days } = portalLinkInput.parse(input);
   const ticket = await manageable(principal, ticketId);
   if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
   const expiresAt = new Date(Date.now() + days * 86_400_000);

@@ -481,6 +481,39 @@ the failure code to the person who asked. Rendering in Gmail, Apple Mail and
 Outlook has still to be looked at in those programs; the test mail is the
 means, the browser preview does not replace it.
 
+## REST API definition
+
+The REST API is described by an OpenAPI 3.1 document that the application
+publishes without a login at `/api/v1/openapi.json`. A committed copy is in
+[api/openapi.json](api/openapi.json).
+
+Every route is listed once in the route table `src/server/api/routes.ts`: method,
+path, the action that has to be granted (`x-required-access` in the document),
+the input schema and the response schema. The router
+(`src/server/api/router.ts`), the document (`src/server/api/openapi.ts`) and
+later the MCP tools are derived from that table, so they cannot differ. The
+route file `src/app/api/v1/[[...path]]/route.ts` only hands requests to the
+router. All current routes are in the table; none remains in the old router.
+
+Bodies are validated by the domain operations with the same schema objects that
+the table lists, so the document describes what is enforced. Response schemas for
+database rows are generated from the table definitions (`rows.ts`), so a new
+column appears in the document by itself. Outside production the router checks
+every JSON response against its schema and answers `500 response_mismatch` when
+it differs, which the unit and browser tests therefore also verify. In
+production this check is off.
+
+After changing a route or a schema run:
+
+```bash
+sh scripts/dev.sh exec app pnpm api:docs
+```
+
+and commit the changed `docs/api/openapi.json`; a test fails when the committed
+copy differs from the generated one. The document is public because it describes
+the API, not data; a caller still needs a session or an agent token for every
+route.
+
 ## Overview and list size
 
 The overview counts in the database over every ticket of the authorized
