@@ -285,5 +285,6 @@
   "connectionProposed": "Proposed. A person with approval rights has to activate it.",
   "configOutgoing": "Outgoing connection",
   "configOutgoingNone": "None",
-  "configPause": "Pause outgoing mail"
+  "configPause": "Pause outgoing mail",
+  "configOverdue": "Overdue after (hours)"
 }

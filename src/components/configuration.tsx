@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { configDocument, type ConfigDocument } from "../domain/configuration";
@@ -39,6 +40,7 @@ export function Configuration({
   connectionsStamp: number;
 }) {
   const t = useTranslations();
+  const router = useRouter();
   const fieldId = useId();
   const [version, setVersion] = useState<number | null>(null);
   const [saved, setSaved] = useState<ConfigDocument | null>(null);
@@ -123,6 +125,8 @@ export function Configuration({
           : "configUnchanged",
     );
     await load();
+    // The rest of the desk (project list, overview) shows the new values.
+    router.refresh();
   }
   async function decide(changeId: string, decision: "approve" | "reject") {
     const response = await fetch(`/api/v1/config/changes/${changeId}/decision`, {
@@ -133,6 +137,7 @@ export function Configuration({
     setMessage(response?.ok ? null : response?.status === 409 ? "configStale" : "error");
     edited.current = false;
     await load();
+    router.refresh();
   }
   if (!draft || !saved) return null;
   const set = <K extends keyof ConfigDocument>(key: K, value: ConfigDocument[K]) => {
@@ -228,6 +233,22 @@ export function Configuration({
                 </option>
               ))}
           </select>
+        </label>
+        <label>
+          {t("configOverdue")}
+          <input
+            type="number"
+            min={1}
+            max={720}
+            value={draft.overdueHours}
+            disabled={!canWrite}
+            onChange={(event) => {
+              set(
+                "overdueHours",
+                Math.min(720, Math.max(1, Math.trunc(Number(event.target.value) || 1))),
+              );
+            }}
+          />
         </label>
         <label className="configuration-check">
           <input

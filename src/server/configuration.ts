@@ -10,6 +10,7 @@ import {
   type ConfigDocument,
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
+import { defaultOverdueHours } from "../domain/response-clock";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
 import { audit, configChanges, connections, projects } from "./db/schema";
@@ -33,6 +34,9 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
         ? settings.outboundConnectionId
         : null,
     pauseOutgoing: settings.pauseOutgoing === true,
+    overdueHours: configDocument.shape.overdueHours
+      .catch(defaultOverdueHours)
+      .parse(settings.overdueHours),
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -86,6 +90,7 @@ function sqlMerge(config: ConfigDocument) {
     approvalPolicy: config.approvalPolicy,
     outboundConnectionId: config.outboundConnectionId,
     pauseOutgoing: config.pauseOutgoing,
+    overdueHours: config.overdueHours,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }

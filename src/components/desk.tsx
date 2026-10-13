@@ -136,6 +136,8 @@ interface Project {
   slug: string;
   color: string;
   defaultLanguage: string;
+  // After how many hours without an answer a ticket of the project is overdue.
+  overdueHours: number;
 }
 interface Overview {
   projects: {
@@ -324,6 +326,8 @@ export function Desk({
     responseState(
       { receivedAt: new Date(ticket.pendingSince), answeredAt: null },
       new Date(now),
+      undefined,
+      projectById.get(ticket.projectId)?.overdueHours,
     ) === "overdue";
   // The list is refreshed after a change, so it is the newer source; a cleared
   // reminder is null there and must not fall back to the older conversation.
@@ -509,8 +513,8 @@ export function Desk({
               >
                 <item.icon size={18} />
                 {t(item.view)}
-                {item.view === "overdue" && scoped.some(overdue) && (
-                  <span className="nav-count">{scoped.filter(overdue).length}</span>
+                {item.view === "overdue" && sum("overdue") > 0 && (
+                  <span className="nav-count">{sum("overdue")}</span>
                 )}
               </button>
             ))}

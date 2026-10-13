@@ -89,6 +89,7 @@ describe("reading the configuration", () => {
         approvalPolicy: "review",
         outboundConnectionId: null,
         pauseOutgoing: false,
+        overdueHours: 24,
       },
     });
   });
@@ -367,6 +368,26 @@ describe("agent tokens", () => {
   });
 });
 
+describe("the overdue limit", () => {
+  it("is part of the document within 1 to 720 hours and defaults to 24", async () => {
+    await reset();
+    expect((await current()).overdueHours).toBe(24);
+    for (const bad of [0, 721, 1.5, "12"])
+      await expect(
+        putConfig(writer, projectId, await edit({ overdueHours: bad })),
+      ).rejects.toBeInstanceOf(ZodError);
+    expect(await putConfig(writer, projectId, await edit({ overdueHours: 12 }))).toMatchObject({
+      outcome: "applied",
+      diff: [{ pointer: "/overdueHours", from: 24, to: 12 }],
+    });
+    expect((await current()).overdueHours).toBe(12);
+    await db()
+      .update(projects)
+      .set({ settings: { overdueHours: "garbage" } })
+      .where(eq(projects.id, projectId));
+    expect((await current()).overdueHours).toBe(24);
+  });
+});
 describe("projects and changes that do not exist", () => {
   const ghost = randomUUID();
   const ghostManager: Principal = {

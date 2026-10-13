@@ -30,6 +30,7 @@ export const projectSummary = z
     defaultLanguage: z.string(),
     acknowledgements: z.boolean(),
     portalLinks: z.boolean(),
+    overdueHours: z.number(),
   })
   .meta({ id: "ProjectSummary" });
 export const projectRow = rowSchema(projects, {

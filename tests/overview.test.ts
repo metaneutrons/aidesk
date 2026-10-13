@@ -4,12 +4,13 @@ import { inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
 import { agents, projects, tickets } from "../src/server/db/schema";
-import { getOverview, listTickets } from "../src/server/operations";
+import { getOverview, listProjects, listTickets } from "../src/server/operations";
 import { clampLimit, listCeiling, listStep } from "../src/domain/paging";
 import type { Principal } from "../src/domain/permissions";
 const projectId = randomUUID();
 const otherProject = randomUUID();
 const hidden = randomUUID();
+const quick = randomUUID();
 const now = new Date("2026-10-13T12:00:00Z");
 const hoursAgo = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
 const reader: Principal = {
@@ -20,6 +21,7 @@ const reader: Principal = {
   grants: [
     { projectId, actions: ["project.read", "ticket.read"] },
     { projectId: otherProject, actions: ["project.read", "ticket.read"] },
+    { projectId: quick, actions: ["project.read", "ticket.read"] },
   ],
 };
 async function ticket(project: string, values: Partial<typeof tickets.$inferInsert> = {}) {
@@ -39,10 +41,11 @@ beforeAll(async () => {
   await db()
     .insert(projects)
     .values(
-      [projectId, otherProject, hidden].map((id) => ({
+      [projectId, otherProject, hidden, quick].map((id) => ({
         id,
         name: id.slice(0, 6),
         slug: `overview-${id}`,
+        ...(id === quick ? { settings: { overdueHours: 12 } } : {}),
       })),
     );
   // Project A: one overdue (30 h), one just under the limit (23 h), one waiting
@@ -68,11 +71,16 @@ beforeAll(async () => {
   // Project B: more oldest-unanswered tickets than one project shows.
   for (let index = 0; index < 10; index++)
     await ticket(otherProject, { pendingSince: hoursAgo(10 + index) });
+  // A project with its own limit of 12 hours: 13 h is overdue, 11 h is not.
+  // A ticket exactly at the limit is overdue.
+  await ticket(quick, { pendingSince: hoursAgo(13) });
+  await ticket(quick, { pendingSince: hoursAgo(12) });
+  await ticket(quick, { pendingSince: hoursAgo(11) });
   // A project the reader has no grant for must never be counted.
   await ticket(hidden, { pendingSince: hoursAgo(100) });
 });
 afterAll(async () => {
-  const ids = [projectId, otherProject, hidden];
+  const ids = [projectId, otherProject, hidden, quick];
   await db().delete(tickets).where(inArray(tickets.projectId, ids));
   await db().delete(agents).where(inArray(agents.projectId, ids));
   await db().delete(projects).where(inArray(projects.id, ids));
@@ -93,6 +101,18 @@ describe("overview", () => {
     const b = overview.projects.find((entry) => entry.projectId === otherProject);
     expect(b).toMatchObject({ total: 10, overdue: 0, unassigned: 10 });
     expect(overview.projects.find((entry) => entry.projectId === hidden)).toBeUndefined();
+  });
+  it("counts overdue by the limit of each project", async () => {
+    const overview = await getOverview(reader, [], now);
+    expect(overview.projects.find((entry) => entry.projectId === quick)).toMatchObject({
+      total: 3,
+      overdue: 2,
+    });
+    // The default project holds a 23 h ticket that is not overdue under 24 h.
+    expect(overview.projects.find((entry) => entry.projectId === projectId)?.overdue).toBe(1);
+    const listed = await listProjects(reader);
+    expect(listed.find((entry) => entry.id === quick)?.overdueHours).toBe(12);
+    expect(listed.find((entry) => entry.id === projectId)?.overdueHours).toBe(24);
   });
   it("lists the oldest unanswered tickets per project, at most eight", async () => {
     const overview = await getOverview(reader, [], now);
