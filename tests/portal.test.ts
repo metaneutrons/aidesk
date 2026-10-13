@@ -268,8 +268,28 @@ describe("derived links", () => {
     const b = await issuePortalGrant(staff, second);
     const [idA, macA] = a.token.split(".") as [string, string];
     const [idB, macB] = b.token.split(".") as [string, string];
-    const flipped = `${macA.slice(0, -1)}${macA.endsWith("A") ? "B" : "A"}`;
+    const flipped = `${macA.startsWith("A") ? "B" : "A"}${macA.slice(1)}`;
+    // Another spelling of the same bytes: the last character of the MAC and of the
+    // identifier only carries ignored bits.
+    const spellings = (part: string) => {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+      const head = part.slice(0, -1);
+      const bytes = Buffer.from(part, "base64url").toString("hex");
+      return alphabet
+        .split("")
+        .map((letter) => `${head}${letter}`)
+        .filter(
+          (candidate) =>
+            candidate !== part && Buffer.from(candidate, "base64url").toString("hex") === bytes,
+        );
+    };
+    const alternatives = [
+      ...spellings(macA).map((mac) => `${idA}.${mac}`),
+      ...spellings(idA).map((id) => `${id}.${macA}`),
+    ];
+    expect(alternatives.length).toBeGreaterThan(0);
     for (const forged of [
+      ...alternatives,
       `${idA}.${flipped}`,
       `${idA}.${macB}`,
       `${idB}.${macA}`,
