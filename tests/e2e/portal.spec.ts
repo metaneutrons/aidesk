@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, mailpit, test } from "./fixtures";
 // The customer's view of a ticket through a portal link that an operator
 // creates: public conversation only, a reply that reaches the desk, and a link
 // that stops working when it is disabled.
@@ -45,7 +45,7 @@ test("opens a ticket for its requester, takes a reply and ends with the link", a
   const link = panel.getByLabel("Link to the customer's view");
   await expect(link).toBeVisible();
   const url = await link.inputValue();
-  expect(url).toMatch(/\/portal\/[A-Za-z0-9_-]{40,}$/);
+  expect(url).toMatch(/\/portal\/[A-Za-z0-9_.-]{40,}$/);
   // The customer has no session.
   const context = await browser.newContext({ locale: "en-US" });
   const customer = await context.newPage();
@@ -101,5 +101,91 @@ test("shows the page in German for a German browser and refuses an unknown link"
     expect(scan.violations).toEqual([]);
   } finally {
     await context.close();
+  }
+});
+test("sends the customer a link in the reply and opens the conversation from it", async ({
+  page,
+  desk,
+  signIn,
+  browser,
+  baseURL,
+}) => {
+  const ticketId = desk.projects.alpha.tickets[1];
+  const answer = `Answer with link ${randomUUID()}`;
+  const headers = { origin: baseURL ?? "" };
+  await signIn();
+  const settings = `/api/v1/projects/${desk.projects.alpha.id}/settings`;
+  expect((await page.request.post(settings, { data: { portalLinks: true }, headers })).ok()).toBe(
+    true,
+  );
+  try {
+    const before = z
+      .object({
+        ticket: z.object({
+          revision: z.number(),
+          language: z.string(),
+          subject: z.string(),
+          requesterEmail: z.string(),
+        }),
+      })
+      .parse(await (await page.request.get(`/api/v1/tickets/${ticketId}`)).json());
+    expect(
+      (
+        await page.request.post(`/api/v1/tickets/${ticketId}/reply`, {
+          data: {
+            markdown: answer,
+            language: before.ticket.language,
+            expectedRevision: before.ticket.revision,
+            idempotencyKey: randomUUID(),
+          },
+          headers,
+        })
+      ).status(),
+    ).toBe(202);
+    const found = z.object({
+      messages: z.array(z.object({ ID: z.string(), Subject: z.string() })),
+    });
+    // Searched by the text of this answer: earlier tests may have mailed the same ticket.
+    let id = "";
+    await expect
+      .poll(
+        async () => {
+          id =
+            found
+              .parse(
+                await (
+                  await page.request.get(
+                    `${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${before.ticket.requesterEmail} "${answer}"`)}`,
+                  )
+                ).json(),
+              )
+              .messages.find((message) => message.Subject === `Re: ${before.ticket.subject}`)?.ID ??
+            "";
+          return id;
+        },
+        { timeout: 45_000, intervals: [1000] },
+      )
+      .not.toBe("");
+    const mail = z
+      .object({ Text: z.string(), HTML: z.string() })
+      .parse(await (await page.request.get(`${mailpit}/api/v1/message/${id}`)).json());
+    // A token is 22 characters, a dot and 43 characters; nothing after it belongs to it.
+    const url = /https?:\/\/\S+?\/portal\/[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/.exec(
+      mail.Text,
+    )?.[0];
+    expect(url).toBeDefined();
+    expect(mail.HTML).toContain(url);
+    expect(mail.Text).toContain("View this request online and reply:");
+    // The customer opens it without a session and sees the answer.
+    const context = await browser.newContext({ locale: "en-US" });
+    const customer = await context.newPage();
+    try {
+      await customer.goto(url ?? "");
+      await expect(customer.getByText(answer)).toBeVisible();
+    } finally {
+      await context.close();
+    }
+  } finally {
+    await page.request.post(settings, { data: { portalLinks: false }, headers });
   }
 });

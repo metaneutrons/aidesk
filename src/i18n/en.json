@@ -219,6 +219,8 @@
   "designSignature": "Signature",
   "designPreviewDraft": "Preview draft",
   "designCreate": "Save as new version",
+  "portalLinksSetting": "{project}: add a link to the ticket page",
+  "portalLinksHint": "With the link setting, replies and acknowledgements carry a link to the customer's page for the ticket. The link stays the same for every mail about the ticket; disabling it for a ticket stops further mail from carrying one.",
   "searchResults": "{count, plural, one {# match} other {# matches}} in all authorized projects",
   "noSearchResults": "No ticket matches this text"
 }

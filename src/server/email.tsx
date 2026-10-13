@@ -4,6 +4,7 @@ import {
   defaultDesign,
   fontStacks,
   localized,
+  portalLinkText,
   type EmailDesignConfig,
 } from "../domain/email-design";
 // Recorded with every sent message, so a later change of the template is
@@ -33,6 +34,7 @@ export async function renderEmail({
   color = "#5668e8",
   design = defaultDesign,
   fallbackLanguage = "en",
+  portalUrl,
 }: {
   project: string;
   markdown: string;
@@ -40,6 +42,8 @@ export async function renderEmail({
   color?: string;
   design?: EmailDesignConfig;
   fallbackLanguage?: string;
+  // A link to the ticket page; shown below the message.
+  portalUrl?: string;
 }): Promise<{ html: string; text: string }> {
   const requested = design.accent ?? color;
   const accent = /^#[0-9a-f]{6}$/i.test(requested) ? requested : "#5668e8";
@@ -112,6 +116,20 @@ export async function renderEmail({
                         dangerouslySetInnerHTML={{ __html: mailHtml(body) }}
                       />
                     </tr>
+                    {portalUrl && (
+                      <tr>
+                        <td
+                          className="foot"
+                          style={{
+                            padding: "0 32px 24px",
+                            fontSize: 14,
+                            lineHeight: "1.6",
+                          }}
+                        >
+                          {portalLinkText(language)} <a href={portalUrl}>{portalUrl}</a>
+                        </td>
+                      </tr>
+                    )}
                     {footer && (
                       <tr>
                         <td

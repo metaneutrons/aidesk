@@ -1,0 +1,1 @@
+ALTER TABLE "participant" ADD COLUMN "portal_epoch" integer DEFAULT 0 NOT NULL;

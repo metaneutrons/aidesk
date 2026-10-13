@@ -43,6 +43,7 @@ export async function listProjects(principal: Principal) {
       color: projects.color,
       defaultLanguage: projects.defaultLanguage,
       acknowledgements: sql<boolean>`coalesce((${projects.settings}->>'acknowledgements')::boolean, false)`,
+      portalLinks: sql<boolean>`coalesce((${projects.settings}->>'portalLinks')::boolean, false)`,
     })
     .from(projects)
     .where(inArray(projects.id, allowed))
@@ -50,7 +51,11 @@ export async function listProjects(principal: Principal) {
 }
 // Project behaviour that people with project.manage may change. Only the
 // listed fields are accepted; other settings are kept as they are.
-const projectSettingsInput = z.object({ acknowledgements: z.boolean() }).strict();
+const projectSettingsInput = z
+  .object({ acknowledgements: z.boolean(), portalLinks: z.boolean() })
+  .partial()
+  .strict()
+  .refine((values) => Object.keys(values).length > 0);
 export async function setProjectSettings(principal: Principal, projectId: string, input: unknown) {
   const project = id.parse(projectId);
   if (principal.kind !== "human" || !permits(principal, project, "project.manage"))
@@ -235,6 +240,7 @@ const snapshot = z.object({
   language: z.string(),
   templateVersion: z.number(),
   designVersion: z.number().optional(),
+  portalLink: z.boolean().optional(),
   markdown: z.string(),
   html: z.string(),
   text: z.string(),
@@ -244,7 +250,18 @@ function sentSummary(value: unknown) {
   if (!parsed.success) return null;
   const { at, transport, to, from, replyTo, subject, language, templateVersion, designVersion } =
     parsed.data;
-  return { at, transport, to, from, replyTo, subject, language, templateVersion, designVersion };
+  return {
+    at,
+    transport,
+    to,
+    from,
+    replyTo,
+    subject,
+    language,
+    templateVersion,
+    designVersion,
+    portalLink: parsed.data.portalLink === true,
+  };
 }
 // The mail exactly as it was handed to the transport. Only messages that were
 // sent have one; everything else, and every message the principal may not

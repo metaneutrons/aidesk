@@ -165,9 +165,19 @@ describe("project settings", () => {
     await expect(
       setProjectSettings(manager, projectId, { acknowledgements: true, aiMode: "autonomous" }),
     ).rejects.toThrow();
+    // At least one known setting is needed.
+    await expect(setProjectSettings(manager, projectId, {})).rejects.toThrow();
+    await expect(setProjectSettings(manager, projectId, { portalLinks: "yes" })).rejects.toThrow();
+    expect((await listProjects(manager)).find((p) => p.id === projectId)?.portalLinks).toBe(false);
+    expect(await setProjectSettings(manager, projectId, { portalLinks: true })).toEqual({
+      portalLinks: true,
+    });
+    expect((await listProjects(manager)).find((p) => p.id === projectId)?.portalLinks).toBe(true);
     expect(await setProjectSettings(manager, projectId, { acknowledgements: true })).toEqual({
       acknowledgements: true,
     });
+    // One setting does not change the other.
+    expect((await listProjects(manager)).find((p) => p.id === projectId)?.portalLinks).toBe(true);
     expect((await listProjects(manager)).find((p) => p.id === projectId)?.acknowledgements).toBe(
       true,
     );
@@ -179,7 +189,7 @@ describe("project settings", () => {
         .select()
         .from(audit)
         .where(and(eq(audit.projectId, projectId), eq(audit.action, "project.settings"))),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
   });
 });
 describe("acknowledgements", () => {

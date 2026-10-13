@@ -64,6 +64,20 @@
       "when": 1791847242075,
       "tag": "0008_ingress_key_per_project",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791869993358,
+      "tag": "0009_portal_epoch",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791869999587,
+      "tag": "0010_drop_portal_token_hash",
+      "breakpoints": true
     }
   ]
 }

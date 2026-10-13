@@ -219,6 +219,8 @@
   "designSignature": "Signatur",
   "designPreviewDraft": "Entwurf anzeigen",
   "designCreate": "Als neue Version speichern",
+  "portalLinksSetting": "{project}: Link zur Ticketseite hinzufügen",
+  "portalLinksHint": "Mit dieser Einstellung enthalten Antworten und Eingangsbestätigungen einen Link zur Seite des Kunden für das Ticket. Der Link bleibt für alle Mails zum Ticket gleich; wird er für ein Ticket deaktiviert, enthalten weitere Mails keinen.",
   "searchResults": "{count, plural, one {# Treffer} other {# Treffer}} in allen berechtigten Projekten",
   "noSearchResults": "Kein Ticket enthält diesen Text"
 }
