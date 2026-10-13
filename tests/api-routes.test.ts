@@ -159,6 +159,7 @@ describe("the router", () => {
       tag: "Test",
       summary: "A route that answers the wrong shape",
       access: "any",
+      mcp: { not: "A route of the test" },
       response: z.object({ ok: z.literal(true) }),
       run: () => Promise.resolve({ ok: "yes" }),
     };
@@ -188,6 +189,7 @@ describe("the router", () => {
       tag: "Test",
       summary: "A route that fails unexpectedly",
       access: "any",
+      mcp: { not: "A route of the test" },
       response: z.object({}),
       run: () => Promise.reject(new Error("database password is hunter2")),
     };

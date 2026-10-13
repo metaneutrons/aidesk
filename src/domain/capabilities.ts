@@ -18,7 +18,7 @@ export const capabilities = {
     action: "ticket.read",
     ui: "src/app/page.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "config.get": {
@@ -26,7 +26,7 @@ export const capabilities = {
     action: "config.read",
     ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "config.put": {
@@ -34,7 +34,7 @@ export const capabilities = {
     action: "config.write",
     ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "config.changes": {
@@ -42,7 +42,7 @@ export const capabilities = {
     action: "config.read",
     ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "config.decide": {
@@ -58,7 +58,7 @@ export const capabilities = {
     action: "integration.manage",
     ui: "src/components/connections.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "connections.create": {
@@ -66,7 +66,7 @@ export const capabilities = {
     action: "integration.manage",
     ui: null,
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "connections.update": {
@@ -74,7 +74,7 @@ export const capabilities = {
     action: "integration.manage",
     ui: null,
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "connections.disable": {
@@ -82,7 +82,7 @@ export const capabilities = {
     action: "integration.manage",
     ui: "src/components/connections.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "connections.test": {
@@ -90,7 +90,7 @@ export const capabilities = {
     action: "integration.manage",
     ui: "src/components/connections.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "texts.list": {
@@ -98,7 +98,7 @@ export const capabilities = {
     action: "config.read",
     ui: "src/components/texts.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "texts.versions": {
@@ -106,7 +106,7 @@ export const capabilities = {
     action: "config.read",
     ui: null,
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "texts.set": {
@@ -114,8 +114,22 @@ export const capabilities = {
     action: "config.write",
     ui: "src/components/texts.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
+  },
+  "tickets.status": {
+    operation: "setTicketStatus",
+    action: "ticket.resolve",
+    ui: null,
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+  },
+  "tickets.assign": {
+    operation: "assignTicket",
+    action: "ticket.assign",
+    ui: null,
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
   },
   "tickets.search": {
     operation: "searchTickets",
@@ -262,7 +276,7 @@ export const capabilities = {
     action: "ticket.note",
     ui: "src/components/tags.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "tags.list": {
@@ -270,7 +284,7 @@ export const capabilities = {
     action: "ticket.read",
     ui: "src/components/tags.tsx",
     api: "src/server/api/routes.ts",
-    mcp: null,
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "projects.create": {

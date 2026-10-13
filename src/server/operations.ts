@@ -4,7 +4,7 @@ import { supersedeOlder } from "./configuration";
 import { clampLimit, listStep } from "../domain/paging";
 import { defaultOverdueHours } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import { db } from "./db";
 import {
   account,
@@ -261,6 +261,111 @@ export async function setReminder(principal: Principal, ticketId: string, input:
       detail: { remindAt: at?.toISOString() ?? null },
     });
     return { remindAt: at };
+  });
+}
+// Opening and resolving a ticket without writing a message. Resolving ends the
+// response obligation; reopening starts none, since no customer message is
+// waiting. "waiting" is not set by hand: it follows a reply. A status change
+// is part of the conversation, so it raises the revision that protects replies
+// and names the one the writer read.
+export const statusInput = z
+  .object({
+    status: z.enum(["open", "resolved"]),
+    expectedRevision: z.number().int().positive(),
+  })
+  .strict();
+export async function setTicketStatus(principal: Principal, ticketId: string, input: unknown) {
+  const values = statusInput.parse(input);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.resolve"))
+    throw new DomainError("forbidden", 403);
+  if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
+  if (values.expectedRevision !== ticket.revision) throw new DomainError("conflict", 409);
+  if (ticket.status === values.status)
+    return { status: ticket.status, revision: ticket.revision, changed: false };
+  return db().transaction(async (tx) => {
+    const [changed] = await tx
+      .update(tickets)
+      .set({
+        status: values.status,
+        resolvedAt: values.status === "resolved" ? new Date() : null,
+        pendingSince: values.status === "resolved" ? null : ticket.pendingSince,
+        revision: sql`${tickets.revision} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, values.expectedRevision)))
+      .returning({ status: tickets.status, revision: tickets.revision });
+    if (!changed) throw new DomainError("conflict", 409);
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: "ticket.status",
+      targetId: ticket.id,
+      detail: { from: ticket.status, to: values.status },
+    });
+    return { ...changed, changed: true };
+  });
+}
+// Who handles a ticket: a person with access to the project, an agent of the
+// project that may answer or note, or nobody. At most one of the two.
+export const assignInput = z
+  .object({ userId: z.string().min(1).nullable(), agentId: z.uuid().nullable() })
+  .strict()
+  .refine(({ userId, agentId }) => userId === null || agentId === null, {
+    message: "Name a person or an agent, not both",
+    path: ["agentId"],
+  });
+export async function assignTicket(principal: Principal, ticketId: string, input: unknown) {
+  const values = assignInput.parse(input);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.assign"))
+    throw new DomainError("forbidden", 403);
+  if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
+  if (values.userId !== null) {
+    const [member] = await db()
+      .select({ active: user.active, actions: memberships.actions })
+      .from(memberships)
+      .innerJoin(user, eq(user.id, memberships.userId))
+      .where(
+        and(eq(memberships.userId, values.userId), eq(memberships.projectId, ticket.projectId)),
+      );
+    if (!member?.active || !member.actions.includes("ticket.read"))
+      throw new ZodError([
+        { code: "custom", path: ["userId"], message: "A person with access to this project" },
+      ]);
+  }
+  if (values.agentId !== null) {
+    const [agent] = await db().select().from(agents).where(eq(agents.id, values.agentId));
+    if (
+      agent?.projectId !== ticket.projectId ||
+      !agent.active ||
+      agent.expiresAt <= new Date() ||
+      !agent.actions.includes("ticket.read")
+    )
+      throw new ZodError([
+        { code: "custom", path: ["agentId"], message: "An active agent of this project" },
+      ]);
+  }
+  return db().transaction(async (tx) => {
+    await tx
+      .update(tickets)
+      .set({
+        assigneeUserId: values.userId,
+        assigneeAgentId: values.agentId,
+        updatedAt: new Date(),
+      })
+      .where(eq(tickets.id, ticket.id));
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: "ticket.assign",
+      targetId: ticket.id,
+      detail: {
+        from: ticket.assigneeUserId ?? ticket.assigneeAgentId,
+        to: values.userId ?? values.agentId,
+      },
+    });
+    return { assigneeUserId: values.userId, assigneeAgentId: values.agentId };
   });
 }
 // Tags are short labels that a team puts on tickets to find them again. They

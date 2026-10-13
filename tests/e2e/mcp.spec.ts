@@ -67,12 +67,16 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
   const { id, token } = z.object({ id: z.uuid(), token: z.string() }).parse(await issued.json());
   const client = await connect(token);
   const tools = (await client.listTools()).tools.map((tool) => tool.name).sort();
+  // The hand-written tools and the ones the route table offers for these actions.
   expect(tools).toEqual([
+    "overview_get",
     "projects_list",
+    "tags_list",
     "tickets_get",
     "tickets_list",
     "tickets_reply",
     "tickets_search",
+    "tickets_set_tags",
   ]);
   const projects = z
     .array(z.object({ id: z.string() }))
@@ -113,6 +117,27 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
     arguments: { ...base, internal: true, idempotencyKey: randomUUID() },
   });
   expect(note.isError).toBeFalsy();
+  // A tool of the route table acts through the same operation as REST.
+  const tagged = await client.callTool({
+    name: "tickets_set_tags",
+    arguments: { ticketId: ticket, tags: ["from-mcp"] },
+  });
+  expect(tagged.isError).toBeFalsy();
+  expect(JSON.parse(textResult.parse(tagged).content[0]?.text ?? "")).toEqual({
+    tags: ["from-mcp"],
+  });
+  const overview = textResult.parse(await client.callTool({ name: "overview_get", arguments: {} }));
+  expect(JSON.parse(overview.content[0]?.text ?? "")).toHaveProperty("projects");
+  // A project outside the token's grant is refused with the same error as REST.
+  const foreign = await client.callTool({
+    name: "tickets_set_tags",
+    arguments: { ticketId: desk.projects.beta.tickets[0], tags: ["no"] },
+  });
+  expect(foreign.isError).toBe(true);
+  await page.request.post(`/api/v1/tickets/${ticket}/tags`, {
+    headers: { origin: baseURL ?? "" },
+    data: { tags: [] },
+  });
   await client.close();
   const revoked = await page.request.post(`/api/v1/agents/${id}/revoke`, {
     headers: { origin: baseURL ?? "" },
