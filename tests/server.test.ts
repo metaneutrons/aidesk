@@ -492,11 +492,15 @@ describe("authenticated API and MCP principal", () => {
     const body = z
       .object({ result: z.object({ tools: z.array(z.object({ name: z.string() })) }) })
       .parse(await response.json());
+    // The hand-written tools first, then the ones the route table offers for the
+    // actions this agent holds (project.read and ticket.read).
     expect(body.result.tools.map((tool: { name: string }) => tool.name)).toEqual([
       "projects_list",
       "tickets_list",
       "tickets_search",
       "tickets_get",
+      "tags_list",
+      "overview_get",
     ]);
     for (const [name, args] of [
       ["projects_list", {}],

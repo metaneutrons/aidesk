@@ -52,12 +52,13 @@ export async function dispatch(request: Request): Promise<Response> {
     return failure(error);
   }
 }
-function failure(error: unknown): Response {
-  if (error instanceof DomainError)
-    return Response.json({ error: error.code }, { status: error.status });
+// What a failure looks like to a caller, over REST and over MCP alike.
+export function errorOf(error: unknown): { status: number; body: Record<string, unknown> } {
+  if (error instanceof DomainError) return { status: error.status, body: { error: error.code } };
   if (error instanceof ZodError)
-    return Response.json(
-      {
+    return {
+      status: 400,
+      body: {
         error: "invalid_input",
         issues: error.issues.map((issue) => ({
           pointer: `/${issue.path.map((part) => String(part)).join("/")}`,
@@ -65,11 +66,13 @@ function failure(error: unknown): Response {
           code: issue.code,
         })),
       },
-      { status: 400 },
-    );
-  if (error instanceof SyntaxError)
-    return Response.json({ error: "invalid_input" }, { status: 400 });
-  return Response.json({ error: "unavailable" }, { status: 503 });
+    };
+  if (error instanceof SyntaxError) return { status: 400, body: { error: "invalid_input" } };
+  return { status: 503, body: { error: "unavailable" } };
+}
+function failure(error: unknown): Response {
+  const { status, body } = errorOf(error);
+  return Response.json(body, { status });
 }
 // Runs a request for an identified caller against the route table.
 export async function handle(request: Request, principal: Principal): Promise<Response> {

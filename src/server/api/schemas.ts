@@ -271,3 +271,12 @@ export const textResult = z.object({
   diff: configDiff,
   validated: z.boolean(),
 });
+export const ticketStatus = z.object({
+  status: z.enum(["open", "waiting", "resolved"]),
+  revision: z.number(),
+  changed: z.boolean(),
+});
+export const ticketAssignee = z.object({
+  assigneeUserId: z.string().nullable(),
+  assigneeAgentId: z.uuid().nullable(),
+});

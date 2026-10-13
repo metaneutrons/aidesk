@@ -70,6 +70,11 @@ export function openApiDocument() {
       tags: [route.tag],
       summary: route.summary,
       "x-required-access": route.access,
+      ...("tool" in route.mcp
+        ? { "x-mcp-tool": route.mcp.tool }
+        : "legacy" in route.mcp
+          ? { "x-mcp-tool": route.mcp.legacy }
+          : {}),
       parameters: parameters(route),
       ...(!route.binary && route.body
         ? {

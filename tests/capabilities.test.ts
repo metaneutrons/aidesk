@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import { capabilities } from "../src/domain/capabilities";
+import { routes } from "../src/server/api/routes";
 describe("capability source registry", () => {
   it("links every declaration to existing surfaces or an explicit difference", () => {
     const ledger = readFileSync("docs/capabilities.md", "utf8");
@@ -45,5 +46,19 @@ describe("capability source registry", () => {
       expect(callable.length).toBeGreaterThan(0);
       for (const name of callable) expect([...registered]).toContain(name);
     }
+  });
+  it("agrees with the route table on which operations MCP offers", () => {
+    const byId = new Map(routes.map((route) => [route.id, route]));
+    for (const [id, declaration] of Object.entries(capabilities)) {
+      const route = byId.get(id);
+      // Capabilities of the customer page have no route in the table.
+      if (!route) continue;
+      const offered = !("not" in route.mcp);
+      expect(declaration.mcp !== null, `${id}: registry and route table differ on MCP`).toBe(
+        offered,
+      );
+    }
+    // Every route of the table is declared as a capability, under its own id.
+    for (const route of routes) expect(Object.keys(capabilities), route.id).toContain(route.id);
   });
 });
