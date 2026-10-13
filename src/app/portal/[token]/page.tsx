@@ -4,6 +4,8 @@ import { NextIntlClientProvider } from "next-intl";
 import { negotiateLocale } from "../../../domain/locale";
 import { DomainError } from "../../../server/errors";
 import { getPortalTicket } from "../../../server/portal";
+import { activeTexts } from "../../../server/texts";
+import { portalMessageKeys } from "../../../domain/texts";
 import { Portal } from "../../../components/portal";
 import english from "../../../i18n/en.json";
 import german from "../../../i18n/de.json";
@@ -23,21 +25,31 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
   }
+  // The project's own wording replaces the built-in text of the page.
+  const own = view ? await activeTexts(view.projectId, locale) : {};
+  // The page needs the ticket and its messages, not which project they belong to.
+  const shown = view
+    ? (Object.fromEntries(Object.entries(view).filter(([name]) => name !== "projectId")) as Omit<
+        typeof view,
+        "projectId"
+      >)
+    : null;
+  const messages: Record<string, string> = { ...(locale === "de" ? german : english) };
+  for (const [key, messageKey] of Object.entries(portalMessageKeys)) {
+    const text = own[key];
+    if (text !== undefined) messages[messageKey] = text;
+  }
   return (
-    <NextIntlClientProvider
-      locale={locale}
-      messages={locale === "de" ? german : english}
-      timeZone="UTC"
-    >
+    <NextIntlClientProvider locale={locale} messages={messages} timeZone="UTC">
       <Portal
         token={token}
         locale={locale}
         view={
-          view
+          shown
             ? {
-                ...view,
-                ticket: { ...view.ticket, createdAt: view.ticket.createdAt.toISOString() },
-                messages: view.messages.map((message) => ({
+                ...shown,
+                ticket: { ...shown.ticket, createdAt: shown.ticket.createdAt.toISOString() },
+                messages: shown.messages.map((message) => ({
                   ...message,
                   createdAt: message.createdAt.toISOString(),
                 })),

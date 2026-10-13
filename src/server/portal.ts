@@ -189,6 +189,7 @@ export async function getPortalTicket(token: unknown) {
       language: tickets.language,
       createdAt: tickets.createdAt,
       project: projects.name,
+      projectId: projects.id,
     })
     .from(tickets)
     .innerJoin(projects, eq(projects.id, tickets.projectId))
@@ -206,6 +207,7 @@ export async function getPortalTicket(token: unknown) {
     )
     .orderBy(asc(messages.createdAt));
   return {
+    projectId: row.projectId,
     ticket: {
       number: row.number,
       subject: row.subject,

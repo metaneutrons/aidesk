@@ -63,6 +63,7 @@ import {
   testConnection,
   updateConnection,
 } from "../connections";
+import { listTextVersions, listTexts, setText, textWrite } from "../texts";
 import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
@@ -698,5 +699,51 @@ export const routes: Route[] = [
     response: out.connectionTest,
     run: ({ principal, params }) =>
       testConnection(principal, params.projectId ?? "", params.connectionId ?? ""),
+  },
+  {
+    id: "texts.list",
+    method: "GET",
+    path: "/projects/{projectId}/texts",
+    tag: "Texts",
+    summary:
+      "The texts a project can set (acknowledgement, the line before the ticket link, the customer page), with the built-in wording, the project's own and the version",
+    access: "config.read",
+    response: list(out.textEntry),
+    run: ({ principal, params }) => listTexts(principal, params.projectId ?? ""),
+  },
+  {
+    id: "texts.versions",
+    method: "GET",
+    path: "/projects/{projectId}/texts/{key}/{language}/versions",
+    tag: "Texts",
+    summary: "Every version of one text in one language, newest first",
+    access: "config.read",
+    response: list(out.textVersion),
+    run: ({ principal, params }) =>
+      listTextVersions(principal, params.projectId ?? "", params.key ?? "", params.language ?? ""),
+  },
+  {
+    id: "texts.set",
+    method: "PUT",
+    path: "/projects/{projectId}/texts/{key}/{language}",
+    tag: "Texts",
+    summary:
+      "Set the project's wording of a text in en or de, or return it to the built-in wording with null. Applies at once (200) or, for an agent under the review policy, becomes a proposal (202). Every change is a new version",
+    access: "config.write",
+    query: validateQuery,
+    body: textWrite,
+    response: out.textResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) => {
+      const result = await setText(
+        principal,
+        params.projectId ?? "",
+        params.key ?? "",
+        params.language ?? "",
+        input,
+        { validate: query.get("validate") === "true" },
+      );
+      return result.outcome === "proposed" && !result.validated ? new Reply(result, 202) : result;
+    },
   },
 ];

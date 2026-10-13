@@ -15,6 +15,7 @@ import {
 import { acceptInbound, processIngress } from "../src/server/inbound";
 import { listProjects, setProjectSettings } from "../src/server/operations";
 import { initializeStorage } from "../src/server/storage";
+import { setText } from "../src/server/texts";
 import { acknowledgementText, isAutomaticMail } from "../src/domain/acknowledgement";
 import type { Principal } from "../src/domain/permissions";
 const projectId = randomUUID();
@@ -196,6 +197,35 @@ describe("project settings", () => {
   });
 });
 describe("acknowledgements", () => {
+  it("uses the project's own wording when it set one, and the built-in wording otherwise", async () => {
+    const writer: Principal = {
+      ...manager,
+      grants: [{ projectId, actions: ["project.read", "config.read", "config.write"] }],
+    };
+    const own = "Eingegangen als #{number}. Wir melden uns.";
+    await setText(writer, projectId, "acknowledgement", "de", { text: own, expectedVersion: 0 });
+    const { ticketId, conversation } = await ingest(mail({ from: "Own <own@example.test>" }));
+    const [ticket] = await db().select().from(tickets).where(eq(tickets.id, ticketId));
+    expect(acknowledgements(conversation)[0]?.markdown).toBe(
+      `Eingegangen als #${String(ticket?.number ?? "")}. Wir melden uns.`,
+    );
+    // The wording is per language: an English ticket keeps the built-in text.
+    const english = await ingest(
+      Buffer.from(
+        mail({ from: "En <en@example.test>" })
+          .toString("utf8")
+          .replace(
+            "Hello\r\n",
+            "Hello, I have a problem with the billing of my invoice and need help soon.\r\n",
+          ),
+      ),
+    );
+    expect(acknowledgements(english.conversation)[0]).toMatchObject({ language: "en" });
+    expect(acknowledgements(english.conversation)[0]?.markdown ?? "").toContain("recorded it as #");
+    await setText(writer, projectId, "acknowledgement", "de", { text: null, expectedVersion: 1 });
+    const after = await ingest(mail({ from: "Back <back@example.test>" }));
+    expect(acknowledgements(after.conversation)[0]?.markdown).toContain("unter der Nummer #");
+  });
   it("queues one acknowledgement for a new ticket from a person", async () => {
     const { ticketId, conversation } = await ingest(mail({ from: "Kim <kim@example.test>" }));
     const [acknowledgement] = acknowledgements(conversation);

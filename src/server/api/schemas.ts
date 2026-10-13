@@ -245,3 +245,29 @@ export const connectionTest = z.object({
   status: z.enum(["ready", "degraded"]),
   lastErrorCode: z.string().nullable(),
 });
+const textLanguage = z.object({
+  default: z.string().describe("The built-in wording"),
+  own: z.string().nullable().describe("The project's own wording, if it set one"),
+  version: z.number().describe("The version to name when changing it; 0 if never set"),
+});
+export const textEntry = z.object({
+  key: z.string(),
+  description: z.string(),
+  placeholders: z.array(z.string()),
+  required: z.array(z.string()),
+  languages: z.object({ en: textLanguage, de: textLanguage }),
+});
+export const textVersion = z.object({
+  version: z.number(),
+  text: z.string().nullable().describe("null: back to the built-in wording"),
+  createdBy: z.string(),
+  createdAt: isoDate,
+});
+export const textResult = z.object({
+  outcome: z.enum(["unchanged", "applied", "proposed"]),
+  target: z.string().nullable(),
+  version: z.number().nullable(),
+  changeId: z.uuid().nullable(),
+  diff: configDiff,
+  validated: z.boolean(),
+});

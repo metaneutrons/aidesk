@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { locales } from "./locale";
+import { baseLanguage, textKeys } from "./texts";
 // The configurable part of a project's outgoing mail. Content comes from the
 // message; a design only chooses how it is presented, never what is sent, and
 // holds no raw HTML.
@@ -51,9 +52,7 @@ export function localized(
   return pick(language) ?? pick(fallback);
 }
 // The line above the footer that leads the recipient to the ticket page. The
-// portal speaks to customers in the formal register of the German texts.
-export function portalLinkText(language: string): string {
-  return language.toLowerCase().startsWith("de")
-    ? "Diese Anfrage online ansehen und antworten:"
-    : "View this request online and reply:";
+// project may replace the text.
+export function portalLinkText(language: string, own?: string): string {
+  return own ?? textKeys.portalLink.defaults[baseLanguage(language)];
 }

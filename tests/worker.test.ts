@@ -12,6 +12,7 @@ import {
   messages,
   participants,
   projects,
+  projectTexts,
   tickets,
   user,
 } from "../src/server/db/schema";
@@ -1024,6 +1025,23 @@ describe("portal link in mail", () => {
       expect(html).toContain("View this request online and reply:");
       expect((await resolvePortalGrant(token))?.ticketId).toBe(entry.ticketId);
     }
+  });
+  it("uses the project's own wording of the line before the link", async () => {
+    const entry = await scenario({ settings: { portalLinks: true } });
+    await db().insert(projectTexts).values({
+      projectId: entry.projectId,
+      key: "portalLink",
+      language: "en",
+      version: 1,
+      text: "Open the ticket page:",
+      createdBy: "test",
+    });
+    await entry.run();
+    const parsed = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    const html = typeof parsed.html === "string" ? parsed.html : "";
+    expect(html).toContain("Open the ticket page:");
+    expect(html).not.toContain("View this request online and reply:");
+    expect(link.exec(html)).not.toBeNull();
   });
   it("adds nothing when the setting is off, and nothing for a revoked grant", async () => {
     const off = await scenario();

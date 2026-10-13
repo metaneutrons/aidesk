@@ -25,7 +25,8 @@ import { permits, type Principal } from "../domain/permissions";
 import type { ConfigDiffEntry } from "../domain/configuration";
 import { seal, unseal } from "./crypto";
 import { db } from "./db";
-import { audit, configChanges, connections, projects } from "./db/schema";
+import { audit, connections, projects } from "./db/schema";
+import { submitChange } from "./changes";
 import { DomainError } from "./errors";
 import { env } from "./env";
 const id = z.uuid();
@@ -197,9 +198,8 @@ export async function applyConnectionPayload(
   });
   return { connectionId: changed.id, version: changed.version };
 }
-// The one path of every write: serialized per project, idempotent, checked
-// against the version that was read, and either applied or kept as a proposal,
-// by the same rule as the project configuration.
+// Every write goes through submitChange, so a connection is changed by the
+// same rule as the project configuration.
 async function submit(
   principal: Principal,
   projectId: string,
@@ -209,128 +209,41 @@ async function submit(
 ): Promise<ConnectionResult> {
   const project = id.parse(projectId);
   manageable(principal, project);
-  return db().transaction(async (tx) => {
-    const [owner] = await tx
-      .select({ settings: projects.settings })
-      .from(projects)
-      .where(eq(projects.id, project))
-      .for("update");
-    if (!owner) throw new DomainError("not_found", 404);
-    if (plan.idempotencyKey && !options.validate) {
-      const [earlier] = await tx
-        .select()
-        .from(configChanges)
-        .where(
-          and(
-            eq(configChanges.projectId, project),
-            eq(configChanges.idempotencyKey, plan.idempotencyKey),
-          ),
-        );
-      if (earlier) {
-        if (earlier.proposedBy !== principal.id || earlier.kind !== plan.kind)
-          throw new DomainError("idempotency_conflict", 409);
-        return {
-          outcome: earlier.status === "applied" ? "applied" : "proposed",
-          connectionId: earlier.target,
-          version: earlier.appliedVersion,
-          changeId: earlier.id,
-          diff: earlier.diff,
-          validated: false,
-        };
-      }
-    }
-    let row: Row | null = null;
-    if (target) {
-      [row = null] = await tx
-        .select()
-        .from(connections)
-        .where(and(eq(connections.id, id.parse(target)), eq(connections.projectId, project)))
-        .for("update");
-      if (!row) throw new DomainError("not_found", 404);
-      if (plan.expectedVersion !== row.version) throw new DomainError("stale_version", 409);
-    }
-    const { payload, diff } = plan.build(row);
-    if (diff.length === 0)
-      return {
-        outcome: "unchanged",
-        connectionId: row?.id ?? null,
-        version: row?.version ?? null,
-        changeId: null,
-        diff,
-        validated: options.validate === true,
-      };
-    const direct = principal.kind === "human" || owner.settings.approvalPolicy === "direct";
-    if (options.validate)
-      return {
-        outcome: direct ? "applied" : "proposed",
-        connectionId: row?.id ?? null,
-        version: row?.version ?? null,
-        changeId: null,
-        diff,
-        validated: true,
-      };
-    const base = {
-      projectId: project,
+  const result = await submitChange(
+    principal,
+    project,
+    {
       kind: plan.kind,
-      target,
-      baseVersion: row?.version ?? 0,
-      proposedBy: principal.id,
-      proposerKind: principal.kind,
-      idempotencyKey: plan.idempotencyKey ?? null,
-      payload,
-      diff,
-    };
-    if (!direct) {
-      const [change] = await tx
-        .insert(configChanges)
-        .values({ ...base, status: "pending" })
-        .returning({ id: configChanges.id });
-      if (!change) throw new DomainError("conflict", 409);
-      await tx.insert(audit).values({
-        projectId: project,
-        actorId: principal.id,
-        action: "connection.propose",
-        targetId: change.id,
-        detail: { kind: plan.kind, target, diff },
-      });
-      return {
-        outcome: "proposed",
-        connectionId: row?.id ?? null,
-        version: row?.version ?? null,
-        changeId: change.id,
-        diff,
-        validated: false,
-      };
-    }
-    const applied = await applyConnectionPayload(
-      tx,
-      project,
-      plan.kind,
-      target,
-      payload,
-      principal.id,
-      diff,
-    );
-    const [change] = await tx
-      .insert(configChanges)
-      .values({
-        ...base,
-        target: applied.connectionId,
-        status: "applied",
-        appliedVersion: applied.version,
-        decidedAt: new Date(),
-      })
-      .returning({ id: configChanges.id });
-    if (!change) throw new DomainError("conflict", 409);
-    return {
-      outcome: "applied",
-      connectionId: applied.connectionId,
-      version: applied.version,
-      changeId: change.id,
-      diff,
-      validated: false,
-    };
-  });
+      idempotencyKey: plan.idempotencyKey,
+      prepare: async (tx) => {
+        let row: Row | null = null;
+        if (target) {
+          [row = null] = await tx
+            .select()
+            .from(connections)
+            .where(and(eq(connections.id, id.parse(target)), eq(connections.projectId, project)))
+            .for("update");
+          if (!row) throw new DomainError("not_found", 404);
+          if (plan.expectedVersion !== row.version) throw new DomainError("stale_version", 409);
+        }
+        const built = plan.build(row);
+        return { target: row?.id ?? null, version: row?.version ?? null, ...built };
+      },
+      apply: (tx, change) =>
+        applyConnectionPayload(
+          tx,
+          project,
+          plan.kind,
+          change.target,
+          change.payload,
+          principal.id,
+          change.diff,
+        ).then((applied) => ({ target: applied.connectionId, version: applied.version })),
+    },
+    options,
+  );
+  const { target: connectionId, ...rest } = result;
+  return { ...rest, connectionId };
 }
 export async function createConnection(
   principal: Principal,
