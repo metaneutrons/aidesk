@@ -1290,3 +1290,12 @@ label {
     display: grid;
     gap: 6px;
 }
+
+.ticket-row-snippet {
+    display: block;
+    color: var(--muted, #6b7085);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

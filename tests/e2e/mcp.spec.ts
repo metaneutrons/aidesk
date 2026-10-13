@@ -67,7 +67,13 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
   const { id, token } = z.object({ id: z.uuid(), token: z.string() }).parse(await issued.json());
   const client = await connect(token);
   const tools = (await client.listTools()).tools.map((tool) => tool.name).sort();
-  expect(tools).toEqual(["projects_list", "tickets_get", "tickets_list", "tickets_reply"]);
+  expect(tools).toEqual([
+    "projects_list",
+    "tickets_get",
+    "tickets_list",
+    "tickets_reply",
+    "tickets_search",
+  ]);
   const projects = z
     .array(z.object({ id: z.string() }))
     .parse(

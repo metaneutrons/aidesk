@@ -495,11 +495,13 @@ describe("authenticated API and MCP principal", () => {
     expect(body.result.tools.map((tool: { name: string }) => tool.name)).toEqual([
       "projects_list",
       "tickets_list",
+      "tickets_search",
       "tickets_get",
     ]);
     for (const [name, args] of [
       ["projects_list", {}],
       ["tickets_list", { projectIds: [projectId] }],
+      ["tickets_search", { query: "ticket" }],
       ["tickets_get", { ticketId }],
     ] as const) {
       const called = await mcpRequest(

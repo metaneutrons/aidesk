@@ -13,6 +13,13 @@ export const capabilities = {
     api: "src/app/api/v1/[[...path]]/route.ts",
     mcp: "src/server/mcp.ts",
   },
+  "tickets.search": {
+    operation: "searchTickets",
+    action: "ticket.read",
+    ui: "src/components/desk.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: "src/server/mcp.ts",
+  },
   "tickets.get": {
     operation: "getTicket",
     action: "ticket.read",

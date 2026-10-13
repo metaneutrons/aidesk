@@ -68,6 +68,16 @@ const messageSchema = z.object({
 });
 // Why a reply needs checking. Codes without their own text keep the general
 // one; each text says whether the mail was sent.
+const searchHitSchema = z.object({
+  id: z.string(),
+  number: z.number(),
+  projectId: z.string(),
+  subject: z.string(),
+  status: z.string(),
+  requesterName: z.string(),
+  snippet: z.string().nullable(),
+});
+type SearchHit = z.infer<typeof searchHitSchema>;
 const deliveryErrors: Record<string, string> = {
   recipient_suppressed: "deliveryRecipientSuppressed",
   suppression_check_failed: "deliverySuppressionCheckFailed",
@@ -157,6 +167,9 @@ export function Desk({
   const [filters, setFilters] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // The server's answer for a text of two or more characters; it covers all
+  // tickets of the authorized projects, not only the loaded list.
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [selected, setSelected] = useState(initialTicketId);
   const [conversation, setConversation] = useState<z.infer<typeof conversationSchema> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -249,12 +262,38 @@ export function Desk({
     };
   }, [selected, queued, router]);
   const projectById = new Map(projects.map((project) => [project.id, project]));
+  const searching = search.trim().length >= 2;
+  useEffect(() => {
+    if (!searching) {
+      setHits(null);
+      return;
+    }
+    const request = { current: true };
+    const timer = window.setTimeout(() => {
+      const query = new URLSearchParams({ q: search.trim() });
+      for (const project of filters) query.append("project", project);
+      void (async () => {
+        const response = await fetch(`/api/v1/tickets/search?${query.toString()}`).catch(
+          () => null,
+        );
+        const parsed = response?.ok
+          ? z.array(searchHitSchema).safeParse(await response.json())
+          : null;
+        if (request.current && parsed?.success) setHits(parsed.data);
+      })();
+    }, 250);
+    return () => {
+      request.current = false;
+      window.clearTimeout(timer);
+    };
+  }, [search, searching, filters]);
   const scoped = initialTickets.filter(
     (ticket) =>
       (!filters.length || filters.includes(ticket.projectId)) &&
-      `${ticket.subject} ${ticket.requesterName} ${ticket.requesterEmail}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+      (searching ||
+        `${ticket.subject} ${ticket.requesterName} ${ticket.requesterEmail}`
+          .toLowerCase()
+          .includes(search.toLowerCase())),
   );
   const overdue = (ticket: Ticket) =>
     ticket.pendingSince !== null &&
@@ -635,34 +674,73 @@ export function Desk({
                     }}
                   />
                 </label>
-                <div className="list-heading">{t("ticketCount", { count: visible.length })}</div>
-                {visible.map((ticket) => (
-                  <button
-                    key={ticket.id}
-                    className={`ticket-row ${selected === ticket.id ? "selected" : ""}`}
-                    onClick={() => {
-                      select(ticket.id);
-                    }}
-                  >
-                    <span className="ticket-row-top">
-                      <strong>{ticket.requesterName}</strong>
-                      <span className={overdue(ticket) ? "urgent-text" : "muted"}>
-                        {age(ticket)}
-                      </span>
-                    </span>
-                    <span className="ticket-row-subject">{ticket.subject}</span>
-                    <span className="ticket-row-meta">
-                      <i style={{ background: projectById.get(ticket.projectId)?.color }} />
-                      {projectById.get(ticket.projectId)?.name}
-                      <span>#{ticket.number}</span>
-                    </span>
-                  </button>
-                ))}
-                {visible.length === 0 && (
-                  <div className="empty">
-                    <Inbox size={24} />
-                    <h3>{t("noTickets")}</h3>
-                  </div>
+                {searching && hits !== null ? (
+                  <>
+                    <div className="list-heading" role="status">
+                      {t("searchResults", { count: hits.length })}
+                    </div>
+                    {hits.map((hit) => (
+                      <button
+                        key={hit.id}
+                        className={`ticket-row ${selected === hit.id ? "selected" : ""}`}
+                        onClick={() => {
+                          select(hit.id);
+                        }}
+                      >
+                        <span className="ticket-row-top">
+                          <strong>{hit.requesterName}</strong>
+                          <span className="muted">{t(hit.status)}</span>
+                        </span>
+                        <span className="ticket-row-subject">{hit.subject}</span>
+                        {hit.snippet && <span className="ticket-row-snippet">{hit.snippet}</span>}
+                        <span className="ticket-row-meta">
+                          <i style={{ background: projectById.get(hit.projectId)?.color }} />
+                          {projectById.get(hit.projectId)?.name}
+                          <span>#{hit.number}</span>
+                        </span>
+                      </button>
+                    ))}
+                    {hits.length === 0 && (
+                      <div className="empty">
+                        <Search size={24} />
+                        <h3>{t("noSearchResults")}</h3>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="list-heading">
+                      {t("ticketCount", { count: visible.length })}
+                    </div>
+                    {visible.map((ticket) => (
+                      <button
+                        key={ticket.id}
+                        className={`ticket-row ${selected === ticket.id ? "selected" : ""}`}
+                        onClick={() => {
+                          select(ticket.id);
+                        }}
+                      >
+                        <span className="ticket-row-top">
+                          <strong>{ticket.requesterName}</strong>
+                          <span className={overdue(ticket) ? "urgent-text" : "muted"}>
+                            {age(ticket)}
+                          </span>
+                        </span>
+                        <span className="ticket-row-subject">{ticket.subject}</span>
+                        <span className="ticket-row-meta">
+                          <i style={{ background: projectById.get(ticket.projectId)?.color }} />
+                          {projectById.get(ticket.projectId)?.name}
+                          <span>#{ticket.number}</span>
+                        </span>
+                      </button>
+                    ))}
+                    {visible.length === 0 && (
+                      <div className="empty">
+                        <Inbox size={24} />
+                        <h3>{t("noTickets")}</h3>
+                      </div>
+                    )}
+                  </>
                 )}
               </section>
               <section className="conversation" aria-label={t("ticket")}>
