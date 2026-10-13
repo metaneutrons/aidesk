@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { ZodError } from "zod";
 import { db, sqlClient } from "../src/server/db";
@@ -130,7 +130,10 @@ describe("setting a text", () => {
       version: 3,
       text: null,
     });
-    const [entry] = await db().select().from(audit).where(eq(audit.targetId, "acknowledgement:de"));
+    const [entry] = await db()
+      .select()
+      .from(audit)
+      .where(and(eq(audit.projectId, projectId), eq(audit.targetId, "acknowledgement:de")));
     expect(entry).toMatchObject({ action: "text.set", actorId: manager.id });
   });
   it("does nothing when the wording is unchanged, and refuses a stale version", async () => {
