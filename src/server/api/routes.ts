@@ -4,6 +4,10 @@ import type { Principal } from "../../domain/permissions";
 import { emailDesignConfig } from "../../domain/email-design";
 import {
   activeInput,
+  assignInput,
+  assignTicket,
+  setTicketStatus,
+  statusInput,
   createOperator,
   createProject,
   createProjectInput,
@@ -83,6 +87,10 @@ export interface RouteContext {
 // The action that has to be granted for the project concerned. "owner" and
 // "human" are checks on the person: the instance owner, or any signed-in
 // operator (agent tokens are refused).
+// How a route reaches MCP. A route is offered as a tool, or it is the legacy
+// hand-written tool of that name, or it is not offered and says why.
+export type McpOffer =
+  { tool: string; input?: z.ZodRawShape } | { legacy: string } | { not: string };
 export type Access = Action | "owner" | "human" | "any";
 interface Base {
   id: string;
@@ -91,6 +99,7 @@ interface Base {
   tag: string;
   summary: string;
   access: Access;
+  mcp: McpOffer;
   query?: z.ZodObject;
 }
 export interface JsonRoute extends Base {
@@ -139,6 +148,7 @@ function download(file: { filename: string; content: Buffer }): Response {
 export const routes: Route[] = [
   {
     id: "projects.list",
+    mcp: { legacy: "projects_list" },
     method: "GET",
     path: "/projects",
     tag: "Projects",
@@ -149,6 +159,7 @@ export const routes: Route[] = [
   },
   {
     id: "operators.list",
+    mcp: { not: "People are managed by people" },
     method: "GET",
     path: "/operators",
     tag: "Operators",
@@ -159,6 +170,7 @@ export const routes: Route[] = [
   },
   {
     id: "agents.list",
+    mcp: { not: "Tokens are managed by people" },
     method: "GET",
     path: "/projects/{projectId}/agents",
     tag: "Agents",
@@ -169,6 +181,7 @@ export const routes: Route[] = [
   },
   {
     id: "designs.list",
+    mcp: { not: "The mail design of a project is set by people" },
     method: "GET",
     path: "/projects/{projectId}/designs",
     tag: "Email designs",
@@ -178,7 +191,8 @@ export const routes: Route[] = [
     run: ({ principal, params }) => listEmailDesigns(principal, params.projectId ?? ""),
   },
   {
-    id: "testMails.get",
+    id: "designs.test_status",
+    mcp: { not: "Belongs to the test mail of a person" },
     method: "GET",
     path: "/test-mails/{jobId}",
     tag: "Email designs",
@@ -189,6 +203,7 @@ export const routes: Route[] = [
   },
   {
     id: "tags.list",
+    mcp: { tool: "tags_list" },
     method: "GET",
     path: "/tags",
     tag: "Tickets",
@@ -200,6 +215,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.search",
+    mcp: { legacy: "tickets_search" },
     method: "GET",
     path: "/tickets/search",
     tag: "Tickets",
@@ -215,6 +231,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.get",
+    mcp: { legacy: "tickets_get" },
     method: "GET",
     path: "/tickets/{ticketId}",
     tag: "Tickets",
@@ -224,7 +241,8 @@ export const routes: Route[] = [
     run: ({ principal, params }) => getTicket(principal, params.ticketId ?? ""),
   },
   {
-    id: "originals.download",
+    id: "messages.original",
+    mcp: { not: "An agent reads the extracted Markdown of tickets_get, not the raw original" },
     method: "GET",
     path: "/messages/{messageId}/original",
     tag: "Tickets",
@@ -235,7 +253,8 @@ export const routes: Route[] = [
       download(await getOriginal(principal, params.messageId ?? "")),
   },
   {
-    id: "originals.preview",
+    id: "messages.original_preview",
+    mcp: { not: "The safe view is for human eyes; an agent reads the extracted Markdown" },
     method: "GET",
     path: "/messages/{messageId}/original/preview",
     tag: "Tickets",
@@ -246,6 +265,7 @@ export const routes: Route[] = [
   },
   {
     id: "junk.list",
+    mcp: { not: "Junk decisions are made by people until the governed AI classification of M4-A6" },
     method: "GET",
     path: "/junk",
     tag: "Junk",
@@ -257,6 +277,7 @@ export const routes: Route[] = [
   },
   {
     id: "junk.get",
+    mcp: { not: "Junk decisions are made by people until the governed AI classification of M4-A6" },
     method: "GET",
     path: "/junk/{ingressId}",
     tag: "Junk",
@@ -266,7 +287,10 @@ export const routes: Route[] = [
     run: ({ principal, params }) => getJunkMail(principal, params.ingressId ?? ""),
   },
   {
-    id: "attachments.download",
+    id: "attachments.get",
+    mcp: {
+      not: "Binary content over MCP needs a decision which types an agent may read; the metadata is part of tickets_get",
+    },
     method: "GET",
     path: "/attachments/{attachmentId}",
     tag: "Tickets",
@@ -278,6 +302,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.list",
+    mcp: { legacy: "tickets_list" },
     method: "GET",
     path: "/tickets",
     tag: "Tickets",
@@ -297,6 +322,7 @@ export const routes: Route[] = [
   },
   {
     id: "overview.get",
+    mcp: { tool: "overview_get" },
     method: "GET",
     path: "/overview",
     tag: "Tickets",
@@ -308,6 +334,7 @@ export const routes: Route[] = [
   },
   {
     id: "projects.create",
+    mcp: { not: "Only the instance owner creates projects" },
     method: "POST",
     path: "/projects",
     tag: "Projects",
@@ -320,6 +347,7 @@ export const routes: Route[] = [
   },
   {
     id: "operators.create",
+    mcp: { not: "People are managed by people" },
     method: "POST",
     path: "/operators",
     tag: "Operators",
@@ -332,6 +360,7 @@ export const routes: Route[] = [
   },
   {
     id: "operators.grant",
+    mcp: { not: "Grants are given by people" },
     method: "POST",
     path: "/operators/{operatorId}/grants",
     tag: "Operators",
@@ -347,7 +376,8 @@ export const routes: Route[] = [
       setOperatorGrant(principal, params.operatorId ?? "", input),
   },
   {
-    id: "operators.setActive",
+    id: "operators.active",
+    mcp: { not: "People are managed by people" },
     method: "POST",
     path: "/operators/{operatorId}/active",
     tag: "Operators",
@@ -360,6 +390,7 @@ export const routes: Route[] = [
   },
   {
     id: "agents.issue",
+    mcp: { not: "An agent cannot issue tokens, not even for itself" },
     method: "POST",
     path: "/projects/{projectId}/agents",
     tag: "Agents",
@@ -373,6 +404,7 @@ export const routes: Route[] = [
   },
   {
     id: "projects.settings",
+    mcp: { not: "Replaced by config_put, which follows the approval policy" },
     method: "POST",
     path: "/projects/{projectId}/settings",
     tag: "Projects",
@@ -385,6 +417,7 @@ export const routes: Route[] = [
   },
   {
     id: "designs.create",
+    mcp: { not: "The mail design of a project is set by people" },
     method: "POST",
     path: "/projects/{projectId}/designs",
     tag: "Email designs",
@@ -398,6 +431,7 @@ export const routes: Route[] = [
   },
   {
     id: "designs.select",
+    mcp: { not: "The mail design of a project is set by people" },
     method: "POST",
     path: "/projects/{projectId}/designs/select",
     tag: "Email designs",
@@ -414,6 +448,7 @@ export const routes: Route[] = [
   },
   {
     id: "designs.preview",
+    mcp: { not: "The mail design of a project is set by people" },
     method: "POST",
     path: "/projects/{projectId}/designs/preview",
     tag: "Email designs",
@@ -425,6 +460,7 @@ export const routes: Route[] = [
   },
   {
     id: "designs.test",
+    mcp: { not: "A test mail goes to the person who asks" },
     method: "POST",
     path: "/projects/{projectId}/designs/test",
     tag: "Email designs",
@@ -437,6 +473,7 @@ export const routes: Route[] = [
   },
   {
     id: "agents.revoke",
+    mcp: { not: "Tokens are managed by people" },
     method: "POST",
     path: "/agents/{agentId}/revoke",
     tag: "Agents",
@@ -446,7 +483,8 @@ export const routes: Route[] = [
     run: ({ principal, params }) => revokeAgentToken(principal, params.agentId ?? ""),
   },
   {
-    id: "portalLinks.issue",
+    id: "tickets.portal_link",
+    mcp: { not: "A portal link is a credential for the customer's page" },
     method: "POST",
     path: "/tickets/{ticketId}/portal-link",
     tag: "Customer portal",
@@ -462,7 +500,8 @@ export const routes: Route[] = [
     },
   },
   {
-    id: "portalLinks.revoke",
+    id: "tickets.portal_revoke",
+    mcp: { not: "A portal link is a credential for the customer's page" },
     method: "POST",
     path: "/tickets/{ticketId}/portal-link/revoke",
     tag: "Customer portal",
@@ -473,6 +512,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.tags",
+    mcp: { tool: "tickets_set_tags" },
     method: "POST",
     path: "/tickets/{ticketId}/tags",
     tag: "Tickets",
@@ -484,6 +524,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.reminder",
+    mcp: { not: "A reminder is a person's own workflow" },
     method: "POST",
     path: "/tickets/{ticketId}/reminder",
     tag: "Tickets",
@@ -495,6 +536,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.junk",
+    mcp: { not: "Moving a ticket to junk is a decision of a person" },
     method: "POST",
     path: "/tickets/{ticketId}/junk",
     tag: "Junk",
@@ -505,6 +547,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.restore",
+    mcp: { not: "Restoring from junk is a decision of a person" },
     method: "POST",
     path: "/tickets/{ticketId}/restore",
     tag: "Junk",
@@ -515,6 +558,7 @@ export const routes: Route[] = [
   },
   {
     id: "junk.restore",
+    mcp: { not: "Restoring from junk is a decision of a person" },
     method: "POST",
     path: "/junk/{ingressId}/restore",
     tag: "Junk",
@@ -525,6 +569,7 @@ export const routes: Route[] = [
   },
   {
     id: "tickets.reply",
+    mcp: { legacy: "tickets_reply" },
     method: "POST",
     path: "/tickets/{ticketId}/reply",
     tag: "Tickets",
@@ -536,7 +581,8 @@ export const routes: Route[] = [
     run: ({ principal, params, input }) => reply(principal, params.ticketId ?? "", input),
   },
   {
-    id: "me.locale",
+    id: "operator.locale",
+    mcp: { not: "Concerns the signed-in person" },
     method: "POST",
     path: "/me/locale",
     tag: "Operators",
@@ -551,6 +597,7 @@ export const routes: Route[] = [
   },
   {
     id: "config.get",
+    mcp: { tool: "config_get" },
     method: "GET",
     path: "/projects/{projectId}/config",
     tag: "Configuration",
@@ -561,6 +608,7 @@ export const routes: Route[] = [
   },
   {
     id: "config.put",
+    mcp: { tool: "config_put" },
     method: "PUT",
     path: "/projects/{projectId}/config",
     tag: "Configuration",
@@ -582,6 +630,7 @@ export const routes: Route[] = [
   },
   {
     id: "config.changes",
+    mcp: { tool: "config_changes" },
     method: "GET",
     path: "/projects/{projectId}/config/changes",
     tag: "Configuration",
@@ -596,6 +645,7 @@ export const routes: Route[] = [
   },
   {
     id: "config.decide",
+    mcp: { not: "Only people decide on proposals" },
     method: "POST",
     path: "/config/changes/{changeId}/decision",
     tag: "Configuration",
@@ -608,6 +658,7 @@ export const routes: Route[] = [
   },
   {
     id: "connections.list",
+    mcp: { tool: "connections_list" },
     method: "GET",
     path: "/projects/{projectId}/connections",
     tag: "Connections",
@@ -618,6 +669,17 @@ export const routes: Route[] = [
   },
   {
     id: "connections.create",
+    mcp: {
+      tool: "connections_create",
+      input: {
+        kind: z.enum(["imap", "cloudflare", "smtp"]),
+        direction: z.enum(["inbound", "outbound"]),
+        name: z.string(),
+        config: z.record(z.string(), z.unknown()),
+        secret: z.record(z.string(), z.unknown()).optional(),
+        idempotencyKey: z.uuid().optional(),
+      },
+    },
     method: "POST",
     path: "/projects/{projectId}/connections",
     tag: "Connections",
@@ -639,6 +701,7 @@ export const routes: Route[] = [
   },
   {
     id: "connections.update",
+    mcp: { tool: "connections_update" },
     method: "PUT",
     path: "/projects/{projectId}/connections/{connectionId}",
     tag: "Connections",
@@ -665,6 +728,7 @@ export const routes: Route[] = [
   },
   {
     id: "connections.disable",
+    mcp: { tool: "connections_disable" },
     method: "POST",
     path: "/projects/{projectId}/connections/{connectionId}/disable",
     tag: "Connections",
@@ -690,6 +754,7 @@ export const routes: Route[] = [
   },
   {
     id: "connections.test",
+    mcp: { tool: "connections_test" },
     method: "POST",
     path: "/projects/{projectId}/connections/{connectionId}/test",
     tag: "Connections",
@@ -702,6 +767,7 @@ export const routes: Route[] = [
   },
   {
     id: "texts.list",
+    mcp: { tool: "texts_list" },
     method: "GET",
     path: "/projects/{projectId}/texts",
     tag: "Texts",
@@ -713,6 +779,7 @@ export const routes: Route[] = [
   },
   {
     id: "texts.versions",
+    mcp: { tool: "texts_versions" },
     method: "GET",
     path: "/projects/{projectId}/texts/{key}/{language}/versions",
     tag: "Texts",
@@ -724,6 +791,7 @@ export const routes: Route[] = [
   },
   {
     id: "texts.set",
+    mcp: { tool: "texts_set" },
     method: "PUT",
     path: "/projects/{projectId}/texts/{key}/{language}",
     tag: "Texts",
@@ -745,5 +813,30 @@ export const routes: Route[] = [
       );
       return result.outcome === "proposed" && !result.validated ? new Reply(result, 202) : result;
     },
+  },
+  {
+    id: "tickets.status",
+    mcp: { tool: "tickets_set_status" },
+    method: "POST",
+    path: "/tickets/{ticketId}/status",
+    tag: "Tickets",
+    summary:
+      "Resolve or reopen a ticket without a message. Names the revision that was read; waiting is set by a reply",
+    access: "ticket.resolve",
+    body: statusInput,
+    response: out.ticketStatus,
+    run: ({ principal, params, input }) => setTicketStatus(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "tickets.assign",
+    mcp: { tool: "tickets_assign" },
+    method: "POST",
+    path: "/tickets/{ticketId}/assign",
+    tag: "Tickets",
+    summary: "Assign a ticket to a person or an agent of the project, or to nobody",
+    access: "ticket.assign",
+    body: assignInput,
+    response: out.ticketAssignee,
+    run: ({ principal, params, input }) => assignTicket(principal, params.ticketId ?? "", input),
   },
 ];

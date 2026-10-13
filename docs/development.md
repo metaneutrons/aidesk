@@ -141,6 +141,37 @@ NODE_EXTRA_CA_CERTS=.local/https-ca.crt claude mcp add --transport http aidesk h
 Interactive OAuth discovery with PKCE and resource binding for MCP clients is not
 implemented; clients use issued bearer tokens.
 
+### Tools
+
+The tools an agent sees follow its token: a tool is offered when the token holds the
+action of its route in at least one project. Five tools are written by hand
+(`projects_list`, `tickets_list`, `tickets_search`, `tickets_get`, `tickets_reply`).
+All others come from the route table (`src/server/api/routes.ts`), where every route
+says how it reaches MCP: as a tool, as one of the hand-written tools, or not at all
+with the reason. A tool takes the path parameters, the query and the body of its
+route as one set of arguments, runs the same operation as REST and returns the same
+JSON. A failure returns an error result that names the field (`issues[].pointer`), so a
+client can correct the call. The published API definition carries the name of the
+tool in `x-mcp-tool`.
+
+Offered: `config_get`, `config_put`, `config_changes`, `connections_list`,
+`connections_create`, `connections_update`, `connections_disable`, `connections_test`,
+`texts_list`, `texts_versions`, `texts_set`, `overview_get`, `tags_list`,
+`tickets_set_tags`, `tickets_set_status`, `tickets_assign`. Not offered, with reasons in
+`docs/capabilities.md`: everything that issues credentials or decides on proposals
+(`config.decide`), moves mail to or from junk, creates portal links, sets reminders,
+changes the mail design, or reads files (attachments and originals).
+
+## Ticket work
+
+`POST /api/v1/tickets/{id}/status` resolves or reopens a ticket without a message. It
+needs `ticket.resolve`, names the revision that was read, and raises the revision;
+resolving ends the response obligation, reopening starts none, and `waiting` follows a
+reply and is not set by hand. `POST /api/v1/tickets/{id}/assign` assigns a ticket to a
+person with access to the project (`userId`), to an active agent of the project
+(`agentId`), or to nobody (both `null`); it needs `ticket.assign`. Internal notes are
+`tickets_reply` with `internal: true`.
+
 ## Inbound mail
 
 Adapters hand raw messages to `acceptInbound`. The original is stored first in
