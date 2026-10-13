@@ -190,5 +190,7 @@
   "portalLinkCopied": "Link kopiert",
   "portalLinkNote": "Gültig bis {date}. Ein neuer Link ersetzt den früheren.",
   "portalLinkRevoked": "Portal-Link deaktiviert",
-  "portalLinkAddress": "Link zur Ansicht des Kunden"
+  "portalLinkAddress": "Link zur Ansicht des Kunden",
+  "portalLinksSetting": "{project}: Link zur Ticketseite hinzufügen",
+  "portalLinksHint": "Mit dieser Einstellung enthalten Antworten und Eingangsbestätigungen einen Link zur Seite des Kunden für das Ticket. Der Link bleibt für alle Mails zum Ticket gleich; wird er für ein Ticket deaktiviert, enthalten weitere Mails keinen."
 }

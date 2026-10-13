@@ -50,3 +50,10 @@ export function localized(
   };
   return pick(language) ?? pick(fallback);
 }
+// The line above the footer that leads the recipient to the ticket page. The
+// portal speaks to customers in the formal register of the German texts.
+export function portalLinkText(language: string): string {
+  return language.toLowerCase().startsWith("de")
+    ? "Diese Anfrage online ansehen und antworten:"
+    : "View this request online and reply:";
+}

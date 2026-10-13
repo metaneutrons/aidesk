@@ -14,6 +14,7 @@ import {
 } from "../server/db/schema";
 import { emailTemplateVersion, renderEmail } from "../server/email";
 import { activeEmailDesign, designForVersion, sampleMarkdown } from "../server/email-design";
+import { portalLinkForMail, portalUrl } from "../server/portal";
 import { threadHeaders } from "../domain/threading";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
@@ -177,6 +178,10 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
     if (connection.status !== "ready") throw new Error("outbound_not_ready");
     const automatic = payload.actorKind === "system";
     const design = await activeEmailDesign(project.id, project.settings);
+    // A project may add a link to the ticket page; it is the same for every mail
+    // about the ticket, and a revoked grant yields none.
+    const token = project.settings.portalLinks === true ? await portalLinkForMail(ticket.id) : null;
+    const link = token ? portalUrl(token) : null;
     const content = await renderEmail({
       project: project.name,
       markdown: message.markdown,
@@ -184,6 +189,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       color: project.color,
       fallbackLanguage: project.defaultLanguage,
       ...(design ? { design: design.config } : {}),
+      ...(link ? { portalUrl: link } : {}),
     });
     const earlier = await db()
       .select({
@@ -255,8 +261,10 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
               templateVersion: emailTemplateVersion,
               designVersion: design?.version ?? 0,
               markdown: message.markdown,
-              html: content.html,
-              text: content.text,
+              // The link is a credential: the record keeps the mail without it.
+              portalLink: link !== null,
+              html: link ? content.html.replaceAll(link, "{portal-link}") : content.html,
+              text: link ? content.text.replaceAll(link, "{portal-link}") : content.text,
             },
           },
         })

@@ -190,5 +190,7 @@
   "portalLinkCopied": "Link copied",
   "portalLinkNote": "Valid until {date}. A new link replaces the earlier one.",
   "portalLinkRevoked": "Portal link disabled",
-  "portalLinkAddress": "Link to the customer's view"
+  "portalLinkAddress": "Link to the customer's view",
+  "portalLinksSetting": "{project}: add a link to the ticket page",
+  "portalLinksHint": "With the link setting, replies and acknowledgements carry a link to the customer's page for the ticket. The link stays the same for every mail about the ticket; disabling it for a ticket stops further mail from carrying one."
 }

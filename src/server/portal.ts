@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
@@ -7,14 +7,40 @@ import { detectLanguage } from "../domain/language";
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
 import { getTicket } from "./operations";
+import { env } from "./env";
 import { permits, type Principal } from "../domain/permissions";
 // Portal grants give the requester of one ticket read access to that ticket's
-// public conversation. A grant is a random token that is stored only as a
-// hash, belongs to exactly one participant of one ticket, and can expire or be
-// revoked. The surfaces (portal pages, REST) follow with M3; this is the model
-// they use.
+// public conversation. A link is derived, not stored: the identifier of the
+// participant plus a MAC over that identifier and the participant's epoch, made
+// with a key derived from the encryption key. So every mail about the ticket
+// can carry the same link, a database copy does not contain any link, and a
+// new link (a higher epoch) replaces the earlier one. A grant also expires and
+// can be revoked. Changing the encryption key ends all links.
 const defaultDays = 30;
-const hash = (token: string) => createHash("sha256").update(token).digest("hex");
+const subkey = () =>
+  createHmac("sha256", Buffer.from(env().ENCRYPTION_KEY, "hex"))
+    .update("aidesk portal links v1")
+    .digest();
+const uuidBytes = (value: string) => Buffer.from(value.replaceAll("-", ""), "hex");
+function mac(participantId: string, epoch: number): Buffer {
+  return createHmac("sha256", subkey())
+    .update(`portal:${participantId}:${String(epoch)}`)
+    .digest();
+}
+function linkToken(participantId: string, epoch: number): string {
+  return `${uuidBytes(participantId).toString("base64url")}.${mac(participantId, epoch).toString("base64url")}`;
+}
+// The participant id inside a token, or null when it is not shaped like one.
+function participantOf(token: string): { id: string; mac: Buffer } | null {
+  const match = /^([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(token);
+  if (!match) return null;
+  const raw = Buffer.from(match[1] ?? "", "base64url").toString("hex");
+  if (raw.length !== 32) return null;
+  return {
+    id: `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20)}`,
+    mac: Buffer.from(match[2] ?? "", "base64url"),
+  };
+}
 async function manageable(principal: Principal, ticketId: string) {
   if (principal.kind !== "human") throw new DomainError("forbidden", 403);
   const { ticket } = await getTicket(principal, ticketId);
@@ -22,8 +48,8 @@ async function manageable(principal: Principal, ticketId: string) {
     throw new DomainError("forbidden", 403);
   return ticket;
 }
-// Issues a new token for the ticket's requester and invalidates an earlier one.
-// The token is returned once; only its hash is kept.
+// Issues a new link for the ticket's requester and invalidates an earlier one.
+// The link is returned once and can be derived again by the server for mail.
 export async function issuePortalGrant(
   principal: Principal,
   ticketId: string,
@@ -34,37 +60,58 @@ export async function issuePortalGrant(
     .parse(input);
   const ticket = await manageable(principal, ticketId);
   if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
-  const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + days * 86_400_000);
   const email = ticket.requesterEmail.toLowerCase();
-  await db().transaction(async (tx) => {
-    await tx
+  const token = await db().transaction(async (tx) => {
+    const [row] = await tx
       .insert(participants)
       .values({
         ticketId: ticket.id,
         email,
-        // The token goes to the address that wrote to us and that we answered.
+        // The link goes to the address that wrote to us and that we answered.
         verified: true,
-        portalTokenHash: hash(token),
         grantExpiresAt: expiresAt,
       })
       .onConflictDoUpdate({
         target: [participants.ticketId, participants.email],
         set: {
           verified: true,
-          portalTokenHash: hash(token),
           grantExpiresAt: expiresAt,
           revokedAt: null,
+          portalEpoch: sql`${participants.portalEpoch} + 1`,
         },
-      });
+      })
+      .returning({ id: participants.id, epoch: participants.portalEpoch });
+    if (!row) throw new DomainError("conflict", 409);
     await tx.insert(audit).values({
       projectId: ticket.projectId,
       actorId: principal.id,
       action: "portal.grant",
       targetId: ticket.id,
     });
+    return linkToken(row.id, row.epoch);
   });
   return { token, expiresAt };
+}
+// The link for mail about a ticket, for the worker. A requester who was never
+// given one gets a grant now; a grant that ran out is renewed, because the mail
+// goes to the requester anyway; a revoked grant stays revoked and yields no
+// link. The epoch is not raised, so links in earlier mail keep working.
+export async function portalLinkForMail(ticketId: string): Promise<string | null> {
+  const [ticket] = await db().select().from(tickets).where(eq(tickets.id, ticketId));
+  if (ticket?.junkAt !== null) return null;
+  const email = ticket.requesterEmail.toLowerCase();
+  const expiresAt = new Date(Date.now() + defaultDays * 86_400_000);
+  const [row] = await db()
+    .insert(participants)
+    .values({ ticketId: ticket.id, email, verified: true, grantExpiresAt: expiresAt })
+    .onConflictDoUpdate({
+      target: [participants.ticketId, participants.email],
+      set: { grantExpiresAt: expiresAt },
+      setWhere: sql`${participants.revokedAt} is null and ${participants.verified}`,
+    })
+    .returning({ id: participants.id, epoch: participants.portalEpoch });
+  return row ? linkToken(row.id, row.epoch) : null;
 }
 export async function revokePortalGrant(principal: Principal, ticketId: string) {
   const ticket = await manageable(principal, ticketId);
@@ -85,13 +132,17 @@ export async function revokePortalGrant(principal: Principal, ticketId: string) 
   });
 }
 // The grant behind a token, or null for anything that is not a valid grant:
-// unknown, revoked, expired, unverified, or for a ticket in junk.
+// malformed, forged, replaced by a newer link, revoked, expired, unverified, or
+// for a ticket in junk.
 export async function resolvePortalGrant(token: unknown) {
-  if (typeof token !== "string" || token.length < 40 || token.length > 100) return null;
+  if (typeof token !== "string" || token.length > 100) return null;
+  const parsed = participantOf(token);
+  if (!parsed) return null;
   const [grant] = await db()
     .select({
       participantId: participants.id,
       email: participants.email,
+      epoch: participants.portalEpoch,
       ticketId: tickets.id,
       projectId: tickets.projectId,
     })
@@ -99,14 +150,22 @@ export async function resolvePortalGrant(token: unknown) {
     .innerJoin(tickets, eq(tickets.id, participants.ticketId))
     .where(
       and(
-        eq(participants.portalTokenHash, hash(token)),
+        eq(participants.id, parsed.id),
         eq(participants.verified, true),
         isNull(participants.revokedAt),
         gt(participants.grantExpiresAt, sql`now()`),
         isNull(tickets.junkAt),
       ),
     );
-  return grant ?? null;
+  if (!grant) return null;
+  const expected = mac(grant.participantId, grant.epoch);
+  if (parsed.mac.length !== expected.length || !timingSafeEqual(parsed.mac, expected)) return null;
+  return {
+    participantId: grant.participantId,
+    email: grant.email,
+    ticketId: grant.ticketId,
+    projectId: grant.projectId,
+  };
 }
 // What the holder of a token may see: the public conversation of that one
 // ticket. Private notes, messages that were not delivered, staff addresses and
@@ -249,4 +308,9 @@ export async function portalReply(token: unknown, input: unknown) {
     });
     return { id: message.id, duplicate: false };
   });
+}
+
+// The address of a link, on the application's public origin.
+export function portalUrl(token: string): string {
+  return `${new URL(env().APP_URL).origin}/portal/${token}`;
 }
