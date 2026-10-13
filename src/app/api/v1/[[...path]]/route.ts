@@ -13,6 +13,7 @@ import {
   listJunk,
   listOperators,
   listProjects,
+  listTags,
   listTickets,
   moveTicketToJunk,
   reply,
@@ -24,6 +25,7 @@ import {
   setOperatorActive,
   setOperatorGrant,
   setProjectSettings,
+  setTicketTags,
 } from "../../../../server/operations";
 import {
   createEmailDesign,
@@ -69,6 +71,8 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await listEmailDesigns(principal, identifier));
       if (resource === "test-mails" && identifier && segments.length === 2)
         return Response.json(await getTestMail(principal, identifier));
+      if (resource === "tags" && segments.length === 1)
+        return Response.json(await listTags(principal, url.searchParams.getAll("project")));
       if (resource === "tickets" && identifier === "search" && segments.length === 2)
         return Response.json(
           await searchTickets(
@@ -169,6 +173,8 @@ async function dispatch(request: Request): Promise<Response> {
         segments.length === 4
       )
         return Response.json(await revokePortalGrant(principal, identifier));
+      if (resource === "tickets" && identifier && operation === "tags" && segments.length === 3)
+        return Response.json(await setTicketTags(principal, identifier, input));
       if (resource === "tickets" && identifier && operation === "junk" && segments.length === 3)
         return Response.json(await moveTicketToJunk(principal, identifier));
       if (resource === "tickets" && identifier && operation === "restore" && segments.length === 3)
