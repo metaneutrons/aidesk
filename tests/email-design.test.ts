@@ -125,6 +125,9 @@ describe("rendering with a design", () => {
   it("offers a dark variant and mobile scaling to programs that support them", async () => {
     const mail = await render({});
     expect(mail.html).toContain("prefers-color-scheme: dark");
+    // The header and every other cell of the card inherit a light text color on
+    // the dark card, not the dark one of the light variant.
+    expect(mail.html).toMatch(/\.card\{[^}]*background-color:#1d1f2a[^}]*color:#e6e8f2/);
     expect(mail.html).toContain('name="color-scheme"');
     expect(mail.html).toContain("width=device-width");
     expect(mail.html).toContain("max-width:100%");
