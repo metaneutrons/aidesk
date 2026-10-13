@@ -12,11 +12,17 @@ describe("capability source registry", () => {
       if (declaration.mcp === null) expect(existsSync(declaration.difference)).toBe(true);
     }
   });
-  it("rejects domain routes added without a declared capability", () => {
+  it("rejects domain routes added without a declared capability", async () => {
+    // Only the operations count; the input schemas the route table imports are
+    // values of the same modules but not capabilities.
+    const modules = {
+      ...(await import("../src/server/operations")),
+      ...(await import("../src/server/email-design")),
+    } as Record<string, unknown>;
     const registered = new Set(
       Object.values(capabilities).map((declaration) => declaration.operation),
     );
-    for (const file of ["src/app/api/v1/[[...path]]/route.ts", "src/server/mcp.ts"]) {
+    for (const file of ["src/server/api/routes.ts", "src/server/mcp.ts"]) {
       const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
       const imported: string[] = [];
       for (const statement of source.statements) {
@@ -35,7 +41,9 @@ describe("capability source registry", () => {
           );
       }
       expect(imported.length).toBeGreaterThan(0);
-      for (const name of imported) expect([...registered]).toContain(name);
+      const callable = imported.filter((name) => typeof modules[name] === "function");
+      expect(callable.length).toBeGreaterThan(0);
+      for (const name of callable) expect([...registered]).toContain(name);
     }
   });
 });
