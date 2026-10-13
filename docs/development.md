@@ -211,8 +211,8 @@ always answers as a download (`application/octet-stream`, `nosniff`,
 and unknown ids all answer 404. Ticket responses list the metadata on every
 surface; MCP does not yet return file content.
 
-A project can send acknowledgements (Settings, Projects; requires
-`project.manage`; off by default). For each new ticket the inbound core then
+A project can send acknowledgements (Settings, Configuration; requires
+`config.write`; off by default). For each new ticket the inbound core then
 adds a system message with the ticket number in the ticket language and queues
 it through the project's outgoing connection in the same transaction. It is not
 sent to automatic mail (`Auto-Submitted` other than `no`, `Precedence`
@@ -388,8 +388,8 @@ Issuing and disabling are audited. A link resolves only while the MAC fits, the
 grant is not revoked or expired and the ticket is not in junk; every other case
 shows the same page ("This link does not work") and answers `not_found`.
 
-With the project setting "add a link to the ticket page" (Settings, project
-settings), replies and acknowledgements carry the link below the message, with
+With the project setting "add a link to the ticket page" (Settings,
+Configuration), replies and acknowledgements carry the link below the message, with
 a line in the recipient's language, in HTML and plain text. It is the same link
 in every mail about the ticket, so earlier mail keeps working. The worker
 creates the grant when there is none and renews one that ran out, because the

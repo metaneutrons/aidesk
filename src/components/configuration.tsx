@@ -211,6 +211,36 @@ export function Configuration({
             <option value="direct">{t("configPolicyDirect")}</option>
           </select>
         </label>
+        <label className="configuration-check">
+          <input
+            type="checkbox"
+            checked={draft.acknowledgements}
+            disabled={!canWrite}
+            aria-describedby={`${fieldId}-ack`}
+            onChange={(event) => {
+              set("acknowledgements", event.target.checked);
+            }}
+          />
+          {t("configAcknowledgements")}
+        </label>
+        <p id={`${fieldId}-ack`} className="muted">
+          {t("acknowledgementHint")}
+        </p>
+        <label className="configuration-check">
+          <input
+            type="checkbox"
+            checked={draft.portalLinks}
+            disabled={!canWrite}
+            aria-describedby={`${fieldId}-links`}
+            onChange={(event) => {
+              set("portalLinks", event.target.checked);
+            }}
+          />
+          {t("configPortalLinks")}
+        </label>
+        <p id={`${fieldId}-links`} className="muted">
+          {t("portalLinksHint")}
+        </p>
         <label>
           {t("configOutgoing")}
           <select
