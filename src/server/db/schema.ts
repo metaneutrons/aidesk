@@ -123,6 +123,9 @@ export const projects = pgTable("project", {
   portalDomain: text("portal_domain"),
   portalDomainVerified: boolean("portal_domain_verified").notNull().default(false),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+  // Raised by every applied configuration change; a writer names the version it
+  // read, so a change made in between is never overwritten unseen.
+  configVersion: integer("config_version").notNull().default(1),
   createdAt: created(),
   updatedAt: updated(),
 });
@@ -393,4 +396,32 @@ export const translations = pgTable(
     createdAt: created(),
   },
   (t) => [uniqueIndex("translation_revision_idx").on(t.messageId, t.sourceRevision, t.language)],
+);
+// A change to a project's configuration: applied at once, or proposed by an
+// agent and waiting for a person with config.approve. The diff is what the
+// change does to the configuration the writer read; it carries no secrets.
+export const configChanges = pgTable(
+  "config_change",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    baseVersion: integer("base_version").notNull(),
+    status: text("status").$type<"pending" | "applied" | "rejected" | "superseded">().notNull(),
+    proposedBy: text("proposed_by").notNull(),
+    proposerKind: text("proposer_kind").$type<"human" | "agent">().notNull(),
+    idempotencyKey: uuid("idempotency_key"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    diff: jsonb("diff").$type<{ pointer: string; from: unknown; to: unknown }[]>().notNull(),
+    decidedBy: text("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    reason: text("reason"),
+    appliedVersion: integer("applied_version"),
+    createdAt: created(),
+  },
+  (t) => [
+    index("config_change_project_idx").on(t.projectId, t.createdAt),
+    uniqueIndex("config_change_key_idx").on(t.projectId, t.idempotencyKey),
+  ],
 );

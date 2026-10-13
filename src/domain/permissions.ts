@@ -10,6 +10,9 @@ export const actions = [
   "intake.manage",
   "integration.manage",
   "agent.manage",
+  "config.read",
+  "config.write",
+  "config.approve",
   "github.publish",
   "audit.read",
 ] as const;
