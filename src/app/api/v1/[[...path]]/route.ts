@@ -23,6 +23,14 @@ import {
   setOperatorGrant,
   setProjectSettings,
 } from "../../../../server/operations";
+import {
+  createEmailDesign,
+  getTestMail,
+  listEmailDesigns,
+  previewEmail,
+  selectEmailDesign,
+  sendTestMail,
+} from "../../../../server/email-design";
 import { DomainError } from "../../../../server/errors";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -54,6 +62,10 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await listOperators(principal));
       if (resource === "projects" && identifier && operation === "agents" && segments.length === 3)
         return Response.json(await listAgentTokens(principal, identifier));
+      if (resource === "projects" && identifier && operation === "designs" && segments.length === 3)
+        return Response.json(await listEmailDesigns(principal, identifier));
+      if (resource === "test-mails" && identifier && segments.length === 2)
+        return Response.json(await getTestMail(principal, identifier));
       if (resource === "tickets" && identifier && segments.length === 2)
         return Response.json(await getTicket(principal, identifier));
       if (
@@ -94,6 +106,25 @@ async function dispatch(request: Request): Promise<Response> {
         segments.length === 3
       )
         return Response.json(await setProjectSettings(principal, identifier, input));
+      if (resource === "projects" && identifier && operation === "designs") {
+        const step = segments[3];
+        if (segments.length === 3)
+          return Response.json(await createEmailDesign(principal, identifier, input), {
+            status: 201,
+          });
+        if (segments.length === 4 && step === "select")
+          return Response.json(
+            await selectEmailDesign(
+              principal,
+              identifier,
+              (input as { version?: unknown }).version,
+            ),
+          );
+        if (segments.length === 4 && step === "preview")
+          return Response.json(await previewEmail(principal, identifier, input));
+        if (segments.length === 4 && step === "test")
+          return Response.json(await sendTestMail(principal, identifier, input), { status: 202 });
+      }
       if (resource === "agents" && identifier && operation === "revoke" && segments.length === 3)
         return Response.json(await revokeAgentToken(principal, identifier));
       if (resource === "tickets" && identifier && operation === "junk" && segments.length === 3)

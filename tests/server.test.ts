@@ -346,6 +346,27 @@ describe("authenticated API and MCP principal", () => {
     expect((await get(`tickets/${ticketId}/extra`)).status).toBe(404);
     expect((await get("tickets/not-a-uuid")).status).toBe(400);
     expect((await GET(new Request("http://localhost:3000/api/v1/projects"))).status).toBe(401);
+    // Mail design routes: an agent token reads and previews, never changes or sends.
+    const post = (path: string, body: object = {}) =>
+      POST(
+        new Request(`http://localhost:3000/api/v1/${path}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        }),
+      );
+    expect((await get(`projects/${projectId}/designs`)).status).toBe(200);
+    expect((await post(`projects/${projectId}/designs/preview`)).status).toBe(200);
+    expect((await post(`projects/${projectId}/designs`, {})).status).toBe(403);
+    expect((await post(`projects/${projectId}/designs/select`, { version: 0 })).status).toBe(403);
+    expect((await post(`projects/${projectId}/designs/test`)).status).toBe(403);
+    expect((await post(`projects/${projectId}/designs/unknown`)).status).toBe(404);
+    expect((await post(`projects/${projectId}/designs/preview/extra`)).status).toBe(404);
+    expect((await get(`projects/${projectId}/designs/extra`)).status).toBe(404);
+    expect((await get(`projects/${hiddenId}/designs`)).status).toBe(404);
+    expect((await post(`projects/${hiddenId}/designs/preview`)).status).toBe(404);
+    expect((await get(`test-mails/${randomUUID()}`)).status).toBe(404);
+    expect((await get("test-mails/not-a-uuid")).status).toBe(400);
     const denied = await POST(
       new Request(`http://localhost:3000/api/v1/tickets/${ticketId}/reply`, {
         method: "POST",
