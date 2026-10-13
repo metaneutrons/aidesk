@@ -10,6 +10,11 @@ async function audit(page: Page) {
     // Base UI gives its visually hidden dialog focus guards role="button" in
     // WebKit on purpose, so VoiceOver's virtual cursor stays in the focus trap.
     .exclude("[data-base-ui-focus-guard]")
+    // Previews of mail show other people's markup in a frame without scripts,
+    // which the scanner cannot enter reliably (it sometimes stalls). The mail
+    // template is scanned on its own in designs.spec.ts.
+    .exclude(".design-frame")
+    .exclude(".original-frame")
     .analyze();
   return result.violations.map((violation) => ({
     rule: violation.id,
