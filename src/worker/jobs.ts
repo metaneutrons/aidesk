@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
-import nodemailer from "nodemailer";
 import { z } from "zod";
 import { db } from "../server/db";
 import {
@@ -15,18 +14,11 @@ import {
 } from "../server/db/schema";
 import { emailTemplateVersion, renderEmail } from "../server/email";
 import { activeEmailDesign } from "../server/email-design";
-import { unseal } from "../server/crypto";
-import { env } from "../server/env";
 import { threadHeaders } from "../domain/threading";
-import { classifySmtpFailure, smtpProgress } from "../domain/delivery";
-import { smtp2goSuppressed } from "../server/smtp2go";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
-import {
-  parseCloudflareOutbound,
-  pollCloudflareConnection,
-  sendViaCloudflare,
-} from "../server/cloudflare";
+import { pollCloudflareConnection } from "../server/cloudflare";
+import { deliver } from "./transport";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -36,22 +28,11 @@ const payloadSchema = z.object({
   expectedRevision: z.number().int(),
   resolve: z.boolean(),
 });
-const smtpSchema = z.object({
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  from: z.email(),
-  replyTo: z.email(),
-  developmentOnly: z.boolean().default(false),
-  suppressionCheck: z.enum(["smtp2go"]).optional(),
-});
 // Records why a reply went to review on the message itself, so every surface
 // that shows the message can show the reason.
 function deliveryError(code: string) {
   return sql`${messages.source} || ${JSON.stringify({ deliveryError: code })}::jsonb`;
 }
-// Marks automatic mail (RFC 3834) and asks Exchange not to answer it with
-// its own automatic replies.
 // Refusals that happen before anything is handed to a transport. Their codes
 // are kept for the review; any other error stays the general code, so that
 // internal details never reach the stored reason.
@@ -64,10 +45,6 @@ const refusalCodes = new Set([
   "development_connection_not_allowed",
   "smtp_tls_required",
 ]);
-const automaticHeaders = {
-  "Auto-Submitted": "auto-replied",
-  "X-Auto-Response-Suppress": "All",
-};
 // A scope limits the run to one project, which lets tests share a database.
 export async function runNext(scope?: { projectId: string }): Promise<boolean> {
   const inScope = scope ? eq(jobs.projectId, scope.projectId) : undefined;
@@ -235,93 +212,21 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       ),
     );
     const subject = `Re: ${ticket.subject}`;
-    let outgoingId: string | null;
-    let sender: { from: string; replyTo: string };
-    if (connection.kind === "cloudflare") {
-      const { config, secret } = parseCloudflareOutbound(
-        connection.config,
-        connection.secretCiphertext,
-      );
-      code = "transport_acceptance_unknown";
-      try {
-        const sent = await sendViaCloudflare(config, secret, {
-          fromName: project.name,
-          to: ticket.requesterEmail,
-          subject,
-          ...thread,
-          ...content,
-          ticketId: ticket.id,
-          automatic,
-        });
-        outgoingId = sent.messageId;
-        sender = { from: config.from, replyTo: config.replyTo };
-      } catch (error) {
-        if (error instanceof Error && error.message === "transport_rejected") code = error.message;
-        throw error;
-      }
-    } else if (connection.kind === "smtp") {
-      const config = smtpSchema.parse(connection.config);
-      if (
-        config.developmentOnly &&
-        (process.env.NODE_ENV !== "development" || process.env.DEV_BOOTSTRAP !== "true")
-      )
-        throw new Error("development_connection_not_allowed");
-      const secret = connection.secretCiphertext
-        ? z
-            .object({ user: z.string(), pass: z.string(), apiKey: z.string().min(1).optional() })
-            .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
-        : undefined;
-      if (!config.developmentOnly && !config.secure && config.port !== 587)
-        throw new Error("smtp_tls_required");
-      if (config.suppressionCheck === "smtp2go") {
-        code = "suppression_check_failed";
-        if (!secret?.apiKey) throw new Error(code);
-        if (await smtp2goSuppressed(secret.apiKey, ticket.requesterEmail)) {
-          code = "recipient_suppressed";
-          throw new Error(code);
-        }
-        code = "dispatch_needs_review";
-      }
-      const progress = smtpProgress();
-      const transport = nodemailer.createTransport({
-        transactionLog: true,
-        logger: progress.logger,
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        requireTLS: !config.developmentOnly && !config.secure,
-        auth: secret ? { user: secret.user, pass: secret.pass } : undefined,
-        connectionTimeout: 15_000,
-        greetingTimeout: 15_000,
-        socketTimeout: 30_000,
-      });
-      code = "transport_acceptance_unknown";
-      const senderDomain = config.from.slice(config.from.lastIndexOf("@") + 1);
-      outgoingId = `<${message.id}@${senderDomain}>`;
-      const accepted = await transport
-        .sendMail({
-          from: { name: project.name, address: config.from },
-          replyTo: config.replyTo,
-          to: ticket.requesterEmail,
-          subject,
-          messageId: outgoingId,
-          ...thread,
-          headers: {
-            "X-Aidesk-Ticket": ticket.id,
-            ...(automatic ? automaticHeaders : {}),
-          },
-          ...content,
-        })
-        .catch((error: unknown) => {
-          const failure = classifySmtpFailure(error, progress.dataSent);
-          code = failure.outcome;
-          console.log(JSON.stringify({ event: "smtp.send_failed", jobId: job.id, ...failure }));
-          throw error;
-        });
-      if (!accepted.accepted.map(String).includes(ticket.requesterEmail))
-        throw new Error("recipient_not_accepted");
-      sender = { from: config.from, replyTo: config.replyTo };
-    } else throw new Error("outbound_not_ready");
+    const { outgoingId, sender } = await deliver({
+      jobId: job.id,
+      project,
+      connection,
+      localId: message.id,
+      to: ticket.requesterEmail,
+      subject,
+      thread,
+      content,
+      ticketId: ticket.id,
+      automatic,
+      report: (reported) => {
+        code = reported;
+      },
+    });
     await db().transaction(async (tx) => {
       const [owned] = await tx
         .select()
