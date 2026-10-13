@@ -1186,3 +1186,35 @@ label {
     color: var(--warning);
     font-weight: 600;
 }
+
+.original-modal {
+    width: min(900px, 94vw);
+    max-height: 90vh;
+    display: grid;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    gap: 10px;
+}
+.original-frame {
+    width: 100%;
+    height: 60vh;
+    border: 1px solid var(--line, #e3e5ee);
+    border-radius: 8px;
+    background: #fff;
+}
+.original-text {
+    margin: 0;
+    max-height: 60vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.original-tabs {
+    display: flex;
+    gap: 8px;
+}
+.message-original {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
+}
