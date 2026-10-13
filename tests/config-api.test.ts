@@ -145,3 +145,60 @@ describe("configuration over REST", () => {
     expect(response.status).toBe(403);
   });
 });
+describe("texts over REST", () => {
+  it("lists, sets, proposes and names the offending field", async () => {
+    const base = `/projects/${projectId}/texts`;
+    const listed = await call(manager, "GET", base);
+    expect(listed.status).toBe(200);
+    expect(
+      (listed.body as unknown as { key: string }[]).find(
+        (entry) => entry.key === "acknowledgement",
+      ),
+    ).toMatchObject({
+      required: ["number"],
+      languages: { de: { own: null, version: 0 } },
+    });
+    const set = await call(manager, "PUT", `${base}/acknowledgement/de`, {
+      text: "Hallo #{number}",
+      expectedVersion: 0,
+    });
+    expect(set).toMatchObject({ status: 200, body: { outcome: "applied", version: 1 } });
+    const proposed = await call(agent, "PUT", `${base}/acknowledgement/de`, {
+      text: "Agent #{number}",
+      expectedVersion: 1,
+    });
+    expect(proposed).toMatchObject({ status: 202, body: { outcome: "proposed" } });
+    expect(
+      (
+        await call(agent, "PUT", `${base}/acknowledgement/de?validate=true`, {
+          text: "Agent #{number}",
+          expectedVersion: 1,
+        })
+      ).status,
+    ).toBe(200);
+    const versions = await call(manager, "GET", `${base}/acknowledgement/de/versions`);
+    expect((versions.body as unknown as { version: number }[]).map((row) => row.version)).toEqual([
+      1,
+    ]);
+    const bad = await call(manager, "PUT", `${base}/acknowledgement/de`, {
+      text: "no number",
+      expectedVersion: 1,
+    });
+    expect(bad.status).toBe(400);
+    expect((bad.body.issues as { pointer: string }[]).map((issue) => issue.pointer)).toEqual([
+      "/text",
+    ]);
+    expect(
+      (await call(manager, "PUT", `${base}/acknowledgement/fr`, { text: "x", expectedVersion: 0 }))
+        .body.issues[0].pointer,
+    ).toBe("/language");
+    expect(
+      (
+        await call(manager, "PUT", `${base}/acknowledgement/de`, {
+          text: "Stale #{number}",
+          expectedVersion: 0,
+        })
+      ).body,
+    ).toEqual({ error: "stale_version" });
+  });
+});

@@ -286,5 +286,12 @@
   "configOutgoing": "Outgoing connection",
   "configOutgoingNone": "None",
   "configPause": "Pause outgoing mail",
-  "configOverdue": "Overdue after (hours)"
+  "configOverdue": "Overdue after (hours)",
+  "textsTitle": "Texts of {project}",
+  "textsHint": "Wording that replaces the built-in text of this project. A text you do not set keeps the built-in wording.",
+  "textsPlaceholders": "Placeholders: {list}",
+  "textSave": "Save {language} text",
+  "textReset": "Use the built-in wording ({language})",
+  "textApplied": "Saved.",
+  "textProposed": "Proposed. A person with approval rights has to activate it."
 }

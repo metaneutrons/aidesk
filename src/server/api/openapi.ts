@@ -24,7 +24,9 @@ function parameters(route: Route) {
     name: found[1],
     in: "path",
     required: true,
-    schema: { type: "string", format: "uuid" },
+    schema: String(found[1]).endsWith("Id")
+      ? { type: "string", format: "uuid" }
+      : { type: "string" },
   }));
   const query = route.query
     ? Object.entries(route.query.shape).map(([name, schema]) => {

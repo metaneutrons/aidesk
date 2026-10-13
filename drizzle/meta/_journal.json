@@ -99,6 +99,13 @@
       "when": 1791913021834,
       "tag": "0013_connection_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791915036766,
+      "tag": "0014_project_text",
+      "breakpoints": true
     }
   ]
 }

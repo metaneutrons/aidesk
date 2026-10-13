@@ -6,6 +6,7 @@ import { actions as allActions, type Action } from "../domain/permissions";
 import { Configuration } from "./configuration";
 import { Connections } from "./connections";
 import { Designs } from "./designs";
+import { Texts } from "./texts";
 import {
   operatorRoles,
   roleOf,
@@ -501,6 +502,16 @@ export function Settings({
             onChanged={() => {
               setConnectionsStamp((stamp) => stamp + 1);
             }}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("config.read"))
+        .map((grant) => (
+          <Texts
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            canWrite={grant.actions.includes("config.write")}
           />
         ))}
       <Designs

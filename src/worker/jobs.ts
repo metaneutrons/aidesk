@@ -15,6 +15,9 @@ import {
 import { emailTemplateVersion, renderEmail } from "../server/email";
 import { activeEmailDesign, designForVersion, sampleMarkdown } from "../server/email-design";
 import { portalLinkForMail, portalUrl } from "../server/portal";
+import { activeTexts } from "../server/texts";
+// The project's own wording of the link line, if it set one.
+const ownLine = (text: string | undefined) => (text === undefined ? {} : { portalLinkLine: text });
 import { threadHeaders } from "../domain/threading";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
@@ -190,6 +193,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       fallbackLanguage: project.defaultLanguage,
       ...(design ? { design: design.config } : {}),
       ...(link ? { portalUrl: link } : {}),
+      ...(link ? ownLine((await activeTexts(project.id, message.language)).portalLink) : {}),
     });
     const earlier = await db()
       .select({

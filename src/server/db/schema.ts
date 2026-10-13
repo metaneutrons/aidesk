@@ -433,3 +433,22 @@ export const configChanges = pgTable(
     uniqueIndex("config_change_key_idx").on(t.projectId, t.idempotencyKey),
   ],
 );
+// Wording that a project sets in place of the built-in text, per key and
+// language. Every change is a new version; the latest version is in use, and a
+// version without text returns to the built-in wording.
+export const projectTexts = pgTable(
+  "project_text",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    language: text("language").notNull(),
+    version: integer("version").notNull(),
+    text: text("text"),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("project_text_version_idx").on(t.projectId, t.key, t.language, t.version)],
+);

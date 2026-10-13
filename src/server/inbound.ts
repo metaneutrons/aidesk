@@ -14,6 +14,7 @@ import {
   isAutomaticMail,
 } from "../domain/acknowledgement";
 import { isMessageId } from "../domain/threading";
+import { activeTexts } from "./texts";
 import { parseDeliveryReport } from "../domain/bounce";
 import { decideLanguage, detectLanguage } from "../domain/language";
 // Inbound mail, independent of the adapter that received it. The original is
@@ -421,7 +422,11 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
             ticketId: ticket.id,
             authorType: "system",
             authorName: project.name,
-            markdown: acknowledgementText(language, ticket.number),
+            markdown: acknowledgementText(
+              language,
+              ticket.number,
+              (await activeTexts(entry.projectId, language)).acknowledgement,
+            ),
             language,
             deliveryState: "queued",
             source: { kind: "acknowledgement" },

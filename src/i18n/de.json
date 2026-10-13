@@ -286,5 +286,12 @@
   "configOutgoing": "Ausgehende Verbindung",
   "configOutgoingNone": "Keine",
   "configPause": "Ausgehende Mails pausieren",
-  "configOverdue": "Überfällig nach (Stunden)"
+  "configOverdue": "Überfällig nach (Stunden)",
+  "textsTitle": "Texte von {project}",
+  "textsHint": "Wortlaut, der den eingebauten Text dieses Projekts ersetzt. Ein Text, den du nicht setzt, behält den eingebauten Wortlaut.",
+  "textsPlaceholders": "Platzhalter: {list}",
+  "textSave": "{language}-Text speichern",
+  "textReset": "Eingebauten Wortlaut verwenden ({language})",
+  "textApplied": "Gespeichert.",
+  "textProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren."
 }

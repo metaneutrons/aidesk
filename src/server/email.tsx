@@ -35,6 +35,7 @@ export async function renderEmail({
   design = defaultDesign,
   fallbackLanguage = "en",
   portalUrl,
+  portalLinkLine,
 }: {
   project: string;
   markdown: string;
@@ -44,6 +45,8 @@ export async function renderEmail({
   fallbackLanguage?: string;
   // A link to the ticket page; shown below the message.
   portalUrl?: string;
+  // The project's own wording of the line that leads to the link.
+  portalLinkLine?: string;
 }): Promise<{ html: string; text: string }> {
   const requested = design.accent ?? color;
   const accent = /^#[0-9a-f]{6}$/i.test(requested) ? requested : "#5668e8";
@@ -126,7 +129,8 @@ export async function renderEmail({
                             lineHeight: "1.6",
                           }}
                         >
-                          {portalLinkText(language)} <a href={portalUrl}>{portalUrl}</a>
+                          {portalLinkText(language, portalLinkLine)}{" "}
+                          <a href={portalUrl}>{portalUrl}</a>
                         </td>
                       </tr>
                     )}

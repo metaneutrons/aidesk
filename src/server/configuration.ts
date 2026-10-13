@@ -13,6 +13,7 @@ import { permits, type Principal } from "../domain/permissions";
 import { defaultOverdueHours } from "../domain/response-clock";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
+import { applyTextPayload, textProposalStale } from "./texts";
 import { audit, configChanges, connections, projects } from "./db/schema";
 import { DomainError } from "./errors";
 const id = z.uuid();
@@ -318,9 +319,11 @@ export async function decideConfigChange(principal: Principal, changeId: string,
       return { value: { id: change, status: "rejected" as const, version: row.configVersion } };
     }
     if (proposal.kind !== "config") {
-      // A connection change applies to the connection version it was made on.
+      // A change applies to the version of the thing it was made on.
       let stale = false;
-      if (proposal.kind !== "connection.create") {
+      if (proposal.kind === "text.set")
+        stale = await textProposalStale(tx, row.id, proposal.payload, proposal.baseVersion);
+      else if (proposal.kind !== "connection.create") {
         const [connection] = await tx
           .select({ version: connections.version })
           .from(connections)
@@ -335,15 +338,20 @@ export async function decideConfigChange(principal: Principal, changeId: string,
           .where(eq(configChanges.id, change));
         return { error: new DomainError("stale_version", 409) };
       }
-      const applied = await applyConnectionPayload(
-        tx,
-        row.id,
-        proposal.kind,
-        proposal.target,
-        proposal.payload,
-        principal.id,
-        proposal.diff,
-      );
+      const applied =
+        proposal.kind === "text.set"
+          ? await applyTextPayload(tx, row.id, proposal.payload, principal.id, proposal.diff).then(
+              (result) => ({ connectionId: result.target, version: result.version }),
+            )
+          : await applyConnectionPayload(
+              tx,
+              row.id,
+              proposal.kind,
+              proposal.target,
+              proposal.payload,
+              principal.id,
+              proposal.diff,
+            );
       await tx
         .update(configChanges)
         .set({

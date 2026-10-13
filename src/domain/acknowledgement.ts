@@ -1,3 +1,4 @@
+import { baseLanguage, fillText, textKeys } from "./texts";
 // Automatic acknowledgements of new tickets. They must never answer other
 // automatic mail, which would start a loop between two systems, and never
 // reach mailing lists or bounce addresses.
@@ -41,17 +42,8 @@ export function isAutomaticMail(headers: ReadonlyMap<string, HeaderValue>, sende
   const local = sender.slice(0, sender.lastIndexOf("@"));
   return automaticLocalParts.test(local);
 }
-const texts: Record<string, (number: number) => string> = {
-  de: (number) =>
-    `Wir haben deine Nachricht erhalten und unter der Nummer #${String(number)} erfasst. ` +
-    "Wir antworten dir, sobald wir sie bearbeitet haben.\n\n" +
-    "Wenn du etwas ergänzen möchtest, antworte einfach auf diese E-Mail.",
-  en: (number) =>
-    `We have received your message and recorded it as #${String(number)}. ` +
-    "We will reply as soon as we have looked into it.\n\n" +
-    "If you would like to add anything, simply reply to this email.",
-};
-export function acknowledgementText(language: string, number: number): string {
-  const base = language.toLowerCase().split("-")[0] ?? "en";
-  return (texts[base] ?? texts.en ?? (() => ""))(number);
+// The text of the acknowledgement for a customer's language; a project's own
+// wording replaces the built-in one.
+export function acknowledgementText(language: string, number: number, own?: string): string {
+  return fillText(own ?? textKeys.acknowledgement.defaults[baseLanguage(language)], { number });
 }

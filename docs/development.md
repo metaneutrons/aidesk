@@ -586,6 +586,32 @@ accepts only an outgoing connection of the project that is not disabled.
 The settings page lists the connections with their status and offers test and
 disable; it has no form for credentials.
 
+## Texts
+
+A project can set its own wording for a fixed set of texts, in English and in German:
+the acknowledgement mail (`acknowledgement`, with `{number}`), the line before the
+ticket link in a mail (`portalLink`) and the texts of the customer page
+(`portal.request` with `{number}`, `portal.conversation`, `portal.you`,
+`portal.reply`, `portal.send`, `portal.closed`, `portal.limited`, `portal.failed`).
+The built-in wording stays in use wherever a project sets none, and for any other
+language the English text applies, as before. The texts of an expired or unknown
+link have no project and keep the built-in wording.
+
+- `GET /api/v1/projects/{id}/texts` lists every text with its built-in wording, the
+  project's own wording, the placeholders and the `version` to name when changing it
+  (0 when the project never set it).
+- `PUT /api/v1/projects/{id}/texts/{key}/{language}` sets the wording, or returns it
+  to the built-in one with `{"text": null}`. It needs `config.write`, names the
+  version that was read, accepts `?validate=true` and an `idempotencyKey`, and follows
+  the approval policy: a person applies, an agent under `review` proposes.
+- `GET .../texts/{key}/{language}/versions` lists the versions, newest first. Every
+  change, including a return to the built-in wording, is a new version.
+
+A text may contain the placeholders of its key and no other braces; a required
+placeholder must be present, an apostrophe may not touch a brace (the customer page
+reads ICU messages), and the text is at most 2000 characters. The rules are checked
+on write, and an error names the field (`/text`).
+
 ## Overview and list size
 
 The overview counts in the database over every ticket of the authorized
