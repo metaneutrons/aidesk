@@ -32,6 +32,7 @@ import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
 import { Settings } from "./settings";
 import { Junk } from "./junk";
+import { Tags } from "./tags";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -44,6 +45,7 @@ const ticketSchema = z.object({
   revision: z.number(),
   pendingSince: z.string().nullable(),
   remindAt: z.string().nullable(),
+  tags: z.array(z.string()),
   junkAt: z.string().nullable(),
   assigneeUserId: z.string().nullable(),
   assigneeAgentId: z.string().nullable(),
@@ -171,6 +173,7 @@ export function Desk({
   const [filters, setFilters] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   // The server's answer for a text of two or more characters; it covers all
   // tickets of the authorized projects, not only the loaded list.
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -294,6 +297,7 @@ export function Desk({
   const scoped = initialTickets.filter(
     (ticket) =>
       (!filters.length || filters.includes(ticket.projectId)) &&
+      (tagFilter === null || ticket.tags.includes(tagFilter)) &&
       (searching ||
         `${ticket.subject} ${ticket.requesterName} ${ticket.requesterEmail}`
           .toLowerCase()
@@ -311,6 +315,18 @@ export function Desk({
     const entry = initialTickets.find((candidate) => candidate.id === ticket.id);
     return entry ? entry.remindAt : ticket.remindAt;
   };
+  const tagsOf = (ticket: { id: string; tags: string[] }) =>
+    initialTickets.find((candidate) => candidate.id === ticket.id)?.tags ?? ticket.tags;
+  // Tags of the tickets in the chosen projects, most used first, for the filter.
+  const tagCounts = [
+    ...initialTickets
+      .filter((ticket) => !filters.length || filters.includes(ticket.projectId))
+      .flatMap((ticket) => ticket.tags)
+      .reduce(
+        (counts, tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1),
+        new Map<string, number>(),
+      ),
+  ].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const reminderDue = (ticket: Ticket) =>
     ticket.remindAt !== null && new Date(ticket.remindAt).getTime() <= now;
   const visible = scoped
@@ -706,6 +722,33 @@ export function Desk({
                     }}
                   />
                 </label>
+                {tagCounts.length > 0 && (
+                  <div className="tag-filter" role="group" aria-label={t("tagFilter")}>
+                    <button
+                      type="button"
+                      className={`tag-chip ${tagFilter === null ? "active" : ""}`}
+                      aria-pressed={tagFilter === null}
+                      onClick={() => {
+                        setTagFilter(null);
+                      }}
+                    >
+                      {t("tagFilterClear")}
+                    </button>
+                    {tagCounts.slice(0, 20).map(([tag, count]) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={`tag-chip ${tagFilter === tag ? "active" : ""}`}
+                        aria-pressed={tagFilter === tag}
+                        onClick={() => {
+                          setTagFilter(tagFilter === tag ? null : tag);
+                        }}
+                      >
+                        {tag} <span className="muted">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {searching && hits !== null ? (
                   <>
                     <div className="list-heading" role="status">
@@ -769,6 +812,15 @@ export function Desk({
                             })}
                           </span>
                         )}
+                        {ticket.tags.length > 0 && (
+                          <span className="ticket-row-tags">
+                            {ticket.tags.map((tag) => (
+                              <span key={tag} className="tag-chip">
+                                {tag}
+                              </span>
+                            ))}
+                          </span>
+                        )}
                         <span className="ticket-row-meta">
                           <i style={{ background: projectById.get(ticket.projectId)?.color }} />
                           {projectById.get(ticket.projectId)?.name}
@@ -825,6 +877,20 @@ export function Desk({
                         )}
                       {conversation.actions.includes("ticket.note") &&
                         !conversation.ticket.junkAt && (
+                          <Tags
+                            key={conversation.ticket.id}
+                            ticketId={conversation.ticket.id}
+                            projectId={conversation.ticket.projectId}
+                            tags={tagsOf(conversation.ticket)}
+                            onChanged={() => {
+                              transition(() => {
+                                router.refresh();
+                              });
+                            }}
+                          />
+                        )}
+                      {conversation.actions.includes("ticket.note") &&
+                        !conversation.ticket.junkAt && (
                           <Reminder
                             key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
                             ticketId={conversation.ticket.id}
@@ -851,7 +917,13 @@ export function Desk({
                           </button>
                         )}
                     </header>
-                    <div className="message-list" ref={messageList}>
+                    <div
+                      className="message-list"
+                      ref={messageList}
+                      role="region"
+                      aria-label={t("messages")}
+                      tabIndex={0}
+                    >
                       {conversation.messages.map((message) => (
                         <article
                           key={message.id}

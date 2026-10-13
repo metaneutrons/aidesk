@@ -1306,3 +1306,64 @@ label {
     gap: 8px;
     align-items: center;
 }
+
+.tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.tags form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.tag-list,
+.tag-filter,
+.ticket-row-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tag-filter {
+    padding: 8px 0;
+}
+
+.tag-chip {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    line-height: 18px;
+}
+
+button.tag-chip {
+    cursor: pointer;
+}
+
+.tag-chip.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 600;
+}
+
+.tag-chip li button,
+li.tag-chip button {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}

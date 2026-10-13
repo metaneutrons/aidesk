@@ -153,6 +153,22 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "tickets.tags": {
+    operation: "setTicketTags",
+    action: "ticket.note",
+    ui: "src/components/tags.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "tags.list": {
+    operation: "listTags",
+    action: "ticket.read",
+    ui: "src/components/tags.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "projects.create": {
     operation: "createProject",
     action: "workspace.project.create",

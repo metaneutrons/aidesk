@@ -481,6 +481,22 @@ the failure code to the person who asked. Rendering in Gmail, Apple Mail and
 Outlook has still to be looked at in those programs; the test mail is the
 means, the browser preview does not replace it.
 
+## Tags
+
+Tags are the team's own labels on a ticket, for finding it again. They are not
+shown to the requester. A tag is normalized before it is stored (Unicode NFKC,
+lowercase, spaces become hyphens) and must then match letters or digits first,
+then letters, digits, hyphen or underscore, 30 characters at most. A ticket
+carries at most ten. Saving replaces the list as a whole, needs `ticket.note`,
+is written to the audit trail as `ticket.tags` and leaves the revision alone,
+so a reply that is being written is not affected.
+
+`GET /api/v1/tags` lists the tags in use in the authorized projects, most used
+first, junk excluded. Search also matches tags. The desk shows the tags on each
+row, offers the ones in use as a filter over the list and suggests them when a
+tag is added. MCP does not offer tags yet; the ledger in
+[capabilities.md](capabilities.md) records the difference.
+
 ## Reminders
 
 A reminder is a time at which the team wants to see a ticket again

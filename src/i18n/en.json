@@ -233,5 +233,14 @@
   "reminderClear": "Clear reminder",
   "reminderDone": "Done",
   "reminderSetShort": "Reminder {date}",
-  "reminderDueShort": "Reminder due {date}"
+  "reminderDueShort": "Reminder due {date}",
+  "tags": "Tags",
+  "tagAdd": "Add tag",
+  "tagAddButton": "Add",
+  "tagRemove": "Remove tag {tag}",
+  "tagLimit": "At most {count} tags per ticket.",
+  "tagInvalid": "Letters, digits, hyphen and underscore, up to 30 characters.",
+  "tagFilter": "Filter by tag",
+  "tagFilterClear": "All tags",
+  "messages": "Messages"
 }

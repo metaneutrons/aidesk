@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
@@ -133,6 +134,8 @@ export async function searchTickets(principal: Principal, text: unknown, request
         sql`(${tickets.subject} ilike ${pattern} escape '\\'
           or ${tickets.requesterName} ilike ${pattern} escape '\\'
           or ${tickets.requesterEmail} ilike ${pattern} escape '\\'
+          or exists (select 1 from jsonb_array_elements_text(${tickets.tags}) as tag
+            where tag ilike ${pattern} escape '\\')
           or exists (select 1 from ${messages} where ${messages.ticketId} = ${tickets.id}
             and ${messages.markdown} ilike ${pattern} escape '\\'))`,
       ),
@@ -187,6 +190,52 @@ export async function setReminder(principal: Principal, ticketId: string, input:
     });
     return { remindAt: at };
   });
+}
+// Tags are short labels that a team puts on tickets to find them again. They
+// are private to the team, free text in a normalized form (lowercase, letters,
+// digits, hyphen and underscore, 1 to 30 characters), at most ten per ticket,
+// and replace the earlier list as a whole. Like reminders they do not change
+// the conversation, so the revision that protects replies stays as it is.
+export { maxTags, normalizeTag };
+const tagsInput = z
+  .object({
+    tags: z
+      .array(z.string().max(60))
+      .max(maxTags * 2)
+      .transform((values) => [...new Set(values.map(normalizeTag))].sort()),
+  })
+  .strict()
+  .refine(({ tags }) => tags.length <= maxTags && tags.every((tag) => tagPattern.test(tag)));
+export async function setTicketTags(principal: Principal, ticketId: string, input: unknown) {
+  const { tags } = tagsInput.parse(input);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.note")) throw new DomainError("forbidden", 403);
+  if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
+  return db().transaction(async (tx) => {
+    await tx.update(tickets).set({ tags }).where(eq(tickets.id, ticket.id));
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: "ticket.tags",
+      targetId: ticket.id,
+      detail: { tags },
+    });
+    return { tags };
+  });
+}
+// The tags in use in the authorized projects, most used first, for filters and
+// suggestions. Junk is not counted, and nothing of an unauthorized project is.
+export async function listTags(principal: Principal, requested: string[] = []) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
+  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  if (filtered.length === 0) return [];
+  const rows = await db().execute<{ tag: string; count: number }>(sql`
+    select tag, count(*)::int as count
+    from ${tickets}, jsonb_array_elements_text(${tickets.tags}) as tag
+    where ${inArray(tickets.projectId, filtered)} and ${tickets.junkAt} is null
+    group by tag order by count desc, tag asc limit 100`);
+  return rows.map((row) => ({ tag: row.tag, count: row.count }));
 }
 export async function getTicket(principal: Principal, ticketId: string) {
   const allowed = allowedProjectIds(principal, "ticket.read");

@@ -233,5 +233,14 @@
   "reminderClear": "Erinnerung entfernen",
   "reminderDone": "Erledigt",
   "reminderSetShort": "Erinnerung {date}",
-  "reminderDueShort": "Erinnerung fällig {date}"
+  "reminderDueShort": "Erinnerung fällig {date}",
+  "tags": "Tags",
+  "tagAdd": "Tag hinzufügen",
+  "tagAddButton": "Hinzufügen",
+  "tagRemove": "Tag {tag} entfernen",
+  "tagLimit": "Höchstens {count} Tags pro Ticket.",
+  "tagInvalid": "Buchstaben, Ziffern, Bindestrich und Unterstrich, bis zu 30 Zeichen.",
+  "tagFilter": "Nach Tag filtern",
+  "tagFilterClear": "Alle Tags",
+  "messages": "Nachrichten"
 }
