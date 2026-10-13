@@ -15,12 +15,17 @@ import {
   user,
 } from "../src/server/db/schema";
 import { initializeStorage } from "../src/server/storage";
-import { createEmailDesign, selectEmailDesign } from "../src/server/email-design";
+import {
+  createEmailDesign,
+  getTestMail,
+  selectEmailDesign,
+  sendTestMail,
+} from "../src/server/email-design";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
 import { getSentSnapshot, getTicket } from "../src/server/operations";
 import { emailTemplateVersion } from "../src/server/email";
-import { runNext } from "../src/worker/jobs";
+import { runNext, runTestSend } from "../src/worker/jobs";
 import type { Principal } from "../src/domain/permissions";
 import { startFakeSmtp, type FakeSmtp } from "./support/smtp";
 let smtp: FakeSmtp;
@@ -734,5 +739,255 @@ describe("snapshot of the sent mail", () => {
     });
     expect((await sent.message())?.deliveryState).toBe("sent");
     expect((await failed.message())?.source).not.toHaveProperty("sent");
+  });
+});
+describe("test send of a design", () => {
+  const alpha = { accent: "#aa3355", headerText: "Alpha Support" };
+  const beta = { accent: "#118833", headerText: "Beta Care" };
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  // A project with a selected design and a person who manages it.
+  async function managed(options: Options = {}) {
+    const entry = await scenario({ design: alpha, ...options });
+    await db()
+      .update(memberships)
+      .set({ actions: ["ticket.reply", "project.read", "project.manage"] })
+      .where(eq(memberships.userId, entry.operatorId));
+    const manager: Principal = {
+      id: entry.operatorId,
+      kind: "human",
+      active: true,
+      owner: false,
+      grants: [{ projectId: entry.projectId, actions: ["project.read", "project.manage"] }],
+    };
+    return { entry, manager, address: `${entry.operatorId}@example.test` };
+  }
+  const html = async () => {
+    const parsed = await simpleParser(Buffer.from(smtp.messages.at(-1) ?? ""));
+    return { parsed, html: typeof parsed.html === "string" ? parsed.html : "" };
+  };
+  it("sends the selected design to the person who asked and creates no ticket", async () => {
+    const { entry, manager, address } = await managed();
+    const before = await db().select().from(messages).where(eq(messages.ticketId, entry.ticketId));
+    const { id } = await sendTestMail(manager, entry.projectId, {});
+    expect(await getTestMail(manager, id)).toMatchObject({ status: "queued", code: null });
+    expect(await runTestSend({ projectId: entry.projectId })).toBe(true);
+    const sent = await html();
+    expect(sent.parsed.to).toMatchObject({ value: [{ address: address }] });
+    expect(sent.parsed.subject).toBe("[Test] Worker, design version 1");
+    expect(sent.html).toContain("#aa3355");
+    expect(sent.html).toContain("test message to check the design");
+    expect(await getTestMail(manager, id)).toMatchObject({ status: "succeeded", code: null });
+    // Nothing of the project's tickets changed, and the reply job is untouched.
+    expect(
+      await db().select().from(messages).where(eq(messages.ticketId, entry.ticketId)),
+    ).toHaveLength(before.length);
+    expect((await entry.job())?.status).toBe("queued");
+    expect(
+      await db()
+        .select()
+        .from(audit)
+        .where(and(eq(audit.projectId, entry.projectId), eq(audit.action, "design.test_send"))),
+    ).toHaveLength(1);
+    // A finished test is not sent again.
+    expect(await runTestSend({ projectId: entry.projectId })).toBe(false);
+  });
+  it("uses a chosen version and language", async () => {
+    const { entry, manager } = await managed();
+    await createEmailDesign(manager, entry.projectId, beta);
+    await sendTestMail(manager, entry.projectId, { version: 2, language: "de" });
+    await runTestSend({ projectId: entry.projectId });
+    const second = await html();
+    expect(second.html).toContain("#118833");
+    expect(second.parsed.subject).toBe("[Test] Worker, design version 2");
+    expect(second.html).toContain("Testnachricht");
+    await sendTestMail(manager, entry.projectId, { version: 0 });
+    await runTestSend({ projectId: entry.projectId });
+    const builtIn = await html();
+    expect(builtIn.html).not.toContain("#aa3355");
+    expect(builtIn.parsed.subject).toBe("[Test] Worker, design version 0");
+    await expect(sendTestMail(manager, entry.projectId, { version: 99 })).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+  it("goes through the Cloudflare API like a reply", async () => {
+    const { entry, manager, address } = await managed({ transport: "cloudflare" });
+    const fetch = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          success: true,
+          errors: [],
+          messages: [],
+          result: {
+            delivered: [address],
+            queued: [],
+            permanent_bounces: [],
+            message_id: "<t@example.test>",
+          },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await sendTestMail(manager, entry.projectId, {});
+    await runTestSend({ projectId: entry.projectId });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { to: string; subject: string; html: string };
+    expect(body).toMatchObject({ to: address, subject: "[Test] Worker, design version 1" });
+    expect(body.html).toContain("#aa3355");
+  });
+  it("cannot be addressed elsewhere and is limited to people who manage the project", async () => {
+    const { entry, manager } = await managed();
+    await expect(
+      sendTestMail(manager, entry.projectId, { to: "someone@example.test" }),
+    ).rejects.toThrow();
+    await expect(sendTestMail(manager, entry.projectId, { version: -1 })).rejects.toThrow();
+    const reader: Principal = {
+      ...manager,
+      grants: [{ projectId: entry.projectId, actions: ["project.read"] }],
+    };
+    await expect(sendTestMail(reader, entry.projectId, {})).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(
+      sendTestMail({ ...manager, kind: "agent" }, entry.projectId, {}),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      sendTestMail({ ...manager, grants: [] }, entry.projectId, {}),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await db().update(user).set({ active: false }).where(eq(user.id, manager.id));
+    await expect(sendTestMail(manager, entry.projectId, {})).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    expect(smtp.messages).toHaveLength(0);
+  });
+  it("needs an outgoing connection that is not paused", async () => {
+    const { entry, manager } = await managed();
+    await db()
+      .update(projects)
+      .set({ settings: { outboundConnectionId: entry.connectionId, pauseOutgoing: true } })
+      .where(eq(projects.id, entry.projectId));
+    await expect(sendTestMail(manager, entry.projectId, {})).rejects.toMatchObject({
+      code: "conflict",
+    });
+    await db().update(projects).set({ settings: {} }).where(eq(projects.id, entry.projectId));
+    await expect(sendTestMail(manager, entry.projectId, {})).rejects.toMatchObject({
+      code: "conflict",
+    });
+  });
+  it("allows ten per hour and shows the result only to the person who asked", async () => {
+    const { entry, manager } = await managed();
+    const ids: string[] = [];
+    for (let index = 0; index < 10; index += 1)
+      ids.push((await sendTestMail(manager, entry.projectId, {})).id);
+    await expect(sendTestMail(manager, entry.projectId, {})).rejects.toMatchObject({
+      code: "rate_limited",
+      status: 429,
+    });
+    // Another person is counted separately, and cannot see someone else's test.
+    const other = await managed();
+    const second = await sendTestMail(other.manager, other.entry.projectId, {});
+    await expect(getTestMail(manager, second.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getTestMail(other.manager, ids[0] ?? "")).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(getTestMail({ ...manager, grants: [] }, ids[0] ?? "")).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(getTestMail(manager, randomUUID())).rejects.toMatchObject({ code: "not_found" });
+    await expect(getTestMail(manager, entry.messageId)).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+  it("sends nothing when the situation changed before the worker ran", async () => {
+    const cases: [string, string, (e: Awaited<ReturnType<typeof managed>>) => Promise<void>][] = [
+      [
+        "the manage permission was withdrawn",
+        "dispatch_grant_revoked",
+        async (m) => {
+          await db()
+            .update(memberships)
+            .set({ actions: ["project.read"] })
+            .where(eq(memberships.userId, m.entry.operatorId));
+        },
+      ],
+      [
+        "the person was disabled",
+        "dispatch_grant_revoked",
+        async (m) => {
+          await db().update(user).set({ active: false }).where(eq(user.id, m.entry.operatorId));
+        },
+      ],
+      [
+        "outgoing mail was paused",
+        "stale_or_paused_dispatch",
+        async (m) => {
+          await db()
+            .update(projects)
+            .set({ settings: { outboundConnectionId: m.entry.connectionId, pauseOutgoing: true } })
+            .where(eq(projects.id, m.entry.projectId));
+        },
+      ],
+      [
+        "the connection was replaced",
+        "stale_or_paused_dispatch",
+        async (m) => {
+          await db()
+            .update(projects)
+            .set({ settings: { outboundConnectionId: randomUUID() } })
+            .where(eq(projects.id, m.entry.projectId));
+        },
+      ],
+      [
+        "the connection is not ready",
+        "outbound_not_ready",
+        async (m) => {
+          await db()
+            .update(connections)
+            .set({ status: "degraded" })
+            .where(eq(connections.id, m.entry.connectionId));
+        },
+      ],
+    ];
+    for (const [name, code, change] of cases) {
+      const m = await managed();
+      const { id } = await sendTestMail(m.manager, m.entry.projectId, {});
+      await change(m);
+      expect(await runTestSend({ projectId: m.entry.projectId }), name).toBe(true);
+      expect(await getTestMail(m.manager, id), name).toMatchObject({ status: "review", code });
+      expect(smtp.messages, name).toHaveLength(0);
+    }
+  });
+  it("reports a refusal of the transport and does not retry or replay", async () => {
+    const { entry, manager } = await managed();
+    smtp.behaviour.rcpt = "550 5.1.1 User unknown";
+    const { id } = await sendTestMail(manager, entry.projectId, {});
+    await runTestSend({ projectId: entry.projectId });
+    expect(await getTestMail(manager, id)).toMatchObject({
+      status: "review",
+      code: "transport_rejected",
+    });
+    expect(await runTestSend({ projectId: entry.projectId })).toBe(false);
+    // A dispatch whose lease ran out is not sent: it may already have left.
+    const second = await sendTestMail(manager, entry.projectId, {});
+    await db()
+      .update(jobs)
+      .set({ status: "running", leaseToken: randomUUID(), leaseUntil: new Date(Date.now() - 1000) })
+      .where(eq(jobs.id, second.id));
+    expect(await runTestSend({ projectId: entry.projectId })).toBe(false);
+    expect(await getTestMail(manager, second.id)).toMatchObject({
+      status: "review",
+      code: "expired_dispatch_lease",
+    });
+    expect(smtp.connections).toBe(1);
+  });
+  it("does not write a result for a job whose lease was taken over", async () => {
+    const { entry, manager } = await managed();
+    const { id } = await sendTestMail(manager, entry.projectId, {});
+    smtp.behaviour.onData = async () => {
+      await db().update(jobs).set({ leaseToken: randomUUID() }).where(eq(jobs.id, id));
+    };
+    await runTestSend({ projectId: entry.projectId });
+    expect(await getTestMail(manager, id)).toMatchObject({ status: "running" });
   });
 });

@@ -13,7 +13,7 @@ import {
   user,
 } from "../server/db/schema";
 import { emailTemplateVersion, renderEmail } from "../server/email";
-import { activeEmailDesign } from "../server/email-design";
+import { activeEmailDesign, designForVersion, sampleMarkdown } from "../server/email-design";
 import { threadHeaders } from "../domain/threading";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
@@ -301,6 +301,139 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
           .where(eq(messages.id, failed.payload.messageId));
     });
     console.log(JSON.stringify({ event: "mail.review", jobId: job.id, code }));
+  }
+  return true;
+}
+const testPayload = z.object({
+  userId: z.string(),
+  to: z.email(),
+  connectionId: z.uuid(),
+  language: z.enum(["en", "de"]),
+  version: z.number().int().min(0).optional(),
+});
+// Test mails of a design (see sendTestMail). They use the same transport path
+// as replies but belong to no ticket and message. An expired dispatch may have
+// reached the transport and is not replayed.
+export async function runTestSend(scope?: { projectId: string }): Promise<boolean> {
+  const inScope = scope ? eq(jobs.projectId, scope.projectId) : undefined;
+  await db()
+    .update(jobs)
+    .set({
+      status: "review",
+      lastErrorCode: "expired_dispatch_lease",
+      leaseUntil: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(jobs.status, "running"),
+        eq(jobs.type, "mail.test"),
+        sql`${jobs.leaseUntil} < now()`,
+        inScope,
+      ),
+    );
+  const leaseToken = randomUUID();
+  const job = await db().transaction(async (tx) => {
+    const [due] = await tx
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.status, "queued"),
+          eq(jobs.type, "mail.test"),
+          sql`${jobs.runAfter} <= now()`,
+          inScope,
+        ),
+      )
+      .orderBy(jobs.runAfter)
+      .limit(1)
+      .for("update", { skipLocked: true });
+    if (!due) return null;
+    const [claimed] = await tx
+      .update(jobs)
+      .set({
+        status: "running",
+        leaseToken,
+        leaseUntil: new Date(Date.now() + 120_000),
+        attempts: due.attempts + 1,
+      })
+      .where(eq(jobs.id, due.id))
+      .returning();
+    return claimed ?? null;
+  });
+  if (!job) return false;
+  let code = "dispatch_needs_review";
+  try {
+    const payload = testPayload.parse(job.payload);
+    const [project] = await db().select().from(projects).where(eq(projects.id, job.projectId));
+    const [connection] = await db()
+      .select()
+      .from(connections)
+      .where(
+        and(
+          eq(connections.id, payload.connectionId),
+          eq(connections.projectId, job.projectId),
+          eq(connections.direction, "outbound"),
+        ),
+      );
+    if (
+      !project ||
+      !connection ||
+      project.settings.pauseOutgoing === true ||
+      project.settings.outboundConnectionId !== connection.id
+    )
+      throw new Error("stale_or_paused_dispatch");
+    const [operator] = await db().select().from(user).where(eq(user.id, payload.userId));
+    const [grant] = await db()
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, payload.userId), eq(memberships.projectId, job.projectId)));
+    if (!operator?.active || !grant?.actions.includes("project.manage"))
+      throw new Error("dispatch_grant_revoked");
+    if (connection.status !== "ready") throw new Error("outbound_not_ready");
+    const chosen = await designForVersion(project.id, project.settings, payload.version);
+    const content = await renderEmail({
+      project: project.name,
+      markdown: sampleMarkdown(payload.language),
+      language: payload.language,
+      color: project.color,
+      fallbackLanguage: project.defaultLanguage,
+      ...(chosen.config ? { design: chosen.config } : {}),
+    });
+    await deliver({
+      jobId: job.id,
+      project,
+      connection,
+      localId: job.id,
+      to: payload.to,
+      subject: `[Test] ${project.name}, design version ${String(chosen.version)}`,
+      thread: {},
+      content,
+      ticketId: job.id,
+      automatic: false,
+      report: (reported) => {
+        code = reported;
+      },
+    });
+    const done = await db()
+      .update(jobs)
+      .set({ status: "succeeded", leaseUntil: null, updatedAt: new Date() })
+      .where(and(eq(jobs.id, job.id), eq(jobs.leaseToken, leaseToken), eq(jobs.status, "running")))
+      .returning({ id: jobs.id });
+    if (!done.length) throw new Error("dispatch_lease_lost");
+    console.log(JSON.stringify({ event: "mail.test_accepted", jobId: job.id }));
+  } catch (error) {
+    if (
+      code === "dispatch_needs_review" &&
+      error instanceof Error &&
+      refusalCodes.has(error.message)
+    )
+      code = error.message;
+    await db()
+      .update(jobs)
+      .set({ status: "review", lastErrorCode: code, leaseUntil: null, updatedAt: new Date() })
+      .where(and(eq(jobs.id, job.id), eq(jobs.leaseToken, leaseToken), eq(jobs.status, "running")));
+    console.log(JSON.stringify({ event: "mail.test_review", jobId: job.id, code }));
   }
   return true;
 }
