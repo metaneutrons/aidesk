@@ -440,7 +440,7 @@ views do not include translations.
 ## Email designs
 
 Each project can have versioned designs for its outgoing mail
-(`src/server/email-design.ts`; the settings pages follow with M3). A design holds
+(`src/server/email-design.ts`). A design holds
 accent color, font family (sans, serif or mono), header text, an optional logo,
 a footer and a signature per language (English, German). It holds no raw HTML:
 texts are escaped, a signature is Markdown that goes through the same
@@ -460,6 +460,14 @@ the built-in design), so a later selection does not change what is recorded.
 default, a saved version, or, for managers, an unsaved draft. The HTML carries a
 dark variant for programs that follow the system appearance and scales to the
 screen width.
+
+Project managers work with designs in Settings, section "Mail design": the
+saved versions with the one in use, a preview (saved version or unsaved draft, in
+English or German, with the plain text), a form that starts from any version and
+saves a new one, "Use" to select a version and "Send test mail". The REST
+routes under `/api/v1/projects/:id/designs` and `/api/v1/test-mails/:id` back
+it; there is no MCP tool, because an agent should not change how all outgoing
+mail looks.
 
 `sendTestMail` sends a test mail of a design (the selected version, a chosen
 version or the built-in design, in English or German) to the address of the

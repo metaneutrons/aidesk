@@ -26,7 +26,7 @@ function mailHtml(markdown: string): string {
 // Programs that follow the system appearance get a dark variant; others show
 // the inline light colors. Rules need !important to win over inline styles.
 const darkMode =
-  "@media (prefers-color-scheme: dark){.bg{background-color:#14151c!important}.card{background-color:#1d1f2a!important;border-color:#2e3142!important}.txt{color:#e6e8f2!important}.foot{color:#9aa0b8!important;border-color:#2e3142!important}.mail-pre{background-color:#14151c!important;border-color:#2e3142!important}.mail-code{background-color:#14151c!important}a{color:#9aa8ff!important}}";
+  "@media (prefers-color-scheme: dark){.bg{background-color:#14151c!important}.card{background-color:#1d1f2a!important;border-color:#2e3142!important;color:#e6e8f2!important}.txt{color:#e6e8f2!important}.foot{color:#9aa0b8!important;border-color:#2e3142!important}.mail-pre{background-color:#14151c!important;border-color:#2e3142!important}.mail-code{background-color:#14151c!important}a{color:#9aa8ff!important}}";
 export async function renderEmail({
   project,
   markdown,

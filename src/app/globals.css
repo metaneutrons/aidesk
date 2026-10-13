@@ -1258,3 +1258,35 @@ label {
 .portal-reply textarea {
     width: 100%;
 }
+.designs {
+    margin-top: 32px;
+    display: grid;
+    gap: 12px;
+}
+.design-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+.design-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
+}
+.design-list li strong {
+    min-width: 140px;
+}
+.design-frame {
+    width: 100%;
+    min-height: 420px;
+    border: 1px solid var(--line, #e3e5ee);
+    border-radius: 8px;
+    background: #fff;
+}
+.design-language {
+    display: grid;
+    gap: 6px;
+}

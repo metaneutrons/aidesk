@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
+import { Designs } from "./designs";
 import {
   operatorRoles,
   roleOf,
@@ -474,6 +475,10 @@ export function Settings({
           )}
         </>
       )}
+      <Designs
+        projects={projects.filter((project) => held(project.id).includes("project.manage"))}
+        locale={locale}
+      />
     </section>
   );
 }

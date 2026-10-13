@@ -23,7 +23,9 @@ describe("capability source registry", () => {
         if (
           !ts.isImportDeclaration(statement) ||
           !ts.isStringLiteral(statement.moduleSpecifier) ||
-          !statement.moduleSpecifier.text.endsWith("/operations")
+          !["/operations", "/email-design"].some((module) =>
+            (statement.moduleSpecifier as ts.StringLiteral).text.endsWith(module),
+          )
         )
           continue;
         const bindings = statement.importClause?.namedBindings;

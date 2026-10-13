@@ -33,11 +33,16 @@ open delivery records, not exemptions from the product plan.
 | operators.create          | Settings                   | POST /operators                            | Not offered                      | Owner only; agents never create identities                                                                                                            |
 | operators.grant           | Settings                   | POST /operators/:id/grants                 | Not offered                      | Needs project.manage on that project and never exceeds the caller's own actions                                                                       |
 | operators.active          | Settings                   | POST /operators/:id/active                 | Not offered                      | Owner only; owners and the caller cannot be disabled here                                                                                             |
+| designs.list              | Mail design settings       | GET /projects/:id/designs                  | Not offered                      | Presentation settings are managed by people; versions are listed with the selected one marked                                                         |
+| designs.create            | Mail design settings       | POST /projects/:id/designs                 | Not offered                      | A new immutable version with project.manage; an agent could otherwise change how all outgoing mail looks                                              |
+| designs.select            | Mail design settings       | POST /projects/:id/designs/select          | Not offered                      | Same boundary as designs.create; version 0 returns to the built-in design                                                                             |
+| designs.preview           | Mail design settings       | POST /projects/:id/designs/preview         | Not offered                      | Renders a sample like a real send; an unsaved draft needs project.manage                                                                              |
+| designs.test              | Mail design settings       | POST /projects/:id/designs/test            | Not offered                      | A test mail to the address of the person who asks only; ten per hour and person                                                                       |
+| designs.test_status       | Mail design settings       | GET /test-mails/:id                        | Not offered                      | Visible only to the person who asked                                                                                                                  |
 
 Server operations without a surface yet, deliberately not in the registry:
 portal grants (`src/server/portal.ts`), translation records
-(`src/server/translation.ts`), email designs (`src/server/email-design.ts`) and
-the sent snapshot (`getSentSnapshot`). They are read or changed by people with
+(`src/server/translation.ts`) and the sent snapshot (`getSentSnapshot`). They are read or changed by people with
 the rights named in `docs/development.md`, and agents are excluded from the
 ones that change state. A surface is added with the M3 operator and portal work,
 and each then gets a registry entry and a row above.
