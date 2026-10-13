@@ -462,14 +462,28 @@ linked milestone issues before acceptance.
 
 ## Remaining product work
 
+Done in code for M2 (see the sections above and the evidence in issue #3): inbound
+core with IMAP and Cloudflare, threading and reopen rules, private attachments,
+extraction, acknowledgements, junk with IMAP follow-up, late bounces, language
+decision, translation records, portal grants, email designs with versions, sent
+mail snapshots, channel review. These operations have no REST, MCP or interface
+surface yet where the tables below say so: portal grants, translation records,
+email designs and the sent snapshot are server operations that the M3 surfaces
+and the M4 translation provider use. They are not listed in
+`docs/capabilities.md` until a surface exists.
+
+Still open for M2: real IMAP/SMTP qualification with a provider mailbox (M2-A9),
+a test send for email designs and a check of the rendered mail in Gmail, Apple
+Mail and Outlook (M2-A5), and a provider webhook for bounces under SMTP2GO.
+
 Real OIDC/SAML provider qualification, provisioning/recovery/MFA, complete
-configuration UI/API/MCP, inbound mail and threading, Cloudflare and IMAP, portal
-grants, junk/extraction pipeline, original HTML preview, per-project template
-editing, translation jobs, named AI assignment/runners, knowledge/GitHub,
-escalations, pagination/complete dashboard aggregates and operational health are
-still milestone work. The present list loads at most 250 conversations; it does
-not qualify the planned production scale. Messenger adapters are reserved in
-the plan and are not presented as working connections.
+configuration UI/API/MCP, original HTML preview, per-project template editing
+in the interface, translation jobs with a real provider, named AI
+assignment/runners, knowledge/GitHub, escalations, pagination/complete dashboard
+aggregates and operational health are still milestone work. The present list
+loads at most 250 conversations; it does not qualify the planned production
+scale. Messenger adapters are reserved in the plan and in
+`src/domain/channels.ts` and are not presented as working connections.
 
 Vercel HTTPS, a hardened production Docker target, real remote MCP, browser and
 usability/accessibility runs, repository-settings audit, backup/restore,

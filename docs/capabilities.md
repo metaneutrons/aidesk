@@ -29,6 +29,14 @@ open delivery records, not exemptions from the product plan.
 | operators.grant   | Settings                   | POST /operators/:id/grants                 | Not offered                      | Needs project.manage on that project and never exceeds the caller's own actions                                                                       |
 | operators.active  | Settings                   | POST /operators/:id/active                 | Not offered                      | Owner only; owners and the caller cannot be disabled here                                                                                             |
 
+Server operations without a surface yet, deliberately not in the registry:
+portal grants (`src/server/portal.ts`), translation records
+(`src/server/translation.ts`), email designs (`src/server/email-design.ts`) and
+the sent snapshot (`getSentSnapshot`). They are read or changed by people with
+the rights named in `docs/development.md`, and agents are excluded from the
+ones that change state. A surface is added with the M3 operator and portal work,
+and each then gets a registry entry and a row above.
+
 SSO protocol endpoints belong to Better Auth. The application restricts provider
 management to active human owners. Per-project discovery still requires explicit
 membership, including for owners. Theme, client search and local draft retention
