@@ -100,6 +100,8 @@ describe("rendering with a design", () => {
     });
   it("applies accent, font, header, logo, footer and signature", async () => {
     const mail = await render(branded);
+    // A document title, for viewing the mail in a browser and for screen readers.
+    expect(mail.html).toContain("<title>Acme Support</title>");
     expect(mail.html).toContain("#aa3355");
     expect(mail.html).toContain("Georgia");
     expect(mail.html).toContain('src="https://assets.example.test/logo.png"');

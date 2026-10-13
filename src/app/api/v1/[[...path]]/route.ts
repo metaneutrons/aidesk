@@ -18,6 +18,7 @@ import {
   reply,
   restoreJunkMail,
   restoreTicket,
+  searchTickets,
   revokeAgentToken,
   setLocale,
   setOperatorActive,
@@ -68,6 +69,14 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await listEmailDesigns(principal, identifier));
       if (resource === "test-mails" && identifier && segments.length === 2)
         return Response.json(await getTestMail(principal, identifier));
+      if (resource === "tickets" && identifier === "search" && segments.length === 2)
+        return Response.json(
+          await searchTickets(
+            principal,
+            url.searchParams.get("q"),
+            url.searchParams.getAll("project"),
+          ),
+        );
       if (resource === "tickets" && identifier && segments.length === 2)
         return Response.json(await getTicket(principal, identifier));
       if (

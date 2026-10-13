@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
 import { expect, mailpit, test } from "./fixtures";
 // Mail design settings: draft preview, versions, selection and the test mail
@@ -72,3 +73,36 @@ test("previews a draft, saves a version, uses it and sends a test mail", async (
     await section.getByRole("button", { name: "Use: Built-in design" }).click();
   }
 });
+// The mail itself, outside the preview frame, in both appearances: the header
+// text once stayed dark on the dark card.
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`renders the mail template without detectable violations in ${colorScheme} appearance`, async ({
+    page,
+    desk,
+    signIn,
+    baseURL,
+  }) => {
+    await signIn();
+    const preview = await page.request.post(
+      `/api/v1/projects/${desk.projects.alpha.id}/designs/preview`,
+      {
+        data: {
+          config: { accent: "#aa3355", headerText: `Design ${desk.run}`, footer: { en: "Footer" } },
+        },
+        headers: { origin: baseURL ?? "" },
+      },
+    );
+    const { html } = z.object({ html: z.string() }).parse(await preview.json());
+    await page.emulateMedia({ colorScheme });
+    await page.setContent(html);
+    const scan = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(
+      scan.violations.map((violation) => ({
+        rule: violation.id,
+        targets: violation.nodes.map((node) => node.target.join(" ")),
+      })),
+    ).toEqual([]);
+  });
+}

@@ -34,11 +34,17 @@ function linkToken(participantId: string, epoch: number): string {
 function participantOf(token: string): { id: string; mac: Buffer } | null {
   const match = /^([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(token);
   if (!match) return null;
-  const raw = Buffer.from(match[1] ?? "", "base64url").toString("hex");
-  if (raw.length !== 32) return null;
+  const idBytes = Buffer.from(match[1] ?? "", "base64url");
+  const mac = Buffer.from(match[2] ?? "", "base64url");
+  // Only the encoding that was issued is accepted. The last character of both
+  // parts carries bits that the decoder ignores, so other spellings of the same
+  // bytes exist; they are refused, so one link has exactly one spelling.
+  if (idBytes.length !== 16 || idBytes.toString("base64url") !== match[1]) return null;
+  if (mac.length !== 32 || mac.toString("base64url") !== match[2]) return null;
+  const raw = idBytes.toString("hex");
   return {
     id: `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20)}`,
-    mac: Buffer.from(match[2] ?? "", "base64url"),
+    mac,
   };
 }
 async function manageable(principal: Principal, ticketId: string) {

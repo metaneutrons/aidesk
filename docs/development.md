@@ -481,6 +481,23 @@ the failure code to the person who asked. Rendering in Gmail, Apple Mail and
 Outlook has still to be looked at in those programs; the test mail is the
 means, the browser preview does not replace it.
 
+## Search
+
+The search field in the inbox asks the server once the text has two or more
+characters (`GET /api/v1/tickets/search?q=`, MCP `tickets_search`). A ticket
+matches when the text is in its subject, the requester's name or address, or any
+of its messages, including private notes of tickets the caller may read; matching
+is case-insensitive and `%`, `_` and `\` are literal. Only authorized projects
+are searched and the authorization is part of the query, so no ticket of
+another project is matched or counted; naming a project that is not authorized
+answers `not_found`. Tickets in junk are left out, results are the 50 most
+recently updated, and a hit shows a snippet of the first message that contains
+the text. The list is not limited to the 250 tickets loaded in the inbox. The
+search is a case-insensitive substring match without an index, which is
+adequate for the development scale; a trigram or full-text index is needed
+before the production scale is qualified. A single character still filters the
+loaded list.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside
