@@ -50,7 +50,8 @@ export async function startFakeSmtp(): Promise<FakeSmtp> {
           if (end < 0) return;
           message = buffer.slice(0, end);
           buffer = buffer.slice(end + 5);
-          const received = message;
+          // A line that starts with a dot arrives with a second one (RFC 5321 4.5.2).
+          const received = message.replace(/(^|\r\n)\.\./g, "$1.");
           message = null;
           state.messages.push(received);
           void (async () => {
