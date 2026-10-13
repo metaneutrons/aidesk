@@ -481,6 +481,21 @@ the failure code to the person who asked. Rendering in Gmail, Apple Mail and
 Outlook has still to be looked at in those programs; the test mail is the
 means, the browser preview does not replace it.
 
+## Reminders
+
+A reminder is a time at which the team wants to see a ticket again
+(`POST /api/v1/tickets/:id/reminder` with `{"remindAt": <ISO time or null>}`; in
+the ticket header: a date and time, "Tomorrow 9:00", "In a week, 9:00", "Clear
+reminder"). It needs `ticket.note` in the project, is private to the team and
+does not change the conversation, so the revision that protects replies and the
+draft that is being written stay as they are. A time in the past is due at once
+("Done" clears it); more than a year ahead or back is refused; tickets in junk
+take none. The overview counts the reminders that are due, the "Reminders" view
+lists every ticket with one (soonest first) and a ticket row shows it. Setting and
+clearing are audited. The time is stored as an instant; the input uses the
+browser's time zone. There is no notification when a reminder falls due: it
+shows in the overview and the list, which the operator opens anyway.
+
 ## Search
 
 The search field in the inbox asks the server once the text has two or more
