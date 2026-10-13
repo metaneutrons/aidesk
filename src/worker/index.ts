@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { sqlClient } from "../server/db";
-import { pollMailboxes, runIngest, runNext } from "./jobs";
+import { pollMailboxes, runIngest, runNext, runTestSend } from "./jobs";
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
   lifecycle.stopped = true;
@@ -14,7 +14,8 @@ while (!lifecycle.stopped) {
     await pollMailboxes();
     const ingested = await runIngest();
     const sent = await runNext();
-    if (!ingested && !sent) await delay(1000);
+    const tested = await runTestSend();
+    if (!ingested && !sent && !tested) await delay(1000);
   } catch {
     console.log(JSON.stringify({ event: "worker.database_unavailable" }));
     await delay(3000);
