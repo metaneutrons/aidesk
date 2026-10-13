@@ -4,7 +4,7 @@ import { z } from "zod";
 import { identify } from "./principal";
 import { DomainError } from "./errors";
 import { env } from "./env";
-import { getTicket, listProjects, listTickets, reply } from "./operations";
+import { getTicket, listProjects, listTickets, reply, searchTickets } from "./operations";
 import { allowedProjectIds } from "../domain/permissions";
 export async function mcpRequest(request: Request): Promise<Response> {
   try {
@@ -31,6 +31,18 @@ export async function mcpRequest(request: Request): Promise<Response> {
           inputSchema: { projectIds: z.array(z.uuid()).optional() },
         },
         async ({ projectIds }) => result(await listTickets(principal, projectIds)),
+      );
+      server.registerTool(
+        "tickets_search",
+        {
+          description:
+            "Search authorized tickets by text in the subject, the requester or any message.",
+          inputSchema: {
+            query: z.string().min(2).max(100),
+            projectIds: z.array(z.uuid()).optional(),
+          },
+        },
+        async ({ query, projectIds }) => result(await searchTickets(principal, query, projectIds)),
       );
       server.registerTool(
         "tickets_get",

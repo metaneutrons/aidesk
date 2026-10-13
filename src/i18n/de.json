@@ -218,5 +218,7 @@
   "designFooter": "Fußzeile",
   "designSignature": "Signatur",
   "designPreviewDraft": "Entwurf anzeigen",
-  "designCreate": "Als neue Version speichern"
+  "designCreate": "Als neue Version speichern",
+  "searchResults": "{count, plural, one {# Treffer} other {# Treffer}} in allen berechtigten Projekten",
+  "noSearchResults": "Kein Ticket enthält diesen Text"
 }

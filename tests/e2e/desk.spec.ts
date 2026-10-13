@@ -283,3 +283,49 @@ test("enables the sign-in form after hydration", async ({ page }) => {
   await expect(page.getByLabel("Email address")).toBeEnabled();
   await expect(page.getByLabel("Password")).toBeEnabled();
 });
+test("searches every authorized ticket by text and never shows another project", async ({
+  page,
+  desk,
+  signIn,
+  baseURL,
+}) => {
+  const { alpha, hidden } = desk.projects;
+  const word = `needle${randomUUID().slice(0, 8)}`;
+  await signIn();
+  // A word that only a private note of one ticket contains.
+  const before = z
+    .object({ ticket: z.object({ revision: z.number(), language: z.string() }) })
+    .parse(await (await page.request.get(`/api/v1/tickets/${alpha.tickets[0]}`)).json());
+  expect(
+    (
+      await page.request.post(`/api/v1/tickets/${alpha.tickets[0]}/reply`, {
+        data: {
+          markdown: `Check the ${word} setting`,
+          internal: true,
+          language: before.ticket.language,
+          expectedRevision: before.ticket.revision,
+          idempotencyKey: randomUUID(),
+        },
+        headers: { origin: baseURL ?? "" },
+      })
+    ).ok(),
+  ).toBe(true);
+  await openInbox(page);
+  const list = page.getByRole("region", { name: "Inbox" });
+  await list.getByRole("textbox", { name: "Search" }).fill(word);
+  await expect(list.getByRole("status")).toHaveText("1 match in all authorized projects");
+  const row = list.getByRole("button", { name: new RegExp(`${alpha.name} request 1`) });
+  await expect(row.getByText(`Check the ${word} setting`)).toBeVisible();
+  await row.click();
+  await expect(conversation(page).getByRole("heading", { level: 2 })).toHaveText(
+    `${alpha.name} request 1`,
+  );
+  // The other project's tickets exist but are not found, and nothing about them is counted.
+  await list.getByRole("textbox", { name: "Search" }).fill(hidden.name);
+  await expect(list.getByText("No ticket matches this text")).toBeVisible();
+  await list.getByRole("textbox", { name: "Search" }).fill(alpha.name);
+  await expect(list.getByRole("status")).toHaveText("2 matches in all authorized projects");
+  // One character still filters the loaded list.
+  await list.getByRole("textbox", { name: "Search" }).fill("q");
+  await expect(list.getByRole("status")).toHaveCount(0);
+});

@@ -218,5 +218,7 @@
   "designFooter": "Footer",
   "designSignature": "Signature",
   "designPreviewDraft": "Preview draft",
-  "designCreate": "Save as new version"
+  "designCreate": "Save as new version",
+  "searchResults": "{count, plural, one {# match} other {# matches}} in all authorized projects",
+  "noSearchResults": "No ticket matches this text"
 }

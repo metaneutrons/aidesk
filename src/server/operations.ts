@@ -85,6 +85,77 @@ export async function listTickets(principal: Principal, requested: string[] = []
     .orderBy(sql`${tickets.pendingSince} asc nulls last`, desc(tickets.updatedAt))
     .limit(250);
 }
+// Search across the authorized projects, decided in the database: a ticket
+// matches when the text is in its subject, the requester's name or address, or
+// any of its messages (private notes included, as for anyone who may read the
+// ticket). Junk is not searched. The authorization is part of the query, so no
+// ticket of another project is ever matched or counted.
+const searchLimit = 50;
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
+function snippetAround(text: string, query: string): string {
+  const at = text.toLowerCase().indexOf(query.toLowerCase());
+  const from = Math.max(0, at - 60);
+  const piece = text
+    .slice(from, from + 160)
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${from > 0 ? "…" : ""}${piece}${text.length > from + 160 ? "…" : ""}`;
+}
+export async function searchTickets(principal: Principal, text: unknown, requested: string[] = []) {
+  const query = z.string().trim().min(2).max(100).parse(text);
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
+  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  if (filtered.length === 0) return [];
+  const pattern = `%${escapeLike(query)}%`;
+  const found = await db()
+    .select({
+      id: tickets.id,
+      number: tickets.number,
+      projectId: tickets.projectId,
+      subject: tickets.subject,
+      status: tickets.status,
+      requesterName: tickets.requesterName,
+      requesterEmail: tickets.requesterEmail,
+      pendingSince: tickets.pendingSince,
+      updatedAt: tickets.updatedAt,
+    })
+    .from(tickets)
+    .where(
+      and(
+        inArray(tickets.projectId, filtered),
+        isNull(tickets.junkAt),
+        sql`(${tickets.subject} ilike ${pattern} escape '\\'
+          or ${tickets.requesterName} ilike ${pattern} escape '\\'
+          or ${tickets.requesterEmail} ilike ${pattern} escape '\\'
+          or exists (select 1 from ${messages} where ${messages.ticketId} = ${tickets.id}
+            and ${messages.markdown} ilike ${pattern} escape '\\'))`,
+      ),
+    )
+    .orderBy(desc(tickets.updatedAt))
+    .limit(searchLimit);
+  if (found.length === 0) return [];
+  // The first message that contains the text, for the context of a hit.
+  const hits = await db()
+    .select({ ticketId: messages.ticketId, markdown: messages.markdown })
+    .from(messages)
+    .where(
+      and(
+        inArray(
+          messages.ticketId,
+          found.map((ticket) => ticket.id),
+        ),
+        sql`${messages.markdown} ilike ${pattern} escape '\\'`,
+      ),
+    )
+    .orderBy(messages.createdAt);
+  const first = new Map<string, string>();
+  for (const hit of hits) if (!first.has(hit.ticketId)) first.set(hit.ticketId, hit.markdown);
+  return found.map((ticket) => {
+    const inMessage = first.get(ticket.id);
+    return { ...ticket, snippet: inMessage ? snippetAround(inMessage, query) : null };
+  });
+}
 export async function getTicket(principal: Principal, ticketId: string) {
   const allowed = allowedProjectIds(principal, "ticket.read");
   if (!allowed.length) throw new DomainError("not_found", 404);
