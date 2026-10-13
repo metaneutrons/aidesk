@@ -106,6 +106,7 @@ describe("setting tags", () => {
     ])
       await expect(setTicketTags(noter, id, bad), JSON.stringify(bad)).rejects.toThrow();
     // Exactly the limit and exactly 30 characters are fine; duplicates count once.
+    expect(maxTags).toBe(10);
     const ten = Array.from({ length: maxTags }, (_, index) => `tag${String(index)}`);
     expect((await setTicketTags(noter, id, { tags: [...ten, ...ten] })).tags).toHaveLength(maxTags);
     expect((await setTicketTags(noter, id, { tags: ["a".repeat(30)] })).tags).toEqual([

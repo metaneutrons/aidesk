@@ -156,7 +156,7 @@ export const capabilities = {
   "tickets.tags": {
     operation: "setTicketTags",
     action: "ticket.note",
-    ui: "src/components/desk.tsx",
+    ui: "src/components/tags.tsx",
     api: "src/app/api/v1/[[...path]]/route.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -164,7 +164,7 @@ export const capabilities = {
   "tags.list": {
     operation: "listTags",
     action: "ticket.read",
-    ui: "src/components/desk.tsx",
+    ui: "src/components/tags.tsx",
     api: "src/app/api/v1/[[...path]]/route.ts",
     mcp: null,
     difference: "docs/capabilities.md",

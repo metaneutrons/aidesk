@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
@@ -195,11 +196,7 @@ export async function setReminder(principal: Principal, ticketId: string, input:
 // digits, hyphen and underscore, 1 to 30 characters), at most ten per ticket,
 // and replace the earlier list as a whole. Like reminders they do not change
 // the conversation, so the revision that protects replies stays as it is.
-export const maxTags = 10;
-export function normalizeTag(value: string): string {
-  return value.normalize("NFKC").toLowerCase().trim().replace(/\s+/g, "-");
-}
-const tagPattern = /^[\p{L}\p{N}][\p{L}\p{N}_-]{0,29}$/u;
+export { maxTags, normalizeTag };
 const tagsInput = z
   .object({
     tags: z
