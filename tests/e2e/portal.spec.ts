@@ -145,6 +145,7 @@ test("sends the customer a link in the reply and opens the conversation from it"
     const found = z.object({
       messages: z.array(z.object({ ID: z.string(), Subject: z.string() })),
     });
+    // Searched by the text of this answer: earlier tests may have mailed the same ticket.
     let id = "";
     await expect
       .poll(
@@ -154,7 +155,7 @@ test("sends the customer a link in the reply and opens the conversation from it"
               .parse(
                 await (
                   await page.request.get(
-                    `${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${before.ticket.requesterEmail}`)}`,
+                    `${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${before.ticket.requesterEmail} "${answer}"`)}`,
                   )
                 ).json(),
               )
