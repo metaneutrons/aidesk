@@ -502,6 +502,14 @@ manual keyboard, screen-reader and zoom checks are still required before any WCA
 claim. Base UI's dialog focus guards are excluded because Base UI gives them
 role="button" in WebKit on purpose for VoiceOver.
 
+The test database `aidesk_test` is shared by every branch of a checkout. Before
+the tests start, the global setup compares the migrations the database has
+applied (their SHA-256 hashes, as drizzle records them) with the SQL files of the
+checked-out branch; when the database holds one the branch does not have, it is
+emptied and migrated again, because the schema would not be the one the code
+expects and drizzle skips a migration that is older than the last one applied.
+The development database `aidesk` is never touched.
+
 The 90% coverage floor applies to all current domain/server TypeScript, including
 database schema code. Tests use real PostgreSQL for scopes, grants, sessions,
 revocation, encrypted SSO configuration, audit, revision and idempotency behavior;
