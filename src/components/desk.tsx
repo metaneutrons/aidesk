@@ -27,6 +27,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { OriginalPreview } from "./original-preview";
 import { PortalLink } from "./portal-link";
 import { Reminder } from "./reminder";
+import { listCeiling, listStep } from "../domain/paging";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
@@ -136,9 +137,22 @@ interface Project {
   color: string;
   defaultLanguage: string;
 }
+interface Overview {
+  projects: {
+    projectId: string;
+    total: number;
+    overdue: number;
+    unassigned: number;
+    remindersDue: number;
+    waiting: number;
+  }[];
+  oldest: Ticket[];
+}
 interface Props {
   projects: Project[];
   initialTickets: Ticket[];
+  overview: Overview;
+  listLimit: number;
   operator: { id: string; name: string; owner: boolean };
   initialTicketId: string | null;
   initialLocale: Locale;
@@ -160,6 +174,8 @@ type View =
 export function Desk({
   projects,
   initialTickets,
+  overview,
+  listLimit,
   operator,
   initialTicketId,
   initialLocale,
@@ -327,6 +343,27 @@ export function Desk({
         new Map<string, number>(),
       ),
   ].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  // Numbers over every ticket of the chosen projects, counted by the server,
+  // and the oldest unanswered ones of those projects.
+  const chosen = overview.projects.filter(
+    (entry) => !filters.length || filters.includes(entry.projectId),
+  );
+  const sum = (key: "total" | "overdue" | "unassigned" | "remindersDue" | "waiting") =>
+    chosen.reduce((total, entry) => total + entry[key], 0);
+  const oldest = overview.oldest
+    .filter((ticket) => !filters.length || filters.includes(ticket.projectId))
+    .sort(
+      (a, b) => new Date(a.pendingSince ?? 0).getTime() - new Date(b.pendingSince ?? 0).getTime(),
+    )
+    .slice(0, 8);
+  const loaded = initialTickets.filter(
+    (ticket) => !filters.length || filters.includes(ticket.projectId),
+  ).length;
+  function loadMore() {
+    transition(() => {
+      router.replace(`/?limit=${String(listLimit + listStep)}`, { scroll: false });
+    });
+  }
   const reminderDue = (ticket: Ticket) =>
     ticket.remindAt !== null && new Date(ticket.remindAt).getTime() <= now;
   const visible = scoped
@@ -625,7 +662,7 @@ export function Desk({
                   }}
                 >
                   <Clock3 size={20} />
-                  <strong>{scoped.filter(overdue).length}</strong>
+                  <strong>{sum("overdue")}</strong>
                   <span>{t("overdue")}</span>
                 </button>
                 <button
@@ -635,16 +672,7 @@ export function Desk({
                   }}
                 >
                   <Inbox size={20} />
-                  <strong>
-                    {
-                      scoped.filter(
-                        (ticket) =>
-                          ticket.status === "open" &&
-                          !ticket.assigneeUserId &&
-                          !ticket.assigneeAgentId,
-                      ).length
-                    }
-                  </strong>
+                  <strong>{sum("unassigned")}</strong>
                   <span>{t("unassigned")}</span>
                 </button>
                 <button
@@ -654,7 +682,7 @@ export function Desk({
                   }}
                 >
                   <BellRing size={20} />
-                  <strong>{scoped.filter(reminderDue).length}</strong>
+                  <strong>{sum("remindersDue")}</strong>
                   <span>{t("remindersDue")}</span>
                 </button>
                 <button
@@ -664,7 +692,7 @@ export function Desk({
                   }}
                 >
                   <ArrowUpRight size={20} />
-                  <strong>{scoped.filter((ticket) => ticket.status === "waiting").length}</strong>
+                  <strong>{sum("waiting")}</strong>
                   <span>{t("waiting")}</span>
                 </button>
               </div>
@@ -681,31 +709,28 @@ export function Desk({
                 </button>
               </div>
               <div className="overview-tickets">
-                {scoped
-                  .filter((ticket) => ticket.pendingSince !== null)
-                  .slice(0, 8)
-                  .map((ticket) => (
-                    <button
-                      key={ticket.id}
-                      className="overview-row"
-                      onClick={() => {
-                        select(ticket.id);
-                      }}
-                    >
-                      <span className="avatar">{ticket.requesterName.slice(0, 1)}</span>
-                      <span className="row-subject">
-                        <strong>{ticket.subject}</strong>
-                        <small>
-                          {ticket.requesterName} · {projectById.get(ticket.projectId)?.name}
-                        </small>
-                      </span>
-                      <span className={`age-badge ${overdue(ticket) ? "urgent" : ""}`}>
-                        <Clock3 size={13} />
-                        {age(ticket)}
-                      </span>
-                      <ArrowUpRight size={16} />
-                    </button>
-                  ))}
+                {oldest.map((ticket) => (
+                  <button
+                    key={ticket.id}
+                    className="overview-row"
+                    onClick={() => {
+                      select(ticket.id);
+                    }}
+                  >
+                    <span className="avatar">{ticket.requesterName.slice(0, 1)}</span>
+                    <span className="row-subject">
+                      <strong>{ticket.subject}</strong>
+                      <small>
+                        {ticket.requesterName} · {projectById.get(ticket.projectId)?.name}
+                      </small>
+                    </span>
+                    <span className={`age-badge ${overdue(ticket) ? "urgent" : ""}`}>
+                      <Clock3 size={13} />
+                      {age(ticket)}
+                    </span>
+                    <ArrowUpRight size={16} />
+                  </button>
+                ))}
               </div>
             </section>
           ) : (
@@ -832,6 +857,18 @@ export function Desk({
                       <div className="empty">
                         <Inbox size={24} />
                         <h3>{t("noTickets")}</h3>
+                      </div>
+                    )}
+                    {loaded < sum("total") && (
+                      <div className="list-more">
+                        <span className="muted">
+                          {t("ticketsLoaded", { loaded, total: sum("total") })}
+                        </span>
+                        {listLimit < listCeiling && (
+                          <button type="button" className="secondary" onClick={loadMore}>
+                            {t("showMore")}
+                          </button>
+                        )}
                       </div>
                     )}
                   </>

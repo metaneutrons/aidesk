@@ -2,7 +2,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { identify } from "../server/principal";
-import { listProjects, listTickets, operatorInfo } from "../server/operations";
+import { getOverview, listProjects, listTickets, operatorInfo } from "../server/operations";
+import { listCeiling, listStep } from "../domain/paging";
 import { DomainError } from "../server/errors";
 import { effectiveLocale } from "../domain/locale";
 import { Desk } from "../components/desk";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ ticket?: string }>;
+  searchParams: Promise<{ ticket?: string; limit?: string }>;
 }) {
   const parameters = await searchParams;
   const requestHeaders = new Headers(await headers());
@@ -26,13 +27,19 @@ export default async function Home({
       );
     throw error;
   }
-  const [projectList, ticketList, operator] = await Promise.all([
+  // How much of the list is loaded; more is asked for in steps from the desk.
+  const requested = Number(parameters.limit);
+  const limit = Number.isInteger(requested)
+    ? Math.min(Math.max(requested, listStep), listCeiling)
+    : listStep;
+  const [projectList, ticketList, overview, operator] = await Promise.all([
     listProjects(principal),
-    listTickets(principal),
+    listTickets(principal, [], limit),
+    getOverview(principal),
     operatorInfo(principal),
   ]);
   const locale = effectiveLocale(operator.locale, requestHeaders.get("accept-language"));
-  const initialTickets = ticketList.map((ticket) => ({
+  const serialize = (ticket: (typeof ticketList)[number]) => ({
     ...ticket,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
@@ -40,7 +47,12 @@ export default async function Home({
     remindAt: ticket.remindAt?.toISOString() ?? null,
     resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
     junkAt: ticket.junkAt?.toISOString() ?? null,
-  }));
+  });
+  const initialTickets = ticketList.map(serialize);
+  const overviewData = {
+    projects: overview.projects,
+    oldest: overview.oldest.map(serialize),
+  };
   return (
     <NextIntlClientProvider
       locale={locale}
@@ -50,6 +62,8 @@ export default async function Home({
       <Desk
         projects={projectList}
         initialTickets={initialTickets}
+        overview={overviewData}
+        listLimit={limit}
         operator={{ ...operator, id: principal.id }}
         initialTicketId={parameters.ticket ?? null}
         initialLocale={locale}

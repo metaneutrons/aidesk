@@ -242,5 +242,7 @@
   "tagInvalid": "Letters, digits, hyphen and underscore, up to 30 characters.",
   "tagFilter": "Filter by tag",
   "tagFilterClear": "All tags",
-  "messages": "Messages"
+  "messages": "Messages",
+  "ticketsLoaded": "{loaded} of {total} tickets loaded",
+  "showMore": "Load more"
 }

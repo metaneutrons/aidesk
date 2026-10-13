@@ -13,6 +13,14 @@ export const capabilities = {
     api: "src/app/api/v1/[[...path]]/route.ts",
     mcp: "src/server/mcp.ts",
   },
+  "overview.get": {
+    operation: "getOverview",
+    action: "ticket.read",
+    ui: "src/app/page.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "tickets.search": {
     operation: "searchTickets",
     action: "ticket.read",

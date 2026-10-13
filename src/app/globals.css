@@ -1367,3 +1367,12 @@ li.tag-chip button {
     color: inherit;
     cursor: pointer;
 }
+
+.list-more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+}
