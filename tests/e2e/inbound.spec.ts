@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import AxeBuilder from "@axe-core/playwright";
+import type { Page } from "@playwright/test";
 import nodemailer from "nodemailer";
 import { z } from "zod";
 import { expect, mailpit, test } from "./fixtures";
@@ -241,3 +243,90 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
     await page.getByLabel(`${desk.projects.alpha.name}: send acknowledgements`).uncheck();
   }
 });
+test("previews the original mail safely and returns focus when it closes", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  const customer = `${desk.prefix}-preview@example.test`;
+  const subject = `Preview ${randomUUID()}`;
+  // A mail with a script, a form, a remote image and an image of its own.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await smtp.sendMail({
+    from: `Pat Customer <${customer}>`,
+    to: `${desk.prefix}-alpha@support.local`,
+    subject,
+    text: "Plain fallback of the preview mail.",
+    html: [
+      "<p>Formatted <b>original</b> text.</p>",
+      "<script>document.title='executed'</script>",
+      '<form action="https://evil.test"><input name="x"></form>',
+      '<img src="https://tracker.test/pixel.gif" alt="tracker">',
+      '<img src="cid:logo@example.test" alt="own image">',
+    ].join(""),
+    attachments: [
+      { filename: "logo.png", content: png, cid: "logo@example.test", contentType: "image/png" },
+    ],
+  });
+  await signIn();
+  let ticketId = "";
+  await expect
+    .poll(
+      async () => {
+        const list = ticketList.parse(
+          await (
+            await page.request.get(`/api/v1/tickets?project=${desk.projects.alpha.id}`)
+          ).json(),
+        );
+        ticketId = list.find((ticket) => ticket.subject === subject)?.id ?? "";
+        return ticketId;
+      },
+      { timeout: 45_000, intervals: [1000] },
+    )
+    .not.toBe("");
+  await page.goto(`/?ticket=${ticketId}`);
+  const panel = page.getByRole("region", { name: "Ticket" });
+  const opener = panel.getByRole("button", { name: "Preview original" });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Preview original" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("1 remote image is not loaded")).toBeVisible();
+  const frame = dialog.frameLocator("iframe");
+  await expect(frame.getByText("Formatted original text.")).toBeVisible();
+  const scan = await new AxeBuilder({ page })
+    .include("[role=dialog]")
+    .exclude(".original-frame")
+    .analyze();
+  expect(scan.violations).toEqual([]);
+  await expect(frame.locator("img[alt='own image']")).toHaveAttribute("src", /^data:image\/png/);
+  await expect(frame.locator("script, form, input")).toHaveCount(0);
+  await expect(frame.locator("img[alt='tracker']")).not.toHaveAttribute("src", /.+/);
+  // The frame has no scripts: the title the script would have set stays unchanged.
+  await expect(page).not.toHaveTitle("executed");
+  const html = z
+    .object({ html: z.string() })
+    .parse(
+      await (
+        await page.request.get(
+          `/api/v1/messages/${await messageId(page, ticketId)}/original/preview`,
+        )
+      ).json(),
+    ).html;
+  expect(html).toContain("Content-Security-Policy");
+  // The plain text is the fallback.
+  await dialog.getByRole("button", { name: "Plain text" }).click();
+  await expect(dialog.getByText("Plain fallback of the preview mail.")).toBeVisible();
+  // Escape closes the dialog and focus returns to the button that opened it.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+async function messageId(page: Page, ticket: string): Promise<string> {
+  const detail = z
+    .object({ messages: z.array(z.object({ id: z.string(), authorType: z.string() })) })
+    .parse(await (await page.request.get(`/api/v1/tickets/${ticket}`)).json());
+  return detail.messages.find((message) => message.authorType === "customer")?.id ?? "";
+}

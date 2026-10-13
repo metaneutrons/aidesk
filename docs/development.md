@@ -166,6 +166,19 @@ removed on a heuristic (a forwarded-style header block, a separator line or a
 signature longer than eight lines). Such uncertain trims are marked in the
 conversation, and readers of the ticket can download the private original
 (`GET /api/v1/messages/:id/original`, always as a download).
+
+"Preview original" in a message opens the original as a safe view
+(`GET /api/v1/messages/:id/original/preview`, same rights as the download).
+The sender controls the markup, so it is reduced to formatting tags, tables and a
+few style properties (colors, weight, alignment, size); scripts, forms, frames,
+styles, event handlers and `javascript:` addresses are removed, and links keep
+`http`, `https` and `mailto`. Remote images are not loaded (the dialog says how
+many were left out); only images that the mail itself carries by `cid:` are
+shown, as `png`, `jpeg`, `gif` or `webp` of at most 2 MB each and 6 MB in total,
+so an SVG attachment is never embedded. The view is a frame without scripts
+(`sandbox`) whose own policy admits nothing but data images, and a plain-text view
+is the fallback. The dialog closes with Escape and returns focus to its button.
+
 Processing is idempotent; lost leases are requeued and transient failures retry
 with backoff (at most six attempts in about a day), permanent ones go to review.
 
@@ -502,7 +515,7 @@ a test send for email designs and a check of the rendered mail in Gmail, Apple
 Mail and Outlook (M2-A5), and a provider webhook for bounces under SMTP2GO.
 
 Real OIDC/SAML provider qualification, provisioning/recovery/MFA, complete
-configuration UI/API/MCP, original HTML preview, per-project template editing
+configuration UI/API/MCP, per-project template editing
 in the interface, translation jobs with a real provider, named AI
 assignment/runners, knowledge/GitHub, escalations, pagination/complete dashboard
 aggregates and operational health are still milestone work. The present list
