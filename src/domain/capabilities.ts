@@ -98,6 +98,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "messages.original_preview": {
+    operation: "getOriginalPreview",
+    action: "ticket.read",
+    ui: "src/components/original-preview.tsx",
+    api: "src/app/api/v1/[[...path]]/route.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "projects.create": {
     operation: "createProject",
     action: "workspace.project.create",
