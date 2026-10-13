@@ -43,11 +43,11 @@ open delivery records, not exemptions from the product plan.
 | designs.test_status       | Mail design settings          | GET /test-mails/:id                        | Not offered                      | Visible only to the person who asked                                                                                                                  |
 
 Server operations without a surface yet, deliberately not in the registry:
-portal grants (`src/server/portal.ts`), translation records
-(`src/server/translation.ts`) and the sent snapshot (`getSentSnapshot`). They are read or changed by people with
-the rights named in `docs/development.md`, and agents are excluded from the
-ones that change state. A surface is added with the M3 operator and portal work,
-and each then gets a registry entry and a row above.
+translation records (`src/server/translation.ts`) and the sent snapshot
+(`getSentSnapshot`). They are read or changed by people with the rights named in
+`docs/development.md`, and agents are excluded from the ones that change state.
+A surface is added with the M3 translation display and the M4 provider, and each
+then gets a registry entry and a row above.
 
 SSO protocol endpoints belong to Better Auth. The application restricts provider
 management to active human owners. Per-project discovery still requires explicit
