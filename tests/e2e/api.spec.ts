@@ -30,6 +30,8 @@ test("publishes the definition and answers its read routes in the published shap
     "/junk",
     `/projects/${alpha.id}/agents`,
     `/projects/${alpha.id}/designs`,
+    `/projects/${alpha.id}/config`,
+    `/projects/${alpha.id}/config/changes`,
   ];
   for (const path of reads) {
     const response = await page.request.get(`/api/v1${path}`);

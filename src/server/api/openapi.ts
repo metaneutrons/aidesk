@@ -62,6 +62,7 @@ export function openApiDocument() {
           description: "Success",
           content: { "application/json": { schema: schemaOnly(json(route.response, "output")) } },
         };
+    const alsoStatus = route.binary ? [] : (route.alsoStatus ?? []);
     const operation = {
       operationId: route.id,
       tags: [route.tag],
@@ -78,6 +79,12 @@ export function openApiDocument() {
         : {}),
       responses: {
         [status]: success,
+        ...Object.fromEntries(
+          alsoStatus.map((code) => [
+            String(code),
+            { ...success, description: "Accepted, not yet in effect" },
+          ]),
+        ),
         ...Object.fromEntries(
           problems.map(([code]) => [code, { $ref: `#/components/responses/Problem${code}` }]),
         ),

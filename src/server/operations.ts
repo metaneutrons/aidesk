@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
+import { supersedeOlder } from "./configuration";
 import { clampLimit, listStep } from "../domain/paging";
 import { defaultOverdueHours } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
@@ -67,10 +68,15 @@ export async function setProjectSettings(principal: Principal, projectId: string
   return db().transaction(async (tx) => {
     const [updated] = await tx
       .update(projects)
-      .set({ settings: sql`${projects.settings} || ${JSON.stringify(values)}::jsonb` })
+      .set({
+        settings: sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`,
+        configVersion: sql`${projects.configVersion} + 1`,
+      })
       .where(eq(projects.id, project))
-      .returning({ id: projects.id });
+      .returning({ id: projects.id, version: projects.configVersion });
     if (!updated) throw new DomainError("not_found", 404);
+    // A new version of the configuration; proposals on the old one lapse.
+    await supersedeOlder(tx, project, updated.version);
     await tx.insert(audit).values({
       projectId: project,
       actorId: principal.id,
@@ -818,7 +824,12 @@ export async function issueAgentToken(principal: Principal, projectId: string, i
   const held = principal.grants.find((grant) => grant.projectId === project)?.actions ?? [];
   const requested: Action[] = [];
   for (const action of values.actions) {
-    if (!isAction(action) || action === "agent.manage" || !held.includes(action))
+    if (
+      !isAction(action) ||
+      action === "agent.manage" ||
+      action === "config.approve" ||
+      !held.includes(action)
+    )
       throw new DomainError("forbidden", 403);
     requested.push(action);
   }

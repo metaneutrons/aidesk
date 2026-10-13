@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { configDocument } from "../../domain/configuration";
 import { emailDesignConfig } from "../../domain/email-design";
 import { actions } from "../../domain/permissions";
 import { agents, ingress, messages, projects, tickets } from "../db/schema";
@@ -6,7 +7,19 @@ import { isoDate, rowSchema } from "./rows";
 // What the REST API answers, as JSON. The schemas describe the response after
 // serialization, so timestamps are ISO strings. Outside production the router
 // checks every response against its schema.
-export const errorBody = z.object({ error: z.string() });
+export const errorBody = z.object({
+  error: z.string().describe("A stable code such as invalid_input, forbidden or stale_version"),
+  issues: z
+    .array(
+      z.object({
+        pointer: z.string().describe("JSON pointer to the offending field of the request"),
+        message: z.string(),
+        code: z.string(),
+      }),
+    )
+    .optional()
+    .describe("Present for invalid_input"),
+});
 const address = z.object({ name: z.string(), address: z.string() });
 export const projectSummary = z
   .object({
@@ -167,3 +180,35 @@ export const replyResult = z.object({ id: z.uuid(), duplicate: z.boolean() });
 export const settingsOut = z
   .object({ acknowledgements: z.boolean(), portalLinks: z.boolean() })
   .partial();
+export const configRead = z.object({
+  slug: z.string(),
+  version: z.number(),
+  config: configDocument,
+});
+const configDiff = z.array(z.object({ pointer: z.string(), from: z.unknown(), to: z.unknown() }));
+export const configResult = z.object({
+  outcome: z.enum(["unchanged", "applied", "proposed"]),
+  version: z.number(),
+  changeId: z.uuid().nullable(),
+  diff: configDiff,
+  validated: z.boolean(),
+});
+export const configChange = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  status: z.enum(["pending", "applied", "rejected", "superseded"]),
+  baseVersion: z.number(),
+  appliedVersion: z.number().nullable(),
+  proposedBy: z.string(),
+  proposerKind: z.enum(["human", "agent"]),
+  diff: configDiff,
+  decidedBy: z.string().nullable(),
+  decidedAt: isoDate.nullable(),
+  reason: z.string().nullable(),
+  createdAt: isoDate,
+});
+export const configDecision = z.object({
+  id: z.uuid(),
+  status: z.enum(["applied", "rejected"]),
+  version: z.number(),
+});

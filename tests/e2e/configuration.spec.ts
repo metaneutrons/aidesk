@@ -1,0 +1,77 @@
+import AxeBuilder from "@axe-core/playwright";
+import { z } from "zod";
+import { expect, test } from "./fixtures";
+// Project configuration: one document, saved as a whole, with changes by agents
+// waiting for approval under the default policy.
+test.describe.configure({ mode: "serial" });
+test("edits the configuration, checks it first, and approves what an agent proposes", async ({
+  page,
+  desk,
+  signIn,
+  baseURL,
+}) => {
+  const { alpha } = desk.projects;
+  const headers = { origin: baseURL ?? "" };
+  await signIn();
+  const read = async () =>
+    z
+      .object({ version: z.number(), config: z.record(z.string(), z.unknown()) })
+      .parse(await (await page.request.get(`/api/v1/projects/${alpha.id}/config`)).json());
+  // The browsers of one run share the project, so the test leaves it as it found it.
+  const original = (await read()).config;
+  try {
+    await page.goto("/");
+    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    const section = page.getByRole("region", { name: `Configuration of ${String(original.name)}` });
+    await expect(section).toBeVisible();
+    // The check reports the difference and writes nothing.
+    const renamed = `${String(original.name)} renamed`;
+    await section.getByLabel("Name").fill(renamed);
+    await section.getByRole("button", { name: "Check" }).click();
+    await expect(section.getByRole("list", { name: "Changes" })).toContainText(
+      `name: ${String(original.name)} → ${renamed}`,
+    );
+    expect((await read()).config.name).toBe(original.name);
+    await section.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(section.getByText("Saved.")).toBeVisible();
+    expect((await read()).config.name).toBe(renamed);
+    const scan = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .exclude("[data-base-ui-focus-guard]")
+      .exclude(".design-frame")
+      .analyze();
+    expect(scan.violations.map((violation) => violation.id)).toEqual([]);
+    // An agent with config rights proposes; nothing changes until a person approves.
+    const issued = z.object({ token: z.string() }).parse(
+      await (
+        await page.request.post(`/api/v1/projects/${alpha.id}/agents`, {
+          headers,
+          data: {
+            name: "Configurator",
+            actions: ["project.read", "config.read", "config.write"],
+          },
+        })
+      ).json(),
+    );
+    const before = await read();
+    const proposal = await page.request.put(`/api/v1/projects/${alpha.id}/config`, {
+      headers: { authorization: `Bearer ${issued.token}` },
+      data: { config: { ...before.config, aiMode: "autonomous" }, expectedVersion: before.version },
+    });
+    expect(proposal.status()).toBe(202);
+    expect((await read()).config.aiMode).toBe(before.config.aiMode);
+    await page.reload();
+    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await expect(section.getByText("Waiting for approval")).toBeVisible();
+    await expect(section.getByText("proposed by an agent")).toBeVisible();
+    await section.getByRole("button", { name: "Approve" }).click();
+    await expect(section.getByText("Waiting for approval")).toHaveCount(0);
+    expect((await read()).version).toBe(before.version + 1);
+  } finally {
+    const now = await read();
+    await page.request.put(`/api/v1/projects/${alpha.id}/config`, {
+      headers,
+      data: { config: original, expectedVersion: now.version },
+    });
+  }
+});
