@@ -867,3 +867,11 @@ exists yet; this plan makes no cost or deadline commitment.
   is tested, but it is not part of v1 acceptance because it can reach only
   verified destination addresses. Reintroducing it later needs a new decision
   and its own qualification.
+- 2026-10-13: M2 execution reached its second state: language decision
+  (explicit ticket choice, requester preference, detection, project default),
+  translation records with protected-content checks, portal grants, versioned
+  email designs, sent-mail snapshots, late bounces and an external-key scope per
+  project are merged with tests and mutation counter-probes. Evidence per PR is in
+  issue #3. Open for M2: M2-A9 with a real IMAP mailbox, and for M2-A5 a test
+  send and the check in Gmail, Apple Mail and Outlook. A provider webhook for
+  SMTP2GO bounces is not planned for v1 and is recorded as a limitation.
