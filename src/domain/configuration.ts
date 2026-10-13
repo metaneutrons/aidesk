@@ -16,6 +16,10 @@ export const configDocument = z
     // "review": configuration changes by an agent wait for a person with
     // config.approve; "direct": they apply at once. People always apply directly.
     approvalPolicy: z.enum(["review", "direct"]),
+    // The outgoing connection that sends the project's mail; none sends nothing.
+    outboundConnectionId: z.uuid().nullable(),
+    // Stops all outgoing mail of the project without removing the connection.
+    pauseOutgoing: z.boolean(),
   })
   .strict();
 export type ConfigDocument = z.infer<typeof configDocument>;

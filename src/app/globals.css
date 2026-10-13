@@ -1420,3 +1420,41 @@ li.tag-chip button {
     align-items: center;
     justify-content: space-between;
 }
+
+.connections {
+    display: grid;
+    gap: 8px;
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+}
+
+.connection-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.connection-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.connection-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.configuration-check {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}

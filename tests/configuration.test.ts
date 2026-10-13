@@ -48,7 +48,7 @@ async function reset() {
       name: "Config",
       color: "#5167ed",
       defaultLanguage: "en",
-      settings: { outboundConnectionId: "keep-me", emailDesignVersion: 3 },
+      settings: { internalNote: "keep-me", emailDesignVersion: 3 },
       configVersion: 1,
     })
     .where(eq(projects.id, projectId));
@@ -87,6 +87,8 @@ describe("reading the configuration", () => {
         portalLinks: false,
         aiMode: "off",
         approvalPolicy: "review",
+        outboundConnectionId: null,
+        pauseOutgoing: false,
       },
     });
   });
@@ -94,7 +96,7 @@ describe("reading the configuration", () => {
     await reset();
     const text = JSON.stringify(await getConfig(reader, projectId));
     expect(text).not.toContain("keep-me");
-    expect(text).not.toContain("outboundConnectionId");
+    expect(text).not.toContain("internalNote");
     expect(text).not.toContain("emailDesignVersion");
     const changed = await putConfig(writer, projectId, await edit({ name: "Visible" }));
     const stored = JSON.stringify(await listConfigChanges(reader, projectId));
@@ -124,7 +126,7 @@ describe("writing as a person", () => {
     expect(row).toMatchObject({ name: "Renamed", configVersion: 2 });
     expect(row?.settings).toMatchObject({
       portalLinks: true,
-      outboundConnectionId: "keep-me",
+      internalNote: "keep-me",
       emailDesignVersion: 3,
     });
     const [entry] = await db()
@@ -362,5 +364,39 @@ describe("agent tokens", () => {
         actions: ["project.read", "config.read", "config.write"],
       }),
     ).toMatchObject({ actions: ["project.read", "config.read", "config.write"] });
+  });
+});
+
+describe("projects and changes that do not exist", () => {
+  const ghost = randomUUID();
+  const ghostManager: Principal = {
+    ...manager,
+    grants: [{ projectId: ghost, actions: [...manager.grants[0]!.actions] }],
+  };
+  it("answers not_found", async () => {
+    await expect(getConfig(ghostManager, ghost)).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      putConfig(ghostManager, ghost, { config: await current(), expectedVersion: 1 }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(
+      decideConfigChange(manager, randomUUID(), { decision: "approve" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(listConfigChanges(manager, projectId, "bogus")).rejects.toBeInstanceOf(ZodError);
+  });
+  it("reads a German project with an outgoing connection from its settings", async () => {
+    await reset();
+    const connection = randomUUID();
+    await db()
+      .update(projects)
+      .set({
+        defaultLanguage: "de",
+        settings: { outboundConnectionId: connection, pauseOutgoing: true },
+      })
+      .where(eq(projects.id, projectId));
+    expect((await getConfig(reader, projectId)).config).toMatchObject({
+      defaultLanguage: "de",
+      outboundConnectionId: connection,
+      pauseOutgoing: true,
+    });
   });
 });

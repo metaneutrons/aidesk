@@ -6,6 +6,9 @@ import { configDocument, type ConfigDocument } from "../domain/configuration";
 // The configuration of one project as the REST API offers it: read with its
 // version, checked or saved as a whole, and the changes waiting for approval.
 const readSchema = z.object({ version: z.number(), config: configDocument });
+const outgoingSchema = z.array(
+  z.object({ id: z.string(), name: z.string(), direction: z.string(), status: z.string() }),
+);
 const diffSchema = z.array(z.object({ pointer: z.string(), from: z.unknown(), to: z.unknown() }));
 const resultSchema = z.object({
   outcome: z.enum(["unchanged", "applied", "proposed"]),
@@ -27,17 +30,20 @@ export function Configuration({
   name,
   canWrite,
   canApprove,
+  connectionsStamp,
 }: {
   projectId: string;
   name: string;
   canWrite: boolean;
   canApprove: boolean;
+  connectionsStamp: number;
 }) {
   const t = useTranslations();
   const fieldId = useId();
   const [version, setVersion] = useState<number | null>(null);
   const [saved, setSaved] = useState<ConfigDocument | null>(null);
   const [draft, setDraft] = useState<ConfigDocument | null>(null);
+  const [outgoing, setOutgoing] = useState<z.infer<typeof outgoingSchema>>([]);
   const [changes, setChanges] = useState<z.infer<typeof changeSchema>[]>([]);
   const [message, setMessage] = useState<Message | null>(null);
   // True once the person has changed a field; a slower load must not take the
@@ -46,10 +52,16 @@ export function Configuration({
   const [checked, setChecked] = useState<z.infer<typeof diffSchema> | null>(null);
   const load = useCallback(
     async (keepDraft = false) => {
-      const [read, list] = await Promise.all([
+      const [read, list, connectionList] = await Promise.all([
         fetch(`/api/v1/projects/${projectId}/config`).catch(() => null),
         fetch(`/api/v1/projects/${projectId}/config/changes?status=pending`).catch(() => null),
+        fetch(`/api/v1/projects/${projectId}/connections`).catch(() => null),
       ]);
+      // Only people who manage connections can list them; others see the current one.
+      const found = connectionList?.ok
+        ? outgoingSchema.safeParse(await connectionList.json())
+        : null;
+      if (found?.success) setOutgoing(found.data.filter((entry) => entry.direction === "outbound"));
       const parsed = read?.ok ? readSchema.safeParse(await read.json()) : null;
       if (parsed?.success) {
         setVersion(parsed.data.version);
@@ -64,6 +76,16 @@ export function Configuration({
   useEffect(() => {
     void load();
   }, [load]);
+  // The connections to choose from; reloaded when the list of connections
+  // changed elsewhere on the page. Only people who manage connections can list
+  // them; others see the current one.
+  useEffect(() => {
+    void (async () => {
+      const response = await fetch(`/api/v1/projects/${projectId}/connections`).catch(() => null);
+      const found = response?.ok ? outgoingSchema.safeParse(await response.json()) : null;
+      if (found?.success) setOutgoing(found.data.filter((entry) => entry.direction === "outbound"));
+    })();
+  }, [projectId, connectionsStamp]);
   async function write(validate: boolean) {
     if (!draft || version === null) return;
     setMessage(null);
@@ -183,6 +205,40 @@ export function Configuration({
             <option value="review">{t("configPolicyReview")}</option>
             <option value="direct">{t("configPolicyDirect")}</option>
           </select>
+        </label>
+        <label>
+          {t("configOutgoing")}
+          <select
+            value={draft.outboundConnectionId ?? ""}
+            disabled={!canWrite}
+            onChange={(event) => {
+              set("outboundConnectionId", event.target.value === "" ? null : event.target.value);
+            }}
+          >
+            <option value="">{t("configOutgoingNone")}</option>
+            {draft.outboundConnectionId &&
+              !outgoing.some((entry) => entry.id === draft.outboundConnectionId) && (
+                <option value={draft.outboundConnectionId}>{draft.outboundConnectionId}</option>
+              )}
+            {outgoing
+              .filter((entry) => entry.status !== "disabled")
+              .map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="configuration-check">
+          <input
+            type="checkbox"
+            checked={draft.pauseOutgoing}
+            disabled={!canWrite}
+            onChange={(event) => {
+              set("pauseOutgoing", event.target.checked);
+            }}
+          />
+          {t("configPause")}
         </label>
       </div>
       {canWrite && (

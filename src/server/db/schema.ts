@@ -276,8 +276,11 @@ export const connections = pgTable(
     direction: text("direction").notNull(),
     config: jsonb("config").$type<Record<string, unknown>>().notNull().default({}),
     secretCiphertext: text("secret_ciphertext"),
+    // draft (not tested), ready, degraded (the last test or poll failed) or disabled.
     status: text("status").notNull().default("draft"),
     lastErrorCode: text("last_error_code"),
+    // Raised by every change; a writer names the version it read.
+    version: integer("version").notNull().default(1),
     createdAt: created(),
     updatedAt: updated(),
   },
@@ -407,6 +410,11 @@ export const configChanges = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    // "config" for the project configuration; "connection.create", "connection.update"
+    // and "connection.disable" for connections, whose id is the target (none for create).
+    kind: text("kind").notNull().default("config"),
+    target: text("target"),
+    // The version of the thing changed: the project's configuration or the connection.
     baseVersion: integer("base_version").notNull(),
     status: text("status").$type<"pending" | "applied" | "rejected" | "superseded">().notNull(),
     proposedBy: text("proposed_by").notNull(),

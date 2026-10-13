@@ -9,6 +9,12 @@ import { z } from "zod";
 import { db } from "./db";
 import { connections } from "./db/schema";
 import { unseal } from "./crypto";
+import {
+  cloudflareInboundConfig,
+  cloudflareInboundSecret,
+  cloudflareOutboundConfig,
+  cloudflareOutboundSecret,
+} from "../domain/connections";
 import { env } from "./env";
 import { acceptInbound } from "./inbound";
 import { isMessageId } from "../domain/threading";
@@ -16,17 +22,7 @@ import { isMessageId } from "../domain/threading";
 // cloudflare/mail-ingest, which stores it unchanged in an R2 bucket under
 // inbound/<recipient>/. aidesk collects the objects through the S3 API, so a
 // message waits in the bucket while aidesk is unreachable.
-const inboundConfig = z.object({
-  endpoint: z.url(),
-  bucket: z.string().min(1),
-  address: z.email(),
-  region: z.string().min(1).default("auto"),
-  developmentOnly: z.boolean().default(false),
-});
-const inboundSecret = z.object({
-  accessKeyId: z.string().min(1),
-  secretAccessKey: z.string().min(1),
-});
+
 export function inboundPrefix(address: string): string {
   return `inbound/${address.toLowerCase()}/`;
 }
@@ -52,14 +48,14 @@ export async function pollCloudflareConnection(
       ),
     );
   if (!connection) throw new Error("cloudflare_connection_missing");
-  const config = inboundConfig.parse(connection.config);
+  const config = cloudflareInboundConfig.parse(connection.config);
   const development =
     process.env.NODE_ENV === "development" && process.env.DEV_BOOTSTRAP === "true";
   if (config.developmentOnly && !development) throw new Error("development_connection_not_allowed");
   if (!config.developmentOnly && new URL(config.endpoint).protocol !== "https:")
     throw new Error("cloudflare_tls_required");
   if (!connection.secretCiphertext) throw new Error("cloudflare_secret_missing");
-  const secret = inboundSecret.parse(
+  const secret = cloudflareInboundSecret.parse(
     JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
   );
   const client = new S3Client({
@@ -95,18 +91,15 @@ export async function pollCloudflareConnection(
   }
   return result;
 }
-const outboundConfig = z.object({
-  accountId: z.string().regex(/^[a-f0-9]{32}$/),
-  from: z.email(),
-  replyTo: z.email(),
-});
-const outboundSecret = z.object({ apiToken: z.string().min(1) });
-export type CloudflareOutboundConfig = z.infer<typeof outboundConfig>;
+
+export type CloudflareOutboundConfig = z.infer<typeof cloudflareOutboundConfig>;
 export function parseCloudflareOutbound(config: unknown, secretCiphertext: string | null) {
   if (!secretCiphertext) throw new Error("cloudflare_secret_missing");
   return {
-    config: outboundConfig.parse(config),
-    secret: outboundSecret.parse(JSON.parse(unseal(secretCiphertext, env().ENCRYPTION_KEY))),
+    config: cloudflareOutboundConfig.parse(config),
+    secret: cloudflareOutboundSecret.parse(
+      JSON.parse(unseal(secretCiphertext, env().ENCRYPTION_KEY)),
+    ),
   };
 }
 export interface OutgoingMail {

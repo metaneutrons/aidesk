@@ -196,6 +196,8 @@ export const configResult = z.object({
 export const configChange = z.object({
   id: z.uuid(),
   projectId: z.uuid(),
+  kind: z.string().describe("config, or connection.create, connection.update, connection.disable"),
+  target: z.string().nullable().describe("The connection a connection change concerns"),
   status: z.enum(["pending", "applied", "rejected", "superseded"]),
   baseVersion: z.number(),
   appliedVersion: z.number().nullable(),
@@ -211,4 +213,34 @@ export const configDecision = z.object({
   id: z.uuid(),
   status: z.enum(["applied", "rejected"]),
   version: z.number(),
+});
+export const connectionOut = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  kind: z.enum(["imap", "cloudflare", "smtp"]),
+  direction: z.enum(["inbound", "outbound"]),
+  name: z.string(),
+  status: z.enum(["draft", "ready", "degraded", "disabled"]),
+  lastErrorCode: z.string().nullable(),
+  version: z.number(),
+  config: z.record(z.string(), z.unknown()),
+  secretSet: z
+    .boolean()
+    .describe("Whether a secret is stored; the secret itself is never returned"),
+  usedForOutgoingMail: z.boolean(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+export const connectionResult = z.object({
+  outcome: z.enum(["unchanged", "applied", "proposed"]),
+  connectionId: z.uuid().nullable(),
+  version: z.number().nullable(),
+  changeId: z.uuid().nullable(),
+  diff: configDiff,
+  validated: z.boolean(),
+});
+export const connectionTest = z.object({
+  id: z.uuid(),
+  status: z.enum(["ready", "degraded"]),
+  lastErrorCode: z.string().nullable(),
 });

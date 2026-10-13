@@ -92,6 +92,13 @@
       "when": 1791907412484,
       "tag": "0012_config_change",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791913021834,
+      "tag": "0013_connection_changes",
+      "breakpoints": true
     }
   ]
 }

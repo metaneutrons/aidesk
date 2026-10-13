@@ -55,6 +55,14 @@ import {
 import { issuePortalGrant, portalLinkInput, portalUrl, revokePortalGrant } from "../portal";
 import { configDecision, configWrite } from "../../domain/configuration";
 import { decideConfigChange, getConfig, listConfigChanges, putConfig } from "../configuration";
+import { connectionCreate, connectionDisable, connectionUpdate } from "../../domain/connections";
+import {
+  createConnection,
+  disableConnection,
+  listConnections,
+  testConnection,
+  updateConnection,
+} from "../connections";
 import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
@@ -102,6 +110,18 @@ export type Route = JsonRoute | BinaryRoute;
 const projects = z.array(z.uuid()).optional().describe("Limit to these projects");
 const projectQuery = z.object({ project: projects });
 const list = (schema: z.ZodType) => z.array(schema);
+const validateQuery = z.object({
+  validate: z.boolean().optional().describe("Report the diff and the outcome without writing"),
+});
+// 200 when nothing was written or nothing changed, 202 for a proposal, and the
+// status of the route itself when the change was applied.
+function connectionReply(
+  result: { outcome: "unchanged" | "applied" | "proposed"; validated: boolean },
+  applied: number,
+) {
+  if (result.validated || result.outcome === "unchanged") return new Reply(result, 200);
+  return result.outcome === "proposed" ? new Reply(result, 202) : new Reply(result, applied);
+}
 function download(file: { filename: string; content: Buffer }): Response {
   const ascii = file.filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
   return new Response(new Uint8Array(file.content), {
@@ -584,5 +604,99 @@ export const routes: Route[] = [
     response: out.configDecision,
     run: ({ principal, params, input }) =>
       decideConfigChange(principal, params.changeId ?? "", input),
+  },
+  {
+    id: "connections.list",
+    method: "GET",
+    path: "/projects/{projectId}/connections",
+    tag: "Connections",
+    summary: "The connections of a project; secrets are never returned",
+    access: "integration.manage",
+    response: list(out.connectionOut),
+    run: ({ principal, params }) => listConnections(principal, params.projectId ?? ""),
+  },
+  {
+    id: "connections.create",
+    method: "POST",
+    path: "/projects/{projectId}/connections",
+    tag: "Connections",
+    summary:
+      "Define a connection. Applies at once (201) or becomes a proposal (202) for an agent under the review policy; with validate=true nothing is written (200). A new connection is a draft until a test succeeds",
+    access: "integration.manage",
+    query: validateQuery,
+    body: connectionCreate,
+    response: out.connectionResult,
+    status: 201,
+    alsoStatus: [200, 202],
+    run: async ({ principal, params, query, input }) =>
+      connectionReply(
+        await createConnection(principal, params.projectId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        201,
+      ),
+  },
+  {
+    id: "connections.update",
+    method: "PUT",
+    path: "/projects/{projectId}/connections/{connectionId}",
+    tag: "Connections",
+    summary:
+      "Change a connection: name, configuration and secret replace the stored values when present. The connection becomes a draft and has to pass a test again",
+    access: "integration.manage",
+    query: validateQuery,
+    body: connectionUpdate,
+    response: out.connectionResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      connectionReply(
+        await updateConnection(
+          principal,
+          params.projectId ?? "",
+          params.connectionId ?? "",
+          input,
+          {
+            validate: query.get("validate") === "true",
+          },
+        ),
+        200,
+      ),
+  },
+  {
+    id: "connections.disable",
+    method: "POST",
+    path: "/projects/{projectId}/connections/{connectionId}/disable",
+    tag: "Connections",
+    summary: "Disable a connection so that nothing is read or sent through it",
+    access: "integration.manage",
+    query: validateQuery,
+    body: connectionDisable,
+    response: out.connectionResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      connectionReply(
+        await disableConnection(
+          principal,
+          params.projectId ?? "",
+          params.connectionId ?? "",
+          input,
+          {
+            validate: query.get("validate") === "true",
+          },
+        ),
+        200,
+      ),
+  },
+  {
+    id: "connections.test",
+    method: "POST",
+    path: "/projects/{projectId}/connections/{connectionId}/test",
+    tag: "Connections",
+    summary:
+      "Check that the connection can be used (login, mailbox or bucket, token) and record ready or degraded with a code. Sends and reads no mail",
+    access: "integration.manage",
+    response: out.connectionTest,
+    run: ({ principal, params }) =>
+      testConnection(principal, params.projectId ?? "", params.connectionId ?? ""),
   },
 ];
