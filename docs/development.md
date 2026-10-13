@@ -481,6 +481,23 @@ the failure code to the person who asked. Rendering in Gmail, Apple Mail and
 Outlook has still to be looked at in those programs; the test mail is the
 means, the browser preview does not replace it.
 
+## Overview and list size
+
+The overview counts in the database over every ticket of the authorized
+projects, not over the loaded part of the list (`getOverview`, `GET
+/api/v1/overview`): per project the total, the tickets unanswered for more than
+24 hours, the open ones nobody handles, the due reminders and the ones waiting
+for the customer, plus the eight oldest unanswered tickets of each project.
+Junk is not counted. The desk sums the projects that the project filter
+selects.
+
+The ticket list is loaded in steps of 250, oldest unanswered first, and up to
+2000 (`?limit=` on the page and on `GET /api/v1/tickets`). When fewer tickets
+are loaded than exist, the list says so and offers to load more. Views such as
+Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
+step they can be incomplete; the counts in the overview are not. Search runs on
+the server and is not affected.
+
 ## Tags
 
 Tags are the team's own labels on a ticket, for finding it again. They are not
@@ -584,7 +601,8 @@ sent mail snapshots, channel review.
 
 Done for the first slices of M3 (evidence in issue #4): the customer portal with
 derived links and an optional link in outgoing mail, the original mail as a safe
-view, design settings, server-side search across all authorized tickets. Two
+view, design settings, server-side search across all authorized tickets,
+reminders, tags and an overview counted on the server. Two
 server operations have no surface yet: translation records
 (`src/server/translation.ts`, for the M4 provider and the M3 translation
 display) and the sent snapshot (`getSentSnapshot`). They are not listed in
@@ -594,16 +612,17 @@ Still open for M2: real IMAP/SMTP qualification with a provider mailbox (M2-A9),
 check of the rendered mail in Gmail, Apple Mail and Outlook (M2-A5; the test mail
 exists), and a provider webhook for bounces under SMTP2GO.
 
-Still open for M3: tags and reminders, a dashboard over the complete dataset
-(pagination, server aggregates), custom portal domains, attachments in portal
+Still open for M3: views over the complete dataset beyond the first list step
+(the counts of the overview are complete; the Waiting, Resolved and Reminders
+views filter what is loaded), custom portal domains, attachments in portal
 replies, display of translations in the ticket, assignment and AI states, the
 configuration of connections in the interface, and the observed walkthrough and
 manual accessibility checks (M3-A3, M3-A7).
 
 Real OIDC/SAML provider qualification, provisioning/recovery/MFA, translation jobs
 with a real provider, named AI assignment/runners, knowledge/GitHub, escalations
-and operational health are still milestone work. The inbox list loads at most 250
-conversations; the search does not have that limit but has no index yet, so
+and operational health are still milestone work. The inbox list loads in steps up to
+2000 conversations; the search does not have that limit but has no index yet, so
 neither qualifies the planned production scale. Messenger adapters are reserved in
 the plan and in `src/domain/channels.ts` and are not presented as working
 connections.

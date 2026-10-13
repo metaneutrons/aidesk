@@ -12,6 +12,7 @@ import {
   listAgentTokens,
   listJunk,
   listOperators,
+  getOverview,
   listProjects,
   listTags,
   listTickets,
@@ -106,7 +107,15 @@ async function dispatch(request: Request): Promise<Response> {
       if (resource === "attachments" && identifier && segments.length === 2)
         return download(await getAttachment(principal, identifier));
       if (resource === "tickets" && segments.length === 1)
-        return Response.json(await listTickets(principal, url.searchParams.getAll("project")));
+        return Response.json(
+          await listTickets(
+            principal,
+            url.searchParams.getAll("project"),
+            url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined,
+          ),
+        );
+      if (resource === "overview" && segments.length === 1)
+        return Response.json(await getOverview(principal, url.searchParams.getAll("project")));
     }
     if (request.method === "POST") {
       requireMutationOrigin(request);

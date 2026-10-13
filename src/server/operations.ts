@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
+import { clampLimit, listStep } from "../domain/paging";
+import { defaultOverdueHours } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
@@ -79,7 +81,14 @@ export async function setProjectSettings(principal: Principal, projectId: string
     return values;
   });
 }
-export async function listTickets(principal: Principal, requested: string[] = []) {
+// The list is loaded in steps: 250 conversations, oldest unanswered first, and
+// more on request up to a fixed ceiling. The overview below does not depend on
+// how much of the list was loaded.
+export async function listTickets(
+  principal: Principal,
+  requested: string[] = [],
+  limit: number = listStep,
+) {
   const allowed = allowedProjectIds(principal, "ticket.read");
   const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
   if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
@@ -89,7 +98,60 @@ export async function listTickets(principal: Principal, requested: string[] = []
     .from(tickets)
     .where(and(inArray(tickets.projectId, filtered), isNull(tickets.junkAt)))
     .orderBy(sql`${tickets.pendingSince} asc nulls last`, desc(tickets.updatedAt))
-    .limit(250);
+    .limit(clampLimit(limit));
+}
+// What needs attention, counted in the database over every ticket of the
+// authorized projects and not over the loaded part of the list: per project the
+// total, the tickets unanswered for more than a day, the open ones nobody
+// handles, the due reminders and the ones waiting for the customer, plus the
+// oldest unanswered tickets of each project. Junk is not counted.
+const oldestPerProject = 8;
+export async function getOverview(
+  principal: Principal,
+  requested: string[] = [],
+  now: Date = new Date(),
+) {
+  const allowed = allowedProjectIds(principal, "ticket.read");
+  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
+  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  if (filtered.length === 0) return { projects: [], oldest: [] };
+  const cutoff = new Date(now.getTime() - defaultOverdueHours * 3_600_000).toISOString();
+  const instant = now.toISOString();
+  const counted = (condition: ReturnType<typeof sql>) =>
+    sql<number>`(count(*) filter (where ${condition}))::int`;
+  const [projectRows, oldest] = await Promise.all([
+    db()
+      .select({
+        projectId: tickets.projectId,
+        total: sql<number>`count(*)::int`,
+        overdue: counted(sql`${tickets.pendingSince} <= ${cutoff}::timestamptz`),
+        unassigned: counted(
+          sql`${tickets.status} = 'open' and ${tickets.assigneeUserId} is null and ${tickets.assigneeAgentId} is null`,
+        ),
+        remindersDue: counted(sql`${tickets.remindAt} <= ${instant}::timestamptz`),
+        waiting: counted(sql`${tickets.status} = 'waiting'`),
+      })
+      .from(tickets)
+      .where(and(inArray(tickets.projectId, filtered), isNull(tickets.junkAt)))
+      .groupBy(tickets.projectId),
+    Promise.all(
+      filtered.map((projectId) =>
+        db()
+          .select()
+          .from(tickets)
+          .where(
+            and(
+              eq(tickets.projectId, projectId),
+              isNull(tickets.junkAt),
+              isNotNull(tickets.pendingSince),
+            ),
+          )
+          .orderBy(sql`${tickets.pendingSince} asc`)
+          .limit(oldestPerProject),
+      ),
+    ),
+  ]);
+  return { projects: projectRows, oldest: oldest.flat() };
 }
 // Search across the authorized projects, decided in the database: a ticket
 // matches when the text is in its subject, the requester's name or address, or

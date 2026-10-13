@@ -242,5 +242,7 @@
   "tagInvalid": "Buchstaben, Ziffern, Bindestrich und Unterstrich, bis zu 30 Zeichen.",
   "tagFilter": "Nach Tag filtern",
   "tagFilterClear": "Alle Tags",
-  "messages": "Nachrichten"
+  "messages": "Nachrichten",
+  "ticketsLoaded": "{loaded} von {total} Tickets geladen",
+  "showMore": "Mehr laden"
 }
