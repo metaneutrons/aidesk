@@ -169,7 +169,10 @@ test("sends the customer a link in the reply and opens the conversation from it"
     const mail = z
       .object({ Text: z.string(), HTML: z.string() })
       .parse(await (await page.request.get(`${mailpit}/api/v1/message/${id}`)).json());
-    const url = /https?:\/\/\S+\/portal\/[A-Za-z0-9_.-]+/.exec(mail.Text)?.[0];
+    // A token is 22 characters, a dot and 43 characters; nothing after it belongs to it.
+    const url = /https?:\/\/\S+?\/portal\/[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/.exec(
+      mail.Text,
+    )?.[0];
     expect(url).toBeDefined();
     expect(mail.HTML).toContain(url);
     expect(mail.Text).toContain("View this request online and reply:");
