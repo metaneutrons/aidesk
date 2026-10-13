@@ -53,6 +53,9 @@ import {
   testMailInput,
 } from "../email-design";
 import { issuePortalGrant, portalLinkInput, portalUrl, revokePortalGrant } from "../portal";
+import { configDecision, configWrite } from "../../domain/configuration";
+import { decideConfigChange, getConfig, listConfigChanges, putConfig } from "../configuration";
+import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
 // Every REST route, once: method, path, who may call it, what it takes and what
@@ -74,7 +77,7 @@ export interface RouteContext {
 export type Access = Action | "owner" | "human" | "any";
 interface Base {
   id: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT";
   path: string;
   tag: string;
   summary: string;
@@ -86,6 +89,8 @@ export interface JsonRoute extends Base {
   body?: z.ZodType;
   response: z.ZodType;
   status?: number;
+  // Other statuses the route may answer with the same body, for example 202.
+  alsoStatus?: number[];
   headers?: Record<string, string>;
   run: (context: RouteContext) => Promise<unknown>;
 }
@@ -522,5 +527,62 @@ export const routes: Route[] = [
       await setLocale(principal, input);
       return { updated: true };
     },
+  },
+  {
+    id: "config.get",
+    method: "GET",
+    path: "/projects/{projectId}/config",
+    tag: "Configuration",
+    summary: "The editable configuration of a project and the version to name when writing",
+    access: "config.read",
+    response: out.configRead,
+    run: ({ principal, params }) => getConfig(principal, params.projectId ?? ""),
+  },
+  {
+    id: "config.put",
+    method: "PUT",
+    path: "/projects/{projectId}/config",
+    tag: "Configuration",
+    summary:
+      "Replace the configuration. Applies at once (200) or, for an agent under the review policy, becomes a proposal (202). With validate=true nothing is written and the outcome is only reported",
+    access: "config.write",
+    query: z.object({
+      validate: z.boolean().optional().describe("Report the diff and the outcome without writing"),
+    }),
+    body: configWrite,
+    response: out.configResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) => {
+      const result = await putConfig(principal, params.projectId ?? "", input, {
+        validate: query.get("validate") === "true",
+      });
+      return result.outcome === "proposed" && !result.validated ? new Reply(result, 202) : result;
+    },
+  },
+  {
+    id: "config.changes",
+    method: "GET",
+    path: "/projects/{projectId}/config/changes",
+    tag: "Configuration",
+    summary: "Applied and proposed configuration changes, newest first",
+    access: "config.read",
+    query: z.object({
+      status: z.enum(["pending", "applied", "rejected", "superseded"]).optional(),
+    }),
+    response: list(out.configChange),
+    run: ({ principal, params, query }) =>
+      listConfigChanges(principal, params.projectId ?? "", query.get("status") ?? undefined),
+  },
+  {
+    id: "config.decide",
+    method: "POST",
+    path: "/config/changes/{changeId}/decision",
+    tag: "Configuration",
+    summary: "Activate or reject a proposed change; only a person with config.approve",
+    access: "config.approve",
+    body: configDecision,
+    response: out.configDecision,
+    run: ({ principal, params, input }) =>
+      decideConfigChange(principal, params.changeId ?? "", input),
   },
 ];

@@ -90,6 +90,17 @@ describe("reading the configuration", () => {
       },
     });
   });
+  it("exposes only the document, never the settings that hold connections or other internals", async () => {
+    await reset();
+    const text = JSON.stringify(await getConfig(reader, projectId));
+    expect(text).not.toContain("keep-me");
+    expect(text).not.toContain("outboundConnectionId");
+    expect(text).not.toContain("emailDesignVersion");
+    const changed = await putConfig(writer, projectId, await edit({ name: "Visible" }));
+    const stored = JSON.stringify(await listConfigChanges(reader, projectId));
+    expect(stored).not.toContain("keep-me");
+    expect(changed.diff.every((entry) => entry.pointer === "/name")).toBe(true);
+  });
   it("answers not_found without config.read, and for another project's grant", async () => {
     await expect(getConfig(plain, projectId)).rejects.toMatchObject({ code: "not_found" });
     await expect(getConfig(elsewhere, projectId)).rejects.toMatchObject({ code: "not_found" });

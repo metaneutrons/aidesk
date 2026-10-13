@@ -514,6 +514,34 @@ copy differs from the generated one. The document is public because it describes
 the API, not data; a caller still needs a session or an agent token for every
 route.
 
+## Project configuration
+
+The editable configuration of a project is one document: name, colour, default
+language, acknowledgements, portal links, AI mode and approval policy. Connections,
+secrets and texts are not part of it. It is read with `GET
+/api/v1/projects/{id}/config`, which also returns its `version`, and replaced with
+`PUT` on the same path. A write names the version it read (`expectedVersion`); a
+change made in between answers `409 stale_version`. An optional
+`idempotencyKey` makes a repeated request have the effect of one.
+
+`PUT ...?validate=true` writes nothing and reports the diff and what a real write
+would do. Errors for an invalid body name the offending field as a JSON pointer in
+`issues`.
+
+Three actions govern it: `config.read`, `config.write` and `config.approve`. People who
+manage a project hold all three (a migration added them). An agent token can carry
+`config.read` and `config.write` but never `config.approve` or `agent.manage`.
+
+A person with `config.write` applies a change at once. An agent applies it at once
+only when the project's `approvalPolicy` is `direct`. Under `review`, the default,
+the change becomes a proposal (`202`) that a person with `config.approve` activates
+or rejects at `POST /api/v1/config/changes/{id}/decision`; an agent cannot decide,
+not even its own proposal. A proposal on a version that has changed since is
+superseded and never applies. The approval policy itself is changed only by a
+person with `config.approve`. Every applied and proposed change is kept with its
+diff in `config_change` and audited. The older settings route
+`POST /projects/{id}/settings` still works and raises the version as well.
+
 ## Overview and list size
 
 The overview counts in the database over every ticket of the authorized
