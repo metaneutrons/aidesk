@@ -106,6 +106,13 @@
       "when": 1791915036766,
       "tag": "0014_project_text",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791934000928,
+      "tag": "0015_approval_policy_replaces_ai_mode",
+      "breakpoints": true
     }
   ]
 }

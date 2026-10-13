@@ -85,7 +85,6 @@ describe("reading the configuration", () => {
         defaultLanguage: "en",
         acknowledgements: false,
         portalLinks: false,
-        aiMode: "off",
         approvalPolicy: "review",
         outboundConnectionId: null,
         pauseOutgoing: false,
@@ -169,7 +168,7 @@ describe("writing as a person", () => {
     await expect(putConfig(plain, projectId, await edit({}))).rejects.toMatchObject({
       code: "not_found",
     });
-    for (const bad of [{ color: "red" }, { name: "" }, { aiMode: "yes" }, { unknown: 1 }])
+    for (const bad of [{ color: "red" }, { name: "" }, { approvalPolicy: "maybe" }, { unknown: 1 }])
       await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
     await expect(
       putConfig(writer, projectId, { config: await current(), expectedVersion: 0 }),
@@ -202,9 +201,9 @@ describe("validating without writing", () => {
 describe("an agent under the review policy", () => {
   it("proposes, and nothing changes until a person activates it", async () => {
     await reset();
-    const proposed = await putConfig(agent, projectId, await edit({ aiMode: "autonomous" }));
+    const proposed = await putConfig(agent, projectId, await edit({ acknowledgements: true }));
     expect(proposed).toMatchObject({ outcome: "proposed", version: 1, validated: false });
-    expect((await current()).aiMode).toBe("off");
+    expect((await current()).acknowledgements).toBe(false);
     const [pending] = await listConfigChanges(reader, projectId, "pending");
     expect(pending).toMatchObject({
       id: proposed.changeId,
@@ -219,7 +218,7 @@ describe("an agent under the review policy", () => {
       status: "applied",
       version: 2,
     });
-    expect((await current()).aiMode).toBe("autonomous");
+    expect((await current()).acknowledgements).toBe(true);
     const [done] = await listConfigChanges(reader, projectId, "applied");
     expect(done).toMatchObject({ decidedBy: manager.id, appliedVersion: 2 });
     // Deciding twice has no further effect.

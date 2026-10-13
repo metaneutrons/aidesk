@@ -3037,11 +3037,16 @@
                     },
                     "duplicate": {
                       "type": "boolean"
+                    },
+                    "draft": {
+                      "type": "boolean",
+                      "description": "True when the reply is a draft that a person sends or discards (review policy)"
                     }
                   },
                   "required": [
                     "id",
-                    "duplicate"
+                    "duplicate",
+                    "draft"
                   ],
                   "additionalProperties": false
                 }
@@ -3207,13 +3212,6 @@
                         "portalLinks": {
                           "type": "boolean"
                         },
-                        "aiMode": {
-                          "type": "string",
-                          "enum": [
-                            "off",
-                            "autonomous"
-                          ]
-                        },
                         "approvalPolicy": {
                           "type": "string",
                           "enum": [
@@ -3248,7 +3246,6 @@
                         "defaultLanguage",
                         "acknowledgements",
                         "portalLinks",
-                        "aiMode",
                         "approvalPolicy",
                         "outboundConnectionId",
                         "pauseOutgoing",
@@ -3347,13 +3344,6 @@
                       "portalLinks": {
                         "type": "boolean"
                       },
-                      "aiMode": {
-                        "type": "string",
-                        "enum": [
-                          "off",
-                          "autonomous"
-                        ]
-                      },
                       "approvalPolicy": {
                         "type": "string",
                         "enum": [
@@ -3388,7 +3378,6 @@
                       "defaultLanguage",
                       "acknowledgements",
                       "portalLinks",
-                      "aiMode",
                       "approvalPolicy",
                       "outboundConnectionId",
                       "pauseOutgoing",
@@ -5911,6 +5900,146 @@
                   "required": [
                     "assigneeUserId",
                     "assigneeAgentId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/messages/{messageId}/send": {
+      "post": {
+        "operationId": "messages.send_draft",
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Send the draft that an agent wrote under the review policy. Refused if the ticket has changed since the draft was written",
+        "x-required-access": "ticket.reply",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "discarded"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/messages/{messageId}/discard": {
+      "post": {
+        "operationId": "messages.discard_draft",
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Discard the draft that an agent wrote under the review policy",
+        "x-required-access": "ticket.reply",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "discarded"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state"
                   ],
                   "additionalProperties": false
                 }

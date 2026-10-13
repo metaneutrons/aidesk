@@ -177,7 +177,17 @@ export const issuedToken = z.object({
   expiresAt: isoDate,
 });
 export const portalLinkOut = z.object({ url: z.string(), expiresAt: isoDate });
-export const replyResult = z.object({ id: z.uuid(), duplicate: z.boolean() });
+export const replyResult = z.object({
+  id: z.uuid(),
+  duplicate: z.boolean(),
+  draft: z
+    .boolean()
+    .describe("True when the reply is a draft that a person sends or discards (review policy)"),
+});
+export const draftResult = z.object({
+  id: z.uuid(),
+  state: z.enum(["queued", "discarded"]),
+});
 export const settingsOut = z
   .object({ acknowledgements: z.boolean(), portalLinks: z.boolean() })
   .partial();

@@ -131,6 +131,22 @@ export const capabilities = {
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
   },
+  "messages.send_draft": {
+    operation: "sendDraft",
+    action: "ticket.reply",
+    ui: "src/components/desk.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "messages.discard_draft": {
+    operation: "discardDraft",
+    action: "ticket.reply",
+    ui: "src/components/desk.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "tickets.search": {
     operation: "searchTickets",
     action: "ticket.read",

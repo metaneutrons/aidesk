@@ -74,7 +74,7 @@ describe("configuration over REST", () => {
       agent,
       "PUT",
       `/projects/${projectId}/config`,
-      change({ aiMode: "autonomous" }),
+      change({ acknowledgements: true }),
     );
     expect(proposed.status).toBe(202);
     expect(proposed.body).toMatchObject({ outcome: "proposed", validated: false });
@@ -84,7 +84,7 @@ describe("configuration over REST", () => {
           agent,
           "PUT",
           `/projects/${projectId}/config?validate=true`,
-          change({ aiMode: "off", name: "X" }),
+          change({ acknowledgements: false, name: "X" }),
         )
       ).status,
     ).toBe(200);
@@ -131,7 +131,7 @@ describe("configuration over REST", () => {
     expect(bad.body.error).toBe("invalid_input");
     const pointers = (bad.body.issues as { pointer: string }[]).map((issue) => issue.pointer);
     expect(pointers).toContain("/config/color");
-    expect(pointers).toContain("/config/aiMode");
+    expect(pointers).toContain("/config/acknowledgements");
   });
   it("refuses a change that does not come from the application's own origin", async () => {
     const response = await handle(

@@ -246,10 +246,7 @@
   "configName": "Name",
   "configColor": "Colour",
   "configLanguage": "Default language",
-  "configAiMode": "AI mode",
-  "configAiOff": "Off",
-  "configAiAutonomous": "Answers under the project's rules",
-  "configPolicy": "Configuration changes by agents",
+  "configPolicy": "Changes and replies by agents",
   "configPolicyReview": "Wait for approval",
   "configPolicyDirect": "Apply at once",
   "configCheck": "Check",
@@ -292,5 +289,10 @@
   "textApplied": "Saved.",
   "textProposed": "Proposed. A person with approval rights has to activate it.",
   "configAcknowledgements": "Send an acknowledgement for each new ticket",
-  "configPortalLinks": "Add a link to the ticket page to mails"
+  "configPortalLinks": "Add a link to the ticket page to mails",
+  "draftNotSent": "Draft by an agent, not sent",
+  "draftSend": "Send draft",
+  "draftDiscard": "Discard draft",
+  "draftDiscarded": "Draft discarded",
+  "draftStale": "The ticket changed after the draft was written. The draft was not sent; write the answer again."
 }

@@ -27,7 +27,6 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     defaultLanguage: row.defaultLanguage === "de" ? "de" : "en",
     acknowledgements: settings.acknowledgements === true,
     portalLinks: settings.portalLinks === true,
-    aiMode: settings.aiMode === "autonomous" ? "autonomous" : "off",
     approvalPolicy: settings.approvalPolicy === "direct" ? "direct" : "review",
     outboundConnectionId:
       typeof settings.outboundConnectionId === "string" &&
@@ -87,7 +86,6 @@ function sqlMerge(config: ConfigDocument) {
   const values = {
     acknowledgements: config.acknowledgements,
     portalLinks: config.portalLinks,
-    aiMode: config.aiMode,
     approvalPolicy: config.approvalPolicy,
     outboundConnectionId: config.outboundConnectionId,
     pauseOutgoing: config.pauseOutgoing,

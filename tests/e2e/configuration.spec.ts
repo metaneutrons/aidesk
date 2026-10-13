@@ -56,10 +56,13 @@ test("edits the configuration, checks it first, and approves what an agent propo
     const before = await read();
     const proposal = await page.request.put(`/api/v1/projects/${alpha.id}/config`, {
       headers: { authorization: `Bearer ${issued.token}` },
-      data: { config: { ...before.config, aiMode: "autonomous" }, expectedVersion: before.version },
+      data: {
+        config: { ...before.config, acknowledgements: true },
+        expectedVersion: before.version,
+      },
     });
     expect(proposal.status()).toBe(202);
-    expect((await read()).config.aiMode).toBe(before.config.aiMode);
+    expect((await read()).config.acknowledgements).toBe(before.config.acknowledgements);
     await page.reload();
     await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
     await expect(section.getByText("Waiting for approval")).toBeVisible();

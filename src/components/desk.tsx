@@ -428,6 +428,23 @@ export function Desk({
       router.refresh();
     });
   }
+  // A person sends or discards the draft an agent wrote under the review policy.
+  async function draftAction(messageId: string, action: "send" | "discard"): Promise<void> {
+    setError(null);
+    const response = await fetch(`/api/v1/messages/${messageId}/${action}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).catch(() => null);
+    if (!response?.ok) setError(response?.status === 409 ? "draftStale" : "error");
+    if (selected) {
+      const next = await fetch(`/api/v1/tickets/${selected}`).catch(() => null);
+      if (next?.ok) setConversation(conversationSchema.parse(await next.json()));
+    }
+    transition(() => {
+      router.refresh();
+    });
+  }
   async function send(): Promise<void> {
     if (!conversation || !selected || !draft.trim()) return;
     setSending(true);
@@ -1019,6 +1036,38 @@ export function Desk({
                                 </li>
                               ))}
                             </ul>
+                          )}
+                          {message.deliveryState === "draft" && (
+                            <div className="draft-note">
+                              <small className="delivery-state attention">
+                                {t("draftNotSent")}
+                              </small>
+                              {conversation.actions.includes("ticket.reply") && (
+                                <span className="configuration-actions">
+                                  <button
+                                    type="button"
+                                    className="primary"
+                                    onClick={() => {
+                                      void draftAction(message.id, "send");
+                                    }}
+                                  >
+                                    {t("draftSend")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    onClick={() => {
+                                      void draftAction(message.id, "discard");
+                                    }}
+                                  >
+                                    {t("draftDiscard")}
+                                  </button>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {message.deliveryState === "discarded" && (
+                            <small className="delivery-state">{t("draftDiscarded")}</small>
                           )}
                           {["queued", "sent", "review"].includes(message.deliveryState) && (
                             <small
