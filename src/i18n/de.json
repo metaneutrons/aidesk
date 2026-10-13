@@ -222,5 +222,16 @@
   "portalLinksSetting": "{project}: Link zur Ticketseite hinzufügen",
   "portalLinksHint": "Mit dieser Einstellung enthalten Antworten und Eingangsbestätigungen einen Link zur Seite des Kunden für das Ticket. Der Link bleibt für alle Mails zum Ticket gleich; wird er für ein Ticket deaktiviert, enthalten weitere Mails keinen.",
   "searchResults": "{count, plural, one {# Treffer} other {# Treffer}} in allen berechtigten Projekten",
-  "noSearchResults": "Kein Ticket enthält diesen Text"
+  "noSearchResults": "Kein Ticket enthält diesen Text",
+  "reminders": "Erinnerungen",
+  "remindersDue": "Erinnerungen fällig",
+  "reminderAt": "Erinnerung: {date}",
+  "reminderDue": "Erinnerung fällig seit {date}",
+  "reminderSet": "Erinnern am",
+  "reminderTomorrow": "Morgen 9:00",
+  "reminderNextWeek": "In einer Woche, 9:00",
+  "reminderClear": "Erinnerung entfernen",
+  "reminderDone": "Erledigt",
+  "reminderSetShort": "Erinnerung {date}",
+  "reminderDueShort": "Erinnerung fällig {date}"
 }

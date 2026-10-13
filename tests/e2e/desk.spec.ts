@@ -41,7 +41,9 @@ test("shows only granted projects and filters without losing the open draft", as
   await expect(list.getByRole("button", { name: beta.name })).toHaveCount(2);
   await expect(page.getByText(hidden.name)).toHaveCount(0);
   await list.getByRole("button", { name: `${alpha.name} request 1` }).click();
-  await conversation(page).getByRole("textbox").fill("Draft that survives filtering");
+  await conversation(page)
+    .getByRole("textbox", { name: /Write your reply|Add a private note/ })
+    .fill("Draft that survives filtering");
   await page.getByRole("button", { name: "All projects" }).click();
   await expect(page.getByRole("checkbox", { name: alpha.name })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: hidden.name })).toHaveCount(0);
@@ -51,9 +53,9 @@ test("shows only granted projects and filters without losing the open draft", as
   await expect(conversation(page).getByRole("heading", { level: 2 })).toHaveText(
     `${alpha.name} request 1`,
   );
-  await expect(conversation(page).getByRole("textbox")).toHaveValue(
-    "Draft that survives filtering",
-  );
+  await expect(
+    conversation(page).getByRole("textbox", { name: /Write your reply|Add a private note/ }),
+  ).toHaveValue("Draft that survives filtering");
 });
 test("denies access to a project without a grant", async ({ page, desk, signIn }) => {
   const ticket = desk.projects.hidden.tickets[0];
@@ -184,7 +186,9 @@ test("hides the composer and rejects replies in a read-only project", async ({
   await expect(conversation(page).getByRole("heading", { level: 2 })).toHaveText(
     `${desk.projects.beta.name} request 1`,
   );
-  await expect(conversation(page).getByRole("textbox")).toHaveCount(0);
+  await expect(
+    conversation(page).getByRole("textbox", { name: /Write your reply|Add a private note/ }),
+  ).toHaveCount(0);
   const response = await page.request.post(`/api/v1/tickets/${ticket}/reply`, {
     data: {
       markdown: "Must not be sent",
@@ -203,13 +207,21 @@ test("keeps drafts per ticket across navigation and reload", async ({ page, desk
   await openInbox(page);
   const list = page.getByRole("region", { name: "Inbox" });
   await list.getByRole("button", { name: `${alpha.name} request 2` }).click();
-  await conversation(page).getByRole("textbox").fill("Unsent draft for request 2");
+  await conversation(page)
+    .getByRole("textbox", { name: /Write your reply|Add a private note/ })
+    .fill("Unsent draft for request 2");
   await list.getByRole("button", { name: `${alpha.name} request 1` }).click();
-  await expect(conversation(page).getByRole("textbox")).toHaveValue("");
+  await expect(
+    conversation(page).getByRole("textbox", { name: /Write your reply|Add a private note/ }),
+  ).toHaveValue("");
   await list.getByRole("button", { name: `${alpha.name} request 2` }).click();
-  await expect(conversation(page).getByRole("textbox")).toHaveValue("Unsent draft for request 2");
+  await expect(
+    conversation(page).getByRole("textbox", { name: /Write your reply|Add a private note/ }),
+  ).toHaveValue("Unsent draft for request 2");
   await page.reload();
-  await expect(conversation(page).getByRole("textbox")).toHaveValue("Unsent draft for request 2");
+  await expect(
+    conversation(page).getByRole("textbox", { name: /Write your reply|Add a private note/ }),
+  ).toHaveValue("Unsent draft for request 2");
 });
 test("moves focus into the new-project dialog and back", async ({ page, desk, signIn }) => {
   await signIn();

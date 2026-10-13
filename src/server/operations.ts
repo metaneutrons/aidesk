@@ -163,6 +163,33 @@ export async function searchTickets(principal: Principal, text: unknown, request
     return { ...ticket, snippet: inMessage ? snippetAround(inMessage, query) : null };
   });
 }
+// A reminder is a time at which the team wants to see a ticket again. It is
+// private to the team, does not change the conversation (so the revision that
+// protects replies stays as it is), and stays until it is changed or cleared.
+// A time in the past is due at once; more than a year ahead or back is refused.
+const reminderInput = z
+  .object({ remindAt: z.union([z.iso.datetime({ offset: true }), z.null()]) })
+  .strict();
+export async function setReminder(principal: Principal, ticketId: string, input: unknown) {
+  const { remindAt } = reminderInput.parse(input);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.note")) throw new DomainError("forbidden", 403);
+  const at = remindAt === null ? null : new Date(remindAt);
+  if (at !== null && Math.abs(at.getTime() - Date.now()) > 366 * 86_400_000)
+    throw new DomainError("invalid_input", 400);
+  if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
+  return db().transaction(async (tx) => {
+    await tx.update(tickets).set({ remindAt: at }).where(eq(tickets.id, ticket.id));
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: at ? "ticket.remind" : "ticket.remind_clear",
+      targetId: ticket.id,
+      detail: { remindAt: at?.toISOString() ?? null },
+    });
+    return { remindAt: at };
+  });
+}
 // Tags are short labels that a team puts on tickets to find them again. They
 // are private to the team, free text in a normalized form (lowercase, letters,
 // digits, hyphen and underscore, 1 to 30 characters), at most ten per ticket,

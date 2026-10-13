@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ArrowUpRight,
+  BellRing,
   Check,
   ChevronDown,
   Clock3,
@@ -25,6 +26,7 @@ import { z } from "zod";
 import { Dialog } from "@base-ui/react/dialog";
 import { OriginalPreview } from "./original-preview";
 import { PortalLink } from "./portal-link";
+import { Reminder } from "./reminder";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
@@ -41,6 +43,7 @@ const ticketSchema = z.object({
   language: z.string(),
   revision: z.number(),
   pendingSince: z.string().nullable(),
+  remindAt: z.string().nullable(),
   junkAt: z.string().nullable(),
   assigneeUserId: z.string().nullable(),
   assigneeAgentId: z.string().nullable(),
@@ -150,7 +153,8 @@ function applyTheme(theme: Theme): void {
   if (theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
 }
-type View = "overview" | "inbox" | "overdue" | "waiting" | "resolved" | "junk" | "settings";
+type View =
+  "overview" | "inbox" | "overdue" | "reminders" | "waiting" | "resolved" | "junk" | "settings";
 export function Desk({
   projects,
   initialTickets,
@@ -301,15 +305,32 @@ export function Desk({
       { receivedAt: new Date(ticket.pendingSince), answeredAt: null },
       new Date(now),
     ) === "overdue";
-  const visible = scoped.filter((ticket) =>
-    view === "overdue"
-      ? overdue(ticket)
-      : view === "waiting"
-        ? ticket.status === "waiting"
-        : view === "resolved"
-          ? ticket.status === "resolved"
-          : ticket.status !== "resolved",
-  );
+  // The list is refreshed after a change, so it is the newer source; a cleared
+  // reminder is null there and must not fall back to the older conversation.
+  const reminderOf = (ticket: { id: string; remindAt: string | null }) => {
+    const entry = initialTickets.find((candidate) => candidate.id === ticket.id);
+    return entry ? entry.remindAt : ticket.remindAt;
+  };
+  const reminderDue = (ticket: Ticket) =>
+    ticket.remindAt !== null && new Date(ticket.remindAt).getTime() <= now;
+  const visible = scoped
+    .filter((ticket) => view !== "reminders" || ticket.remindAt !== null)
+    .sort((a, b) =>
+      view === "reminders"
+        ? new Date(a.remindAt ?? 0).getTime() - new Date(b.remindAt ?? 0).getTime()
+        : 0,
+    )
+    .filter((ticket) =>
+      view === "overdue"
+        ? overdue(ticket)
+        : view === "reminders"
+          ? true
+          : view === "waiting"
+            ? ticket.status === "waiting"
+            : view === "resolved"
+              ? ticket.status === "resolved"
+              : ticket.status !== "resolved",
+    );
   function age(ticket: Ticket): string {
     if (!ticket.pendingSince) return t(ticket.status);
     const minutes = Math.max(
@@ -408,6 +429,7 @@ export function Desk({
     { view: "overview", icon: LayoutDashboard },
     { view: "inbox", icon: Inbox },
     { view: "overdue", icon: Clock3 },
+    { view: "reminders", icon: BellRing },
     { view: "waiting", icon: ArrowUpRight },
     { view: "resolved", icon: Check },
     { view: "junk", icon: ShieldAlert },
@@ -610,6 +632,16 @@ export function Desk({
                   <span>{t("unassigned")}</span>
                 </button>
                 <button
+                  className="metric warning"
+                  onClick={() => {
+                    setView("reminders");
+                  }}
+                >
+                  <BellRing size={20} />
+                  <strong>{scoped.filter(reminderDue).length}</strong>
+                  <span>{t("remindersDue")}</span>
+                </button>
+                <button
                   className="metric"
                   onClick={() => {
                     setView("waiting");
@@ -727,6 +759,16 @@ export function Desk({
                           </span>
                         </span>
                         <span className="ticket-row-subject">{ticket.subject}</span>
+                        {ticket.remindAt && (
+                          <span className={reminderDue(ticket) ? "urgent-text" : "muted"}>
+                            {t(reminderDue(ticket) ? "reminderDueShort" : "reminderSetShort", {
+                              date: new Intl.DateTimeFormat(initialLocale, {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              }).format(new Date(ticket.remindAt)),
+                            })}
+                          </span>
+                        )}
                         <span className="ticket-row-meta">
                           <i style={{ background: projectById.get(ticket.projectId)?.color }} />
                           {projectById.get(ticket.projectId)?.name}
@@ -779,6 +821,21 @@ export function Desk({
                             key={conversation.ticket.id}
                             ticketId={conversation.ticket.id}
                             locale={initialLocale}
+                          />
+                        )}
+                      {conversation.actions.includes("ticket.note") &&
+                        !conversation.ticket.junkAt && (
+                          <Reminder
+                            key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
+                            ticketId={conversation.ticket.id}
+                            remindAt={reminderOf(conversation.ticket)}
+                            now={now}
+                            locale={initialLocale}
+                            onChanged={() => {
+                              transition(() => {
+                                router.refresh();
+                              });
+                            }}
                           />
                         )}
                       {conversation.actions.includes("ticket.junk") &&

@@ -222,5 +222,16 @@
   "portalLinksSetting": "{project}: add a link to the ticket page",
   "portalLinksHint": "With the link setting, replies and acknowledgements carry a link to the customer's page for the ticket. The link stays the same for every mail about the ticket; disabling it for a ticket stops further mail from carrying one.",
   "searchResults": "{count, plural, one {# match} other {# matches}} in all authorized projects",
-  "noSearchResults": "No ticket matches this text"
+  "noSearchResults": "No ticket matches this text",
+  "reminders": "Reminders",
+  "remindersDue": "Reminders due",
+  "reminderAt": "Reminder: {date}",
+  "reminderDue": "Reminder due since {date}",
+  "reminderSet": "Remind me at",
+  "reminderTomorrow": "Tomorrow 9:00",
+  "reminderNextWeek": "In a week, 9:00",
+  "reminderClear": "Clear reminder",
+  "reminderDone": "Done",
+  "reminderSetShort": "Reminder {date}",
+  "reminderDueShort": "Reminder due {date}"
 }

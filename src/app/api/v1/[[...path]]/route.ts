@@ -25,6 +25,7 @@ import {
   setOperatorActive,
   setOperatorGrant,
   setProjectSettings,
+  setReminder,
   setTicketTags,
 } from "../../../../server/operations";
 import {
@@ -175,6 +176,8 @@ async function dispatch(request: Request): Promise<Response> {
         return Response.json(await revokePortalGrant(principal, identifier));
       if (resource === "tickets" && identifier && operation === "tags" && segments.length === 3)
         return Response.json(await setTicketTags(principal, identifier, input));
+      if (resource === "tickets" && identifier && operation === "reminder" && segments.length === 3)
+        return Response.json(await setReminder(principal, identifier, input));
       if (resource === "tickets" && identifier && operation === "junk" && segments.length === 3)
         return Response.json(await moveTicketToJunk(principal, identifier));
       if (resource === "tickets" && identifier && operation === "restore" && segments.length === 3)
