@@ -24,7 +24,7 @@ export const capabilities = {
   "config.get": {
     operation: "getConfig",
     action: "config.read",
-    ui: null,
+    ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -32,7 +32,7 @@ export const capabilities = {
   "config.put": {
     operation: "putConfig",
     action: "config.write",
-    ui: null,
+    ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -40,7 +40,7 @@ export const capabilities = {
   "config.changes": {
     operation: "listConfigChanges",
     action: "config.read",
-    ui: null,
+    ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -48,7 +48,7 @@ export const capabilities = {
   "config.decide": {
     operation: "decideConfigChange",
     action: "config.approve",
-    ui: null,
+    ui: "src/components/configuration.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",

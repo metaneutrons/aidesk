@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
+import { Configuration } from "./configuration";
 import { Designs } from "./designs";
 import {
   operatorRoles,
@@ -475,6 +476,17 @@ export function Settings({
           )}
         </>
       )}
+      {managed
+        .filter((grant) => grant.actions.includes("config.read"))
+        .map((grant) => (
+          <Configuration
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            canWrite={grant.actions.includes("config.write")}
+            canApprove={grant.actions.includes("config.approve")}
+          />
+        ))}
       <Designs
         projects={projects.filter((project) => held(project.id).includes("project.manage"))}
         locale={locale}
