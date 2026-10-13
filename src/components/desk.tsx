@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { Dialog } from "@base-ui/react/dialog";
+import { OriginalPreview } from "./original-preview";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
@@ -737,6 +738,7 @@ export function Desk({
                               {message.extractionUncertain && (
                                 <span className="attention">{t("extractionUncertain")}</span>
                               )}
+                              <OriginalPreview messageId={message.id} locale={initialLocale} />
                               <a href={`/api/v1/messages/${message.id}/original`} download>
                                 {t("originalMail")}
                               </a>

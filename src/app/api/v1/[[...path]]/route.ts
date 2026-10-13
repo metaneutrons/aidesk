@@ -5,6 +5,7 @@ import {
   createProject,
   getAttachment,
   getOriginal,
+  getOriginalPreview,
   getJunkMail,
   getTicket,
   issueAgentToken,
@@ -63,6 +64,14 @@ async function dispatch(request: Request): Promise<Response> {
         segments.length === 3
       )
         return download(await getOriginal(principal, identifier));
+      if (
+        resource === "messages" &&
+        identifier &&
+        operation === "original" &&
+        segments[3] === "preview" &&
+        segments.length === 4
+      )
+        return Response.json(await getOriginalPreview(principal, identifier));
       if (resource === "junk" && segments.length === 1)
         return Response.json(await listJunk(principal, url.searchParams.getAll("project")));
       if (resource === "junk" && identifier && segments.length === 2)

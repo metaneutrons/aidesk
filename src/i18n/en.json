@@ -166,5 +166,11 @@
   "junkMailboxDone": "Mailbox: in the junk folder",
   "junkMailboxFailed": "Mailbox: could not move to the junk folder",
   "originalMail": "Original (.eml)",
-  "extractionUncertain": "Shortened automatically; compare with the original."
+  "extractionUncertain": "Shortened automatically; compare with the original.",
+  "originalPreview": "Preview original",
+  "originalFormatted": "Formatted",
+  "originalText": "Plain text",
+  "originalImagesBlocked": "{count, plural, one {# remote image is not loaded} other {# remote images are not loaded}}",
+  "originalFrom": "From",
+  "originalPreviewError": "The original could not be shown."
 }

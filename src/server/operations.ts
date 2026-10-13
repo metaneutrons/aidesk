@@ -22,6 +22,7 @@ import { markdownHtml } from "./markdown";
 import { getObject } from "./storage";
 import { htmlToMarkdown } from "./inbound";
 import { simpleParser } from "mailparser";
+import { renderOriginal } from "./original";
 import {
   actions,
   allowedProjectIds,
@@ -227,9 +228,10 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
     content: await getObject(file.objectKey),
   };
 }
-// The received original of a message, for a person who may read its ticket,
-// for example to check a shortened extraction.
-export async function getOriginal(principal: Principal, messageId: string) {
+// The stored original of a message for a person who may read its ticket. A
+// message of another project, one without an original and an unknown id all
+// answer not_found.
+async function originalOf(principal: Principal, messageId: string) {
   const allowed = allowedProjectIds(principal, "ticket.read");
   if (!allowed.length) throw new DomainError("not_found", 404);
   const [found] = await db()
@@ -239,10 +241,22 @@ export async function getOriginal(principal: Principal, messageId: string) {
     .where(and(eq(messages.id, id.parse(messageId)), inArray(tickets.projectId, allowed)))
     .limit(1);
   if (!found?.rawObjectKey) throw new DomainError("not_found", 404);
+  return { number: found.number, key: found.rawObjectKey };
+}
+// The received original of a message, for example to check a shortened
+// extraction.
+export async function getOriginal(principal: Principal, messageId: string) {
+  const found = await originalOf(principal, messageId);
   return {
     filename: `ticket-${String(found.number)}-${messageId.slice(0, 8)}.eml`,
-    content: await getObject(found.rawObjectKey),
+    content: await getObject(found.key),
   };
+}
+// The original as a safe view: formatting kept, nothing executable, remote
+// images blocked, images of the mail itself shown, and a plain-text fallback.
+export async function getOriginalPreview(principal: Principal, messageId: string) {
+  const found = await originalOf(principal, messageId);
+  return renderOriginal(await getObject(found.key));
 }
 // Junk: tickets moved there by a person and inbound mail classified as junk
 // before it became a ticket. Both stay out of the inbox until restored.
