@@ -346,20 +346,33 @@ describe("authenticated API and MCP principal", () => {
     expect((await get(`tickets/${ticketId}/extra`)).status).toBe(404);
     expect((await get("tickets/not-a-uuid")).status).toBe(400);
     expect((await GET(new Request("http://localhost:3000/api/v1/projects"))).status).toBe(401);
-    // Portal links: an agent token never opens customer access.
-    const postJson = (path: string) =>
+    // Mail design routes: an agent token reads and previews, never changes or sends.
+    const post = (path: string, body: object = {}) =>
       POST(
         new Request(`http://localhost:3000/api/v1/${path}`, {
           method: "POST",
           headers,
-          body: "{}",
+          body: JSON.stringify(body),
         }),
       );
-    expect((await postJson(`tickets/${ticketId}/portal-link`)).status).toBe(403);
-    expect((await postJson(`tickets/${ticketId}/portal-link/revoke`)).status).toBe(403);
+    expect((await get(`projects/${projectId}/designs`)).status).toBe(200);
+    expect((await post(`projects/${projectId}/designs/preview`)).status).toBe(200);
+    expect((await post(`projects/${projectId}/designs`, {})).status).toBe(403);
+    expect((await post(`projects/${projectId}/designs/select`, { version: 0 })).status).toBe(403);
+    expect((await post(`projects/${projectId}/designs/test`)).status).toBe(403);
+    expect((await post(`projects/${projectId}/designs/unknown`)).status).toBe(404);
+    expect((await post(`projects/${projectId}/designs/preview/extra`)).status).toBe(404);
+    expect((await get(`projects/${projectId}/designs/extra`)).status).toBe(404);
+    expect((await get(`projects/${hiddenId}/designs`)).status).toBe(404);
+    expect((await post(`projects/${hiddenId}/designs/preview`)).status).toBe(404);
+    expect((await get(`test-mails/${randomUUID()}`)).status).toBe(404);
+    expect((await get("test-mails/not-a-uuid")).status).toBe(400);
+    // Portal links: an agent token never opens customer access.
+    expect((await post(`tickets/${ticketId}/portal-link`)).status).toBe(403);
+    expect((await post(`tickets/${ticketId}/portal-link/revoke`)).status).toBe(403);
     // An agent is refused before the ticket is looked up, so a hidden one is not revealed.
-    expect((await postJson(`tickets/${hiddenTicket}/portal-link`)).status).toBe(403);
-    expect((await postJson(`tickets/${ticketId}/portal-link/extra`)).status).toBe(404);
+    expect((await post(`tickets/${hiddenTicket}/portal-link`)).status).toBe(403);
+    expect((await post(`tickets/${ticketId}/portal-link/extra`)).status).toBe(404);
     expect((await get(`tickets/${ticketId}/portal-link`)).status).toBe(404);
     const denied = await POST(
       new Request(`http://localhost:3000/api/v1/tickets/${ticketId}/reply`, {
