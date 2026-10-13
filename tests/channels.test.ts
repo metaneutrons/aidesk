@@ -145,11 +145,8 @@ describe("channel registry", () => {
   });
   it("matches what the worker really dispatches and polls", () => {
     const source = readFileSync("src/worker/jobs.ts", "utf8");
-    const sending = source.slice(
-      source.indexOf("export async function runNext"),
-      source.indexOf("export async function runIngest"),
-    );
-    const sends = [...sending.matchAll(/connection\.kind === "([a-z]+)"/g)].map(
+    const sending = readFileSync("src/worker/transport.ts", "utf8");
+    const sends = [...sending.matchAll(/connection\.kind [=!]== "([a-z]+)"/g)].map(
       (match) => match[1],
     );
     expect([...new Set(sends)].sort()).toEqual([...channels.email.outbound].sort());

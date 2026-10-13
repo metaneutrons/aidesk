@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
-import nodemailer from "nodemailer";
 import { z } from "zod";
 import { db } from "../server/db";
 import {
@@ -14,19 +13,12 @@ import {
   user,
 } from "../server/db/schema";
 import { emailTemplateVersion, renderEmail } from "../server/email";
-import { activeEmailDesign } from "../server/email-design";
-import { unseal } from "../server/crypto";
-import { env } from "../server/env";
+import { activeEmailDesign, designForVersion, sampleMarkdown } from "../server/email-design";
 import { threadHeaders } from "../domain/threading";
-import { classifySmtpFailure, smtpProgress } from "../domain/delivery";
-import { smtp2goSuppressed } from "../server/smtp2go";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
-import {
-  parseCloudflareOutbound,
-  pollCloudflareConnection,
-  sendViaCloudflare,
-} from "../server/cloudflare";
+import { pollCloudflareConnection } from "../server/cloudflare";
+import { deliver } from "./transport";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -36,22 +28,11 @@ const payloadSchema = z.object({
   expectedRevision: z.number().int(),
   resolve: z.boolean(),
 });
-const smtpSchema = z.object({
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  from: z.email(),
-  replyTo: z.email(),
-  developmentOnly: z.boolean().default(false),
-  suppressionCheck: z.enum(["smtp2go"]).optional(),
-});
 // Records why a reply went to review on the message itself, so every surface
 // that shows the message can show the reason.
 function deliveryError(code: string) {
   return sql`${messages.source} || ${JSON.stringify({ deliveryError: code })}::jsonb`;
 }
-// Marks automatic mail (RFC 3834) and asks Exchange not to answer it with
-// its own automatic replies.
 // Refusals that happen before anything is handed to a transport. Their codes
 // are kept for the review; any other error stays the general code, so that
 // internal details never reach the stored reason.
@@ -64,10 +45,6 @@ const refusalCodes = new Set([
   "development_connection_not_allowed",
   "smtp_tls_required",
 ]);
-const automaticHeaders = {
-  "Auto-Submitted": "auto-replied",
-  "X-Auto-Response-Suppress": "All",
-};
 // A scope limits the run to one project, which lets tests share a database.
 export async function runNext(scope?: { projectId: string }): Promise<boolean> {
   const inScope = scope ? eq(jobs.projectId, scope.projectId) : undefined;
@@ -235,93 +212,21 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       ),
     );
     const subject = `Re: ${ticket.subject}`;
-    let outgoingId: string | null;
-    let sender: { from: string; replyTo: string };
-    if (connection.kind === "cloudflare") {
-      const { config, secret } = parseCloudflareOutbound(
-        connection.config,
-        connection.secretCiphertext,
-      );
-      code = "transport_acceptance_unknown";
-      try {
-        const sent = await sendViaCloudflare(config, secret, {
-          fromName: project.name,
-          to: ticket.requesterEmail,
-          subject,
-          ...thread,
-          ...content,
-          ticketId: ticket.id,
-          automatic,
-        });
-        outgoingId = sent.messageId;
-        sender = { from: config.from, replyTo: config.replyTo };
-      } catch (error) {
-        if (error instanceof Error && error.message === "transport_rejected") code = error.message;
-        throw error;
-      }
-    } else if (connection.kind === "smtp") {
-      const config = smtpSchema.parse(connection.config);
-      if (
-        config.developmentOnly &&
-        (process.env.NODE_ENV !== "development" || process.env.DEV_BOOTSTRAP !== "true")
-      )
-        throw new Error("development_connection_not_allowed");
-      const secret = connection.secretCiphertext
-        ? z
-            .object({ user: z.string(), pass: z.string(), apiKey: z.string().min(1).optional() })
-            .parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
-        : undefined;
-      if (!config.developmentOnly && !config.secure && config.port !== 587)
-        throw new Error("smtp_tls_required");
-      if (config.suppressionCheck === "smtp2go") {
-        code = "suppression_check_failed";
-        if (!secret?.apiKey) throw new Error(code);
-        if (await smtp2goSuppressed(secret.apiKey, ticket.requesterEmail)) {
-          code = "recipient_suppressed";
-          throw new Error(code);
-        }
-        code = "dispatch_needs_review";
-      }
-      const progress = smtpProgress();
-      const transport = nodemailer.createTransport({
-        transactionLog: true,
-        logger: progress.logger,
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        requireTLS: !config.developmentOnly && !config.secure,
-        auth: secret ? { user: secret.user, pass: secret.pass } : undefined,
-        connectionTimeout: 15_000,
-        greetingTimeout: 15_000,
-        socketTimeout: 30_000,
-      });
-      code = "transport_acceptance_unknown";
-      const senderDomain = config.from.slice(config.from.lastIndexOf("@") + 1);
-      outgoingId = `<${message.id}@${senderDomain}>`;
-      const accepted = await transport
-        .sendMail({
-          from: { name: project.name, address: config.from },
-          replyTo: config.replyTo,
-          to: ticket.requesterEmail,
-          subject,
-          messageId: outgoingId,
-          ...thread,
-          headers: {
-            "X-Aidesk-Ticket": ticket.id,
-            ...(automatic ? automaticHeaders : {}),
-          },
-          ...content,
-        })
-        .catch((error: unknown) => {
-          const failure = classifySmtpFailure(error, progress.dataSent);
-          code = failure.outcome;
-          console.log(JSON.stringify({ event: "smtp.send_failed", jobId: job.id, ...failure }));
-          throw error;
-        });
-      if (!accepted.accepted.map(String).includes(ticket.requesterEmail))
-        throw new Error("recipient_not_accepted");
-      sender = { from: config.from, replyTo: config.replyTo };
-    } else throw new Error("outbound_not_ready");
+    const { outgoingId, sender } = await deliver({
+      jobId: job.id,
+      project,
+      connection,
+      localId: message.id,
+      to: ticket.requesterEmail,
+      subject,
+      thread,
+      content,
+      ticketId: ticket.id,
+      automatic,
+      report: (reported) => {
+        code = reported;
+      },
+    });
     await db().transaction(async (tx) => {
       const [owned] = await tx
         .select()
@@ -396,6 +301,139 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
           .where(eq(messages.id, failed.payload.messageId));
     });
     console.log(JSON.stringify({ event: "mail.review", jobId: job.id, code }));
+  }
+  return true;
+}
+const testPayload = z.object({
+  userId: z.string(),
+  to: z.email(),
+  connectionId: z.uuid(),
+  language: z.enum(["en", "de"]),
+  version: z.number().int().min(0).optional(),
+});
+// Test mails of a design (see sendTestMail). They use the same transport path
+// as replies but belong to no ticket and message. An expired dispatch may have
+// reached the transport and is not replayed.
+export async function runTestSend(scope?: { projectId: string }): Promise<boolean> {
+  const inScope = scope ? eq(jobs.projectId, scope.projectId) : undefined;
+  await db()
+    .update(jobs)
+    .set({
+      status: "review",
+      lastErrorCode: "expired_dispatch_lease",
+      leaseUntil: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(jobs.status, "running"),
+        eq(jobs.type, "mail.test"),
+        sql`${jobs.leaseUntil} < now()`,
+        inScope,
+      ),
+    );
+  const leaseToken = randomUUID();
+  const job = await db().transaction(async (tx) => {
+    const [due] = await tx
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.status, "queued"),
+          eq(jobs.type, "mail.test"),
+          sql`${jobs.runAfter} <= now()`,
+          inScope,
+        ),
+      )
+      .orderBy(jobs.runAfter)
+      .limit(1)
+      .for("update", { skipLocked: true });
+    if (!due) return null;
+    const [claimed] = await tx
+      .update(jobs)
+      .set({
+        status: "running",
+        leaseToken,
+        leaseUntil: new Date(Date.now() + 120_000),
+        attempts: due.attempts + 1,
+      })
+      .where(eq(jobs.id, due.id))
+      .returning();
+    return claimed ?? null;
+  });
+  if (!job) return false;
+  let code = "dispatch_needs_review";
+  try {
+    const payload = testPayload.parse(job.payload);
+    const [project] = await db().select().from(projects).where(eq(projects.id, job.projectId));
+    const [connection] = await db()
+      .select()
+      .from(connections)
+      .where(
+        and(
+          eq(connections.id, payload.connectionId),
+          eq(connections.projectId, job.projectId),
+          eq(connections.direction, "outbound"),
+        ),
+      );
+    if (
+      !project ||
+      !connection ||
+      project.settings.pauseOutgoing === true ||
+      project.settings.outboundConnectionId !== connection.id
+    )
+      throw new Error("stale_or_paused_dispatch");
+    const [operator] = await db().select().from(user).where(eq(user.id, payload.userId));
+    const [grant] = await db()
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, payload.userId), eq(memberships.projectId, job.projectId)));
+    if (!operator?.active || !grant?.actions.includes("project.manage"))
+      throw new Error("dispatch_grant_revoked");
+    if (connection.status !== "ready") throw new Error("outbound_not_ready");
+    const chosen = await designForVersion(project.id, project.settings, payload.version);
+    const content = await renderEmail({
+      project: project.name,
+      markdown: sampleMarkdown(payload.language),
+      language: payload.language,
+      color: project.color,
+      fallbackLanguage: project.defaultLanguage,
+      ...(chosen.config ? { design: chosen.config } : {}),
+    });
+    await deliver({
+      jobId: job.id,
+      project,
+      connection,
+      localId: job.id,
+      to: payload.to,
+      subject: `[Test] ${project.name}, design version ${String(chosen.version)}`,
+      thread: {},
+      content,
+      ticketId: job.id,
+      automatic: false,
+      report: (reported) => {
+        code = reported;
+      },
+    });
+    const done = await db()
+      .update(jobs)
+      .set({ status: "succeeded", leaseUntil: null, updatedAt: new Date() })
+      .where(and(eq(jobs.id, job.id), eq(jobs.leaseToken, leaseToken), eq(jobs.status, "running")))
+      .returning({ id: jobs.id });
+    if (!done.length) throw new Error("dispatch_lease_lost");
+    console.log(JSON.stringify({ event: "mail.test_accepted", jobId: job.id }));
+  } catch (error) {
+    if (
+      code === "dispatch_needs_review" &&
+      error instanceof Error &&
+      refusalCodes.has(error.message)
+    )
+      code = error.message;
+    await db()
+      .update(jobs)
+      .set({ status: "review", lastErrorCode: code, leaseUntil: null, updatedAt: new Date() })
+      .where(and(eq(jobs.id, job.id), eq(jobs.leaseToken, leaseToken), eq(jobs.status, "running")));
+    console.log(JSON.stringify({ event: "mail.test_review", jobId: job.id, code }));
   }
   return true;
 }

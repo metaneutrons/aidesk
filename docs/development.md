@@ -432,9 +432,19 @@ the built-in design), so a later selection does not change what is recorded.
 `previewEmail` renders a sample like a real send, with the selected version by
 default, a saved version, or, for managers, an unsaved draft. The HTML carries a
 dark variant for programs that follow the system appearance and scales to the
-screen width. There is no test send yet; it needs a ticket-independent send job.
-Rendering in Gmail, Apple Mail and Outlook has not been checked and cannot be
-replaced by the browser preview.
+screen width.
+
+`sendTestMail` sends a test mail of a design (the selected version, a chosen
+version or the built-in design, in English or German) to the address of the
+person who asks and to no one else; the recipient cannot be chosen. People with
+`project.manage` can do it, up to ten times an hour each, through the project's
+outgoing connection (SMTP or the Cloudflare API) and the same transport path as
+replies. The worker sends it as a `mail.test` job, rechecks the permission, the
+connection and the pause switch, and does not replay a dispatch whose lease ran
+out. It creates no ticket and no message; `getTestMail` shows the status and
+the failure code to the person who asked. Rendering in Gmail, Apple Mail and
+Outlook has still to be looked at in those programs; the test mail is the
+means, the browser preview does not replace it.
 
 ## Reproduce the local check
 
