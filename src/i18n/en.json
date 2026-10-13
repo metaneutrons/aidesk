@@ -241,5 +241,6 @@
   "tagLimit": "At most {count} tags per ticket.",
   "tagInvalid": "Letters, digits, hyphen and underscore, up to 30 characters.",
   "tagFilter": "Filter by tag",
-  "tagFilterClear": "All tags"
+  "tagFilterClear": "All tags",
+  "messages": "Messages"
 }

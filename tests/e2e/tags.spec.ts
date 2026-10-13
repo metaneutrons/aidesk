@@ -9,6 +9,8 @@ test("tags a ticket, filters the list by tag and keeps the open draft", async ({
   signIn,
 }) => {
   const { alpha } = desk.projects;
+  // A short window makes the message list scroll, which the scan must accept.
+  await page.setViewportSize({ width: 1280, height: 560 });
   await signIn();
   await page.goto("/");
   const list = page.getByRole("region", { name: "Inbox" });

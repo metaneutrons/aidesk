@@ -917,7 +917,13 @@ export function Desk({
                           </button>
                         )}
                     </header>
-                    <div className="message-list" ref={messageList}>
+                    <div
+                      className="message-list"
+                      ref={messageList}
+                      role="region"
+                      aria-label={t("messages")}
+                      tabIndex={0}
+                    >
                       {conversation.messages.map((message) => (
                         <article
                           key={message.id}
