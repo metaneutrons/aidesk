@@ -43,7 +43,7 @@ versioned templates per project and language; REST gaps for ticket work
 Not included: instance-level identity configuration (SSO providers, operators,
 recovery), which stays with humans; AI and translation profiles themselves
 (M4 owns them, this plan only makes them fit the same mechanism); a hosted API
-explorer; client SDK generation; webhooks (open question below).
+explorer; client SDK generation.
 
 ## Design and decisions
 
@@ -73,9 +73,12 @@ configuration (prompt injection).
 - `direct`: a write by an agent applies at once. It is still validated, versioned,
   audited and revertible.
 - Only a human with `config.approve` changes the policy.
-- The policy governs configuration and templates. Customer replies stay under the
-  existing `aiMode` and `ticket.reply`; whether both become one switch is an
-  open question.
+- The policy is the one switch for everything an agent does that reaches a customer
+  or changes how the project behaves: configuration, texts, connections and
+  replies to customers. Under `review` an agent's reply to a customer is a draft
+  that a person sends or discards; under `direct` it is sent as before (the agent
+  has to be assigned to the ticket and may be stopped). `aiMode` is replaced by the
+  policy; projects with `aiMode` set to autonomous become `direct` in a migration.
 
 Strongest objection: review mode slows exactly the workflow that is wanted.
 Answer: it is the default the owner chose, `direct` is one setting away per
@@ -158,6 +161,11 @@ Outcome: the remaining configuration reachable through the same mechanism.
   current value (24 hours) as default and is used by the overview and the list.
 - C3-A4: The web interface shows the same configuration it can write and records
   the difference to REST in the ledger where one remains.
+- C3-A5: The host guard of connections resolves names and refuses a name that points
+  to the machine itself or the link-local range, when a connection is saved and again
+  when it is tested, so that a changed address is caught. Tests cover a name that
+  resolves to a refused address, one that resolves to an allowed address and a name
+  that does not resolve.
 
 ### C4: Parity and the remaining gaps
 
@@ -173,6 +181,21 @@ Outcome: MCP and REST cover the same operations; ticket work is complete over RE
   the running application, with a probe that a changed response shape fails them.
 - C4-A4: The definition and a short guide for agents (what to read first, how
   validation, proposals and versions work) are published with the application.
+- C4-A5: Under `review` a reply to a customer by an agent is stored as a draft that
+  is not sent; a person with `ticket.reply` sends or discards it, an agent cannot
+  send its own draft, and a draft on a ticket that changed since is refused with a
+  conflict. Under `direct` a reply is sent as before. `aiMode` no longer exists as
+  a separate setting and the migration maps autonomous to `direct`. Counter-probes
+  cover an agent sending a draft, a stale draft and a project switched back to
+  `review`.
+- C4-A6: A project can define outbound webhooks through the API under
+  `integration.manage` and the approval policy: an HTTPS endpoint, the events it
+  receives (ticket created, message received, status changed, change proposed) and
+  a signing secret that is write-only. A delivery carries a timestamp and an
+  HMAC-SHA256 signature, is retried with backoff through the job queue, and is
+  logged with its outcome; endpoints pass the same host guard as connections. Tests
+  cover a receiver that accepts, one that fails and recovers, one that stays down,
+  a wrong signature rejected by the receiver's check, and a refused host.
 
 ## Migration, risks and verification cost
 
@@ -191,12 +214,8 @@ matrix only when the web interface changes.
 
 Open questions:
 
-- Does the approval policy also cover customer replies, merging `aiMode` into one
-  switch?
-- Is an instance-wide default for new projects needed, or is the per-project value
-  enough?
-- Are outbound webhooks for ticket events in scope for C4 or a later initiative?
 - Where does the AI-profile configuration of M4 enter the configuration document?
+  (Decided 2026-10-14 for the other three questions; see Decision changes.)
 
 ## Decision changes
 
@@ -208,3 +227,10 @@ timing, so the portal is not a place where the limit is used, and the warning li
 (4 hours) is shown nowhere, so only the overdue limit becomes a setting. Evidence:
 the PR that made `overdueHours` a project setting. The criterion text is the only
 change; no acceptance was recorded against the earlier wording.
+
+2026-10-14: decisions of the product owner. (1) The approval policy is one switch for
+configuration, texts, connections and replies to customers; `aiMode` is replaced by it
+(C4-A5). (2) The policy is per project only, with no instance default; new projects
+start with `review`. (3) Outbound webhooks for ticket events belong to C4 (C4-A6).
+(4) The host guard of connections resolves names (C3-A5, added after the acceptance of
+C3, which is reopened until it is met). The earlier open questions are answered.
