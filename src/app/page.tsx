@@ -37,6 +37,7 @@ export default async function Home({
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
     pendingSince: ticket.pendingSince?.toISOString() ?? null,
+    remindAt: ticket.remindAt?.toISOString() ?? null,
     resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
     junkAt: ticket.junkAt?.toISOString() ?? null,
   }));

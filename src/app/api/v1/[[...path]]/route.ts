@@ -24,6 +24,7 @@ import {
   setOperatorActive,
   setOperatorGrant,
   setProjectSettings,
+  setReminder,
 } from "../../../../server/operations";
 import {
   createEmailDesign,
@@ -169,6 +170,8 @@ async function dispatch(request: Request): Promise<Response> {
         segments.length === 4
       )
         return Response.json(await revokePortalGrant(principal, identifier));
+      if (resource === "tickets" && identifier && operation === "reminder" && segments.length === 3)
+        return Response.json(await setReminder(principal, identifier, input));
       if (resource === "tickets" && identifier && operation === "junk" && segments.length === 3)
         return Response.json(await moveTicketToJunk(principal, identifier));
       if (resource === "tickets" && identifier && operation === "restore" && segments.length === 3)

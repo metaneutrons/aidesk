@@ -184,6 +184,8 @@ export const tickets = pgTable(
     assigneeAgentId: uuid("assignee_agent_id").references(() => agents.id),
     revision: integer("revision").notNull().default(1),
     pendingSince: timestamp("pending_since", { withTimezone: true }),
+    // When the team wants to look at the ticket again; private to the team.
+    remindAt: timestamp("remind_at", { withTimezone: true }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     createdAt: created(),
