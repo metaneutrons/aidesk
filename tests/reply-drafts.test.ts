@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
@@ -106,6 +106,10 @@ const setPolicy = async (policy: "review" | "direct") => {
     });
 };
 beforeAll(async () => {
+  // The fake server is a development connection; the worker only uses those on a
+  // development stack.
+  vi.stubEnv("NODE_ENV", "development");
+  vi.stubEnv("DEV_BOOTSTRAP", "true");
   await migrate(db(), { migrationsFolder: "drizzle" });
   smtp = await startFakeSmtp();
   await db()
@@ -158,6 +162,7 @@ beforeAll(async () => {
   agentId = created?.id ?? "";
 });
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await smtp.close();
   await db().delete(jobs).where(eq(jobs.projectId, projectId));
   await db()

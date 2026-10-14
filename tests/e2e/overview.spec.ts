@@ -41,8 +41,18 @@ test("shows the counts the server reports and narrows them by project", async ({
   expect(one.oldest.every((ticket) => ticket.projectId === alpha.id)).toBe(true);
   await page.getByRole("button", { name: "All projects" }).click();
   await page.getByRole("checkbox", { name: alpha.name }).check();
-  await expect(metric("Unassigned")).toHaveText(String(sum(one.projects, "unassigned")));
-  await expect(metric("Waiting")).toHaveText(String(sum(one.projects, "waiting")));
+  // Other tests change tickets of the project meanwhile, so the page is compared
+  // with a fresh read of the same filter until both agree.
+  for (const [label, key] of [
+    ["Unassigned", "unassigned"],
+    ["Waiting", "waiting"],
+  ] as const)
+    await expect
+      .poll(async () => {
+        const fresh = await read(`?project=${alpha.id}`);
+        return (await metric(label).innerText()) === String(sum(fresh.projects, key));
+      })
+      .toBe(true);
 });
 test("counts overdue by the limit of the project", async ({ page, desk, signIn, baseURL }) => {
   const { alpha } = desk.projects;
