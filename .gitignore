@@ -12,6 +12,11 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
+# Memory images of a crashed process. The one at the root is anchored on purpose:
+# an unanchored `core` would also hide a folder of that name.
+core.[0-9]*
+/core
+
 # Coverage
 coverage/
 .nyc_output/
