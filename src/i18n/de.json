@@ -291,6 +291,8 @@
   "configAcknowledgements": "Für jedes neue Ticket eine Eingangsbestätigung senden",
   "configPortalLinks": "Mails einen Link zur Ticketseite hinzufügen",
   "draftNotSent": "Entwurf eines Agenten, nicht gesendet",
+  "draftLinks": "Links in diesem Entwurf: Text und Adresse",
+  "draftLinkMisleading": "Der Text nennt eine andere Adresse als das Ziel des Links",
   "draftSend": "Entwurf senden",
   "draftDiscard": "Entwurf verwerfen",
   "draftDiscarded": "Entwurf verworfen",

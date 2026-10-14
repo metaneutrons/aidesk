@@ -738,6 +738,17 @@ of the person who sends it. The mail goes out as sent by that person, and the au
 names the agent's draft and the person who sent it. An agent cannot send or discard
 a draft, also not its own.
 
+The desk lists the links of a draft under the draft, each with the text a reader
+sees and the address it goes to, taken from the same sanitized HTML that the mail
+will carry (so an anchor written as HTML in the Markdown is listed too). A link
+whose text is itself an address of another host than the link goes to, such as
+`[https://bank.example/login](https://evil.example/steal)`, is marked, because that
+is how a link is made to look harmless. Only a draft shows links; the API returns
+them as `links` of the message. Markdown for an image makes no image in the mail:
+`img` is not an allowed tag, so an agent cannot leak data through the address of an
+image, and the plain-text part of the mail has neither the image nor its address. A
+link stays a link, and the person who sends the draft is the check.
+
 Under `direct` an agent's reply is queued at once, as before; the agent has to be
 assigned to the ticket, and a project can still stop agents (`stopAutonomous`). If a
 project is switched back to `review` while such a reply is queued, the worker does
