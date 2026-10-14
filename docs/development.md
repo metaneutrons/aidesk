@@ -545,6 +545,29 @@ copy differs from the generated one. The document is public because it describes
 the API, not data; a caller still needs a session or an agent token for every
 route.
 
+### Contract tests
+
+`tests/e2e/contract.spec.ts` reads the published definition from the running
+application, as a client does, and checks answers against it with Ajv, a JSON
+Schema validator that is independent of the zod schemas the definition is built
+from. It makes three checks:
+
+- every route that can be called with data of the fixture project is called, and
+  its status has to be documented and its body has to match the schema of that
+  status (reads, ticket work, dry runs of configuration and texts, designs,
+  agents and the webhook cycle);
+- every route is called without a login and, signed in, with ids that do not
+  exist and an empty body, and the refusal has to match the documented error
+  shape;
+- a changed answer fails: a missing required property, a changed type, a property
+  the definition does not know and an undocumented status are each rejected.
+
+A route that is neither called nor named in `notCalled` with a reason fails the
+test, and so does a reason for a route that no longer exists. Routes that need a
+real mail host, a stored original or an agent draft are listed there and covered
+by their own tests. The test runs in the Browser tests job against the same
+stack and only on Chromium, since it tests the protocol and not a browser.
+
 ## Project configuration
 
 The editable configuration of a project is one document: name, colour, default
