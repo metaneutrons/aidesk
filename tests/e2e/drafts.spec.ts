@@ -61,7 +61,9 @@ test("shows an agent's draft, discards one and sends one", async ({
     await agentReply(kept);
     await page.reload();
     await draft(kept).getByRole("button", { name: "Send draft" }).click();
-    await expect(draft(kept).getByText(/^(Queued for delivery|Accepted by mail transport)$/)).toBeVisible();
+    await expect(
+      draft(kept).getByText(/^(Queued for delivery|Accepted by mail transport)$/),
+    ).toBeVisible();
     await expect(draft(kept).getByText("Draft by an agent, not sent")).toHaveCount(0);
     // The agent has no way to send it itself.
     const messages = z
