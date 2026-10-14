@@ -591,8 +591,13 @@ action `integration.manage`:
   connection is accepted only if the adapter can use it: IMAP needs TLS, SMTP needs
   TLS or port 587, Cloudflare inbound needs HTTPS, and a connection may not point at
   the machine itself or the link-local range (`127.0.0.0/8`, `169.254.0.0/16`, `::1`,
-  `fe80::/10`, `localhost`). Private networks stay allowed; names are not
-  resolved, so this limits mistakes and does not replace network policy. The flag
+  `fe80::/10`, `localhost`, and the same addresses in IPv4-mapped form). Private
+  networks stay allowed. A host name is resolved and every address it resolves to
+  has to be allowed; a name that does not resolve is refused. This is checked when a
+  connection is saved and again on every test, which records `host_refused` when a
+  name has come to point somewhere refused. It cannot stop an address that changes
+  between a test and a use (DNS rebinding), so it does not replace network policy.
+  The flag
   `developmentOnly` is accepted only on the development stack.
 - `PUT .../connections/{id}` changes the name, the configuration or the secret. It
   names the version that was read (`expectedVersion`). A changed connection returns
@@ -601,7 +606,7 @@ action `integration.manage`:
 - `POST .../connections/{id}/test` checks login and mailbox (IMAP), the bucket
   (Cloudflare inbound), the login (SMTP) or that the token is active (Cloudflare
   outbound) and records `ready`, or `degraded` with a code (`auth_failed`,
-  `connect_failed`, `timeout`, `tls_failed`, `not_found`, `failed`) that names no host
+  `connect_failed`, `timeout`, `tls_failed`, `host_refused`, `not_found`, `failed`) that names no host
   or credential. It sends and reads no mail. For Cloudflare outbound it cannot tell
   whether the token may send; that is known only by sending.
 - `POST .../connections/{id}/disable` stops all use of the connection.

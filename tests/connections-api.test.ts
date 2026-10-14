@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+vi.mock("node:dns/promises", () => ({
+  lookup: () => Promise.resolve([{ address: "93.184.216.34", family: 4 }]),
+}));
 import { inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
