@@ -725,6 +725,29 @@ Outcome: remote control, project-scoped knowledge and governed multi-provider AI
   duplicate/stale jobs, manual review and rule-governed autonomous outgoing replies.
   Source content remains authoritative; translations cannot trigger sends or
   resets by themselves. Record semantic review and exact model/profile revisions.
+- M4-A12: Draft assistance in free-text fields. Wherever an operator writes a
+  message or a comment (the reply composer and the internal note, and any later
+  field of that kind), a visible, keyboard-operable button drafts the text with
+  an AI. It uses the visible conversation of the ticket (the internal notes for a
+  note) and what the operator has already typed as the starting point, and puts
+  the result into the field as editable text, never sending anything; the earlier
+  text can be restored with one action. A standard prompt per mode (reply, note) is
+  used by default and is a project text in the catalog of the API initiative
+  (English and German, versioned, editable); the operator may instead send a custom
+  instruction for this one draft. The assist runs under the project's reply-drafting
+  profile with its budget and limits, needs `ticket.read` and the right to write in
+  that mode, and sends the ticket content only to the provider the profile names.
+  Customer text is data: injected instructions in it must not change the task, the
+  recipient or the language, and the draft is written in the ticket's outgoing
+  language. Failure, timeout or an unconfigured profile leave the typed text
+  untouched and say why. The use is audited (who, ticket, mode, whether a custom
+  instruction was used, model and profile revision) without storing the prompt or
+  the draft. Progress and result are announced to assistive technology. REST offers
+  the same operation; MCP does not, since an agent writes its own drafts. Tests
+  cover both modes, a typed starting text, the standard and a custom prompt, a
+  conversation with an injected instruction, a failing provider, a stale or
+  forbidden ticket, the budget limit and the audit entry, with a real provider run
+  recorded as in M4-A9.
 
 ### M5: Deployment and operational qualification
 
@@ -875,3 +898,9 @@ exists yet; this plan makes no cost or deadline commitment.
   issue #3. Open for M2: M2-A9 with a real IMAP mailbox, and for M2-A5 a test
   send and the check in Gmail, Apple Mail and Outlook. A provider webhook for
   SMTP2GO bounces is not planned for v1 and is recorded as a limitation.
+- 2026-10-14: Added M4-A12 (draft assistance in free-text fields) at the request of
+  the product owner: a button next to every message or comment field that drafts
+  the text with an AI from the conversation and what was typed, with a standard
+  prompt and an optional custom one. Open: whether the customer portal's reply
+  field gets the same button (assumed not, since the portal speaks for the
+  customer), and whether editing the standard prompts needs `config.write` only.
