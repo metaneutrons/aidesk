@@ -197,6 +197,61 @@ Outcome: MCP and REST cover the same operations; ticket work is complete over RE
   cover a receiver that accepts, one that fails and recovers, one that stays down,
   a wrong signature rejected by the receiver's check, and a refused host.
 
+### C5: Files for agents
+
+Execution: [C5 #93](https://github.com/metaneutrons/aidesk/issues/93).
+Dependencies: C4. C5-A4 also depends on the AI execution layer of M4
+([M4-A9 and M4-A10](initial-product.md)).
+Outcome: an agent can read what a customer sent as a file, with the same care as
+the rest of the product takes of what a sender wrote, and a person decides who may
+read files.
+
+Baseline on 2026-10-14: text attachments and the source of a received mail can be
+read over REST and MCP up to 256 KiB (C4-A2). Images, PDF and Office files answer
+`type_not_readable`. Outgoing mail renders agent drafts from Markdown without
+images (`img` is not an allowed tag), links stay.
+
+Design decisions of 2026-10-14: reading files is its own action
+`ticket.read_files`, which `ticket.read` does not include, so that an agent that
+answers by itself reads files only when someone granted it; text extraction is part
+of the product; the extraction of images and scanned PDFs runs through the AI model
+of the project and not in the product, so it follows the AI profile, its approval
+and its data-protection terms. A text in a file is data. The product does not claim
+to detect an instruction in it; it limits what such an instruction can cause (the
+approval policy, the project boundary, the separate action) and makes a read
+visible.
+
+- C5-A1: `ticket.read_files` exists, `ticket.read` does not include it, people who
+  manage a project hold it by migration, and `attachments_read` and
+  `messages_read_original` are offered and answered only with it. Counter-probes: a
+  reader with `ticket.read` only is refused by the operation, the REST route and
+  the tool list.
+- C5-A2: The text an agent receives is cleaned and framed. Invisible and format
+  characters (the Unicode tag block, zero-width and bidirectional controls) are
+  removed, document metadata, comments and alternative texts are not returned, the
+  answer carries `untrusted: true` and its origin (ticket, message, file), and a
+  match of simple instruction patterns sets `flags` without blocking. Every read by
+  an agent is audited with project, ticket, file and actor. Tests cover hidden
+  characters, each flag and the audit entry, and a probe shows that removing the
+  cleaning fails them. The documentation states that hidden text in a document
+  cannot be reliably detected.
+- C5-A3: A link in a draft by an agent shows its target address to the person who
+  sends the draft, and a test shows that Markdown for an image produces no image in
+  the mail.
+- C5-A4: Text is extracted from the text layer of PDF files and from Office files
+  (Word, Excel, PowerPoint) in the worker as a derived record per file with method
+  and version, under limits for size, pages and time and without macros, external
+  entities or network access. `attachments_read` returns it with the method and the
+  page count. Tests cover each type, a damaged file, a file that is protected by a
+  password, a file that exceeds a limit and one that is made to expand when it is
+  opened, each with its reason and without content, and a probe per limit.
+- C5-A5: Images and PDF files without a text layer are read through the AI model
+  of the project, off by default, only when the project has an AI profile that
+  allows it, and each use is recorded with model and version. The product says
+  that the file leaves the system under that profile. Tests use a fake provider and
+  cover the setting off, a provider that fails and a result that is marked as
+  machine-read.
+
 ## Migration, risks and verification cost
 
 Adoption is incremental: C1 changes no behaviour. Configuration writes by agents
@@ -234,3 +289,12 @@ configuration, texts, connections and replies to customers; `aiMode` is replaced
 start with `review`. (3) Outbound webhooks for ticket events belong to C4 (C4-A6).
 (4) The host guard of connections resolves names (C3-A5, added after the acceptance of
 C3, which is reopened until it is met). The earlier open questions are answered.
+
+2026-10-14: product owner's decisions on files for agents (C5). Text extraction is in
+scope, which departs from the initial plan's statement that attachments are not
+automatically read in the translation scope: that sentence concerns translation and
+stays, while agents may read the text of a file. Images and scans are read through
+the AI model of the project, so C5-A5 waits for the AI execution layer. Reading files
+is the separate action `ticket.read_files`; the text attachments and the source of a
+mail that C4-A2 made readable moved behind it in the same delivery, before they were
+offered under `ticket.read`.
