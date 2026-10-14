@@ -24,35 +24,33 @@ test("shows the counts the server reports and narrows them by project", async ({
   await signIn();
   const read = async (query = "") =>
     overviewSchema.parse(await (await page.request.get(`/api/v1/overview${query}`)).json());
-  const all = await read();
   const sum = (
-    rows: typeof all.projects,
+    rows: z.infer<typeof overviewSchema>["projects"],
     key: "overdue" | "unassigned" | "remindersDue" | "waiting",
   ) => rows.reduce((total, row) => total + row[key], 0);
   await page.goto("/");
   const metric = (label: string) => page.locator(".metric", { hasText: label }).locator("strong");
-  await expect(metric("Overdue")).toHaveText(String(sum(all.projects, "overdue")));
-  await expect(metric("Unassigned")).toHaveText(String(sum(all.projects, "unassigned")));
-  await expect(metric("Reminders due")).toHaveText(String(sum(all.projects, "remindersDue")));
-  await expect(metric("Waiting")).toHaveText(String(sum(all.projects, "waiting")));
+  // Mail jobs of earlier tests change the state of tickets after those tests ended,
+  // so the page is compared with a fresh read of the same filter until both agree.
+  const agree = (label: string, key: Parameters<typeof sum>[1], query = "") =>
+    expect
+      .poll(async () => {
+        const fresh = await read(query);
+        return (await metric(label).innerText()) === String(sum(fresh.projects, key));
+      })
+      .toBe(true);
+  await agree("Overdue", "overdue");
+  await agree("Unassigned", "unassigned");
+  await agree("Reminders due", "remindersDue");
+  await agree("Waiting", "waiting");
   // One project only: the counts follow the filter and are those of the API.
   const one = await read(`?project=${alpha.id}`);
   expect(one.projects.map((row) => row.projectId)).toEqual([alpha.id]);
   expect(one.oldest.every((ticket) => ticket.projectId === alpha.id)).toBe(true);
   await page.getByRole("button", { name: "All projects" }).click();
   await page.getByRole("checkbox", { name: alpha.name }).check();
-  // Other tests change tickets of the project meanwhile, so the page is compared
-  // with a fresh read of the same filter until both agree.
-  for (const [label, key] of [
-    ["Unassigned", "unassigned"],
-    ["Waiting", "waiting"],
-  ] as const)
-    await expect
-      .poll(async () => {
-        const fresh = await read(`?project=${alpha.id}`);
-        return (await metric(label).innerText()) === String(sum(fresh.projects, key));
-      })
-      .toBe(true);
+  await agree("Unassigned", "unassigned", `?project=${alpha.id}`);
+  await agree("Waiting", "waiting", `?project=${alpha.id}`);
 });
 test("counts overdue by the limit of the project", async ({ page, desk, signIn, baseURL }) => {
   const { alpha } = desk.projects;

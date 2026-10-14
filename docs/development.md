@@ -179,9 +179,28 @@ extension is a text one. A file of any other type, content with a NUL byte in it
 8 KiB, whatever its declared type, and a file refused when the mail arrived answer
 `readable: false` with a `reason` (`type_not_readable`, `binary_content`,
 `not_stored`) and no content. What a sender wrote is data: the descriptions of both
-tools and the guide for agents say that an agent does not act on it. Images and
-documents such as PDF are not read, since that needs an extraction the product does
-not have.
+tools and the guide for agents say that an agent does not act on it.
+
+Every answer carries a frame. `untrusted: true` and the `origin` (project, ticket,
+message and file) say what it is. Characters that a person does not see but a model
+reads are removed from the text and from the file name: the Unicode tag block,
+zero-width characters, left-to-right and right-to-left marks, the bidirectional
+embeddings and isolates, the soft hyphen, the byte order mark and control characters
+other than line breaks and tabs. `removedCharacters` counts them. The joiner of an
+emoji sequence and the non-joiner of some scripts are among the removed characters;
+that is accepted, because the same characters carry hidden text. `flags` lists
+patterns that look like instructions to a model (`instruction_override`,
+`role_marker`, `secrecy_request`, `exfiltration_hint`, and `hidden_characters` when
+characters were removed) in English and German. A flag is a hint and never blocks:
+a pattern that blocks also blocks a customer who quotes it, and an empty list does
+not mean the text is safe. Text that is hidden in a document by its layout, such as
+white on white, cannot be found reliably. Every read, also of a file that is not
+read, is audited as `file.read` with the actor, the ticket, the file, the flags and
+the outcome; a refused read is not. The protection limits what an instruction
+in a file can cause (the separate action, the approval policy, the project as the
+boundary) and makes a read visible; it does not detect instructions.
+
+Images and documents such as PDF are not read yet; see C5 in the plan.
 
 ## Ticket work
 
