@@ -25,6 +25,7 @@ import {
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
 import { getObject } from "./storage";
+import { forAgent, looksBinary, readableAsText, type Unreadable } from "../domain/attachments";
 import { htmlToMarkdown } from "./inbound";
 import { simpleParser } from "mailparser";
 import { renderOriginal } from "./original";
@@ -547,8 +548,12 @@ export async function getSentSnapshot(principal: Principal, messageId: string) {
 }
 // A stored attachment of a ticket the principal may read. Refused files,
 // unknown ids and files of other projects all answer not_found.
-export async function getAttachment(principal: Principal, attachmentId: string) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
+async function attachmentOf(
+  principal: Principal,
+  attachmentId: string,
+  action: Action = "ticket.read",
+) {
+  const allowed = allowedProjectIds(principal, action);
   if (!allowed.length) throw new DomainError("not_found", 404);
   const [file] = await db()
     .select({
@@ -568,7 +573,12 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
       ),
     )
     .limit(1);
-  if (!file?.objectKey) throw new DomainError("not_found", 404);
+  if (!file) throw new DomainError("not_found", 404);
+  return file;
+}
+export async function getAttachment(principal: Principal, attachmentId: string) {
+  const file = await attachmentOf(principal, attachmentId);
+  if (!file.objectKey) throw new DomainError("not_found", 404);
   return {
     filename: file.filename,
     contentType: file.contentType,
@@ -576,11 +586,29 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
     content: await getObject(file.objectKey),
   };
 }
+// A file as text for an agent: only text types, at most agentReadLimit bytes, and
+// the reason when it is not read. A file that was refused on receipt is not
+// stored and says so.
+export async function readAttachment(principal: Principal, attachmentId: string) {
+  const file = await attachmentOf(principal, attachmentId, "ticket.read_files");
+  const described = { filename: file.filename, contentType: file.contentType, size: file.size };
+  const unread = (reason: "not_stored" | Unreadable) => ({
+    ...described,
+    readable: false,
+    reason,
+    truncated: false,
+  });
+  if (!file.objectKey) return unread("not_stored");
+  if (!readableAsText(file)) return unread("type_not_readable");
+  const content = await getObject(file.objectKey);
+  if (looksBinary(content)) return unread("binary_content");
+  return { ...described, readable: true, ...forAgent(content) };
+}
 // The stored original of a message for a person who may read its ticket. A
 // message of another project, one without an original and an unknown id all
 // answer not_found.
-async function originalOf(principal: Principal, messageId: string) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
+async function originalOf(principal: Principal, messageId: string, action: Action = "ticket.read") {
+  const allowed = allowedProjectIds(principal, action);
   if (!allowed.length) throw new DomainError("not_found", 404);
   const [found] = await db()
     .select({ rawObjectKey: messages.rawObjectKey, number: tickets.number })
@@ -599,6 +627,14 @@ export async function getOriginal(principal: Principal, messageId: string) {
     filename: `ticket-${String(found.number)}-${messageId.slice(0, 8)}.eml`,
     content: await getObject(found.key),
   };
+}
+// The received mail as text for an agent: the source with its headers, cut at
+// agentReadLimit bytes. The extracted Markdown of getTicket is the readable form;
+// this is for what only the source shows, such as headers.
+export async function readOriginal(principal: Principal, messageId: string) {
+  const found = await originalOf(principal, messageId, "ticket.read_files");
+  const content = await getObject(found.key);
+  return { size: content.length, ...forAgent(content) };
 }
 // The original as a safe view: formatting kept, nothing executable, remote
 // images blocked, images of the mail itself shown, and a plain-text fallback.
