@@ -139,22 +139,49 @@ describe("PowerPoint files", () => {
     );
   });
 });
+// A package whose headers declare another unpacked size than its parts have. The
+// limits are judged on the declared sizes, so a small package can stand for a huge
+// one without the test packing or unpacking anything large.
+function declaring(bytes: Uint8Array, name: string, size: number): Uint8Array {
+  const copy = Uint8Array.from(bytes);
+  const view = new DataView(copy.buffer);
+  const text = new TextDecoder("latin1").decode(copy);
+  for (let index = 0; index + 46 <= copy.length; index += 1) {
+    if (view.getUint32(index, true) !== 0x02014b50) continue;
+    const length = view.getUint16(index + 28, true);
+    if (text.slice(index + 46, index + 46 + length) !== name) continue;
+    view.setUint32(index + 24, size, true);
+  }
+  return copy;
+}
 describe("limits of a package", () => {
   it("refuses a package with too many parts and one that unpacks to too much", () => {
     const many: Record<string, Uint8Array> = {};
     for (let index = 0; index <= limits.entries; index += 1)
       many[`part${String(index)}.txt`] = strToU8("x");
     expect(extractOoxml(zipSync(many))).toEqual({ ok: false, reason: "too_large" });
-    const big = zipSync({
+    const small = zipSync({
       "word/document.xml": strToU8("<w:document/>"),
-      "word/media/huge.bin": new Uint8Array(limits.unpackedBytes + 1),
+      "word/media/huge.bin": strToU8("x"),
     });
-    expect(extractOoxml(big)).toEqual({ ok: false, reason: "too_large" });
+    expect(extractOoxml(declaring(small, "word/media/huge.bin", limits.unpackedBytes + 1))).toEqual(
+      {
+        ok: false,
+        reason: "too_large",
+      },
+    );
     // One part of a Word file that is larger than a part may be.
-    expect(
-      extractOoxml(zipSync({ "word/document.xml": new Uint8Array(limits.partBytes + 1) })),
-    ).toEqual({ ok: false, reason: "too_large" });
-  });
+    const single = zipSync({ "word/document.xml": strToU8("<w:document/>") });
+    expect(extractOoxml(declaring(single, "word/document.xml", limits.partBytes + 1))).toEqual({
+      ok: false,
+      reason: "too_large",
+    });
+    // The same package, declared within the limits, is read.
+    expect(extractOoxml(declaring(small, "word/media/huge.bin", 1))).toEqual({
+      ok: false,
+      reason: "empty",
+    });
+  }, 30_000);
   it("calls a file that is not a package damaged", async () => {
     const broken = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(await read(broken)).toEqual({ ok: false, reason: "damaged" });
