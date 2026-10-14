@@ -97,7 +97,28 @@ const readableExtensions = new Set([
   "ics",
   "vcf",
 ]);
-export type Unreadable = "type_not_readable" | "binary_content";
+export type Unreadable = "type_not_readable";
+// A file whose text a reader can extract: PDF and the three Office formats, by
+// the type or by the extension when the type says nothing or is a plain archive.
+// What it really is follows from its content, when the worker reads it; this only
+// keeps the product from queueing a job for an image or an archive.
+const extractableExtensions = new Set(["pdf", "docx", "xlsx", "pptx"]);
+export function extractableByName(file: { filename: string; contentType: string }): boolean {
+  const type = file.contentType.toLowerCase().split(";")[0]?.trim() ?? "";
+  if (
+    type === "application/pdf" ||
+    type.startsWith("application/vnd.openxmlformats-officedocument.")
+  )
+    return true;
+  if (
+    !["", "application/octet-stream", "application/zip", "application/x-zip-compressed"].includes(
+      type,
+    )
+  )
+    return false;
+  const dot = file.filename.lastIndexOf(".");
+  return dot >= 0 && extractableExtensions.has(file.filename.slice(dot + 1).toLowerCase());
+}
 // A file is read as text when its declared type is text or a text format, or
 // when the type says nothing (octet-stream) and the extension is a text one.
 export function readableAsText(file: { filename: string; contentType: string }): boolean {
@@ -110,6 +131,11 @@ export function readableAsText(file: { filename: string; contentType: string }):
 // A NUL byte in the first bytes means the content is not text, whatever the
 // declared type says.
 export const looksBinary = (content: Buffer): boolean => content.subarray(0, 8192).includes(0);
+// A PDF header in the first bytes, or the start of a ZIP package (the container of
+// the Office formats): a file that has one is a document, whatever its type says.
+export const looksLikeDocument = (content: Buffer): boolean =>
+  content.subarray(0, 1024).includes("%PDF-") ||
+  (content[0] === 0x50 && content[1] === 0x4b && content[2] === 0x03 && content[3] === 0x04);
 // The part of a text an agent receives, and whether it was cut.
 export function forAgent(content: Buffer): { text: string; truncated: boolean } {
   const truncated = content.length > agentReadLimit;

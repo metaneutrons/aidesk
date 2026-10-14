@@ -25,7 +25,16 @@ import {
 import { DomainError } from "./errors";
 import { markdownHtml, markdownLinks } from "./markdown";
 import { getObject } from "./storage";
-import { forAgent, looksBinary, readableAsText, type Unreadable } from "../domain/attachments";
+import {
+  extractableByName,
+  forAgent,
+  looksBinary,
+  looksLikeDocument,
+  readableAsText,
+  type Unreadable,
+} from "../domain/attachments";
+import { textState } from "./attachment-text";
+import type { Failure } from "./extract/types";
 import { cleanText, flagsOf, type Flag } from "../domain/untrusted";
 import { htmlToMarkdown } from "./inbound";
 import { simpleParser } from "mailparser";
@@ -605,10 +614,22 @@ interface Origin {
   messageId: string;
   attachmentId?: string;
 }
-type Read = { text: string; truncated: boolean } | { reason: "not_stored" | Unreadable };
+// What a reader of documents found out, when the text comes from one.
+interface Extracted {
+  method: string;
+  units: number;
+  unit: string;
+  hidden: number;
+}
+type Reason = "not_stored" | Unreadable | "extraction_pending" | "extraction_failed";
+type Read =
+  | { text: string; truncated: boolean; extraction?: Extracted }
+  | { reason: Reason; failure?: Failure };
 async function recordRead(principal: Principal, origin: Origin, kind: string, read: Read) {
-  const cleaned = "text" in read ? cleanText(read.text) : { text: "", removed: 0 };
-  const flags = "text" in read ? flagsOf(cleaned.text, cleaned.removed) : [];
+  const ready = "text" in read ? read : null;
+  const unread = "reason" in read ? read : null;
+  const cleaned = ready ? cleanText(ready.text) : { text: "", removed: 0 };
+  const flags = ready ? flagsOf(cleaned.text, cleaned.removed, ready.extraction?.hidden ?? 0) : [];
   await db()
     .insert(audit)
     .values({
@@ -621,42 +642,34 @@ async function recordRead(principal: Principal, origin: Origin, kind: string, re
         actorKind: principal.kind,
         ticketId: origin.ticketId,
         messageId: origin.messageId,
-        readable: "text" in read,
-        ...("reason" in read ? { reason: read.reason } : {}),
+        readable: ready !== null,
+        ...(unread ? { reason: unread.reason } : {}),
+        ...(unread?.failure ? { failure: unread.failure } : {}),
+        ...(ready?.extraction ? { extraction: ready.extraction } : {}),
         flags,
         removedCharacters: cleaned.removed,
       },
     });
   return { cleaned, flags };
 }
-async function framed(
-  principal: Principal,
-  origin: Origin,
-  kind: "attachment" | "original",
-  read: { text: string; truncated: boolean },
-): Promise<{
+interface Frame {
   untrusted: true;
   origin: Origin;
   removedCharacters: number;
   flags: Flag[];
-  readable: true;
-  text: string;
-  truncated: boolean;
-}>;
+}
 async function framed(
   principal: Principal,
   origin: Origin,
   kind: "attachment" | "original",
-  read: { reason: "not_stored" | Unreadable },
-): Promise<{
-  untrusted: true;
-  origin: Origin;
-  removedCharacters: number;
-  flags: Flag[];
-  readable: false;
-  reason: "not_stored" | Unreadable;
-  truncated: false;
-}>;
+  read: { text: string; truncated: boolean; extraction?: Extracted },
+): Promise<Frame & { readable: true; text: string; truncated: boolean; extraction?: Extracted }>;
+async function framed(
+  principal: Principal,
+  origin: Origin,
+  kind: "attachment" | "original",
+  read: { reason: Reason; failure?: Failure },
+): Promise<Frame & { readable: false; reason: Reason; failure?: Failure; truncated: false }>;
 async function framed(principal: Principal, origin: Origin, kind: string, read: Read) {
   const { cleaned, flags } = await recordRead(principal, origin, kind, read);
   return {
@@ -665,10 +678,23 @@ async function framed(principal: Principal, origin: Origin, kind: string, read: 
     removedCharacters: cleaned.removed,
     flags,
     ...("text" in read
-      ? { readable: true as const, text: cleaned.text, truncated: read.truncated }
-      : { readable: false as const, reason: read.reason, truncated: false as const }),
+      ? {
+          readable: true as const,
+          text: cleaned.text,
+          truncated: read.truncated,
+          ...(read.extraction ? { extraction: read.extraction } : {}),
+        }
+      : {
+          readable: false as const,
+          reason: read.reason,
+          ...(read.failure ? { failure: read.failure } : {}),
+          truncated: false as const,
+        }),
   };
 }
+// A file as text for an agent. Text is read at once. A PDF or Office file is read
+// by the worker: the first request queues that and answers that it is pending, a
+// later one gives the text or the reason there is none.
 export async function readAttachment(principal: Principal, attachmentId: string) {
   const file = await attachmentOf(principal, attachmentId, "ticket.read_files");
   const origin = {
@@ -683,17 +709,40 @@ export async function readAttachment(principal: Principal, attachmentId: string)
     contentType: cleanText(file.contentType).text,
     size: file.size,
   };
-  const unread = async (reason: "not_stored" | Unreadable) => ({
+  const unread = async (reason: Reason, failure?: Failure) => ({
     ...described,
-    ...(await framed(principal, origin, "attachment", { reason })),
+    ...(await framed(principal, origin, "attachment", { reason, ...(failure ? { failure } : {}) })),
   });
   if (!file.objectKey) return unread("not_stored");
-  if (!readableAsText(file)) return unread("type_not_readable");
-  const content = await getObject(file.objectKey);
-  if (looksBinary(content)) return unread("binary_content");
+  const asText = readableAsText(file);
+  if (asText) {
+    const content = await getObject(file.objectKey);
+    if (!looksBinary(content) && !looksLikeDocument(content))
+      return {
+        ...described,
+        ...(await framed(principal, origin, "attachment", forAgent(content))),
+      };
+  }
+  // Not plain text: a file that is named like a document, or one that is called
+  // text and is not, goes to the reader of documents.
+  if (!asText && !extractableByName(file)) return unread("type_not_readable");
+  const state = await textState(file.projectId, attachmentId);
+  if (state.state === "pending") return unread("extraction_pending");
+  if (state.state === "failed") return unread("extraction_failed", state.failure);
+  const { text, ...extraction } = state;
   return {
     ...described,
-    ...(await framed(principal, origin, "attachment", forAgent(content))),
+    ...(await framed(principal, origin, "attachment", {
+      ...forAgent(Buffer.from(text)),
+      // What the file said, and whether the product cut it, are two facts.
+      truncated: state.truncated || forAgent(Buffer.from(text)).truncated,
+      extraction: {
+        method: extraction.method,
+        units: extraction.units,
+        unit: extraction.unit,
+        hidden: extraction.hidden,
+      },
+    })),
   };
 }
 // The stored original of a message for a person who may read its ticket. A
