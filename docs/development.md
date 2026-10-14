@@ -545,6 +545,17 @@ copy differs from the generated one. The document is public because it describes
 the API, not data; a caller still needs a session or an agent token for every
 route.
 
+### Guide for agents
+
+A short guide tells an agent what to read first, how versions, `?validate=true`,
+`idempotencyKey` and proposals work, what a draft is and what a token can never
+do. Its text is `src/server/api/guide.ts`. It is served without a login at
+`/api/v1/guide.md`, linked from the definition (`externalDocs`), handed to MCP
+clients as the instructions of the server when they connect, and kept as
+[api/agent-guide.md](api/agent-guide.md). `pnpm api:docs` writes the copy, and a
+test fails when it differs. Change the guide together with the behaviour it
+describes.
+
 ### Contract tests
 
 `tests/e2e/contract.spec.ts` reads the published definition from the running

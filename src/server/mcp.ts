@@ -8,6 +8,7 @@ import { getTicket, listProjects, listTickets, reply, searchTickets } from "./op
 import { allowedProjectIds, isAction, type Principal } from "../domain/permissions";
 import { errorOf } from "./api/router";
 import { Reply } from "./api/reply";
+import { agentGuide } from "./api/guide";
 import { routes, type Route } from "./api/routes";
 // The tools of the route table: every route that offers a tool becomes one, for
 // a caller who holds its action in at least one project. A tool takes the path
@@ -87,7 +88,10 @@ export async function mcpRequest(request: Request): Promise<Response> {
     const origin = request.headers.get("origin");
     if (origin && origin !== new URL(env().APP_URL).origin) throw new DomainError("forbidden", 403);
     const principal = await identify(request.headers);
-    const server = new McpServer({ name: "aidesk", version: "0.1.0" });
+    const server = new McpServer(
+      { name: "aidesk", version: "0.1.0" },
+      { instructions: agentGuide },
+    );
     const result = (value: unknown) => ({
       content: [{ type: "text" as const, text: JSON.stringify(value) }],
     });
