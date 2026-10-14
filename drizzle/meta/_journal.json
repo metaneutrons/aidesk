@@ -127,6 +127,13 @@
       "when": 1792008826059,
       "tag": "0017_read_files_action",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792014110042,
+      "tag": "0018_attachment_text",
+      "breakpoints": true
     }
   ]
 }

@@ -247,6 +247,27 @@ export const attachments = pgTable(
   },
   (t) => [index("attachment_message_idx").on(t.messageId)],
 );
+// The text of a file, read once by the worker and kept with the file: a derived
+// record, not the file itself. It follows the attachment (and so the message)
+// when that is deleted. `failure` says why no text exists; the extractor version
+// lets a better reader replace an older result.
+export const attachmentTexts = pgTable("attachment_text", {
+  attachmentId: uuid("attachment_id")
+    .primaryKey()
+    .references(() => attachments.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  method: text("method"),
+  text: text("text"),
+  unit: text("unit"),
+  units: integer("units").notNull().default(0),
+  truncated: boolean("truncated").notNull().default(false),
+  hidden: integer("hidden").notNull().default(0),
+  failure: text("failure"),
+  createdAt: created(),
+});
 export const participants = pgTable(
   "participant",
   {
