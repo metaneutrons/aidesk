@@ -545,6 +545,40 @@ copy differs from the generated one. The document is public because it describes
 the API, not data; a caller still needs a session or an agent token for every
 route.
 
+### Guide for agents
+
+A short guide tells an agent what to read first, how versions, `?validate=true`,
+`idempotencyKey` and proposals work, what a draft is and what a token can never
+do. Its text is `src/server/api/guide.ts`. It is served without a login at
+`/api/v1/guide.md`, linked from the definition (`externalDocs`), handed to MCP
+clients as the instructions of the server when they connect, and kept as
+[api/agent-guide.md](api/agent-guide.md). `pnpm api:docs` writes the copy, and a
+test fails when it differs. Change the guide together with the behaviour it
+describes.
+
+### Contract tests
+
+`tests/e2e/contract.spec.ts` reads the published definition from the running
+application, as a client does, and checks answers against it with Ajv, a JSON
+Schema validator that is independent of the zod schemas the definition is built
+from. It makes three checks:
+
+- every route that can be called with data of the fixture project is called, and
+  its status has to be documented and its body has to match the schema of that
+  status (reads, ticket work, dry runs of configuration and texts, designs,
+  agents and the webhook cycle);
+- every route is called without a login and, signed in, with ids that do not
+  exist and an empty body, and the refusal has to match the documented error
+  shape;
+- a changed answer fails: a missing required property, a changed type, a property
+  the definition does not know and an undocumented status are each rejected.
+
+A route that is neither called nor named in `notCalled` with a reason fails the
+test, and so does a reason for a route that no longer exists. Routes that need a
+real mail host, a stored original or an agent draft are listed there and covered
+by their own tests. The test runs in the Browser tests job against the same
+stack and only on Chromium, since it tests the protocol and not a browser.
+
 ## Project configuration
 
 The editable configuration of a project is one document: name, colour, default

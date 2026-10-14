@@ -5,6 +5,7 @@ import { DomainError } from "../errors";
 import { Reply } from "./reply";
 import { routes, type Route } from "./routes";
 import { openApiDocument } from "./openapi";
+import { agentGuide } from "./guide";
 // Turns a path template such as /tickets/{ticketId} into a matcher. A path has
 // exactly the segments of its template; a trailing slash matches nothing.
 function compile(route: Route) {
@@ -46,6 +47,13 @@ export async function dispatch(request: Request): Promise<Response> {
     if (request.method === "GET" && new URL(request.url).pathname === `${prefix}/openapi.json`)
       return Response.json(openApiDocument(), {
         headers: { "Cache-Control": "public, max-age=300" },
+      });
+    if (request.method === "GET" && new URL(request.url).pathname === `${prefix}/guide.md`)
+      return new Response(agentGuide, {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Cache-Control": "public, max-age=300",
+        },
       });
     return await handle(request, await identify(request.headers));
   } catch (error) {

@@ -6,6 +6,7 @@ import { DomainError } from "../src/server/errors";
 import { routes, type Route } from "../src/server/api/routes";
 import { handle, matchRoute, dispatch } from "../src/server/api/router";
 import { openApiDocument } from "../src/server/api/openapi";
+import { agentGuide } from "../src/server/api/guide";
 import { actions, type Principal } from "../src/domain/permissions";
 const owner: Principal = {
   id: "api-test",
@@ -112,6 +113,13 @@ describe("the published definition", () => {
       readFileSync("docs/api/openapi.json", "utf8"),
     );
   });
+  it("points to the guide for agents, whose committed copy equals the published one", () => {
+    expect(document.externalDocs.url).toBe("/api/v1/guide.md");
+    expect(agentGuide).toBe(readFileSync("docs/api/agent-guide.md", "utf8"));
+    // The guide names every query parameter and header it relies on.
+    for (const word of ["expectedVersion", "expectedRevision", "validate=true", "idempotencyKey"])
+      expect(agentGuide).toContain(word);
+  });
   it("shows a changed route as a changed document", () => {
     const route = routes[0];
     if (!route) throw new Error("no routes");
@@ -139,6 +147,13 @@ describe("the router", () => {
     expect(((await open.json()) as { openapi: string }).openapi).toBe("3.1.0");
     for (const path of ["/projects", "/nothing", `/tickets/${sample}`])
       expect((await dispatch(request(path))).status).toBe(401);
+  });
+  it("serves the guide for agents as Markdown without a login", async () => {
+    const response = await dispatch(request("/guide.md"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/markdown");
+    expect(await response.text()).toBe(agentGuide);
+    expect((await dispatch(request("/guide.md", { method: "POST" }))).status).toBe(401);
   });
   it("answers an unknown path or method with not_found for a signed-in caller", async () => {
     for (const [path, method] of [

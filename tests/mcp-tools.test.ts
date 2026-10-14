@@ -9,6 +9,7 @@ import { agents, audit, configChanges, projects, tickets } from "../src/server/d
 import { mcpRequest } from "../src/server/mcp";
 import { tokenHash } from "../src/server/principal";
 import { routes } from "../src/server/api/routes";
+import { agentGuide } from "../src/server/api/guide";
 import type { Action } from "../src/domain/permissions";
 const projectId = randomUUID();
 const ticketId = randomUUID();
@@ -128,6 +129,36 @@ describe("the route table and MCP", () => {
       "operators.grant",
     ])
       expect(routes.find((route) => route.id === id)?.mcp).toHaveProperty("not");
+  });
+});
+describe("the server instructions", () => {
+  it("are the guide for agents, handed over when a client connects", async () => {
+    const { value } = await token("guided", ["project.read"]);
+    const response = await mcpRequest(
+      new Request("http://localhost:3000/api/mcp", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${value}`,
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "mcp-protocol-version": "2025-03-26",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-03-26",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1" },
+          },
+        }),
+      }),
+    );
+    const result = z
+      .object({ result: z.object({ instructions: z.string() }) })
+      .parse(await response.json());
+    expect(result.result.instructions).toBe(agentGuide);
   });
 });
 describe("the tools of an agent", () => {

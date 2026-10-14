@@ -77,6 +77,7 @@ curl -H "Authorization: Bearer $TOKEN" https://desk.example.test/api/v1/overview
 |----------|----------|
 | [Development notes](docs/development.md) | Configuration, every feature in detail, evidence and known gaps |
 | [API definition](docs/api/openapi.json) | OpenAPI 3.1 document, also served at `/api/v1/openapi.json` |
+| [Guide for agents](docs/api/agent-guide.md) | What an agent reads first, and how versions, validation and proposals work; also served at `/api/v1/guide.md` |
 | [Capability ledger](docs/capabilities.md) | Which surface offers which operation, and the reasons for differences |
 | [Initial product plan](docs/plans/initial-product.md) | Scope, design decisions and acceptance criteria |
 | [API and configuration plan](docs/plans/api-and-configuration.md) | The route table, the approval policy and editable configuration |
