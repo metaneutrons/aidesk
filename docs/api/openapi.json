@@ -1412,7 +1412,8 @@
                           "role_marker",
                           "secrecy_request",
                           "exfiltration_hint",
-                          "hidden_characters"
+                          "hidden_characters",
+                          "hidden_content"
                         ]
                       },
                       "description": "Patterns that look like instructions to a model; a hint, never a verdict"
@@ -1896,7 +1897,8 @@
                           "role_marker",
                           "secrecy_request",
                           "exfiltration_hint",
-                          "hidden_characters"
+                          "hidden_characters",
+                          "hidden_content"
                         ]
                       },
                       "description": "Patterns that look like instructions to a model; a hint, never a verdict"
@@ -1914,17 +1916,62 @@
                       "type": "boolean"
                     },
                     "reason": {
-                      "description": "Why the file is not read; present when readable is false",
+                      "description": "Why the file is not read; present when readable is false. extraction_pending: a PDF or Office file is being read, ask again in a moment",
                       "type": "string",
                       "enum": [
                         "not_stored",
                         "type_not_readable",
-                        "binary_content"
+                        "extraction_pending",
+                        "extraction_failed"
+                      ]
+                    },
+                    "failure": {
+                      "description": "With extraction_failed: what the reader of documents found out about the file",
+                      "type": "string",
+                      "enum": [
+                        "unsupported",
+                        "damaged",
+                        "encrypted",
+                        "too_large",
+                        "timeout",
+                        "empty",
+                        "failed"
                       ]
                     },
                     "text": {
                       "description": "The content as text; present when readable is true",
                       "type": "string"
+                    },
+                    "extraction": {
+                      "description": "Present when the text was extracted from a PDF or Office file",
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string"
+                        },
+                        "units": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "enum": [
+                            "pages",
+                            "sheets",
+                            "slides"
+                          ]
+                        },
+                        "hidden": {
+                          "type": "number",
+                          "description": "Parts of the document that a reader does not see and that were left out"
+                        }
+                      },
+                      "required": [
+                        "method",
+                        "units",
+                        "unit",
+                        "hidden"
+                      ],
+                      "additionalProperties": false
                     },
                     "truncated": {
                       "type": "boolean",

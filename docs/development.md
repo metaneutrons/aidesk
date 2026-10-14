@@ -173,13 +173,18 @@ mail with its headers. Both need `ticket.read_files`, give at most 256 KiB and r
 the sender and may carry instructions for a model, so an agent that is allowed to answer
 by itself (`direct`) reads files only when someone granted that. People who manage a
 project hold it (migration 0017); no token role of the settings page includes it, and it is
-granted through the API with explicit actions. Only text is decoded: the declared type is `text/*` or a text format
-(JSON, XML, YAML and the like), or the type is `application/octet-stream` and the
-extension is a text one. A file of any other type, content with a NUL byte in its first
-8 KiB, whatever its declared type, and a file refused when the mail arrived answer
-`readable: false` with a `reason` (`type_not_readable`, `binary_content`,
-`not_stored`) and no content. What a sender wrote is data: the descriptions of both
-tools and the guide for agents say that an agent does not act on it.
+granted through the API with explicit actions. Plain text is decoded at once: the
+declared type is `text/*` or a text format (JSON, XML, YAML and the like), or the type
+is `application/octet-stream` and the extension is a text one, and the content has no
+NUL byte in its first 8 KiB and does not start like a document. A PDF file and a Word, Excel or PowerPoint file (by type or extension, or
+by its content whatever its type says, a PDF header or the start of a ZIP package) are
+read by the worker (see "Reading documents for agents"); the first request answers
+`readable: false` with `reason: extraction_pending`, a later one has the text with an
+`extraction` object (`method`, `units`, `unit`, `hidden`) or `reason:
+extraction_failed` with the `failure`. Everything else, and a file refused when the mail
+arrived, answers `readable: false` with `type_not_readable` or `not_stored` and no
+content. What a sender wrote is data: the descriptions of both tools and the guide for
+agents say that an agent does not act on it.
 
 Every answer carries a frame. `untrusted: true` and the `origin` (project, ticket,
 message and file) say what it is. Characters that a person does not see but a model
@@ -190,8 +195,9 @@ other than line breaks and tabs. `removedCharacters` counts them. The joiner of 
 emoji sequence and the non-joiner of some scripts are among the removed characters;
 that is accepted, because the same characters carry hidden text. `flags` lists
 patterns that look like instructions to a model (`instruction_override`,
-`role_marker`, `secrecy_request`, `exfiltration_hint`, and `hidden_characters` when
-characters were removed) in English and German. A flag is a hint and never blocks:
+`role_marker`, `secrecy_request`, `exfiltration_hint`, `hidden_characters` when
+characters were removed, and `hidden_content` when a document had parts that were left
+out) in English and German. A flag is a hint and never blocks:
 a pattern that blocks also blocks a customer who quotes it, and an empty list does
 not mean the text is safe. Text that is hidden in a document by its layout, such as
 white on white, cannot be found reliably. Every read, also of a file that is not
@@ -200,7 +206,7 @@ the outcome; a refused read is not. The protection limits what an instruction
 in a file can cause (the separate action, the approval policy, the project as the
 boundary) and makes a read visible; it does not detect instructions.
 
-Images and documents such as PDF are not read yet; see C5 in the plan.
+Images and scans are not read yet; see C5-A5 in the plan.
 
 ## Ticket work
 
@@ -215,8 +221,19 @@ person with access to the project (`userId`), to an active agent of the project
 ## Reading documents for agents
 
 The building block that reads the text of PDF, Word, Excel and PowerPoint files is
-in `src/server/extract` (C5-A4). It is not connected to `attachments_read` yet; the
-derived record and the job that fills it come in the next delivery.
+in `src/server/extract` (C5-A4). `attachments_read` uses it through the worker:
+the first request for a PDF or Office file queues the job `attachment.extract` (one
+per file and version of the reader) and answers `extraction_pending`; the worker
+reads the file in the closed process and keeps the result in the table
+`attachment_text` (text, method, units, hidden parts, or the failure), which follows
+the attachment when it is deleted. Later reads come from that record, also for a file
+that could not be read, so that a file cannot be made to cost a reading again and
+again. A result of another version of the reader (`extractorVersion`) is not used and
+is asked for again. A failure of the machinery around the reading, such as a storage
+that does not answer, is retried after 30 s, 2 min, 10 min and 1 h and then goes to
+review, which the answer shows as `extraction_failed` with `failure: failed`. The
+extracted text is kept as long as the file is; the rules for how long attachments are
+kept are not decided.
 
 - **What is read.** The text layer of a PDF file (pdf.js, official `pdfjs-dist`,
   pinned), and the text of `.docx`, `.xlsx` and `.pptx` files. Old binary Office

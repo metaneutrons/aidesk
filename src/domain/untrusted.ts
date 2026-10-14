@@ -55,9 +55,12 @@ export const flagIds = [
   "secrecy_request",
   "exfiltration_hint",
   "hidden_characters",
+  // A document had parts that a reader does not see (hidden text, sheets, slides)
+  // and that were left out.
+  "hidden_content",
 ] as const;
 export type Flag = (typeof flagIds)[number];
-const patterns: [Exclude<Flag, "hidden_characters">, RegExp][] = [
+const patterns: [Exclude<Flag, "hidden_characters" | "hidden_content">, RegExp][] = [
   [
     "instruction_override",
     /\b(ignore|disregard|forget|override)\b[^.\n]{0,40}\b(previous|prior|above|earlier|all|any|your)\b[^.\n]{0,30}\b(instructions?|rules?|prompts?|guidelines?)\b/i,
@@ -94,9 +97,10 @@ const patterns: [Exclude<Flag, "hidden_characters">, RegExp][] = [
   ],
 ];
 // The flags of a text, once each, in a fixed order.
-export function flagsOf(text: string, removed: number): Flag[] {
+export function flagsOf(text: string, removed: number, leftOut = 0): Flag[] {
   const found = new Set<Flag>();
   if (removed > 0) found.add("hidden_characters");
+  if (leftOut > 0) found.add("hidden_content");
   for (const [flag, pattern] of patterns) if (pattern.test(text)) found.add(flag);
   return flagIds.filter((flag) => found.has(flag));
 }

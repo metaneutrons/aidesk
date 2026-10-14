@@ -149,6 +149,7 @@ const frame = {
         "secrecy_request",
         "exfiltration_hint",
         "hidden_characters",
+        "hidden_content",
       ]),
     )
     .describe("Patterns that look like instructions to a model; a hint, never a verdict"),
@@ -160,10 +161,27 @@ export const attachmentText = z.object({
   size: z.number(),
   readable: z.boolean(),
   reason: z
-    .enum(["not_stored", "type_not_readable", "binary_content"])
+    .enum(["not_stored", "type_not_readable", "extraction_pending", "extraction_failed"])
     .optional()
-    .describe("Why the file is not read; present when readable is false"),
+    .describe(
+      "Why the file is not read; present when readable is false. extraction_pending: a PDF or Office file is being read, ask again in a moment",
+    ),
+  failure: z
+    .enum(["unsupported", "damaged", "encrypted", "too_large", "timeout", "empty", "failed"])
+    .optional()
+    .describe("With extraction_failed: what the reader of documents found out about the file"),
   text: z.string().optional().describe("The content as text; present when readable is true"),
+  extraction: z
+    .object({
+      method: z.string(),
+      units: z.number(),
+      unit: z.enum(["pages", "sheets", "slides"]),
+      hidden: z
+        .number()
+        .describe("Parts of the document that a reader does not see and that were left out"),
+    })
+    .optional()
+    .describe("Present when the text was extracted from a PDF or Office file"),
   truncated: z.boolean().describe("The content was cut at 256 KiB"),
 });
 export const originalText = z.object({
