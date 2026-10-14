@@ -2,6 +2,7 @@ export const actions = [
   "project.read",
   "project.manage",
   "ticket.read",
+  "ticket.read_files",
   "ticket.reply",
   "ticket.note",
   "ticket.assign",

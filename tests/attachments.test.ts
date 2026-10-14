@@ -32,12 +32,24 @@ import type { Principal } from "../src/domain/permissions";
 const projectId = randomUUID();
 const otherProject = randomUUID();
 const bearer = `aidesk_${randomBytes(32).toString("base64url")}`;
+const plainBearer = `aidesk_${randomBytes(32).toString("base64url")}`;
 const reader: Principal = {
   id: "attachment-reader",
   kind: "human",
   active: true,
   owner: false,
   grants: [{ projectId, actions: ["project.read", "ticket.read"] }],
+};
+// Reading files for agents is a separate action, which these principals add.
+const fileReader: Principal = {
+  ...reader,
+  grants: [{ projectId, actions: ["project.read", "ticket.read", "ticket.read_files"] }],
+};
+const fileStranger: Principal = {
+  ...reader,
+  grants: [
+    { projectId: otherProject, actions: ["project.read", "ticket.read", "ticket.read_files"] },
+  ],
 };
 const stranger: Principal = {
   ...reader,
@@ -85,8 +97,17 @@ beforeAll(async () => {
     .values({
       name: "Reader",
       projectId,
-      actions: ["project.read", "ticket.read"],
+      actions: ["project.read", "ticket.read", "ticket.read_files"],
       tokenHash: tokenHash(bearer),
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+  await db()
+    .insert(agents)
+    .values({
+      name: "Plain reader",
+      projectId,
+      actions: ["project.read", "ticket.read"],
+      tokenHash: tokenHash(plainBearer),
       expiresAt: new Date(Date.now() + 3_600_000),
     });
 });
@@ -362,7 +383,7 @@ describe("files for agents", () => {
     );
     const listed = conversation.messages[0]?.attachments ?? [];
     const idOf = (name: string) => listed.find((entry) => entry.filename === name)?.id ?? "";
-    const read = (name: string) => readAttachment(reader, idOf(name));
+    const read = (name: string) => readAttachment(fileReader, idOf(name));
     expect(await read("notes.txt")).toMatchObject({
       readable: true,
       text: "Grüße, das Passwort ist 42",
@@ -385,13 +406,15 @@ describe("files for agents", () => {
       expect(answer, name).not.toHaveProperty("text");
     }
     // Another project, no grant and an unknown file are not found.
-    await expect(readAttachment(stranger, idOf("notes.txt"))).rejects.toMatchObject({
+    await expect(readAttachment(fileStranger, idOf("notes.txt"))).rejects.toMatchObject({
       code: "not_found",
     });
     await expect(
-      readAttachment({ ...reader, grants: [] }, idOf("notes.txt")),
+      readAttachment({ ...fileReader, grants: [] }, idOf("notes.txt")),
     ).rejects.toMatchObject({ code: "not_found" });
-    await expect(readAttachment(reader, randomUUID())).rejects.toMatchObject({ code: "not_found" });
+    await expect(readAttachment(fileReader, randomUUID())).rejects.toMatchObject({
+      code: "not_found",
+    });
     // REST: the same answer as JSON, and the download route is unchanged.
     const response = await GET(
       new Request(`http://localhost:3000/api/v1/attachments/${idOf("notes.txt")}/text`, {
@@ -446,12 +469,16 @@ describe("files for agents", () => {
     expect((await tool("attachments_read", { attachmentId: randomUUID() })).isError).toBe(true);
     // The original: the source with its headers, cut at the limit, for readers of the ticket only.
     const messageId = conversation.messages[0]?.id ?? "";
-    const original = await readOriginal(reader, messageId);
+    const original = await readOriginal(fileReader, messageId);
     expect(original.truncated).toBe(true);
     expect(original.text).toContain("Subject: Files");
     expect(original.text.length).toBeLessThanOrEqual(agentReadLimit);
-    await expect(readOriginal(stranger, messageId)).rejects.toMatchObject({ code: "not_found" });
-    await expect(readOriginal(reader, randomUUID())).rejects.toMatchObject({ code: "not_found" });
+    await expect(readOriginal(fileStranger, messageId)).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(readOriginal(fileReader, randomUUID())).rejects.toMatchObject({
+      code: "not_found",
+    });
     expect(await tool("messages_read_original", { messageId })).toMatchObject({
       isError: false,
       body: { truncated: true, size: original.size },
@@ -459,9 +486,89 @@ describe("files for agents", () => {
   });
   it("gives a short original whole", async () => {
     const conversation = await ingest(await compose({ text: "Short mail" }));
-    const original = await readOriginal(reader, conversation.messages[0]?.id ?? "");
+    const original = await readOriginal(fileReader, conversation.messages[0]?.id ?? "");
     expect(original).toMatchObject({ truncated: false });
     expect(original.text).toContain("Short mail");
     expect(original.size).toBe(Buffer.byteLength(original.text));
+  });
+  it("is not offered to a reader without the action: the operations, the REST routes and the tools", async () => {
+    const conversation = await ingest(
+      await compose({
+        text: "Plain readers",
+        attachments: [
+          { filename: "a.txt", content: Buffer.from("secret"), contentType: "text/plain" },
+        ],
+      }),
+    );
+    const attachmentId = conversation.messages[0]?.attachments[0]?.id ?? "";
+    const messageId = conversation.messages[0]?.id ?? "";
+    // The action of reading a ticket is not enough, for a person or an agent.
+    await expect(readAttachment(reader, attachmentId)).rejects.toMatchObject({ code: "not_found" });
+    await expect(readOriginal(reader, messageId)).rejects.toMatchObject({ code: "not_found" });
+    for (const path of [
+      `/attachments/${attachmentId}/text`,
+      `/messages/${messageId}/original/text`,
+    ]) {
+      const refused = await GET(
+        new Request(`http://localhost:3000/api/v1${path}`, {
+          headers: { authorization: `Bearer ${plainBearer}` },
+        }),
+      );
+      expect(refused.status, path).toBe(404);
+      const allowed = await GET(
+        new Request(`http://localhost:3000/api/v1${path}`, {
+          headers: { authorization: `Bearer ${bearer}` },
+        }),
+      );
+      expect(allowed.status, path).toBe(200);
+    }
+    // The download of the file stays with ticket.read.
+    expect(
+      (
+        await GET(
+          new Request(`http://localhost:3000/api/v1/attachments/${attachmentId}`, {
+            headers: { authorization: `Bearer ${plainBearer}` },
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    // The tools exist only for the token that holds the action.
+    const toolNames = async (token: string) => {
+      const headers = {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2025-03-26",
+      };
+      const send = (body: unknown) =>
+        mcpRequest(
+          new Request("http://localhost:3000/api/mcp", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          }),
+        );
+      await send({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "test", version: "1" },
+        },
+      });
+      const listed = (await (
+        await send({ jsonrpc: "2.0", id: 2, method: "tools/list" })
+      ).json()) as {
+        result: { tools: { name: string }[] };
+      };
+      return listed.result.tools.map((tool) => tool.name);
+    };
+    expect(await toolNames(plainBearer)).not.toContain("attachments_read");
+    expect(await toolNames(plainBearer)).not.toContain("messages_read_original");
+    expect(await toolNames(bearer)).toEqual(
+      expect.arrayContaining(["attachments_read", "messages_read_original"]),
+    );
   });
 });

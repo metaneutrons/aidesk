@@ -227,7 +227,7 @@ export const capabilities = {
   },
   "attachments.read": {
     operation: "readAttachment",
-    action: "ticket.read",
+    action: "ticket.read_files",
     ui: null,
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
@@ -291,7 +291,7 @@ export const capabilities = {
   },
   "messages.original_text": {
     operation: "readOriginal",
-    action: "ticket.read",
+    action: "ticket.read_files",
     ui: null,
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",

@@ -548,8 +548,12 @@ export async function getSentSnapshot(principal: Principal, messageId: string) {
 }
 // A stored attachment of a ticket the principal may read. Refused files,
 // unknown ids and files of other projects all answer not_found.
-async function attachmentOf(principal: Principal, attachmentId: string) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
+async function attachmentOf(
+  principal: Principal,
+  attachmentId: string,
+  action: Action = "ticket.read",
+) {
+  const allowed = allowedProjectIds(principal, action);
   if (!allowed.length) throw new DomainError("not_found", 404);
   const [file] = await db()
     .select({
@@ -586,7 +590,7 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
 // the reason when it is not read. A file that was refused on receipt is not
 // stored and says so.
 export async function readAttachment(principal: Principal, attachmentId: string) {
-  const file = await attachmentOf(principal, attachmentId);
+  const file = await attachmentOf(principal, attachmentId, "ticket.read_files");
   const described = { filename: file.filename, contentType: file.contentType, size: file.size };
   const unread = (reason: "not_stored" | Unreadable) => ({
     ...described,
@@ -603,8 +607,8 @@ export async function readAttachment(principal: Principal, attachmentId: string)
 // The stored original of a message for a person who may read its ticket. A
 // message of another project, one without an original and an unknown id all
 // answer not_found.
-async function originalOf(principal: Principal, messageId: string) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
+async function originalOf(principal: Principal, messageId: string, action: Action = "ticket.read") {
+  const allowed = allowedProjectIds(principal, action);
   if (!allowed.length) throw new DomainError("not_found", 404);
   const [found] = await db()
     .select({ rawObjectKey: messages.rawObjectKey, number: tickets.number })
@@ -628,7 +632,7 @@ export async function getOriginal(principal: Principal, messageId: string) {
 // agentReadLimit bytes. The extracted Markdown of getTicket is the readable form;
 // this is for what only the source shows, such as headers.
 export async function readOriginal(principal: Principal, messageId: string) {
-  const found = await originalOf(principal, messageId);
+  const found = await originalOf(principal, messageId, "ticket.read_files");
   const content = await getObject(found.key);
   return { size: content.length, ...forAgent(content) };
 }

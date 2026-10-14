@@ -168,8 +168,12 @@ and the binary downloads of files.
 A file is not a tool result, so the downloads stay with REST. `GET
 /attachments/{id}/text` (`attachments_read`) returns an attachment as text, and `GET
 /messages/{id}/original/text` (`messages_read_original`) the source of a received
-mail with its headers. Both need `ticket.read`, give at most 256 KiB and report
-`truncated`. Only text is decoded: the declared type is `text/*` or a text format
+mail with its headers. Both need `ticket.read_files`, give at most 256 KiB and report
+`truncated`. The action is separate from `ticket.read` on purpose: a file is written by
+the sender and may carry instructions for a model, so an agent that is allowed to answer
+by itself (`direct`) reads files only when someone granted that. People who manage a
+project hold it (migration 0017); no token role of the settings page includes it, and it is
+granted through the API with explicit actions. Only text is decoded: the declared type is `text/*` or a text format
 (JSON, XML, YAML and the like), or the type is `application/octet-stream` and the
 extension is a text one. A file of any other type, content with a NUL byte in its first
 8 KiB, whatever its declared type, and a file refused when the mail arrived answer
