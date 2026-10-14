@@ -27,3 +27,7 @@ export async function checkHost(host: string): Promise<HostVerdict> {
   if (addresses.length === 0) return "unresolved";
   return addresses.some((entry) => hostRefused(entry.address)) ? "refused" : "allowed";
 }
+// Whether this is the development stack, which may use plain and local endpoints
+// that a production stack refuses.
+export const developmentStack = () =>
+  process.env.NODE_ENV === "development" && process.env.DEV_BOOTSTRAP === "true";

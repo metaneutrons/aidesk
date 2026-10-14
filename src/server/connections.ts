@@ -20,7 +20,7 @@ import {
   typeKey,
   type ConnectionTypeKey,
 } from "../domain/connections";
-import { checkHost } from "./host-guard";
+import { checkHost, developmentStack } from "./host-guard";
 import { permits, type Principal } from "../domain/permissions";
 import type { ConfigDiffEntry } from "../domain/configuration";
 import { seal, unseal } from "./crypto";
@@ -32,8 +32,6 @@ import { env } from "./env";
 const id = z.uuid();
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
 type Row = typeof connections.$inferSelect;
-const developmentStack = () =>
-  process.env.NODE_ENV === "development" && process.env.DEV_BOOTSTRAP === "true";
 function manageable(principal: Principal, project: string): void {
   if (!permits(principal, project, "integration.manage")) throw new DomainError("not_found", 404);
 }

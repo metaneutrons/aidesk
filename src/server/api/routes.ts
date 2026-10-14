@@ -70,6 +70,15 @@ import {
   updateConnection,
 } from "../connections";
 import { listTextVersions, listTexts, setText, textWrite } from "../texts";
+import {
+  createWebhook,
+  disableWebhook,
+  listWebhookDeliveries,
+  listWebhooks,
+  pingWebhook,
+  updateWebhook,
+} from "../webhooks";
+import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
@@ -127,7 +136,7 @@ const validateQuery = z.object({
 });
 // 200 when nothing was written or nothing changed, 202 for a proposal, and the
 // status of the route itself when the change was applied.
-function connectionReply(
+function changeReply(
   result: { outcome: "unchanged" | "applied" | "proposed"; validated: boolean },
   applied: number,
 ) {
@@ -694,7 +703,7 @@ export const routes: Route[] = [
     status: 201,
     alsoStatus: [200, 202],
     run: async ({ principal, params, query, input }) =>
-      connectionReply(
+      changeReply(
         await createConnection(principal, params.projectId ?? "", input, {
           validate: query.get("validate") === "true",
         }),
@@ -715,7 +724,7 @@ export const routes: Route[] = [
     response: out.connectionResult,
     alsoStatus: [202],
     run: async ({ principal, params, query, input }) =>
-      connectionReply(
+      changeReply(
         await updateConnection(
           principal,
           params.projectId ?? "",
@@ -741,7 +750,7 @@ export const routes: Route[] = [
     response: out.connectionResult,
     alsoStatus: [202],
     run: async ({ principal, params, query, input }) =>
-      connectionReply(
+      changeReply(
         await disableConnection(
           principal,
           params.projectId ?? "",
@@ -864,5 +873,105 @@ export const routes: Route[] = [
     access: "ticket.reply",
     response: out.draftResult,
     run: ({ principal, params }) => discardDraft(principal, params.messageId ?? ""),
+  },
+  {
+    id: "webhooks.list",
+    mcp: { tool: "webhooks_list" },
+    method: "GET",
+    path: "/projects/{projectId}/webhooks",
+    tag: "Webhooks",
+    summary:
+      "The webhooks of a project with the outcome of the last delivery; secrets are never returned",
+    access: "integration.manage",
+    response: list(out.webhookOut),
+    run: ({ principal, params }) => listWebhooks(principal, params.projectId ?? ""),
+  },
+  {
+    id: "webhooks.create",
+    mcp: { tool: "webhooks_create" },
+    method: "POST",
+    path: "/projects/{projectId}/webhooks",
+    tag: "Webhooks",
+    summary:
+      "Define a webhook: an HTTPS endpoint, the events it receives and a signing secret that is stored and never returned. Applies at once (201) or becomes a proposal (202) for an agent under the review policy; with validate=true nothing is written (200)",
+    access: "integration.manage",
+    query: validateQuery,
+    body: webhookCreate,
+    response: out.webhookResult,
+    status: 201,
+    alsoStatus: [200, 202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await createWebhook(principal, params.projectId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        201,
+      ),
+  },
+  {
+    id: "webhooks.update",
+    mcp: { tool: "webhooks_update" },
+    method: "PUT",
+    path: "/projects/{projectId}/webhooks/{webhookId}",
+    tag: "Webhooks",
+    summary: "Change a webhook; names the version that was read. A new secret replaces the old one",
+    access: "integration.manage",
+    query: validateQuery,
+    body: webhookUpdate,
+    response: out.webhookResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await updateWebhook(principal, params.projectId ?? "", params.webhookId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        200,
+      ),
+  },
+  {
+    id: "webhooks.disable",
+    mcp: { tool: "webhooks_disable" },
+    method: "POST",
+    path: "/projects/{projectId}/webhooks/{webhookId}/disable",
+    tag: "Webhooks",
+    summary: "Disable a webhook; events already queued for it are dropped",
+    access: "integration.manage",
+    query: validateQuery,
+    body: webhookDisable,
+    response: out.webhookResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await disableWebhook(principal, params.projectId ?? "", params.webhookId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        200,
+      ),
+  },
+  {
+    id: "webhooks.ping",
+    mcp: { tool: "webhooks_ping" },
+    method: "POST",
+    path: "/projects/{projectId}/webhooks/{webhookId}/ping",
+    tag: "Webhooks",
+    summary: "Queue a test event (type ping) for one webhook to see that its endpoint answers",
+    access: "integration.manage",
+    response: out.webhookPing,
+    status: 202,
+    run: ({ principal, params }) =>
+      pingWebhook(principal, params.projectId ?? "", params.webhookId ?? ""),
+  },
+  {
+    id: "webhooks.deliveries",
+    mcp: { tool: "webhooks_deliveries" },
+    method: "GET",
+    path: "/projects/{projectId}/webhooks/{webhookId}/deliveries",
+    tag: "Webhooks",
+    summary:
+      "The attempts to deliver events to a webhook, newest first; outcome and status, never bodies",
+    access: "integration.manage",
+    response: list(out.webhookDelivery),
+    run: ({ principal, params }) =>
+      listWebhookDeliveries(principal, params.projectId ?? "", params.webhookId ?? ""),
   },
 ];

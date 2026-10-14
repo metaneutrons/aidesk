@@ -287,6 +287,11 @@ describe("the tools of an agent", () => {
     expect(
       (await call(worker.value, "tickets_assign", { ticketId, userId: null, agentId: null })).body,
     ).toEqual({ assigneeUserId: null, assigneeAgentId: null });
+    // A list argument becomes repeated query parameters.
+    const scoped = await call(worker.value, "overview_get", { project: [projectId] });
+    expect(
+      (scoped.body.projects as { projectId: string }[]).map((entry) => entry.projectId),
+    ).toEqual([projectId]);
     const bad = await call(worker.value, "tickets_assign", {
       ticketId,
       userId: "nobody",

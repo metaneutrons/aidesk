@@ -294,5 +294,17 @@
   "draftSend": "Send draft",
   "draftDiscard": "Discard draft",
   "draftDiscarded": "Draft discarded",
-  "draftStale": "The ticket changed after the draft was written. The draft was not sent; write the answer again."
+  "draftStale": "The ticket changed after the draft was written. The draft was not sent; write the answer again.",
+  "webhooksTitle": "Webhooks of {project}",
+  "webhooksHint": "Events of this project are sent to these endpoints as signed requests. Define a webhook, with its signing secret, through the API. The page never shows a secret.",
+  "webhooksNone": "No webhooks.",
+  "webhookDisabled": "Disabled",
+  "webhookNoDelivery": "Nothing delivered yet",
+  "webhookDelivery_succeeded": "Delivered {date}",
+  "webhookDelivery_retry": "Failed {date} ({code}), trying again",
+  "webhookDelivery_failed": "Failed {date} ({code}), given up",
+  "webhookPing": "Send a test event to {name}",
+  "webhookDisable": "Disable {name}",
+  "webhookPinged": "A test event was queued; the result appears here once the endpoint answered.",
+  "webhookProposed": "Proposed. A person with approval rights has to activate it."
 }

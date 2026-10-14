@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
+import { emitEvent } from "./webhooks";
 import { clampLimit, listStep } from "../domain/paging";
 import { defaultOverdueHours } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
@@ -302,6 +303,12 @@ export async function setTicketStatus(principal: Principal, ticketId: string, in
       action: "ticket.status",
       targetId: ticket.id,
       detail: { from: ticket.status, to: values.status },
+    });
+    await emitEvent(tx, ticket.projectId, "ticket.status_changed", {
+      ticketId: ticket.id,
+      number: ticket.number,
+      from: ticket.status,
+      to: values.status,
     });
     return { ...changed, changed: true };
   });
@@ -905,6 +912,12 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
         actorId: principal.id,
         action: "ticket.draft",
         targetId: draftId,
+      });
+      await emitEvent(tx, ticket.projectId, "draft.created", {
+        ticketId: ticket.id,
+        number: ticket.number,
+        messageId: draftId,
+        agentId: principal.id,
       });
       return { id: draftId, duplicate: false, draft: true };
     }

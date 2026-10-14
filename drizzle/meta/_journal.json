@@ -113,6 +113,13 @@
       "when": 1791934000928,
       "tag": "0015_approval_policy_replaces_ai_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791935918373,
+      "tag": "0016_webhooks",
+      "breakpoints": true
     }
   ]
 }
