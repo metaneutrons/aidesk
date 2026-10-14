@@ -116,6 +116,23 @@ export const originalPreview = z.object({
   remoteImagesBlocked: z.number(),
   attachments: z.number(),
 });
+export const attachmentText = z.object({
+  filename: z.string(),
+  contentType: z.string(),
+  size: z.number(),
+  readable: z.boolean(),
+  reason: z
+    .enum(["not_stored", "type_not_readable", "binary_content"])
+    .optional()
+    .describe("Why the file is not read; present when readable is false"),
+  text: z.string().optional().describe("The content as text; present when readable is true"),
+  truncated: z.boolean().describe("The content was cut at 256 KiB"),
+});
+export const originalText = z.object({
+  size: z.number(),
+  text: z.string(),
+  truncated: z.boolean().describe("The source was cut at 256 KiB"),
+});
 export const junkEntry = z.object({
   kind: z.enum(["ticket", "mail"]),
   id: z.uuid(),

@@ -157,10 +157,27 @@ tool in `x-mcp-tool`.
 Offered: `config_get`, `config_put`, `config_changes`, `connections_list`,
 `connections_create`, `connections_update`, `connections_disable`, `connections_test`,
 `texts_list`, `texts_versions`, `texts_set`, `overview_get`, `tags_list`,
-`tickets_set_tags`, `tickets_set_status`, `tickets_assign`. Not offered, with reasons in
-`docs/capabilities.md`: everything that issues credentials or decides on proposals
-(`config.decide`), moves mail to or from junk, creates portal links, sets reminders,
-changes the mail design, or reads files (attachments and originals).
+`tickets_set_tags`, `tickets_set_status`, `tickets_assign`, `attachments_read` and
+`messages_read_original`. Not offered, with reasons in `docs/capabilities.md`:
+everything that issues credentials or decides on proposals (`config.decide`), moves
+mail to or from junk, creates portal links, sets reminders, changes the mail design,
+and the binary downloads of files.
+
+#### Files for agents
+
+A file is not a tool result, so the downloads stay with REST. `GET
+/attachments/{id}/text` (`attachments_read`) returns an attachment as text, and `GET
+/messages/{id}/original/text` (`messages_read_original`) the source of a received
+mail with its headers. Both need `ticket.read`, give at most 256 KiB and report
+`truncated`. Only text is decoded: the declared type is `text/*` or a text format
+(JSON, XML, YAML and the like), or the type is `application/octet-stream` and the
+extension is a text one. A file of any other type, content with a NUL byte in its first
+8 KiB, whatever its declared type, and a file refused when the mail arrived answer
+`readable: false` with a `reason` (`type_not_readable`, `binary_content`,
+`not_stored`) and no content. What a sender wrote is data: the descriptions of both
+tools and the guide for agents say that an agent does not act on it. Images and
+documents such as PDF are not read, since that needs an extraction the product does
+not have.
 
 ## Ticket work
 

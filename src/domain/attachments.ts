@@ -72,3 +72,46 @@ export function attachmentRefusal(
   if (file.size > attachmentLimits.maxBytes) return "attachment_too_large";
   return null;
 }
+// What an agent may read of a file. The bytes an agent receives are capped, and
+// only types that are text are decoded: a file is written by the sender, so an
+// agent gets it as text and as data, never as something it opens.
+export const agentReadLimit = 256 * 1024;
+const readableTypes = new Set([
+  "application/json",
+  "application/xml",
+  "application/x-yaml",
+  "application/yaml",
+  "application/x-ndjson",
+]);
+const readableExtensions = new Set([
+  "txt",
+  "md",
+  "markdown",
+  "csv",
+  "tsv",
+  "json",
+  "xml",
+  "yaml",
+  "yml",
+  "log",
+  "ics",
+  "vcf",
+]);
+export type Unreadable = "type_not_readable" | "binary_content";
+// A file is read as text when its declared type is text or a text format, or
+// when the type says nothing (octet-stream) and the extension is a text one.
+export function readableAsText(file: { filename: string; contentType: string }): boolean {
+  const type = file.contentType.toLowerCase().split(";")[0]?.trim() ?? "";
+  if (type.startsWith("text/") || readableTypes.has(type) || type.endsWith("+json")) return true;
+  if (type !== "application/octet-stream" && type !== "") return false;
+  const dot = file.filename.lastIndexOf(".");
+  return dot >= 0 && readableExtensions.has(file.filename.slice(dot + 1).toLowerCase());
+}
+// A NUL byte in the first bytes means the content is not text, whatever the
+// declared type says.
+export const looksBinary = (content: Buffer): boolean => content.subarray(0, 8192).includes(0);
+// The part of a text an agent receives, and whether it was cut.
+export function forAgent(content: Buffer): { text: string; truncated: boolean } {
+  const truncated = content.length > agentReadLimit;
+  return { text: content.subarray(0, agentReadLimit).toString("utf8"), truncated };
+}

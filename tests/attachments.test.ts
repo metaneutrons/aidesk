@@ -14,11 +14,20 @@ import {
   tickets,
 } from "../src/server/db/schema";
 import { acceptInbound, processIngress } from "../src/server/inbound";
-import { getAttachment, getTicket } from "../src/server/operations";
+import { getAttachment, getTicket, readAttachment, readOriginal } from "../src/server/operations";
 import { getObject, initializeStorage } from "../src/server/storage";
 import { tokenHash } from "../src/server/principal";
 import { GET } from "../src/app/api/v1/[[...path]]/route";
-import { attachmentLimits, attachmentRefusal, safeFilename } from "../src/domain/attachments";
+import {
+  agentReadLimit,
+  attachmentLimits,
+  attachmentRefusal,
+  forAgent,
+  looksBinary,
+  readableAsText,
+  safeFilename,
+} from "../src/domain/attachments";
+import { mcpRequest } from "../src/server/mcp";
 import type { Principal } from "../src/domain/permissions";
 const projectId = randomUUID();
 const otherProject = randomUUID();
@@ -274,5 +283,185 @@ describe("inbound attachments", () => {
       .from(messages)
       .where(eq(messages.id, conversation.messages[0]?.id ?? ""));
     expect(stored?.markdown).not.toContain("<script");
+  });
+});
+
+describe("files for agents", () => {
+  const file = (filename: string, contentType: string) => ({ filename, contentType });
+  it("reads only text types, by type or by extension when the type says nothing", () => {
+    for (const readable of [
+      file("a.txt", "text/plain"),
+      file("a.csv", "text/csv; charset=utf-8"),
+      file("A.MD", "TEXT/MARKDOWN"),
+      file("page.html", "text/html"),
+      file("a.json", "application/json"),
+      file("a", "application/ld+json"),
+      file("a.xml", "application/xml"),
+      file("a.yaml", "application/x-yaml"),
+      file("run.log", "application/octet-stream"),
+      file("NOTES.TXT", ""),
+    ])
+      expect(readableAsText(readable), readable.filename).toBe(true);
+    for (const unreadable of [
+      file("a.pdf", "application/pdf"),
+      file("a.png", "image/png"),
+      file("a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+      file("a.zip", "application/zip"),
+      // A declared type that is not text wins over a text extension.
+      file("a.txt", "application/pdf"),
+      file("data", "application/octet-stream"),
+      file("a.exe", "application/octet-stream"),
+    ])
+      expect(readableAsText(unreadable), unreadable.filename).toBe(false);
+  });
+  it("finds binary content by a NUL byte in the first bytes and cuts at the limit", () => {
+    expect(looksBinary(Buffer.from("plain text"))).toBe(false);
+    expect(looksBinary(Buffer.from([0x61, 0, 0x62]))).toBe(true);
+    // Only the first 8 KiB count.
+    expect(looksBinary(Buffer.concat([Buffer.alloc(8192, 0x61), Buffer.from([0])]))).toBe(false);
+    expect(forAgent(Buffer.alloc(agentReadLimit, 0x61))).toMatchObject({ truncated: false });
+    const cut = forAgent(Buffer.alloc(agentReadLimit + 1, 0x61));
+    expect(cut.truncated).toBe(true);
+    expect("text" in cut ? cut.text : "").toHaveLength(agentReadLimit);
+  });
+  it("gives a text file as text and says why it does not give another, through every surface", async () => {
+    const big = Buffer.alloc(agentReadLimit + 100, "x");
+    const conversation = await ingest(
+      await compose({
+        text: "Files for an agent",
+        attachments: [
+          {
+            filename: "notes.txt",
+            content: Buffer.from("Grüße, das Passwort ist 42"),
+            contentType: "text/plain",
+          },
+          {
+            filename: "data.json",
+            content: Buffer.from('{"a":1}'),
+            contentType: "application/json",
+          },
+          {
+            filename: "run.log",
+            content: Buffer.from("line 1\nline 2"),
+            contentType: "application/octet-stream",
+          },
+          { filename: "report.pdf", content: randomBytes(300), contentType: "application/pdf" },
+          {
+            filename: "fake.txt",
+            content: Buffer.from([0x68, 0x69, 0, 0, 1, 2]),
+            contentType: "text/plain",
+          },
+          { filename: "big.txt", content: big, contentType: "text/plain" },
+          {
+            filename: "tool.exe",
+            content: randomBytes(64),
+            contentType: "application/octet-stream",
+          },
+        ],
+      }),
+    );
+    const listed = conversation.messages[0]?.attachments ?? [];
+    const idOf = (name: string) => listed.find((entry) => entry.filename === name)?.id ?? "";
+    const read = (name: string) => readAttachment(reader, idOf(name));
+    expect(await read("notes.txt")).toMatchObject({
+      readable: true,
+      text: "Grüße, das Passwort ist 42",
+      truncated: false,
+      contentType: "text/plain",
+    });
+    expect(await read("data.json")).toMatchObject({ readable: true, text: '{"a":1}' });
+    expect(await read("run.log")).toMatchObject({ readable: true, text: "line 1\nline 2" });
+    const cut = await read("big.txt");
+    expect(cut).toMatchObject({ readable: true, truncated: true, size: big.length });
+    expect("text" in cut ? cut.text : "").toHaveLength(agentReadLimit);
+    // No content, and the reason.
+    for (const [name, reason] of [
+      ["report.pdf", "type_not_readable"],
+      ["fake.txt", "binary_content"],
+      ["tool.exe", "not_stored"],
+    ] as const) {
+      const answer = await read(name);
+      expect(answer, name).toMatchObject({ readable: false, reason, truncated: false });
+      expect(answer, name).not.toHaveProperty("text");
+    }
+    // Another project, no grant and an unknown file are not found.
+    await expect(readAttachment(stranger, idOf("notes.txt"))).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(
+      readAttachment({ ...reader, grants: [] }, idOf("notes.txt")),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(readAttachment(reader, randomUUID())).rejects.toMatchObject({ code: "not_found" });
+    // REST: the same answer as JSON, and the download route is unchanged.
+    const response = await GET(
+      new Request(`http://localhost:3000/api/v1/attachments/${idOf("notes.txt")}/text`, {
+        headers: { authorization: `Bearer ${bearer}` },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(await read("notes.txt"));
+    // MCP: the tool answers the same through the token of an agent.
+    const tool = async (name: string, args: unknown) => {
+      const headers = {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2025-03-26",
+      };
+      const send = (body: unknown) =>
+        mcpRequest(
+          new Request("http://localhost:3000/api/mcp", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          }),
+        );
+      await send({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-03-26",
+          capabilities: {},
+          clientInfo: { name: "test", version: "1" },
+        },
+      });
+      const result = (await (
+        await send({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/call",
+          params: { name, arguments: args },
+        })
+      ).json()) as { result: { isError?: boolean; content: { text: string }[] } };
+      return {
+        isError: result.result.isError === true,
+        body: JSON.parse(result.result.content[0]?.text ?? "null") as unknown,
+      };
+    };
+    expect(await tool("attachments_read", { attachmentId: idOf("notes.txt") })).toEqual({
+      isError: false,
+      body: await read("notes.txt"),
+    });
+    expect((await tool("attachments_read", { attachmentId: randomUUID() })).isError).toBe(true);
+    // The original: the source with its headers, cut at the limit, for readers of the ticket only.
+    const messageId = conversation.messages[0]?.id ?? "";
+    const original = await readOriginal(reader, messageId);
+    expect(original.truncated).toBe(true);
+    expect(original.text).toContain("Subject: Files");
+    expect(original.text.length).toBeLessThanOrEqual(agentReadLimit);
+    await expect(readOriginal(stranger, messageId)).rejects.toMatchObject({ code: "not_found" });
+    await expect(readOriginal(reader, randomUUID())).rejects.toMatchObject({ code: "not_found" });
+    expect(await tool("messages_read_original", { messageId })).toMatchObject({
+      isError: false,
+      body: { truncated: true, size: original.size },
+    });
+  });
+  it("gives a short original whole", async () => {
+    const conversation = await ingest(await compose({ text: "Short mail" }));
+    const original = await readOriginal(reader, conversation.messages[0]?.id ?? "");
+    expect(original).toMatchObject({ truncated: false });
+    expect(original.text).toContain("Short mail");
+    expect(original.size).toBe(Buffer.byteLength(original.text));
   });
 });

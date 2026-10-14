@@ -69,6 +69,8 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
   const tools = (await client.listTools()).tools.map((tool) => tool.name).sort();
   // The hand-written tools and the ones the route table offers for these actions.
   expect(tools).toEqual([
+    "attachments_read",
+    "messages_read_original",
     "overview_get",
     "projects_list",
     "tags_list",

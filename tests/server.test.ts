@@ -500,6 +500,8 @@ describe("authenticated API and MCP principal", () => {
       "tickets_search",
       "tickets_get",
       "tags_list",
+      "messages_read_original",
+      "attachments_read",
       "overview_get",
     ]);
     for (const [name, args] of [

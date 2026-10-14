@@ -225,6 +225,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "attachments.read": {
+    operation: "readAttachment",
+    action: "ticket.read",
+    ui: null,
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+    difference: "docs/capabilities.md",
+  },
   "junk.list": {
     operation: "listJunk",
     action: "ticket.read",
@@ -279,6 +287,14 @@ export const capabilities = {
     ui: "src/components/desk.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "messages.original_text": {
+    operation: "readOriginal",
+    action: "ticket.read",
+    ui: null,
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
   "messages.original_preview": {
