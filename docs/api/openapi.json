@@ -3,7 +3,11 @@
   "info": {
     "title": "aidesk API",
     "version": "0.1.0",
-    "description": "REST API of aidesk. Every route is generated from one route table; the access of a route names the action that has to be granted for the project concerned."
+    "description": "REST API of aidesk. Every route is generated from one route table; the access of a route names the action that has to be granted for the project concerned. Agents read the guide at /api/v1/guide.md first."
+  },
+  "externalDocs": {
+    "description": "Guide for agents: what to read first, versions, validation and proposals",
+    "url": "/api/v1/guide.md"
   },
   "servers": [
     {

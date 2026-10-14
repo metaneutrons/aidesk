@@ -35,6 +35,7 @@ The same operations are open to people, scripts and AI agents. The web interface
 | REST API | A published [OpenAPI 3.1 definition](docs/api/openapi.json) generated from one route table |
 | MCP server | Streamable HTTP with project-scoped bearer tokens; tools come from the same route table |
 | Operations | Versioned configuration, texts and connections that people and agents can edit under the approval policy |
+| Webhooks | Signed events (new ticket, received message, status change, agent draft, proposed change) delivered to endpoints of a project, with retries |
 
 ---
 
@@ -64,7 +65,9 @@ curl -H "Authorization: Bearer $TOKEN" https://desk.example.test/api/v1/overview
 - **One list of what can be done.** A route table names every route, the action it needs, its input and its response. The router, the API definition and the MCP tools are generated from it, and tests fail when they drift apart.
 - **Agents are guests, not owners.** A token carries explicit actions for one project, never the right to issue tokens or to decide on proposals, and its secrets stay write-only.
 - **Changes are versioned.** Configuration, texts and connections are written against the version that was read, can be validated without writing, and every change is audited and kept.
+- **A person sends what an agent writes.** Under the `review` policy an agent's reply to a customer is a draft that a person sends or discards; the project can switch to `direct` to let agents answer on their own.
 - **People decide what changes a project.** Under the `review` policy an agent's change waits for a person with the right to approve it, and a proposal made on a version that has since changed is refused.
+- **Events leave signed.** Each webhook delivery carries an HMAC-SHA256 signature over its timestamp and body. Delivery is at least once, so a receiver drops repeats by the event id.
 
 ---
 
@@ -74,6 +77,7 @@ curl -H "Authorization: Bearer $TOKEN" https://desk.example.test/api/v1/overview
 |----------|----------|
 | [Development notes](docs/development.md) | Configuration, every feature in detail, evidence and known gaps |
 | [API definition](docs/api/openapi.json) | OpenAPI 3.1 document, also served at `/api/v1/openapi.json` |
+| [Guide for agents](docs/api/agent-guide.md) | What an agent reads first, and how versions, validation and proposals work; also served at `/api/v1/guide.md` |
 | [Capability ledger](docs/capabilities.md) | Which surface offers which operation, and the reasons for differences |
 | [Initial product plan](docs/plans/initial-product.md) | Scope, design decisions and acceptance criteria |
 | [API and configuration plan](docs/plans/api-and-configuration.md) | The route table, the approval policy and editable configuration |
