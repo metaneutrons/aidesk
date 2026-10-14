@@ -23,9 +23,10 @@ import {
   user,
 } from "./db/schema";
 import { DomainError } from "./errors";
-import { markdownHtml } from "./markdown";
+import { markdownHtml, markdownLinks } from "./markdown";
 import { getObject } from "./storage";
 import { forAgent, looksBinary, readableAsText, type Unreadable } from "../domain/attachments";
+import { cleanText, flagsOf, type Flag } from "../domain/untrusted";
 import { htmlToMarkdown } from "./inbound";
 import { simpleParser } from "mailparser";
 import { renderOriginal } from "./original";
@@ -473,6 +474,9 @@ export async function getTicket(principal: Principal, ticketId: string) {
       source: Object.fromEntries(Object.entries(message.source).filter(([key]) => key !== "sent")),
       sent: sentSummary(message.source.sent),
       html: markdownHtml(message.markdown),
+      // What a person checks before a draft of an agent goes out: where its links
+      // really lead. Other messages need no such check.
+      links: message.deliveryState === "draft" ? markdownLinks(message.markdown) : [],
       // The private original can be downloaded; the storage key stays inside.
       hasOriginal: rawObjectKey !== null,
       extractionUncertain: message.source.uncertain === true,
@@ -561,6 +565,9 @@ async function attachmentOf(
       contentType: attachments.contentType,
       size: attachments.size,
       objectKey: attachments.objectKey,
+      messageId: attachments.messageId,
+      ticketId: tickets.id,
+      projectId: tickets.projectId,
     })
     .from(attachments)
     .innerJoin(messages, eq(messages.id, attachments.messageId))
@@ -589,20 +596,105 @@ export async function getAttachment(principal: Principal, attachmentId: string) 
 // A file as text for an agent: only text types, at most agentReadLimit bytes, and
 // the reason when it is not read. A file that was refused on receipt is not
 // stored and says so.
+// What a read of a file by a caller answers and records: the text cleaned of
+// invisible characters, the flags of simple instruction patterns, the origin and
+// the statement that a sender wrote it. Every read is audited with its outcome.
+interface Origin {
+  projectId: string;
+  ticketId: string;
+  messageId: string;
+  attachmentId?: string;
+}
+type Read = { text: string; truncated: boolean } | { reason: "not_stored" | Unreadable };
+async function recordRead(principal: Principal, origin: Origin, kind: string, read: Read) {
+  const cleaned = "text" in read ? cleanText(read.text) : { text: "", removed: 0 };
+  const flags = "text" in read ? flagsOf(cleaned.text, cleaned.removed) : [];
+  await db()
+    .insert(audit)
+    .values({
+      projectId: origin.projectId,
+      actorId: principal.id,
+      action: "file.read",
+      targetId: origin.attachmentId ?? origin.messageId,
+      detail: {
+        kind,
+        actorKind: principal.kind,
+        ticketId: origin.ticketId,
+        messageId: origin.messageId,
+        readable: "text" in read,
+        ...("reason" in read ? { reason: read.reason } : {}),
+        flags,
+        removedCharacters: cleaned.removed,
+      },
+    });
+  return { cleaned, flags };
+}
+async function framed(
+  principal: Principal,
+  origin: Origin,
+  kind: "attachment" | "original",
+  read: { text: string; truncated: boolean },
+): Promise<{
+  untrusted: true;
+  origin: Origin;
+  removedCharacters: number;
+  flags: Flag[];
+  readable: true;
+  text: string;
+  truncated: boolean;
+}>;
+async function framed(
+  principal: Principal,
+  origin: Origin,
+  kind: "attachment" | "original",
+  read: { reason: "not_stored" | Unreadable },
+): Promise<{
+  untrusted: true;
+  origin: Origin;
+  removedCharacters: number;
+  flags: Flag[];
+  readable: false;
+  reason: "not_stored" | Unreadable;
+  truncated: false;
+}>;
+async function framed(principal: Principal, origin: Origin, kind: string, read: Read) {
+  const { cleaned, flags } = await recordRead(principal, origin, kind, read);
+  return {
+    untrusted: true as const,
+    origin,
+    removedCharacters: cleaned.removed,
+    flags,
+    ...("text" in read
+      ? { readable: true as const, text: cleaned.text, truncated: read.truncated }
+      : { readable: false as const, reason: read.reason, truncated: false as const }),
+  };
+}
 export async function readAttachment(principal: Principal, attachmentId: string) {
   const file = await attachmentOf(principal, attachmentId, "ticket.read_files");
-  const described = { filename: file.filename, contentType: file.contentType, size: file.size };
-  const unread = (reason: "not_stored" | Unreadable) => ({
+  const origin = {
+    projectId: file.projectId,
+    ticketId: file.ticketId,
+    messageId: file.messageId,
+    attachmentId,
+  };
+  // The name and the type were written by the sender as well.
+  const described = {
+    filename: cleanText(file.filename).text,
+    contentType: cleanText(file.contentType).text,
+    size: file.size,
+  };
+  const unread = async (reason: "not_stored" | Unreadable) => ({
     ...described,
-    readable: false,
-    reason,
-    truncated: false,
+    ...(await framed(principal, origin, "attachment", { reason })),
   });
   if (!file.objectKey) return unread("not_stored");
   if (!readableAsText(file)) return unread("type_not_readable");
   const content = await getObject(file.objectKey);
   if (looksBinary(content)) return unread("binary_content");
-  return { ...described, readable: true, ...forAgent(content) };
+  return {
+    ...described,
+    ...(await framed(principal, origin, "attachment", forAgent(content))),
+  };
 }
 // The stored original of a message for a person who may read its ticket. A
 // message of another project, one without an original and an unknown id all
@@ -611,13 +703,23 @@ async function originalOf(principal: Principal, messageId: string, action: Actio
   const allowed = allowedProjectIds(principal, action);
   if (!allowed.length) throw new DomainError("not_found", 404);
   const [found] = await db()
-    .select({ rawObjectKey: messages.rawObjectKey, number: tickets.number })
+    .select({
+      rawObjectKey: messages.rawObjectKey,
+      number: tickets.number,
+      ticketId: tickets.id,
+      projectId: tickets.projectId,
+    })
     .from(messages)
     .innerJoin(tickets, eq(tickets.id, messages.ticketId))
     .where(and(eq(messages.id, id.parse(messageId)), inArray(tickets.projectId, allowed)))
     .limit(1);
   if (!found?.rawObjectKey) throw new DomainError("not_found", 404);
-  return { number: found.number, key: found.rawObjectKey };
+  return {
+    number: found.number,
+    key: found.rawObjectKey,
+    ticketId: found.ticketId,
+    projectId: found.projectId,
+  };
 }
 // The received original of a message, for example to check a shortened
 // extraction.
@@ -634,7 +736,15 @@ export async function getOriginal(principal: Principal, messageId: string) {
 export async function readOriginal(principal: Principal, messageId: string) {
   const found = await originalOf(principal, messageId, "ticket.read_files");
   const content = await getObject(found.key);
-  return { size: content.length, ...forAgent(content) };
+  return {
+    size: content.length,
+    ...(await framed(
+      principal,
+      { projectId: found.projectId, ticketId: found.ticketId, messageId },
+      "original",
+      forAgent(content),
+    )),
+  };
 }
 // The original as a safe view: formatting kept, nothing executable, remote
 // images blocked, images of the mail itself shown, and a plain-text fallback.

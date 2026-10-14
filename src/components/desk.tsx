@@ -58,6 +58,14 @@ const messageSchema = z.object({
   internal: z.boolean(),
   markdown: z.string(),
   html: z.string(),
+  links: z.array(
+    z.object({
+      text: z.string(),
+      url: z.string(),
+      host: z.string().nullable(),
+      misleading: z.boolean(),
+    }),
+  ),
   deliveryState: z.string(),
   deliveryError: z.string().nullable(),
   hasOriginal: z.boolean(),
@@ -1042,6 +1050,26 @@ export function Desk({
                               <small className="delivery-state attention">
                                 {t("draftNotSent")}
                               </small>
+                              {message.links.length > 0 && (
+                                <div className="draft-links">
+                                  <strong>{t("draftLinks")}</strong>
+                                  <ul>
+                                    {message.links.map((link) => (
+                                      <li key={`${link.text}\n${link.url}`}>
+                                        <span>{link.text || link.url}</span>
+                                        {" → "}
+                                        <code>{link.url}</code>
+                                        {link.misleading && (
+                                          <span className="attention">
+                                            {" "}
+                                            {t("draftLinkMisleading")}
+                                          </span>
+                                        )}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                               {conversation.actions.includes("ticket.reply") && (
                                 <span className="configuration-actions">
                                   <button

@@ -1494,3 +1494,19 @@ li.tag-chip button {
     gap: 8px;
     align-items: center;
 }
+
+.draft-links {
+    flex-basis: 100%;
+    display: grid;
+    gap: 4px;
+    font-size: 0.875rem;
+}
+
+.draft-links ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.draft-links code {
+    overflow-wrap: anywhere;
+}
