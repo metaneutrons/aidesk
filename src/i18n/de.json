@@ -294,5 +294,17 @@
   "draftSend": "Entwurf senden",
   "draftDiscard": "Entwurf verwerfen",
   "draftDiscarded": "Entwurf verworfen",
-  "draftStale": "Das Ticket hat sich nach dem Entwurf geändert. Der Entwurf wurde nicht gesendet, schreibe die Antwort neu."
+  "draftStale": "Das Ticket hat sich nach dem Entwurf geändert. Der Entwurf wurde nicht gesendet, schreibe die Antwort neu.",
+  "webhooksTitle": "Webhooks von {project}",
+  "webhooksHint": "Ereignisse dieses Projekts gehen als signierte Anfragen an diese Adressen. Ein Webhook samt Signaturschlüssel wird über die API angelegt. Die Seite zeigt nie einen Schlüssel.",
+  "webhooksNone": "Keine Webhooks.",
+  "webhookDisabled": "Deaktiviert",
+  "webhookNoDelivery": "Noch nichts zugestellt",
+  "webhookDelivery_succeeded": "Zugestellt {date}",
+  "webhookDelivery_retry": "Fehlgeschlagen {date} ({code}), neuer Versuch folgt",
+  "webhookDelivery_failed": "Fehlgeschlagen {date} ({code}), aufgegeben",
+  "webhookPing": "Testereignis an {name} senden",
+  "webhookDisable": "{name} deaktivieren",
+  "webhookPinged": "Ein Testereignis wurde eingereiht; das Ergebnis erscheint hier, sobald die Adresse geantwortet hat.",
+  "webhookProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren."
 }

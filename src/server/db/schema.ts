@@ -452,3 +452,50 @@ export const projectTexts = pgTable(
   },
   (t) => [uniqueIndex("project_text_version_idx").on(t.projectId, t.key, t.language, t.version)],
 );
+// An HTTPS endpoint of a project that receives events as signed requests. The
+// signing secret is stored sealed and is never returned.
+export const webhooks = pgTable(
+  "webhook",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    events: jsonb("events").$type<string[]>().notNull(),
+    // Allows a plain or local endpoint on a development stack only.
+    developmentOnly: boolean("development_only").notNull().default(false),
+    secretCiphertext: text("secret_ciphertext").notNull(),
+    // active or disabled
+    status: text("status").notNull().default("active"),
+    version: integer("version").notNull().default(1),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [index("webhook_project_idx").on(t.projectId)],
+);
+// One row per attempt to deliver an event, for the log of a webhook. It holds
+// the outcome, never the body of the event or of the answer.
+export const webhookDeliveries = pgTable(
+  "webhook_delivery",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    webhookId: uuid("webhook_id")
+      .notNull()
+      .references(() => webhooks.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").notNull(),
+    event: text("event").notNull(),
+    attempt: integer("attempt").notNull(),
+    // succeeded, retry (another attempt follows) or failed (no more attempts)
+    outcome: text("outcome").notNull(),
+    responseStatus: integer("response_status"),
+    code: text("code"),
+    durationMs: integer("duration_ms").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("webhook_delivery_idx").on(t.webhookId, t.createdAt)],
+);

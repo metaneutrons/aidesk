@@ -670,6 +670,51 @@ project is switched back to `review` while such a reply is queued, the worker do
 not send it and the job goes to review. The earlier setting `aiMode` no longer
 exists; a migration made every project that had it on `autonomous` a `direct` project.
 
+## Webhooks
+
+A project can have events delivered to HTTPS endpoints of its own, so that an
+automation or an agent does not have to poll. Webhooks are managed through the API
+under `integration.manage`, with the same rules as connections:
+
+- `GET /api/v1/projects/{id}/webhooks` lists them with the outcome of the last
+  delivery. The signing secret is stored sealed and never returned; the list shows
+  `secretSet`.
+- `POST .../webhooks` defines one: `name`, `url`, `events` and `secret` (16 to 200
+  characters, chosen by the writer). `PUT .../webhooks/{webhookId}` changes it and names
+  the version that was read; a new `secret` replaces the old one.
+  `POST .../webhooks/{webhookId}/disable` stops it; events already queued for it are
+  dropped. Writes accept `?validate=true` and an `idempotencyKey`, and follow the
+  approval policy: a person applies, an agent under `review` proposes, a person with
+  `config.approve` decides. A proposal keeps the secret sealed.
+- The endpoint has to be HTTPS without credentials in the address, and its host name is
+  resolved and refused if it points at the machine itself or the link-local range, as
+  for connections. It is checked again at every delivery. A development stack accepts
+  `developmentOnly: true` for a plain or local endpoint.
+- `POST .../webhooks/{webhookId}/ping` queues a test event (type `ping`);
+  `GET .../webhooks/{webhookId}/deliveries` lists the attempts with their outcome,
+  never the bodies.
+
+Events: `ticket.created`, `message.received` (channel `email` or `portal`),
+`ticket.status_changed` (`from`, `to`), `draft.created` and `change.proposed`. An event
+carries identifiers and a few facts (ticket id and number, subject and language for a
+new ticket, message id) and never the content of a message or the address of a
+customer; the receiver fetches what it needs through the API. Events are queued in the
+same transaction as the change that caused them, so none is lost and none is announced
+for a change that was rolled back.
+
+A delivery is a `POST` with the event as JSON and these headers: `X-Aidesk-Event`,
+`X-Aidesk-Event-Id`, `X-Aidesk-Delivery-Attempt`, `X-Aidesk-Timestamp` (Unix seconds)
+and `X-Aidesk-Signature` (`v1=` followed by the hex HMAC-SHA256 of
+`<timestamp>.<body>` with the secret). A receiver recomputes the signature over the
+exact body, compares it in constant time and refuses a timestamp more than a few
+minutes old; `verifyWebhook` in `src/domain/webhooks.ts` does exactly this. Delivery
+is at least once: a receiver recognises an event by its id and ignores one it has
+seen. A `2xx` answer is success. Anything else, a timeout after 10 seconds or a
+refused connection is tried again after 30 seconds, 2 minutes, 10 minutes, 1 hour and
+6 hours; after the sixth attempt the job goes to review and the log says `failed`. A
+redirect is not followed and counts as a failure. The settings page lists the
+webhooks with the last outcome, offers a test event and disabling, and shows no secret.
+
 ## Overview and list size
 
 The overview counts in the database over every ticket of the authorized

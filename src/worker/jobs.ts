@@ -16,6 +16,7 @@ import { emailTemplateVersion, renderEmail } from "../server/email";
 import { activeEmailDesign, designForVersion, sampleMarkdown } from "../server/email-design";
 import { portalLinkForMail, portalUrl } from "../server/portal";
 import { activeTexts } from "../server/texts";
+import { emitEvent } from "../server/webhooks";
 // The project's own wording of the link line, if it set one.
 const ownLine = (text: string | undefined) => (text === undefined ? {} : { portalLinkLine: text });
 import { threadHeaders } from "../domain/threading";
@@ -275,7 +276,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
         .where(eq(messages.id, message.id));
       // A newer inbound revision retains its response obligation. An
       // acknowledgement is not an answer and leaves the ticket unchanged.
-      if (!automatic)
+      if (!automatic) {
         await tx
           .update(tickets)
           .set({
@@ -285,6 +286,14 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
             updatedAt: new Date(),
           })
           .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, payload.expectedRevision)));
+        if (payload.resolve && ticket.status !== "resolved")
+          await emitEvent(tx, job.projectId, "ticket.status_changed", {
+            ticketId: ticket.id,
+            number: ticket.number,
+            from: ticket.status,
+            to: "resolved",
+          });
+      }
       await tx
         .update(jobs)
         .set({ status: "succeeded", leaseUntil: null, updatedAt: new Date() })

@@ -14,6 +14,7 @@ import { defaultOverdueHours } from "../domain/response-clock";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
 import { applyTextPayload, textProposalStale } from "./texts";
+import { applyWebhookPayload, emitEvent, webhookProposalStale } from "./webhooks";
 import { audit, configChanges, connections, projects } from "./db/schema";
 import { DomainError } from "./errors";
 const id = z.uuid();
@@ -209,6 +210,11 @@ export async function putConfig(
         targetId: change.id,
         detail: { baseVersion: row.configVersion, diff },
       });
+      await emitEvent(tx, project, "change.proposed", {
+        changeId: change.id,
+        kind: "config",
+        target: null,
+      });
       return {
         outcome: "proposed",
         version: row.configVersion,
@@ -269,6 +275,53 @@ export async function listConfigChanges(principal: Principal, projectId: string,
     createdAt: row.createdAt,
   }));
 }
+type Proposal = typeof configChanges.$inferSelect;
+// Whether a proposal on a connection, a text or a webhook was made on a version
+// that has been replaced since. A new connection or webhook has no earlier version.
+async function proposalStale(tx: Tx, project: string, proposal: Proposal): Promise<boolean> {
+  if (proposal.kind === "text.set")
+    return textProposalStale(tx, project, proposal.payload, proposal.baseVersion);
+  if (proposal.kind.startsWith("webhook.")) {
+    if (proposal.kind === "webhook.create") return false;
+    return webhookProposalStale(tx, project, proposal.target, proposal.baseVersion);
+  }
+  if (proposal.kind === "connection.create") return false;
+  const [connection] = await tx
+    .select({ version: connections.version })
+    .from(connections)
+    .where(and(eq(connections.id, proposal.target ?? ""), eq(connections.projectId, project)))
+    .for("update");
+  return connection?.version !== proposal.baseVersion;
+}
+async function applyProposal(
+  tx: Tx,
+  project: string,
+  proposal: Proposal,
+  actor: string,
+): Promise<{ target: string; version: number }> {
+  if (proposal.kind === "text.set")
+    return applyTextPayload(tx, project, proposal.payload, actor, proposal.diff);
+  if (proposal.kind.startsWith("webhook."))
+    return applyWebhookPayload(
+      tx,
+      project,
+      proposal.kind,
+      proposal.target,
+      proposal.payload,
+      actor,
+      proposal.diff,
+    );
+  const applied = await applyConnectionPayload(
+    tx,
+    project,
+    proposal.kind,
+    proposal.target,
+    proposal.payload,
+    actor,
+    proposal.diff,
+  );
+  return { target: applied.connectionId, version: applied.version };
+}
 // A person with config.approve activates or rejects a proposal. A proposal on a
 // version that has changed since is superseded and never applies.
 export async function decideConfigChange(principal: Principal, changeId: string, input: unknown) {
@@ -318,44 +371,20 @@ export async function decideConfigChange(principal: Principal, changeId: string,
     }
     if (proposal.kind !== "config") {
       // A change applies to the version of the thing it was made on.
-      let stale = false;
-      if (proposal.kind === "text.set")
-        stale = await textProposalStale(tx, row.id, proposal.payload, proposal.baseVersion);
-      else if (proposal.kind !== "connection.create") {
-        const [connection] = await tx
-          .select({ version: connections.version })
-          .from(connections)
-          .where(and(eq(connections.id, proposal.target ?? ""), eq(connections.projectId, row.id)))
-          .for("update");
-        stale = connection?.version !== proposal.baseVersion;
-      }
-      if (stale) {
+      if (await proposalStale(tx, row.id, proposal)) {
         await tx
           .update(configChanges)
           .set({ status: "superseded", ...decided })
           .where(eq(configChanges.id, change));
         return { error: new DomainError("stale_version", 409) };
       }
-      const applied =
-        proposal.kind === "text.set"
-          ? await applyTextPayload(tx, row.id, proposal.payload, principal.id, proposal.diff).then(
-              (result) => ({ connectionId: result.target, version: result.version }),
-            )
-          : await applyConnectionPayload(
-              tx,
-              row.id,
-              proposal.kind,
-              proposal.target,
-              proposal.payload,
-              principal.id,
-              proposal.diff,
-            );
+      const applied = await applyProposal(tx, row.id, proposal, principal.id);
       await tx
         .update(configChanges)
         .set({
           status: "applied",
           appliedVersion: applied.version,
-          target: applied.connectionId,
+          target: applied.target,
           ...decided,
         })
         .where(eq(configChanges.id, change));

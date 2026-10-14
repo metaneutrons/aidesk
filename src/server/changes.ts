@@ -4,6 +4,7 @@ import type { Principal } from "../domain/permissions";
 import { db } from "./db";
 import { audit, configChanges, projects } from "./db/schema";
 import { DomainError } from "./errors";
+import { emitEvent } from "./webhooks";
 export type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
 export interface ChangeOutcome {
   outcome: "unchanged" | "applied" | "proposed";
@@ -118,6 +119,11 @@ export async function submitChange(
         action: "change.propose",
         targetId: change.id,
         detail: { kind: spec.kind, target: prepared.target, diff },
+      });
+      await emitEvent(tx, project, "change.proposed", {
+        changeId: change.id,
+        kind: spec.kind,
+        target: prepared.target,
       });
       return { outcome: "proposed", ...current, changeId: change.id, diff, validated: false };
     }

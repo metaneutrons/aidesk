@@ -5,6 +5,7 @@ import { db } from "./db";
 import { audit, messages, participants, projects, tickets } from "./db/schema";
 import { detectLanguage } from "../domain/language";
 import { DomainError } from "./errors";
+import { emitEvent } from "./webhooks";
 import { markdownHtml } from "./markdown";
 import { getTicket } from "./operations";
 import { env } from "./env";
@@ -309,6 +310,19 @@ export async function portalReply(token: unknown, input: unknown) {
         updatedAt: now,
       })
       .where(eq(tickets.id, ticket.id));
+    await emitEvent(tx, ticket.projectId, "message.received", {
+      ticketId: ticket.id,
+      number: ticket.number,
+      messageId: message.id,
+      channel: "portal",
+    });
+    if (ticket.status !== "open")
+      await emitEvent(tx, ticket.projectId, "ticket.status_changed", {
+        ticketId: ticket.id,
+        number: ticket.number,
+        from: ticket.status,
+        to: "open",
+      });
     await tx.insert(audit).values({
       projectId: ticket.projectId,
       actorId: `portal:${grant.participantId}`,

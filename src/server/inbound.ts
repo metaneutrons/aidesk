@@ -15,6 +15,7 @@ import {
 } from "../domain/acknowledgement";
 import { isMessageId } from "../domain/threading";
 import { activeTexts } from "./texts";
+import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
 import { decideLanguage, detectLanguage } from "../domain/language";
 // Inbound mail, independent of the adapter that received it. The original is
@@ -302,6 +303,8 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
       attachments: mail.attachments.length,
       languageDetection: { language: detection.language, reason: detection.reason },
     };
+    // The messages this mail added, announced once the ticket is known.
+    const messageIds: string[] = [];
     const insertMessage = async (
       ticketId: string,
       language: string,
@@ -325,6 +328,7 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
         })
         .returning({ id: messages.id });
       if (!message) throw new Error("message_creation_failed");
+      messageIds.push(message.id);
       if (files.length)
         await tx.insert(attachments).values(
           files.map((file, position) => ({
@@ -360,6 +364,19 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
           updatedAt: new Date(),
         })
         .where(eq(tickets.id, target.id));
+      await emitEvent(tx, entry.projectId, "message.received", {
+        ticketId: target.id,
+        number: target.number,
+        messageId: messageIds[0] ?? null,
+        channel: "email",
+      });
+      if (target.status !== "open")
+        await emitEvent(tx, entry.projectId, "ticket.status_changed", {
+          ticketId: target.id,
+          number: target.number,
+          from: target.status,
+          to: "open",
+        });
       return finish(target.id, "processed", recentlyResolved ? "reopened" : "appended");
     }
     const [project] = await tx
@@ -449,6 +466,18 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
         });
       }
     }
+    await emitEvent(tx, entry.projectId, "ticket.created", {
+      ticketId: ticket.id,
+      number: ticket.number,
+      subject,
+      language,
+    });
+    await emitEvent(tx, entry.projectId, "message.received", {
+      ticketId: ticket.id,
+      number: ticket.number,
+      messageId: messageIds[0] ?? null,
+      channel: "email",
+    });
     return finish(ticket.id, "processed", target ? "follow_up" : "created");
   });
 }

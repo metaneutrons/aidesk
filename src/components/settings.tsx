@@ -5,6 +5,7 @@ import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { Configuration } from "./configuration";
 import { Connections } from "./connections";
+import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
 import {
@@ -425,6 +426,16 @@ export function Settings({
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
             canWrite={grant.actions.includes("config.write")}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("integration.manage"))
+        .map((grant) => (
+          <Webhooks
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            locale={locale}
           />
         ))}
       <Designs

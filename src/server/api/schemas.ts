@@ -290,3 +290,38 @@ export const ticketAssignee = z.object({
   assigneeUserId: z.string().nullable(),
   assigneeAgentId: z.uuid().nullable(),
 });
+export const webhookOut = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  name: z.string(),
+  url: z.string(),
+  events: z.array(z.string()),
+  developmentOnly: z.boolean(),
+  status: z.enum(["active", "disabled"]),
+  version: z.number(),
+  secretSet: z.boolean().describe("The signing secret is stored; it is never returned"),
+  lastDelivery: z
+    .object({
+      at: isoDate,
+      event: z.string(),
+      outcome: z.enum(["succeeded", "retry", "failed"]),
+      responseStatus: z.number().nullable(),
+      code: z.string().nullable(),
+    })
+    .nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+export const webhookDelivery = z.object({
+  id: z.uuid(),
+  eventId: z.uuid(),
+  event: z.string(),
+  attempt: z.number(),
+  outcome: z.enum(["succeeded", "retry", "failed"]),
+  responseStatus: z.number().nullable(),
+  code: z.string().nullable(),
+  durationMs: z.number(),
+  createdAt: isoDate,
+});
+export const webhookResult = textResult;
+export const webhookPing = z.object({ eventId: z.uuid() });
