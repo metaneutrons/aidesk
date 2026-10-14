@@ -1,0 +1,2 @@
+// Never ends.
+for (;;);

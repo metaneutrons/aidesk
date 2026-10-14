@@ -10,3 +10,8 @@ allowBuilds:
 # Remove vulnerable esbuild pulled through Drizzle's legacy loader.
 overrides:
   "@esbuild-kit/core-utils>esbuild": 0.28.2
+
+# pdf.js can draw pages with a native canvas; the product only reads text, so the
+# native packages stay out.
+ignoredOptionalDependencies:
+  - "@napi-rs/canvas"

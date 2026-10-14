@@ -193,6 +193,51 @@ person with access to the project (`userId`), to an active agent of the project
 (`agentId`), or to nobody (both `null`); it needs `ticket.assign`. Internal notes are
 `tickets_reply` with `internal: true`.
 
+## Reading documents for agents
+
+The building block that reads the text of PDF, Word, Excel and PowerPoint files is
+in `src/server/extract` (C5-A4). It is not connected to `attachments_read` yet; the
+derived record and the job that fills it come in the next delivery.
+
+- **What is read.** The text layer of a PDF file (pdf.js, official `pdfjs-dist`,
+  pinned), and the text of `.docx`, `.xlsx` and `.pptx` files. Old binary Office
+  files and password protected Office files (both share the OLE container) and
+  everything else are `unsupported`; a PDF with a password is `encrypted`. What a
+  file is follows from its content, not from its name or declared type.
+- **The Office reader is small on purpose.** It unzips with `fflate` and reads the
+  runs of text of the few parts that hold them. It is not an XML parser: a part that
+  declares a document type or an entity is refused (an Office file never does), so
+  no entity can expand, and only the five predefined entities and numeric
+  references are decoded. Speaker notes and comments are not read.
+- **Hidden text is left out and counted** in `hidden`: Word runs that are hidden,
+  set in white or in a size nobody reads, hidden sheets, rows and columns of Excel,
+  hidden slides, and PDF text too small to read. Text outside a PDF page is not
+  returned by pdf.js at all. This reduces a channel for hidden instructions; it does
+  not close it, since text can hide in other ways.
+- **Limits.** 15 MiB per file (the ingest limit), 2000 parts and 64 MiB unpacked per
+  package and 32 MiB per part, judged on the declared sizes, 200 PDF pages, 200 000
+  cells and 1 MiB of text kept per file. Beyond a limit the answer says `too_large`
+  or `truncated`.
+- **A closed process.** pdf.js has had flaws that ran a script of the file, so the
+  files are read in a process of their own (`sandbox.ts`): Node's permission model
+  without network, without the right to write, to start a process or a worker, with
+  the right to read only its own program file, with one harmless environment
+  variable and without the secrets of the worker, a ceiling for the heap and for the
+  resident memory of the whole process (the heap flag does not count buffers, so the
+  parent watches it), and a time limit. Its answer is believed only when it has the
+  shape of a result. The program is the reader and its libraries bundled by `esbuild`
+  into one file under the temporary directory, built once per version of the
+  sources. The tests run a probe program in the closed process and the same program
+  without it, so they can tell whether the closing works.
+- **Choice of libraries**, checked on 2026-10-14 against the registry and the GitHub
+  advisories, not from memory. `pdfjs-dist` 6.4.299: a flaw that ran a script was
+  fixed in 6.2.108, and version 6 no longer evaluates fonts. Not used: `unpdf`
+  (bundles pdf.js 6.1.x, below that fix), `officeparser` (pulls in `tesseract.js`,
+  which loads language data from the network, against the decision to read images
+  through the model of the project), `mammoth` and `fast-xml-parser` (a parser with
+  a long list of entity flaws is more than the task needs). `@napi-rs/canvas`, an
+  optional native part of pdf.js, is excluded in `pnpm-workspace.yaml`.
+
 ## Inbound mail
 
 Adapters hand raw messages to `acceptInbound`. The original is stored first in
