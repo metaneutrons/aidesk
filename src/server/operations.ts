@@ -23,7 +23,7 @@ import {
   user,
 } from "./db/schema";
 import { DomainError } from "./errors";
-import { markdownHtml } from "./markdown";
+import { markdownHtml, markdownLinks } from "./markdown";
 import { getObject } from "./storage";
 import { forAgent, looksBinary, readableAsText, type Unreadable } from "../domain/attachments";
 import { htmlToMarkdown } from "./inbound";
@@ -473,6 +473,9 @@ export async function getTicket(principal: Principal, ticketId: string) {
       source: Object.fromEntries(Object.entries(message.source).filter(([key]) => key !== "sent")),
       sent: sentSummary(message.source.sent),
       html: markdownHtml(message.markdown),
+      // What a person checks before a draft of an agent goes out: where its links
+      // really lead. Other messages need no such check.
+      links: message.deliveryState === "draft" ? markdownLinks(message.markdown) : [],
       // The private original can be downloaded; the storage key stays inside.
       hasOriginal: rawObjectKey !== null,
       extractionUncertain: message.source.uncertain === true,

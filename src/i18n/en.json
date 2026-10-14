@@ -291,6 +291,8 @@
   "configAcknowledgements": "Send an acknowledgement for each new ticket",
   "configPortalLinks": "Add a link to the ticket page to mails",
   "draftNotSent": "Draft by an agent, not sent",
+  "draftLinks": "Links in this draft: text and address",
+  "draftLinkMisleading": "The text names another address than the link goes to",
   "draftSend": "Send draft",
   "draftDiscard": "Discard draft",
   "draftDiscarded": "Draft discarded",

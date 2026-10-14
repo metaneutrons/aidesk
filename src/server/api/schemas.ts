@@ -68,6 +68,18 @@ export const messageOut = rowSchema(messages, {
   .extend({
     sent: sentSummary,
     html: z.string(),
+    links: z
+      .array(
+        z.object({
+          text: z.string(),
+          url: z.string(),
+          host: z.string().nullable(),
+          misleading: z
+            .boolean()
+            .describe("The text of the link is an address of another host than the link goes to"),
+        }),
+      )
+      .describe("For a draft of an agent: the links it carries, with text and address"),
     hasOriginal: z.boolean(),
     extractionUncertain: z.boolean(),
     deliveryError: z.string().nullable(),

@@ -7807,6 +7807,38 @@
           "html": {
             "type": "string"
           },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "misleading": {
+                  "type": "boolean",
+                  "description": "The text of the link is an address of another host than the link goes to"
+                }
+              },
+              "required": [
+                "text",
+                "url",
+                "host",
+                "misleading"
+              ],
+              "additionalProperties": false
+            },
+            "description": "For a draft of an agent: the links it carries, with text and address"
+          },
           "hasOriginal": {
             "type": "boolean"
           },
@@ -7876,6 +7908,7 @@
           "createdAt",
           "sent",
           "html",
+          "links",
           "hasOriginal",
           "extractionUncertain",
           "deliveryError",

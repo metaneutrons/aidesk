@@ -57,6 +57,24 @@ test("shows an agent's draft, discards one and sends one", async ({
     await draft(discarded).getByRole("button", { name: "Discard draft" }).click();
     await expect(draft(discarded).getByText("Draft discarded")).toBeVisible();
     await expect(draft(discarded).getByRole("button", { name: "Send draft" })).toHaveCount(0);
+    // A draft shows where its links lead; one without links shows nothing of the kind.
+    await expect(draft(discarded).getByText("Links in this draft")).toHaveCount(0);
+    const spoofed = `Link draft ${randomUUID()}`;
+    await agentReply(`${spoofed} [https://bank.example/login](https://evil.example/steal)`);
+    await page.reload();
+    const checked = draft(spoofed);
+    await expect(checked.getByText("Links in this draft: text and address")).toBeVisible();
+    await expect(checked.locator("code")).toHaveText("https://evil.example/steal");
+    await expect(
+      checked.getByText("The text names another address than the link goes to"),
+    ).toBeVisible();
+    const linkScan = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .exclude("[data-base-ui-focus-guard]")
+      .analyze();
+    expect(linkScan.violations.map((violation) => violation.id)).toEqual([]);
+    await checked.getByRole("button", { name: "Discard draft" }).click();
+    await expect(checked.getByText("Draft discarded")).toBeVisible();
     // A second draft is sent by a person; the mail is queued and goes out.
     await agentReply(kept);
     await page.reload();
