@@ -186,19 +186,6 @@ export function Configuration({
           </select>
         </label>
         <label>
-          {t("configAiMode")}
-          <select
-            value={draft.aiMode}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("aiMode", event.target.value === "autonomous" ? "autonomous" : "off");
-            }}
-          >
-            <option value="off">{t("configAiOff")}</option>
-            <option value="autonomous">{t("configAiAutonomous")}</option>
-          </select>
-        </label>
-        <label>
           {t("configPolicy")}
           <select
             value={draft.approvalPolicy}

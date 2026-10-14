@@ -246,10 +246,7 @@
   "configName": "Name",
   "configColor": "Farbe",
   "configLanguage": "Standardsprache",
-  "configAiMode": "KI-Modus",
-  "configAiOff": "Aus",
-  "configAiAutonomous": "Antwortet nach den Regeln des Projekts",
-  "configPolicy": "Konfigurationsänderungen durch Agenten",
+  "configPolicy": "Änderungen und Antworten durch Agenten",
   "configPolicyReview": "Auf Freigabe warten",
   "configPolicyDirect": "Sofort anwenden",
   "configCheck": "Prüfen",
@@ -292,5 +289,10 @@
   "textApplied": "Gespeichert.",
   "textProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren.",
   "configAcknowledgements": "Für jedes neue Ticket eine Eingangsbestätigung senden",
-  "configPortalLinks": "Mails einen Link zur Ticketseite hinzufügen"
+  "configPortalLinks": "Mails einen Link zur Ticketseite hinzufügen",
+  "draftNotSent": "Entwurf eines Agenten, nicht gesendet",
+  "draftSend": "Entwurf senden",
+  "draftDiscard": "Entwurf verwerfen",
+  "draftDiscarded": "Entwurf verworfen",
+  "draftStale": "Das Ticket hat sich nach dem Entwurf geändert. Der Entwurf wurde nicht gesendet, schreibe die Antwort neu."
 }

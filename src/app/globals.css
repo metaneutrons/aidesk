@@ -1487,3 +1487,10 @@ li.tag-chip button {
     display: grid;
     gap: 4px;
 }
+
+.draft-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}

@@ -845,6 +845,10 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
     principal.kind === "human"
       ? await db().select({ name: user.name }).from(user).where(eq(user.id, principal.id))
       : [];
+  // Under the review policy an agent's reply to a customer is a draft: it is
+  // stored, not queued, and a person with ticket.reply sends or discards it.
+  const draft =
+    !values.internal && principal.kind === "agent" && project?.settings.approvalPolicy !== "direct";
   return db().transaction(async (tx) => {
     const dedupKey = `reply:${principal.id}:${values.idempotencyKey}`;
     const fingerprint = createHash("sha256")
@@ -853,7 +857,56 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
     const [existing] = await tx.select().from(jobs).where(eq(jobs.dedupKey, dedupKey)).limit(1);
     if (existing) {
       if (existing.payload.fingerprint !== fingerprint) throw new DomainError("conflict", 409);
-      return { id: existing.payload.messageId, duplicate: true };
+      return {
+        id: String(existing.payload.messageId),
+        duplicate: true,
+        draft: existing.type === "draft.recorded",
+      };
+    }
+    if (draft) {
+      // A draft leaves the conversation as it is, so the revision stays; the
+      // revision that was read has to be the current one, and the draft keeps it.
+      const [still] = await tx
+        .select({ revision: tickets.revision })
+        .from(tickets)
+        .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, values.expectedRevision)));
+      if (!still) throw new DomainError("conflict", 409);
+      const draftId = randomUUID();
+      await tx.insert(messages).values({
+        id: draftId,
+        ticketId: ticket.id,
+        authorType: principal.kind,
+        authorName: operator?.name ?? "Agent",
+        internal: false,
+        markdown: values.markdown,
+        language: values.language,
+        deliveryState: "draft",
+        source: { draft: { baseRevision: still.revision, resolve: values.resolve } },
+      });
+      await tx.insert(jobs).values({
+        projectId: ticket.projectId,
+        type: "draft.recorded",
+        dedupKey,
+        status: "succeeded",
+        payload: {
+          fingerprint,
+          ticketId: ticket.id,
+          messageId: draftId,
+          markdown: values.markdown,
+          actorId: principal.id,
+          actorKind: principal.kind,
+          expectedRevision: still.revision,
+          connectionId: outgoingId ?? null,
+          resolve: values.resolve,
+        },
+      });
+      await tx.insert(audit).values({
+        projectId: ticket.projectId,
+        actorId: principal.id,
+        action: "ticket.draft",
+        targetId: draftId,
+      });
+      return { id: draftId, duplicate: false, draft: true };
     }
     const [current] = await tx
       .update(tickets)
@@ -892,7 +945,100 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
     await tx
       .insert(audit)
       .values({ projectId: ticket.projectId, actorId: principal.id, action, targetId: messageId });
-    return { id: messageId, duplicate: false };
+    return { id: messageId, duplicate: false, draft: false };
+  });
+}
+const draftSource = z.object({
+  draft: z.object({ baseRevision: z.number().int(), resolve: z.boolean() }),
+});
+// The draft of an agent, with the ticket it belongs to, for a person who may
+// answer in that project.
+async function draftOf(principal: Principal, messageId: string) {
+  if (principal.kind !== "human") throw new DomainError("forbidden", 403);
+  const [row] = await db()
+    .select({ message: messages, ticket: tickets })
+    .from(messages)
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(eq(messages.id, id.parse(messageId)));
+  if (!row || !permits(principal, row.ticket.projectId, "ticket.read"))
+    throw new DomainError("not_found", 404);
+  if (!permits(principal, row.ticket.projectId, "ticket.reply"))
+    throw new DomainError("forbidden", 403);
+  if (row.message.deliveryState !== "draft") throw new DomainError("conflict", 409);
+  const parsed = draftSource.safeParse(row.message.source);
+  if (!parsed.success) throw new DomainError("conflict", 409);
+  return { ...row, draft: parsed.data.draft };
+}
+// A person sends the draft of an agent. The draft was written for the ticket as
+// it was; if the ticket has changed since (a customer wrote, someone answered),
+// it is refused and has to be written again.
+export async function sendDraft(principal: Principal, messageId: string) {
+  const { message, ticket, draft } = await draftOf(principal, messageId);
+  if (draft.resolve && !permits(principal, ticket.projectId, "ticket.resolve"))
+    throw new DomainError("forbidden", 403);
+  if (ticket.junkAt !== null || ticket.revision !== draft.baseRevision)
+    throw new DomainError("conflict", 409);
+  const [project] = await db().select().from(projects).where(eq(projects.id, ticket.projectId));
+  const outgoingId = project?.settings.outboundConnectionId;
+  if (typeof outgoingId !== "string") throw new DomainError("invalid_input", 400);
+  return db().transaction(async (tx) => {
+    const [current] = await tx
+      .update(tickets)
+      .set({ revision: sql`${tickets.revision} + 1`, updatedAt: new Date() })
+      .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, draft.baseRevision)))
+      .returning();
+    if (!current) throw new DomainError("conflict", 409);
+    const [queued] = await tx
+      .update(messages)
+      .set({
+        deliveryState: "queued",
+        source: { ...message.source, draft: { ...draft, approvedBy: principal.id } },
+      })
+      .where(and(eq(messages.id, message.id), eq(messages.deliveryState, "draft")))
+      .returning({ id: messages.id });
+    if (!queued) throw new DomainError("conflict", 409);
+    await tx.insert(jobs).values({
+      projectId: ticket.projectId,
+      type: "mail.send",
+      dedupKey: `draft:${message.id}`,
+      status: "queued",
+      payload: {
+        fingerprint: createHash("sha256").update(message.markdown).digest("hex"),
+        ticketId: ticket.id,
+        messageId: message.id,
+        markdown: message.markdown,
+        actorId: principal.id,
+        actorKind: "human",
+        expectedRevision: current.revision,
+        connectionId: outgoingId,
+        resolve: draft.resolve,
+      },
+    });
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: "ticket.draft_send",
+      targetId: message.id,
+    });
+    return { id: message.id, state: "queued" as const };
+  });
+}
+export async function discardDraft(principal: Principal, messageId: string) {
+  const { message, ticket } = await draftOf(principal, messageId);
+  return db().transaction(async (tx) => {
+    const [gone] = await tx
+      .update(messages)
+      .set({ deliveryState: "discarded" })
+      .where(and(eq(messages.id, message.id), eq(messages.deliveryState, "draft")))
+      .returning({ id: messages.id });
+    if (!gone) throw new DomainError("conflict", 409);
+    await tx.insert(audit).values({
+      projectId: ticket.projectId,
+      actorId: principal.id,
+      action: "ticket.draft_discard",
+      targetId: message.id,
+    });
+    return { id: message.id, state: "discarded" as const };
   });
 }
 export const localeInput = z.object({ locale: z.enum(["en", "de"]).nullable() });

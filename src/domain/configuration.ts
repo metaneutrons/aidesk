@@ -11,10 +11,9 @@ export const configDocument = z
     acknowledgements: z.boolean(),
     // Whether outgoing mail carries a link to the customer's page for the ticket.
     portalLinks: z.boolean(),
-    // "autonomous": the AI may answer under the project's rules; "off": it may not.
-    aiMode: z.enum(["off", "autonomous"]),
-    // "review": configuration changes by an agent wait for a person with
-    // config.approve; "direct": they apply at once. People always apply directly.
+    // "review": what an agent does that changes the project or reaches a customer
+    // (configuration, texts, connections, replies) waits for a person; "direct":
+    // it takes effect at once. People always act directly.
     approvalPolicy: z.enum(["review", "direct"]),
     // The outgoing connection that sends the project's mail; none sends nothing.
     outboundConnectionId: z.uuid().nullable(),

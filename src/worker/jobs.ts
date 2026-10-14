@@ -173,7 +173,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
         !agent.actions.includes("ticket.reply") ||
         (payload.resolve && !agent.actions.includes("ticket.resolve")) ||
         ticket.assigneeAgentId !== agent.id ||
-        project.settings.aiMode !== "autonomous" ||
+        project.settings.approvalPolicy !== "direct" ||
         project.settings.stopAutonomous === true
       )
         throw new Error("autonomous_dispatch_not_enabled");

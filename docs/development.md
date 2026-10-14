@@ -548,7 +548,7 @@ route.
 ## Project configuration
 
 The editable configuration of a project is one document: name, colour, default
-language, acknowledgements, portal links, AI mode, approval policy, the outgoing
+language, acknowledgements, portal links, approval policy, the outgoing
 connection, a pause for outgoing mail and the hours after which an unanswered
 ticket is overdue (24 by default, 1 to 720). Connections themselves, secrets and texts
 are not part of it. It is read with `GET
@@ -647,6 +647,28 @@ A text may contain the placeholders of its key and no other braces; a required
 placeholder must be present, an apostrophe may not touch a brace (the customer page
 reads ICU messages), and the text is at most 2000 characters. The rules are checked
 on write, and an error names the field (`/text`).
+
+## Replies by agents
+
+The approval policy of a project also governs replies to customers. Under `review`,
+the default, a reply that an agent writes (`POST /tickets/{id}/reply` or
+`tickets_reply` with `internal: false`) is stored as a draft: it is not sent, the
+ticket and its revision stay as they are, and the answer says `draft: true`.
+Internal notes are not drafts. A person with `ticket.reply` sends the draft with
+`POST /messages/{id}/send` or discards it with `POST /messages/{id}/discard`; the
+desk shows a draft with these two buttons. Sending is refused with a conflict when
+the ticket changed since the draft was written (a customer wrote, someone answered,
+the ticket went to junk), so a draft never goes out on a conversation it was not
+written for; the agent writes it again. A draft that resolves needs `ticket.resolve`
+of the person who sends it. The mail goes out as sent by that person, and the audit
+names the agent's draft and the person who sent it. An agent cannot send or discard
+a draft, also not its own.
+
+Under `direct` an agent's reply is queued at once, as before; the agent has to be
+assigned to the ticket, and a project can still stop agents (`stopAutonomous`). If a
+project is switched back to `review` while such a reply is queued, the worker does
+not send it and the job goes to review. The earlier setting `aiMode` no longer
+exists; a migration made every project that had it on `autonomous` a `direct` project.
 
 ## Overview and list size
 
