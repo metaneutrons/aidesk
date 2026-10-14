@@ -23,7 +23,13 @@ try {
   );
   const coverage = run(["test", "--coverage"]);
   assert.notEqual(coverage.status, 0);
-  assert.ok((coverage.stdout + coverage.stderr).includes("does not meet global threshold"));
+  // A run that fails for another reason has no threshold message; the tail of its
+  // output is the evidence, so it goes into the assertion.
+  const output = coverage.stdout + coverage.stderr;
+  assert.ok(
+    output.includes("does not meet global threshold"),
+    `The coverage probe failed without the threshold message. End of its output:\n${output.slice(-4000)}`,
+  );
   console.log("Lint, type and 90% coverage gates rejected the deliberate invalid inputs.");
 } finally {
   await rm(target, { force: true });
