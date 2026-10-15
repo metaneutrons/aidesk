@@ -11,6 +11,7 @@ vi.mock("node:dns/promises", () => ({
   },
 }));
 import { APICallError } from "ai";
+import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
@@ -301,6 +302,26 @@ describe("the daily budget", () => {
     });
     expect(calls).toHaveLength(0);
     expect(await charged()).toBe(0);
+  });
+  it("holds the conversation and the tools against the budget before the call", async () => {
+    const big = "x".repeat(6000);
+    // Without them the run fits, with either it does not.
+    await profile({ task: "agent.respond", dailyTokenBudget: held(50) + 500, maxOutputTokens: 50 });
+    const fits = fakeGenerate(answer());
+    expect(
+      await runAiTask(request({ task: "agent.respond" }), { generate: fits.generate }),
+    ).toMatchObject({ ok: true });
+    expect(await charged()).toBe(0);
+    for (const extra of [
+      { messages: [{ role: "assistant" as const, content: big }] },
+      { tools: { reply: { description: big, schema: z.object({ markdown: z.string() }) } } },
+    ]) {
+      const { calls, generate } = fakeGenerate(answer());
+      expect(
+        await runAiTask(request({ task: "agent.respond", ...extra }), { generate }),
+      ).toMatchObject({ ok: false, code: "ai_budget_exceeded" });
+      expect(calls).toHaveLength(0);
+    }
   });
   it("starts again on the next day, and the two days do not share a count", async () => {
     // 500 are used on a day; what is left is less than a run holds.
@@ -659,6 +680,55 @@ describe("the real call to each provider, against a fake one", () => {
         expect(limit(sent?.body ?? {})).toBe(321);
         expect(JSON.stringify(sent?.body)).toContain("where is my order 4711");
         expect(await charged()).toBe(18);
+      });
+      it("offers the tools and the conversation so far, and gives back the tool that the model asked for", async () => {
+        await profile({
+          task: "agent.respond",
+          connectionId: id,
+          timeoutSeconds: 2,
+          maxOutputTokens: 321,
+        });
+        models.behaviour = { toolCall: { name: "reply", input: { markdown: "Hello Kim" } } };
+        const outcome = await runAiTask(
+          request({
+            task: "agent.respond",
+            tools: {
+              reply: {
+                description: "Write the public reply",
+                schema: z.object({ markdown: z.string() }),
+              },
+            },
+            messages: [
+              {
+                role: "assistant",
+                content: [
+                  { type: "tool-call", toolCallId: "t1", toolName: "note", input: { text: "x" } },
+                ],
+              },
+              {
+                role: "tool",
+                content: [
+                  {
+                    type: "tool-result",
+                    toolCallId: "t1",
+                    toolName: "note",
+                    output: { type: "text", value: "NOTE-RECORDED" },
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+        expect(outcome).toMatchObject({ ok: true, text: "" });
+        expect(outcome.ok && outcome.toolCalls).toEqual([
+          { id: expect.any(String), name: "reply", input: { markdown: "Hello Kim" } },
+        ]);
+        const body = JSON.stringify(models.requests[0]?.body);
+        expect(body).toContain("Write the public reply");
+        expect(body).toContain("NOTE-RECORDED");
+        expect(body).toContain("where is my order 4711");
+        // The usage of that answer is what settles the share.
+        expect(outcome.ok && outcome.usage.inputTokens).toBeGreaterThan(0);
       });
       it("sends an image and a PDF as bytes in the form of the provider, with one request", async () => {
         await profile({

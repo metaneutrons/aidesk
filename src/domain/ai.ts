@@ -3,7 +3,7 @@ import { z } from "zod";
 // connection and model run it, under which limits, and whether it may run. A
 // profile that is on sends ticket content to the provider of its connection, so
 // it is off by default (see src/server/ai-profiles.ts for who may switch it on).
-export const aiTasks = ["reply.draft", "note.draft", "image.read"] as const;
+export const aiTasks = ["reply.draft", "note.draft", "image.read", "agent.respond"] as const;
 export type AiTask = (typeof aiTasks)[number];
 export const isAiTask = (value: string): value is AiTask => aiTasks.some((task) => task === value);
 export const aiDefaults = {
