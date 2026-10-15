@@ -15,6 +15,7 @@ import {
   projectTexts,
   tickets,
   user,
+  workspaceSettings,
 } from "../src/server/db/schema";
 import { initializeStorage } from "../src/server/storage";
 import {
@@ -23,6 +24,7 @@ import {
   selectEmailDesign,
   sendTestMail,
 } from "../src/server/email-design";
+import { controlsKey, useControlsKey } from "../src/server/controls";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
 import { getSentSnapshot, getTicket } from "../src/server/operations";
@@ -31,6 +33,8 @@ import { resolvePortalGrant, revokePortalGrant } from "../src/server/portal";
 import { runNext, runTestSend } from "../src/worker/jobs";
 import type { Principal } from "../src/domain/permissions";
 import { startFakeSmtp, type FakeSmtp } from "./support/smtp";
+// The switches of the whole workspace are a row of this file, not that of the other files.
+useControlsKey(`controls-worker-${randomUUID()}`);
 let smtp: FakeSmtp;
 const projectIds: string[] = [];
 const userIds: string[] = [];
@@ -204,6 +208,7 @@ beforeEach(() => {
 afterAll(async () => {
   vi.unstubAllEnvs();
   await smtp.close();
+  await db().delete(workspaceSettings).where(eq(workspaceSettings.key, controlsKey()));
   await db().delete(jobs).where(inArray(jobs.projectId, projectIds));
   await db().delete(audit).where(inArray(audit.projectId, projectIds));
   await db().delete(tickets).where(inArray(tickets.projectId, projectIds));
@@ -406,6 +411,21 @@ describe("stale or forbidden dispatch", () => {
       expect(await entry.run()).toBe(false);
       expect(smtp.messages).toHaveLength(0);
     });
+  it("sends nothing while the whole workspace pauses outgoing mail, and sends when it does not", async () => {
+    const paused = await scenario();
+    await db()
+      .insert(workspaceSettings)
+      .values({ key: controlsKey(), value: { pauseOutgoing: true } });
+    try {
+      expect(await paused.run()).toBe(true);
+      await expectReview(paused, "stale_or_paused_dispatch");
+    } finally {
+      await db().delete(workspaceSettings).where(eq(workspaceSettings.key, controlsKey()));
+    }
+    const free = await scenario();
+    await free.run();
+    expect(await free.job()).toMatchObject({ status: "succeeded" });
+  });
   it("counter-probe: the same setup sends when nothing was changed", async () => {
     for (const options of [{ resolve: true }, { acknowledgement: true }]) {
       const entry = await scenario(options);
@@ -838,6 +858,20 @@ describe("test send of a design", () => {
     const body = JSON.parse(init.body as string) as { to: string; subject: string; html: string };
     expect(body).toMatchObject({ to: address, subject: "[Test] Worker, design version 1" });
     expect(body.html).toContain("#aa3355");
+  });
+  it("is refused while the whole workspace pauses outgoing mail", async () => {
+    const { entry, manager } = await managed();
+    await db()
+      .insert(workspaceSettings)
+      .values({ key: controlsKey(), value: { pauseOutgoing: true } });
+    try {
+      await expect(sendTestMail(manager, entry.projectId, {})).rejects.toMatchObject({
+        status: 409,
+      });
+    } finally {
+      await db().delete(workspaceSettings).where(eq(workspaceSettings.key, controlsKey()));
+    }
+    await expect(sendTestMail(manager, entry.projectId, {})).resolves.toHaveProperty("id");
   });
   it("cannot be addressed elsewhere and is limited to people who manage the project", async () => {
     const { entry, manager } = await managed();

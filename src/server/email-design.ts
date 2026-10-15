@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { workspaceControls } from "./controls";
 import { db } from "./db";
 import { audit, emailDesigns, jobs, projects, user } from "./db/schema";
 import { DomainError } from "./errors";
@@ -208,7 +209,12 @@ export async function sendTestMail(principal: Principal, projectId: string, inpu
     .from(projects)
     .where(eq(projects.id, project));
   const connectionId = row?.settings.outboundConnectionId;
-  if (!row || typeof connectionId !== "string" || row.settings.pauseOutgoing === true)
+  if (
+    !row ||
+    typeof connectionId !== "string" ||
+    row.settings.pauseOutgoing === true ||
+    (await workspaceControls()).pauseOutgoing
+  )
     throw new DomainError("conflict", 409);
   await designForVersion(project, row.settings, values.version);
   const [operator] = await db().select().from(user).where(eq(user.id, principal.id));

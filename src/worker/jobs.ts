@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod";
+import { workspaceControls } from "../server/controls";
 import { db } from "../server/db";
 import {
   agents,
@@ -143,6 +144,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       (payload.actorKind !== "system" && ticket.revision !== payload.expectedRevision) ||
       ticket.junkAt !== null ||
       project.settings.pauseOutgoing === true ||
+      (await workspaceControls()).pauseOutgoing ||
       project.settings.outboundConnectionId !== connection.id
     )
       throw new Error("stale_or_paused_dispatch");
@@ -175,7 +177,8 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
         (payload.resolve && !agent.actions.includes("ticket.resolve")) ||
         ticket.assigneeAgentId !== agent.id ||
         project.settings.approvalPolicy !== "direct" ||
-        project.settings.stopAutonomous === true
+        project.settings.stopAutonomous === true ||
+        (await workspaceControls()).stopAutonomous
       )
         throw new Error("autonomous_dispatch_not_enabled");
     }
@@ -401,6 +404,7 @@ export async function runTestSend(scope?: { projectId: string }): Promise<boolea
       !project ||
       !connection ||
       project.settings.pauseOutgoing === true ||
+      (await workspaceControls()).pauseOutgoing ||
       project.settings.outboundConnectionId !== connection.id
     )
       throw new Error("stale_or_paused_dispatch");

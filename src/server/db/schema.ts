@@ -636,3 +636,12 @@ export const agentRuns = pgTable(
     uniqueIndex("agent_run_revision_idx").on(t.agentId, t.ticketId, t.revision),
   ],
 );
+// Switches of the whole installation that only an owner sets: they apply to every project.
+// The row `controls` holds `stopAutonomous` (no managed agent acts) and `pauseOutgoing` (no
+// mail is sent); a missing row means that both are off.
+export const workspaceSettings = pgTable("workspace_setting", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: updated(),
+});

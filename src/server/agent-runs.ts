@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { permits, type Principal } from "../domain/permissions";
 import type { Tx } from "./changes";
+import { workspaceControls } from "./controls";
 import { db } from "./db";
 import { agentRuns, agents, audit, jobs, projects, tickets } from "./db/schema";
 import { DomainError } from "./errors";
@@ -51,6 +52,8 @@ export async function queueAgentRun(
     agent.projectId !== ticket.projectId
   )
     return null;
+  // While a stop holds nothing is queued; a person resumes the tickets when it is lifted.
+  if (await isStopped(tx, ticket.projectId)) return null;
   const key = dedupKey(agent.id, ticket.id, ticket.revision);
   const [existing] = await tx
     .select()
@@ -238,6 +241,16 @@ export async function listAgentRuns(principal: Principal, ticketId: string) {
     .orderBy(desc(agentRuns.createdAt))
     .limit(20);
 }
+// Whether managed agents are stopped for a project, by the project or by the workspace.
+async function isStopped(reader: Pick<Tx, "select">, projectId: string): Promise<boolean> {
+  const [project] = await reader
+    .select({ settings: projects.settings })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  return (
+    project?.settings.stopAutonomous === true || (await workspaceControls(reader)).stopAutonomous
+  );
+}
 // Why a run must not go on, or null when it may. The worker asks before it starts and again
 // before every side effect: the permissions, the assignment, the stops and the revision that
 // count are the current ones, not those of the time the run was queued.
@@ -259,11 +272,7 @@ export async function staleReason(runId: string): Promise<string | null> {
     agent.projectId !== ticket.projectId
   )
     return "agent_not_active";
-  const [project] = await db()
-    .select({ settings: projects.settings })
-    .from(projects)
-    .where(eq(projects.id, ticket.projectId));
-  if (project?.settings.stopAutonomous === true) return "stopped";
+  if (await isStopped(db(), ticket.projectId)) return "stopped";
   return null;
 }
 // Ends a run with a state and the reason, unless it already ended (a cancellation wins).

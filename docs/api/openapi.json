@@ -7239,6 +7239,427 @@
         }
       }
     },
+    "/tickets/{ticketId}/stop-agent": {
+      "post": {
+        "operationId": "tickets.stop_agent",
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Stop the managed agent on a ticket: its open runs are cancelled and it does not work the ticket again until a person resumes it",
+        "x-required-access": "ticket.assign",
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stopped": {
+                      "type": "boolean"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "stopped",
+                    "changed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/agent-controls": {
+      "get": {
+        "operationId": "projects.agent_controls",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Whether managed agents are stopped and outgoing mail is paused, for the project and for the whole workspace",
+        "x-required-access": "project.read",
+        "x-mcp-tool": "projects_agent_controls",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "object",
+                      "properties": {
+                        "stopAutonomous": {
+                          "type": "boolean"
+                        },
+                        "pauseOutgoing": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "stopAutonomous",
+                        "pauseOutgoing"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "stopAutonomous": {
+                          "type": "boolean"
+                        },
+                        "pauseOutgoing": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "stopAutonomous",
+                        "pauseOutgoing"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "project",
+                    "workspace"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/agent-stop": {
+      "put": {
+        "operationId": "projects.agent_stop",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Stop the managed agents of a project, or let them work again. A stop cancels their queued and running runs; lifting it queues nothing",
+        "x-required-access": "ticket.assign",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stopped": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "stopped"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stopped": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "stopped"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/resume-agents": {
+      "post": {
+        "operationId": "projects.resume_agents",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "After a stop: queue a run for every open ticket that a managed agent works and that still waits for an answer",
+        "x-required-access": "ticket.assign",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queued": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "queued"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/workspace/controls": {
+      "get": {
+        "operationId": "workspace.controls_get",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "The stop of managed agents and the pause of outgoing mail for the whole workspace",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stopAutonomous": {
+                      "type": "boolean"
+                    },
+                    "pauseOutgoing": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "stopAutonomous",
+                    "pauseOutgoing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      },
+      "put": {
+        "operationId": "workspace.controls_set",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Stop all managed agents or pause all outgoing mail, for every project. Naming one switch leaves the other as it is",
+        "x-required-access": "owner",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stopAutonomous": {
+                    "type": "boolean"
+                  },
+                  "pauseOutgoing": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stopAutonomous": {
+                      "type": "boolean"
+                    },
+                    "pauseOutgoing": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "stopAutonomous",
+                    "pauseOutgoing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/messages/{messageId}/send": {
       "post": {
         "operationId": "messages.send_draft",
