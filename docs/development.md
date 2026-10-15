@@ -1172,6 +1172,39 @@ adequate for the development scale; a trigram or full-text index is needed
 before the production scale is qualified. A single character still filters the
 loaded list.
 
+## Production image
+
+`docker build --target production .` makes the image that runs: the web server, the worker
+and the migrations are one image with three commands, and the development target stays as
+it was. The build stage installs the dependencies, builds the application and removes the
+tools of development; the image is copied from it.
+
+- **Web server:** `node web/server.js` (the standalone build of Next.js, with the static
+  files beside it), on port 3000 with a health check on `/api/health/ready`.
+- **Worker:** `node_modules/.bin/tsx src/worker/index.ts`. It needs the source and the
+  dependencies, because it builds the reader of documents with esbuild when it starts.
+- **Migrations:** `node_modules/.bin/tsx scripts/migrate.ts`.
+- **Smoke check:** `node_modules/.bin/tsx scripts/smoke.ts` runs the reader of documents in
+  its closed process and needs neither a database nor a network.
+
+The base is a full Debian image (`node:26-bookworm-slim`) because the reader runs in a
+process of Node's permission model that is started through `/bin/sh`; a distroless image has
+no shell. The process runs as the user `node`, the application files belong to root and
+cannot be written by it, and no credential is in the image: the source is copied without
+`.env*` (`.dockerignore`), and the configuration comes from the environment when a container
+starts. The standalone server reads `KEEP_ALIVE_TIMEOUT` (milliseconds) for the time it keeps
+an idle connection open, which has to be longer than that of a proxy in front of it.
+
+Checked on 2026-10-15: the CI job "Production image" builds the image, runs the smoke check
+and checks that the process is not root and cannot write `/app`. By hand, against the
+services of the development stack: the web server became healthy and answered the login
+page, the API definition, the agent guide and a static file; the migration command ended
+without a change; the worker started and refused the development connections of that
+database (`development_connection_not_allowed`), which is the behaviour of a production
+process. Not done: a Compose file for production with persistent services (M5-A2), TLS and
+a proxy in front, a read-only root file system, the measured start and recovery times, and
+Vercel.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside
@@ -1258,7 +1291,7 @@ neither qualifies the planned production scale. Messenger adapters are reserved 
 the plan and in `src/domain/channels.ts` and are not presented as working
 connections.
 
-Vercel HTTPS, a hardened production Docker target, real remote MCP, browser and
+Vercel HTTPS, a Compose setup of the production image with persistent services, real remote MCP, browser and
 usability/accessibility runs, repository-settings audit, backup/restore,
 retention/export/deletion and measured recovery targets also remain open.
 Do not equate a passing development build with these qualifications.
