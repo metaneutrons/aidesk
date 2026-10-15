@@ -84,6 +84,13 @@ const notCalled: Record<string, string> = {
     "needs an AI task that is set up and a model provider; covered by the translation tests",
   "texts.translate":
     "needs an AI task that is set up and a model provider; covered by the translation tests",
+  "issues.link": "needs a repository of the project that answers; covered by the issue tests",
+  "issues.unlink": "needs a linked issue; covered by the issue tests",
+  "issues.draft_create": "needs a repository of the project; covered by the issue tests",
+  "issues.draft_update": "needs a draft of an issue; covered by the issue tests",
+  "issues.draft_discard": "needs a draft of an issue; covered by the issue tests",
+  "issues.publish": "writes to a repository; covered by the issue tests",
+  "issues.reconcile": "reads a repository for a publication; covered by the issue tests",
   "messages.send_draft": "needs a draft by an agent; covered by the drafts test",
   "messages.discard_draft": "needs a draft by an agent; covered by the drafts test",
 };
@@ -260,6 +267,10 @@ test("answers every documented route in the published shape, with real data", as
   });
   // The sources of knowledge: the project has none in the fixture, which the answer says.
   await call("knowledge.search", { params: { ticketId: ticket }, query: { q: "printer" } });
+  // Issues: the project has no repository in the fixture, which the answers say.
+  await call("issues.list", { params: { ticketId: ticket } });
+  await call("issues.search", { params: { ticketId: ticket }, query: { q: "printer" } });
+  await call("issues.refresh", { params: { ticketId: ticket }, data: {} });
   // Translations of a message: asked for, listed (the worker answers that none can be made, as no
   // model is set up), removed; and a correction of the text, which gives it a new revision.
   const first = (detail.messages as { id: string; language: string; markdown: string }[])[0];

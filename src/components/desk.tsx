@@ -35,6 +35,7 @@ import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
 import { Assignment } from "./assignment";
+import { Issues } from "./issues";
 import { Knowledge } from "./knowledge";
 import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
@@ -1144,6 +1145,14 @@ export function Desk({
                             locale={initialLocale}
                           />
                         </details>
+                      )}
+                      {!conversation.ticket.junkAt && (
+                        <Issues
+                          key={conversation.ticket.id}
+                          ticketId={conversation.ticket.id}
+                          canNote={conversation.actions.includes("ticket.note")}
+                          canPublish={conversation.actions.includes("github.publish")}
+                        />
                       )}
                       {!conversation.ticket.junkAt && (
                         <Assignment

@@ -1663,3 +1663,36 @@ li.tag-chip button {
     margin: 2px 0;
     white-space: pre-wrap;
 }
+
+.ticket-issues summary {
+    display: inline-block;
+    min-height: 24px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.issue-list,
+.issue-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 6px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.issue-search {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.issue-review pre {
+    margin: 4px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    white-space: pre-wrap;
+    font: inherit;
+}

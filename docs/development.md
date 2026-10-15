@@ -1118,6 +1118,40 @@ the draft button can use the sources (`knowledge: true`): the passages go to the
 their source, and the draft is told to name the source of a fact that it takes from one. A source
 that fails leaves the draft without it. The desk shows the search under the ticket.
 
+### Issues of the repositories
+
+Part P5 as well. A project with a `github/knowledge` connection that is ready (or degraded, for
+reading) offers issues in the ticket; a project without one has no controls, no routes with an
+answer and nothing in the API that mentions a repository (`GET /tickets/{id}/issues` answers an
+empty list of repositories).
+
+- **Search and link.** `GET .../issues/search?q=` (tool `tickets_issue_search`) searches each
+  repository of the project with words only; `POST .../issues/link` (tool `tickets_link_issue`, needs
+  `ticket.note`) reads the issue once and links it. A repository that is not on a connection of the
+  project, an issue that does not exist and a repository that does not answer are refused (404, 404,
+  502); linking twice is one link; nothing is written to the repository. `POST .../issues/refresh`
+  and a pass of the worker every five minutes read the state of the issues of tickets that are not
+  resolved or in junk again; one that cannot be read keeps its last known state and says why
+  (`refreshError`). Closing an issue changes nothing about the ticket.
+- **Drafts.** `POST .../issue-drafts` (tool `tickets_create_issue_draft`, needs `ticket.note`) writes
+  a draft for a repository of the project. It starts from what the person writes: nothing of the
+  ticket, no note and no customer data is added, so nothing private reaches an issue by itself. The
+  draft is changed with the version that was read, and discarded. The desk shows the exact text that
+  will be published before the button.
+- **Publishing** (`POST /issue-drafts/{id}/publish`, needs `github.publish`, a person, never an agent)
+  takes the draft in one step (`draft` or `failed` to `publishing`, with the version), creates the
+  issue with the title and the text as written plus a marker in a comment, and records the issue and
+  links it to the ticket. A draft is published once: asking again, also at the same time, gives the
+  same issue and creates no second one. When GitHub refuses (status 4xx) it did nothing and the draft
+  is `failed`, kept for another try. When the outcome is unknown (the request did not complete, or a
+  status of 5xx) the draft is `uncertain` and is not published again: `POST .../reconcile` (same right)
+  looks for the marker among the newest issues of the repository; found, it is published and linked,
+  not found, it is `failed` and can be tried again. A publication that was left `publishing` by a
+  crash can be looked up after two minutes.
+- Requests to GitHub carry the token in a header, do not follow a redirect, are limited in time and
+  check the host again (`src/server/github.ts`). The customer page and its API hold nothing about
+  issues.
+
 ### Stopping agents and outgoing mail
 
 The stops of the plan are at three levels, and only people set them (a token never does, and no
