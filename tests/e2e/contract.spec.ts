@@ -64,6 +64,7 @@ const notCalled: Record<string, string> = {
   "operators.active": "disables an operator; the shape is checked by the invalid call",
   "config.decide": "needs a pending proposal, which the sign-in of the fixture cannot make",
   "connections.create": "needs a real mail host; its dry run is called below",
+  "ai_profiles.set": "needs a connection to a model provider; covered by the profile tests",
   "connections.update": "needs a real mail host",
   "connections.disable": "needs a connection",
   "connections.test": "opens a connection to a mail host",
@@ -135,6 +136,7 @@ test("answers every documented route in the published shape, with real data", as
   await call("designs.list", { params: { projectId: project } });
   await call("connections.list", { params: { projectId: project } });
   await call("texts.list", { params: { projectId: project } });
+  await call("ai_profiles.list", { params: { projectId: project } });
   await call("texts.versions", {
     params: { projectId: project, key: "acknowledgement", language: "en" },
   });

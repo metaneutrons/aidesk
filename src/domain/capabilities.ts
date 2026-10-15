@@ -117,6 +117,22 @@ export const capabilities = {
     mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
+  "ai_profiles.list": {
+    operation: "listAiProfiles",
+    action: "config.read",
+    ui: null,
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+    difference: "docs/capabilities.md",
+  },
+  "ai_profiles.set": {
+    operation: "setAiProfile",
+    action: "config.write",
+    ui: null,
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+    difference: "docs/capabilities.md",
+  },
   "tickets.status": {
     operation: "setTicketStatus",
     action: "ticket.resolve",
