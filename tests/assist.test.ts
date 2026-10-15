@@ -281,6 +281,8 @@ describe("a draft", () => {
       timeoutMs: 20_000,
     });
     expect(call?.system.startsWith(textKeys["assist.reply"].defaults.en)).toBe(true);
+    // Attachments are not part of the context: no file goes to the provider.
+    expect(call?.files).toBeUndefined();
     const prompt = call?.prompt ?? "";
     const order = ["Where is my order 4711?", "Sorry for the delay", "Any news?"].map((part) =>
       prompt.indexOf(part),
