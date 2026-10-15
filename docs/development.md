@@ -1161,7 +1161,12 @@ browsers once with `pnpm exec playwright install chromium firefox webkit`, then
 run `pnpm test:e2e`. Each Playwright worker creates its own operator and projects
 under an `e2e-` prefix inside the app container (`scripts/e2e-fixture.ts`) and
 deletes them afterwards, so the development desk data stays unchanged. CI runs
-them in the Browser tests job against the same Compose stack.
+them in the Browser tests job against the same Compose stack. The app and the worker
+load `scripts/dev-keep-alive.cjs` through `NODE_OPTIONS`: Node closes an idle connection
+after about six seconds, and the request context of Playwright, which keeps connections
+open, failed with `socket hang up` (ECONNRESET) when it sent on one in that instant
+(14 of 20 requests after a pause of six seconds in a measurement); the stack now keeps
+them open for two minutes.
 `tests/e2e/accessibility.spec.ts` runs the axe-core WCAG 2.2 A/AA rules on the
 sign-in page, overview, an open ticket with composer and the project dialog in
 light and dark appearance. Automated rules detect only part of the barriers;

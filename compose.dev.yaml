@@ -86,6 +86,8 @@ services:
       target: development
     environment: &app-environment
       NODE_ENV: development
+      # Keeps idle connections open longer than any pause of a browser test.
+      NODE_OPTIONS: --require=/app/scripts/dev-keep-alive.cjs
       APP_URL: http://localhost:3000
       DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD}@postgres:5432/aidesk
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
