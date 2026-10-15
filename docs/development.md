@@ -226,12 +226,21 @@ person with access to the project (`userId`), to an active agent of the project
 Attachments, the stored originals of mails and the text that was read from a file
 (`attachment_text`) are kept as long as their ticket and the message they belong to, and
 the rows go when those go (the foreign keys cascade). The files themselves are objects in
-the private storage, and a database cascade does not remove them: deleting a ticket has to
-delete its objects as well, which is part of the rule that is still to be made. There is no
-retention period of their own, by decision of the product owner of 2026-10-15; the rule for deleting tickets and what
-hangs on them is decided with the retention work of the deployment milestone (M5), and no
-route deletes a ticket today. The consequence for data protection is that the text of a file
-is a second copy of customer content in the database, as long as the file is.
+the private storage, and a database cascade does not remove them. There is no retention
+period of their own, by decision of the product owner of 2026-10-15, and no route deletes
+a ticket today. The rule for the objects: they are named by what they hold
+(`inbound/<project>/<checksum>.eml`, `attachments/<project>/<checksum>`), so one object can
+be the file of several attachments or the original of several messages, and the code that
+deletes a ticket cannot know whether another ticket still uses an object. An object is kept
+as long as any row names it, and one that no row names is removed by a sweep:
+`pnpm tsx scripts/sweep-objects.ts` lists such objects (a dry run) and
+`pnpm tsx scripts/sweep-objects.ts --delete` removes them. An object that is younger than
+24 hours (`--grace-hours=N`) is kept, because an object is stored before the row that
+names it. Whoever adds a way to delete tickets leaves the objects to the sweep and runs it
+after the deletion; the sweep also finds what a restored database no longer names. The
+consequence for data protection is that the text of a file is a second copy of customer
+content in the database, as long as the file is, and that an object of a deleted ticket
+stays in the storage until the sweep ran.
 
 ## Reading images and scans
 
@@ -1252,7 +1261,9 @@ Playwright browser tests run on the host against the running stack. Install the
 browsers once with `pnpm exec playwright install chromium firefox webkit`, then
 run `pnpm test:e2e`. Each Playwright worker creates its own operator and projects
 under an `e2e-` prefix inside the app container (`scripts/e2e-fixture.ts`) and
-deletes them afterwards, so the development desk data stays unchanged. CI runs
+deletes them afterwards, with the objects they stored (before this, a development bucket
+held 27 000 objects of deleted test projects, 4.9 GB, which the sweep removed), so the
+development desk data stays unchanged. CI runs
 them in the Browser tests job against the same Compose stack. The app and the worker
 load `scripts/dev-keep-alive.cjs` through `NODE_OPTIONS`: Node closes an idle connection
 after about six seconds, and the request context of Playwright, which keeps connections

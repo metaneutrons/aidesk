@@ -27,6 +27,7 @@ import {
 import { actions, type Action } from "../src/domain/permissions";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
+import { sweepObjects } from "../src/server/object-sweep";
 if (process.env.DEV_BOOTSTRAP !== "true" || process.env.NODE_ENV !== "development")
   throw new Error("Browser-test fixtures are restricted to private development.");
 const fixtureProjects: { key: string; label: string; grant: Action[] | null; language: string }[] =
@@ -215,6 +216,12 @@ async function teardown(run: string) {
     if (projectIds.length) await tx.delete(projects).where(inArray(projects.id, projectIds));
     if (userIds.length) await tx.delete(user).where(inArray(user.id, userIds));
   });
+  // The objects of the deleted projects stay in the storage after a cascade. They are
+  // named by project, so nothing else uses them, and the sweep removes them now instead
+  // of leaving them to the daily one (a run of the suite leaves thousands).
+  for (const id of projectIds)
+    for (const area of ["attachments", "inbound"])
+      await sweepObjects({ prefix: `${area}/${id}/`, graceMs: 0, remove: true });
   return { run, projects: projectIds.length, users: userIds.length };
 }
 function fixtureEmail(value: string | undefined): string {
