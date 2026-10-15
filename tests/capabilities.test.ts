@@ -19,6 +19,7 @@ describe("capability source registry", () => {
     const modules = {
       ...(await import("../src/server/operations")),
       ...(await import("../src/server/email-design")),
+      ...(await import("../src/server/assist")),
     } as Record<string, unknown>;
     const registered = new Set(
       Object.values(capabilities).map((declaration) => declaration.operation),
@@ -30,7 +31,7 @@ describe("capability source registry", () => {
         if (
           !ts.isImportDeclaration(statement) ||
           !ts.isStringLiteral(statement.moduleSpecifier) ||
-          !["/operations", "/email-design"].some((module) =>
+          !["/operations", "/email-design", "/assist"].some((module) =>
             (statement.moduleSpecifier as ts.StringLiteral).text.endsWith(module),
           )
         )

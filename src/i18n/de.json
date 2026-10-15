@@ -332,5 +332,15 @@
   "webhookPing": "Testereignis an {name} senden",
   "webhookDisable": "{name} deaktivieren",
   "webhookPinged": "Ein Testereignis wurde eingereiht; das Ergebnis erscheint hier, sobald die Adresse geantwortet hat.",
-  "webhookProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren."
+  "webhookProposed": "Vorgeschlagen. Jemand mit Freigaberecht muss es aktivieren.",
+  "assistButton": "Mit KI entwerfen",
+  "assistWorking": "Entwurf wird erstellt…",
+  "assistInstruction": "Anweisung für diesen Entwurf (optional)",
+  "assistUndo": "KI-Entwurf rückgängig machen",
+  "assistDone": "KI-Entwurf eingefügt. Prüfe ihn vor dem Versand.",
+  "assistTruncated": "KI-Entwurf eingefügt, aber an der Längengrenze der Aufgabe abgeschnitten. Prüfe ihn vor dem Versand.",
+  "assistNotConfigured": "KI-Entwürfe sind für dieses Projekt nicht eingerichtet. Eine Person, die Änderungen freigeben darf, schaltet die Aufgabe unter Einstellungen, KI-Aufgaben ein.",
+  "assistBudget": "Das Tageslimit der KI-Aufgabe für Entwürfe ist aufgebraucht.",
+  "assistTimeout": "Die KI hat nicht rechtzeitig geantwortet. Versuche es erneut.",
+  "assistFailed": "Die KI konnte keinen Entwurf schreiben."
 }

@@ -332,5 +332,15 @@
   "webhookPing": "Send a test event to {name}",
   "webhookDisable": "Disable {name}",
   "webhookPinged": "A test event was queued; the result appears here once the endpoint answered.",
-  "webhookProposed": "Proposed. A person with approval rights has to activate it."
+  "webhookProposed": "Proposed. A person with approval rights has to activate it.",
+  "assistButton": "Draft with AI",
+  "assistWorking": "Drafting…",
+  "assistInstruction": "Instruction for this draft (optional)",
+  "assistUndo": "Undo AI draft",
+  "assistDone": "AI draft inserted. Check it before you send.",
+  "assistTruncated": "AI draft inserted, but cut at the length limit of the task. Check it before you send.",
+  "assistNotConfigured": "AI drafts are not set up for this project. A person who may approve changes switches the task on under Settings, AI tasks.",
+  "assistBudget": "The daily limit of the AI task for drafts is used up.",
+  "assistTimeout": "The AI did not answer in time. Try again.",
+  "assistFailed": "The AI could not write a draft."
 }

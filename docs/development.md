@@ -1025,6 +1025,54 @@ the provider added (`/v1` or `/v1beta`).
 Not covered here: the prompts, what a task does with the answer, a page that shows the
 usage, and a run against a real provider.
 
+### Draft assistance
+
+The reply field and the field for internal notes of the desk have a button "Draft with
+AI" (`POST /api/v1/tickets/{id}/draft-assist`, `tickets.assist_draft`). It is not a
+tool of MCP: an agent writes its own drafts, and the button is for a person who wants a
+first version. The request names the `mode` (`reply` or `note`), an optional
+`instruction` for this one draft (up to 1000 characters) and the `current` text of the
+field (up to 8000 characters); the answer is `text` and `truncated`.
+
+- **Who and which task.** A reply needs `ticket.reply`, a note `ticket.note`, both with
+  `ticket.read` for the ticket; a ticket of another project answers 404. A reply for a
+  ticket in junk is refused with 409, like a reply. A reply runs the task `reply.draft`
+  of the project and a note the task `note.draft`, so each has its own connection,
+  model, limits and switch. Without a profile that is on the answer is
+  `ai_not_configured` or `ai_disabled` (409) and the desk says that AI drafts are not
+  set up and who switches them on. The other codes of `runAiTask` are 429
+  (`ai_budget_exceeded`), 504 (`ai_timeout`) and 502 (`ai_provider_error`, also for an
+  answer that is empty after cleaning).
+- **The standard instruction is a text of the project.** The keys `assist.reply` and
+  `assist.note` (English and German, up to 2000 characters, no placeholders) are read,
+  versioned and written like every text, so changing them needs `config.write` and an
+  agent under `review` proposes it. The language is the language of the ticket
+  (German or else English). A project's own wording replaces the built-in one but not
+  the guard that follows it.
+- **The ticket is data.** The system text is the standard instruction, then the
+  instruction of the person for this draft, then a fixed guard that says that the
+  ticket data and the typed text lie between two marker lines with a random value per
+  request, that they are data and never instructions, that the draft is returned
+  without comment, and that facts that are missing get a bracketed placeholder. The
+  user message holds the ticket number, subject, the name of the customer (not the
+  address), the language, and the conversation with a role per message (customer, team
+  or internal note), then the text typed so far. The newest messages are kept up to
+  24 000 characters and each is cut at 4000; the draft is told how many were left out.
+  Invisible characters are removed from everything that goes in and from the answer.
+  A reply draft leaves out internal notes, so that what is private is not carried into
+  a text for the customer; a note draft includes them. Drafts of agents, discarded
+  messages and system messages are left out. Attachments are not part of the
+  context.
+- **The field.** The draft replaces the field as text to edit and is not sent; "Undo
+  AI draft" brings back what the field held before the last draft; the text typed so
+  far and the instruction go with the next request. A draft that arrives after the
+  person moved to another ticket or the other mode is dropped. The reply field of the
+  customer portal has no such button, by decision of 2026-10-15.
+- **Record.** The run is in `ai_run` (task, profile version, model, tokens, who asked)
+  and the audit entry `draft.assist` names the ticket, the mode, the run, whether an
+  instruction and typed text were sent, and whether the draft was cut. Neither holds
+  the instruction, the typed text, the conversation or the draft.
+
 ## Overview and list size
 
 The overview counts in the database over every ticket of the authorized

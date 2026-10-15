@@ -699,6 +699,33 @@ label {
     font-size: 13px;
     min-height: 90px;
 }
+.assist-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--line);
+}
+.assist-row input {
+    flex: 1 1 200px;
+    min-width: 0;
+    font-size: 12px;
+    padding: 6px 8px;
+}
+.assist-row button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+.assist-note {
+    margin: 0;
+    padding: 0 14px 8px;
+    font-size: 11px;
+    color: var(--muted);
+}
 .compose-footer {
     display: flex;
     justify-content: space-between;
