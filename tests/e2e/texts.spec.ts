@@ -4,6 +4,10 @@ import { expect, test } from "./fixtures";
 // Texts: a project's own wording replaces the built-in text, here on the
 // customer page, and returns to it when the text is reset.
 test.describe.configure({ mode: "serial" });
+// This test failed twice in CI with `socket hang up (ECONNRESET)` on its first API
+// request after a long step in the page. The likely cause is a connection that the
+// server had closed while it was idle (the default of Node is 5 seconds) and that
+// the client used again. Playwright repeats exactly that error, so the calls ask for it.
 test("sets the label of the reply button and resets it", async ({
   page,
   desk,
@@ -37,6 +41,7 @@ test("sets the label of the reply button and resets it", async ({
         await page.request.post(`/api/v1/tickets/${alpha.tickets[0]}/portal-link`, {
           headers: { origin: baseURL ?? "" },
           data: {},
+          maxRetries: 3,
         })
       ).json(),
     );
@@ -49,17 +54,18 @@ test("sets the label of the reply button and resets it", async ({
     await customer.reload();
     await expect(customer.getByRole("button", { name: "Send reply" })).toBeVisible();
   } finally {
-    const versions = z
-      .array(z.object({ version: z.number(), text: z.string().nullable() }))
-      .parse(
-        await (
-          await page.request.get(`/api/v1/projects/${alpha.id}/texts/portal.send/en/versions`)
-        ).json(),
-      );
+    const versions = z.array(z.object({ version: z.number(), text: z.string().nullable() })).parse(
+      await (
+        await page.request.get(`/api/v1/projects/${alpha.id}/texts/portal.send/en/versions`, {
+          maxRetries: 3,
+        })
+      ).json(),
+    );
     if (versions[0]?.text !== null && versions[0] !== undefined)
       await page.request.put(`/api/v1/projects/${alpha.id}/texts/portal.send/en`, {
         headers: { origin: baseURL ?? "" },
         data: { text: null, expectedVersion: versions[0].version },
+        maxRetries: 3,
       });
   }
 });
