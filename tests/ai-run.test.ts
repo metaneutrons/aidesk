@@ -386,18 +386,15 @@ describe("a call whose outcome is not known, and one that was refused", () => {
   it("is a failure of the provider when it fails or the network does, once, with the share kept, and tries no other provider", async () => {
     const other = await connection(projectId, { kind: "openai" });
     await profile();
-    for (const error of [
-      failure(500),
-      failure(503),
-      failure(408),
-      failure(),
-      new Error("socket hang up"),
-    ]) {
+    for (const [error, code] of [
+      [failure(500), "ai_provider_error"],
+      [failure(503), "ai_rate_limited"],
+      [failure(408), "ai_provider_error"],
+      [failure(), "ai_provider_error"],
+      [new Error("socket hang up"), "ai_provider_error"],
+    ] as const) {
       const { calls, generate } = fakeGenerate(error);
-      expect(await runAiTask(request(), { generate })).toMatchObject({
-        ok: false,
-        code: "ai_provider_error",
-      });
+      expect(await runAiTask(request(), { generate })).toMatchObject({ ok: false, code });
       expect(calls).toHaveLength(1);
       expect(calls[0]?.kind).toBe("anthropic");
       expect(calls.some((call) => call.kind === "openai")).toBe(false);
@@ -407,11 +404,17 @@ describe("a call whose outcome is not known, and one that was refused", () => {
   });
   it("gives the share back when the provider refused the request before doing anything", async () => {
     await profile();
-    for (const status of [400, 401, 403, 404, 429]) {
+    for (const [status, code] of [
+      [400, "ai_provider_error"],
+      [401, "ai_provider_error"],
+      [403, "ai_provider_error"],
+      [404, "ai_model_unavailable"],
+      [429, "ai_rate_limited"],
+    ] as const) {
       const { generate } = fakeGenerate(failure(status));
       expect(await runAiTask(request(), { generate }), String(status)).toMatchObject({
         ok: false,
-        code: "ai_provider_error",
+        code,
       });
     }
     expect(await charged()).toBe(0);
@@ -562,6 +565,37 @@ describe("the real call to each provider, against a fake one", () => {
         expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_timeout" });
         expect(models.requests).toHaveLength(1);
         expect(await charged()).toBe(held(321));
+      }, 15_000);
+      it("tells a model the provider does not have and a limit of the provider from any other failure", async () => {
+        // A refusal before anything was done gives the share back: 404 and 429.
+        models.behaviour = { status: 404 };
+        expect(await runAiTask(request())).toMatchObject({
+          ok: false,
+          code: "ai_model_unavailable",
+        });
+        expect(await charged()).toBe(0);
+        models.behaviour = { status: 429 };
+        expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_rate_limited" });
+        expect(await charged()).toBe(0);
+        // A busy provider (503, 529) may have started: the share stays, and it is not repeated.
+        models.requests.length = 0;
+        models.behaviour = { status: 503 };
+        expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_rate_limited" });
+        expect(await charged()).toBe(held(321));
+        models.behaviour = { status: 529 };
+        expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_rate_limited" });
+        expect(models.requests).toHaveLength(2);
+        // A key that is refused and any other status stay a failure of the provider.
+        for (const status of [400, 401, 403, 500]) {
+          models.behaviour = { status };
+          expect(await runAiTask(request())).toMatchObject({
+            ok: false,
+            code: "ai_provider_error",
+          });
+        }
+        const codes = (await runs()).map((row) => row.outcome);
+        expect(codes.filter((code) => code === "ai_model_unavailable")).toHaveLength(1);
+        expect(codes.filter((code) => code === "ai_rate_limited")).toHaveLength(3);
       }, 15_000);
       it("keeps the share after a failure of the provider and gives it back after a refusal, with one request each", async () => {
         models.behaviour = { status: 500 };

@@ -57,6 +57,17 @@ function refused(error: unknown): boolean {
     error.statusCode !== 408
   );
 }
+// What the status of a failed call tells the operator to do: nothing is told of
+// the provider's own words, which may carry names and request details.
+function failureOf(
+  error: unknown,
+): "ai_model_unavailable" | "ai_rate_limited" | "ai_provider_error" {
+  if (!APICallError.isInstance(error)) return "ai_provider_error";
+  if (error.statusCode === 404) return "ai_model_unavailable";
+  if (error.statusCode === 429 || error.statusCode === 503 || error.statusCode === 529)
+    return "ai_rate_limited";
+  return "ai_provider_error";
+}
 function timedOut(error: unknown): boolean {
   const name = error instanceof Error ? error.name : "";
   return name === "TimeoutError" || name === "AbortError";
@@ -192,8 +203,8 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
   } catch (error) {
     if (refused(error)) {
       await adjust(-held);
-      return fail("ai_provider_error", withConnection);
+      return fail(failureOf(error), withConnection);
     }
-    return fail(timedOut(error) ? "ai_timeout" : "ai_provider_error", withConnection);
+    return fail(timedOut(error) ? "ai_timeout" : failureOf(error), withConnection);
   }
 }

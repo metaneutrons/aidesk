@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { APICallError } from "ai";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -549,6 +550,33 @@ describe("what an agent reads", () => {
     await drain({ generate: fake(answer("Second try")).generate });
     expect(await readAttachment(reader, id)).toMatchObject({ readable: true, text: "Second try" });
   });
+  it.each([
+    [404, "ai_model_unavailable"],
+    [429, "ai_rate_limited"],
+  ] as const)(
+    "keeps a status %i of the provider as %s and asks again after the pause",
+    async (statusCode, code) => {
+      await profile();
+      const id = await stored(png(), `status-${String(statusCode)}.png`, "image/png");
+      await readAttachment(reader, id);
+      const refusal = new APICallError({
+        message: "no",
+        url: "https://p.test",
+        requestBodyValues: {},
+        statusCode,
+      });
+      await drain({ generate: fake(refusal).generate });
+      expect(await readAttachment(reader, id)).toMatchObject({
+        reason: "extraction_failed",
+        failure: code,
+      });
+      await db()
+        .update(attachmentTexts)
+        .set({ createdAt: new Date(Date.now() - retryAfterMs - 1000) })
+        .where(eq(attachmentTexts.attachmentId, id));
+      expect(await readAttachment(reader, id)).toMatchObject({ reason: "extraction_pending" });
+    },
+  );
   it("asks again for a scan whose run failed, after the pause", async () => {
     await profile();
     const id = await stored(Buffer.from(pdf([[]])), "scan2.pdf", "application/pdf");

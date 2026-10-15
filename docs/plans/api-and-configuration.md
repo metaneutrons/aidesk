@@ -300,7 +300,8 @@ an agent can propose it. The first delivered task is draft assistance.
   and reserves the daily budget before the call and settles it after; it records the
   usage (profile and version, model, tokens, outcome) without the prompt, the
   customer content or the answer; and it ends in one of the codes `ai_not_configured`,
-  `ai_disabled`, `ai_budget_exceeded`, `ai_timeout` or `ai_provider_error`. A call
+  `ai_disabled`, `ai_budget_exceeded`, `ai_timeout`, `ai_model_unavailable`,
+  `ai_rate_limited` or `ai_provider_error`. A call
   whose acceptance is unknown is not repeated, and no other provider is tried in its
   place. Tests use a fake provider for success, failure, timeout, an exhausted
   budget, concurrent reservations and an unknown acceptance, and show that a profile
@@ -372,6 +373,8 @@ reasons that have nothing to do with the profile, so a write refuses a malformed
 and the provider's refusal of an unknown one is a failure of the task (`ai_provider_error`
 in C6-A3). The wording of the criterion is the only change; no acceptance was recorded
 against the earlier one.
+
+2026-10-15: the first run against a real provider showed that a retired model (a 404 that the list of models does not announce) and a limit of the provider (429, 503) ended as the same code as any other failure, so an operator could not tell whether to wait or to change the model. C6-A3 names two codes more, `ai_model_unavailable` and `ai_rate_limited`; `ai_provider_error` keeps every other failure. The codes still name no provider, host or key.
 
 2026-10-15: further decisions of the product owner. (1) Attachments, the originals of
 mails and the text that was read from a file are kept as long as their ticket; there is

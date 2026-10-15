@@ -97,12 +97,19 @@ type SearchHit = z.infer<typeof searchHitSchema>;
 // What a failed draft says, by the code of the answer.
 const assistErrors: Record<
   string,
-  "assistNotConfigured" | "assistBudget" | "assistTimeout" | "assistFailed"
+  | "assistNotConfigured"
+  | "assistBudget"
+  | "assistTimeout"
+  | "assistModel"
+  | "assistRateLimited"
+  | "assistFailed"
 > = {
   ai_not_configured: "assistNotConfigured",
   ai_disabled: "assistNotConfigured",
   ai_budget_exceeded: "assistBudget",
   ai_timeout: "assistTimeout",
+  ai_model_unavailable: "assistModel",
+  ai_rate_limited: "assistRateLimited",
   ai_provider_error: "assistFailed",
 };
 const deliveryErrors: Record<string, string> = {

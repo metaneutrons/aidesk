@@ -342,5 +342,7 @@
   "assistNotConfigured": "AI drafts are not set up for this project. A person who may approve changes switches the task on under Settings, AI tasks.",
   "assistBudget": "The daily limit of the AI task for drafts is used up.",
   "assistTimeout": "The AI did not answer in time. Try again.",
+  "assistModel": "The provider does not offer the model of the AI task for drafts. Choose another model in the settings of the project.",
+  "assistRateLimited": "The provider limits requests or is busy right now. Try again in a minute.",
   "assistFailed": "The AI could not write a draft."
 }
