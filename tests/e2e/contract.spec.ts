@@ -249,12 +249,13 @@ test("answers every documented route in the published shape, with real data", as
     params: hookParams,
     data: { expectedVersion: renamed.version },
   });
-  // A managed agent: assigned to a ticket, which gives the ticket a run to list. The ticket is
-  // given back at the end.
+  // Managed agents: assigned, listed with their runs, stopped and let go on a ticket and in the
+  // project. The ticket is given back at the end.
   const managedAgent = await call("agents.create_managed", {
     params: { projectId: project },
     data: { name: `Contract managed ${desk.run}`, actions: ["ticket.read"] },
   });
+  await call("tickets.assignees", { params: { ticketId: ticket } });
   await call("tickets.assign", {
     params: { ticketId: ticket },
     data: { userId: null, agentId: String(managedAgent.id) },

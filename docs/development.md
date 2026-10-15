@@ -950,6 +950,13 @@ needs_person.
   not stopped autonomous work. Otherwise the run ends as cancelled with the reason.
 - An agent that sends under the `direct` policy has to be assigned to the ticket, and says so when
   it replies, not only when the worker would refuse to send.
+- **What a person sees.** The ticket (`GET /tickets/{id}`, the tool `tickets_get` and the desk) names
+  its assignee (`assignee`: kind, id, name, whether it is managed) and the AI work on it
+  (`aiWork`, only when the assignee is a managed agent): `queued`, `running`, `draft_ready`,
+  `sent` (a reply was sent, with or without resolving), `done` (the agent finished without a reply),
+  `failed`, `needs_person` and `stopped`. A stop that holds wins over what the last run did and
+  names its level (`stoppedBy`: ticket, project or workspace). `GET /tickets/{id}/assignees` lists
+  the people and agents that a person who may assign can choose.
 - What a run does once it may go on is the runner ("The runner of a managed agent" below).
 
 ### The runner of a managed agent
@@ -995,6 +1002,13 @@ person with `config.approve` switches it on).
   content (`agent.run`).
 - Not built yet: the desk and the settings for the stops (P2-A3), fallback to an approved model
   after a refusal, knowledge search (P5).
+
+In the desk, the ticket shows its assignee and, for a managed agent, the state of the AI work
+(`src/components/assignment.tsx`). A person who may assign chooses another assignee there (the
+list comes from `GET /tickets/{id}/assignees`), stops the agent on the ticket and lets it
+continue, which sends the revision that the page shows. The state is followed while a run is
+queued or running. The settings show the stop of a project and the switches of the workspace
+(`src/components/agent-controls.tsx`).
 
 ### Stopping agents and outgoing mail
 
@@ -1051,7 +1065,8 @@ under `integration.manage`, with the same rules as connections:
   never the bodies.
 
 Events: `ticket.created`, `message.received` (channel `email` or `portal`),
-`ticket.status_changed` (`from`, `to`), `draft.created` and `change.proposed`. An event
+`ticket.status_changed` (`from`, `to`), `ticket.assigned` (the new and the previous person or
+agent, and who assigned, only when the assignee changed), `draft.created` and `change.proposed`. An event
 carries identifiers and a few facts (ticket id and number, subject and language for a
 new ticket, message id) and never the content of a message or the address of a
 customer; the receiver fetches what it needs through the API. Events are queued in the

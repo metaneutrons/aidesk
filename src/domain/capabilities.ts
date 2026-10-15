@@ -143,7 +143,7 @@ export const capabilities = {
   "tickets.assign": {
     operation: "assignTicket",
     action: "ticket.assign",
-    ui: null,
+    ui: "src/components/assignment.tsx",
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
   },
@@ -425,6 +425,13 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "tickets.assignees": {
+    operation: "listAssignees",
+    action: "ticket.assign",
+    ui: "src/components/assignment.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+  },
   "tickets.agent_runs": {
     operation: "listAgentRuns",
     action: "ticket.read",
@@ -435,7 +442,7 @@ export const capabilities = {
   "tickets.resume_agent": {
     operation: "resumeAgent",
     action: "ticket.assign",
-    ui: null,
+    ui: "src/components/assignment.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -443,7 +450,7 @@ export const capabilities = {
   "tickets.stop_agent": {
     operation: "stopAgentOnTicket",
     action: "ticket.assign",
-    ui: null,
+    ui: "src/components/assignment.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -451,14 +458,14 @@ export const capabilities = {
   "projects.agent_controls": {
     operation: "getAgentControls",
     action: "project.read",
-    ui: null,
+    ui: "src/components/agent-controls.tsx",
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
   },
   "projects.agent_stop": {
     operation: "setProjectAgentStop",
     action: "ticket.assign",
-    ui: null,
+    ui: "src/components/agent-controls.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -466,7 +473,7 @@ export const capabilities = {
   "projects.resume_agents": {
     operation: "resumeAgentsInProject",
     action: "ticket.assign",
-    ui: null,
+    ui: "src/components/agent-controls.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -474,7 +481,7 @@ export const capabilities = {
   "workspace.controls_get": {
     operation: "getWorkspaceControls",
     action: "workspace.controls.manage",
-    ui: null,
+    ui: "src/components/agent-controls.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",
@@ -482,7 +489,7 @@ export const capabilities = {
   "workspace.controls_set": {
     operation: "setWorkspaceControls",
     action: "workspace.controls.manage",
-    ui: null,
+    ui: "src/components/agent-controls.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",

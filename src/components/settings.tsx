@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
+import { ProjectAgentControls, WorkspaceControls } from "./agent-controls";
 import { Configuration } from "./configuration";
 import { Connections } from "./connections";
 import { AiProfiles } from "./ai-profiles";
@@ -440,6 +441,16 @@ export function Settings({
             canWrite={grant.actions.includes("config.write")}
             canApprove={grant.actions.includes("config.approve")}
             connectionsStamp={connectionsStamp}
+          />
+        ))}
+      {owner && <WorkspaceControls />}
+      {managed
+        .filter((grant) => grant.actions.includes("ticket.assign"))
+        .map((grant) => (
+          <ProjectAgentControls
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
           />
         ))}
       {managed
