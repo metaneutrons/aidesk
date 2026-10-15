@@ -1588,3 +1588,17 @@ li.tag-chip button {
     border-color: var(--warning);
     background: var(--warning-bg);
 }
+
+.message-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.parser-text {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    font: inherit;
+    color: var(--muted);
+}

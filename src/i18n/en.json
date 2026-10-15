@@ -387,5 +387,16 @@
   "workspaceControlsHint": "Applies to every project. Only an owner can change it.",
   "workspaceStopAgents": "Stop all AI agents",
   "workspacePauseOutgoing": "Pause all outgoing mail",
-  "configWarn": "Warn after (hours)"
+  "configWarn": "Warn after (hours)",
+  "aiTask_intake_extract": "Find the new text of incoming mails",
+  "aiTask_intake_junk": "Tell junk from support mail",
+  "extractionAi": "The text was chosen by AI. Show the parser version.",
+  "extractionFailed": "The AI could not find the text ({code}); the parser result is shown.",
+  "junkCheckUncertain": "The AI could not tell whether this mail is spam. No acknowledgement was sent; please check it.",
+  "junkCheckFailed": "The AI check for spam failed. No acknowledgement was sent; please check this mail.",
+  "junkReasonAdvertising": "Advertising, found by AI",
+  "junkReasonPhishing": "Phishing or scam, found by AI",
+  "junkReasonNewsletter": "Newsletter or mass mailing, found by AI",
+  "junkReasonAutomated": "Automatic notice, found by AI",
+  "junkReasonAiOther": "Junk, found by AI"
 }
