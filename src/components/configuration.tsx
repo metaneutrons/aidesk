@@ -252,6 +252,22 @@ export function Configuration({
           </select>
         </label>
         <label>
+          {t("configWarn")}
+          <input
+            type="number"
+            min={1}
+            max={720}
+            value={draft.warnHours}
+            disabled={!canWrite}
+            onChange={(event) => {
+              set(
+                "warnHours",
+                Math.min(720, Math.max(1, Math.trunc(Number(event.target.value) || 1))),
+              );
+            }}
+          />
+        </label>
+        <label>
           {t("configOverdue")}
           <input
             type="number"

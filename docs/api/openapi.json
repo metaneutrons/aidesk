@@ -3901,6 +3901,11 @@
                         "pauseOutgoing": {
                           "type": "boolean"
                         },
+                        "warnHours": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 720
+                        },
                         "overdueHours": {
                           "type": "integer",
                           "minimum": 1,
@@ -3916,6 +3921,7 @@
                         "approvalPolicy",
                         "outboundConnectionId",
                         "pauseOutgoing",
+                        "warnHours",
                         "overdueHours"
                       ],
                       "additionalProperties": false
@@ -4033,6 +4039,11 @@
                       "pauseOutgoing": {
                         "type": "boolean"
                       },
+                      "warnHours": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 720
+                      },
                       "overdueHours": {
                         "type": "integer",
                         "minimum": 1,
@@ -4048,6 +4059,7 @@
                       "approvalPolicy",
                       "outboundConnectionId",
                       "pauseOutgoing",
+                      "warnHours",
                       "overdueHours"
                     ],
                     "additionalProperties": false
@@ -8263,6 +8275,8 @@
                         "ticket.status_changed",
                         "draft.created",
                         "ticket.assigned",
+                        "ticket.warning",
+                        "ticket.overdue",
                         "change.proposed"
                       ]
                     }
@@ -8611,6 +8625,8 @@
                         "ticket.status_changed",
                         "draft.created",
                         "ticket.assigned",
+                        "ticket.warning",
+                        "ticket.overdue",
                         "change.proposed"
                       ]
                     }
@@ -9343,6 +9359,9 @@
           "portalLinks": {
             "type": "boolean"
           },
+          "warnHours": {
+            "type": "number"
+          },
           "overdueHours": {
             "type": "number"
           }
@@ -9355,6 +9374,7 @@
           "defaultLanguage",
           "acknowledgements",
           "portalLinks",
+          "warnHours",
           "overdueHours"
         ],
         "additionalProperties": false
@@ -9451,6 +9471,30 @@
               }
             ]
           },
+          "warnedFor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overdueFor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "remindAt": {
             "anyOf": [
               {
@@ -9509,6 +9553,8 @@
           "revision",
           "agentPausedAt",
           "pendingSince",
+          "warnedFor",
+          "overdueFor",
           "remindAt",
           "resolvedAt",
           "tags",

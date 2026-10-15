@@ -88,6 +88,7 @@ describe("reading the configuration", () => {
         approvalPolicy: "review",
         outboundConnectionId: null,
         pauseOutgoing: false,
+        warnHours: 4,
         overdueHours: 24,
       },
     });
@@ -385,6 +386,50 @@ describe("the overdue limit", () => {
       .set({ settings: { overdueHours: "garbage" } })
       .where(eq(projects.id, projectId));
     expect((await current()).overdueHours).toBe(24);
+  });
+});
+describe("the warning limit", () => {
+  it("is part of the document, defaults to 4 hours, and is never later than the overdue limit", async () => {
+    await reset();
+    expect((await current()).warnHours).toBe(4);
+    for (const bad of [0, 721, 1.5, "2"])
+      await expect(
+        putConfig(writer, projectId, await edit({ warnHours: bad })),
+      ).rejects.toBeInstanceOf(ZodError);
+    // Later than the overdue limit is refused; the same hour is allowed.
+    await expect(
+      putConfig(writer, projectId, await edit({ warnHours: 25 })),
+    ).rejects.toBeInstanceOf(ZodError);
+    expect(await putConfig(writer, projectId, await edit({ warnHours: 24 }))).toMatchObject({
+      outcome: "applied",
+      diff: [{ pointer: "/warnHours", from: 4, to: 24 }],
+    });
+    // An overdue limit below the warning limit is refused too.
+    await expect(
+      putConfig(writer, projectId, await edit({ overdueHours: 12 })),
+    ).rejects.toBeInstanceOf(ZodError);
+    // What is stored is read as it is, a missing or invalid value as the default, and the warning
+    // of a project whose overdue limit is short is cut to it.
+    for (const [settings, expected] of [
+      [{ warnHours: 6 }, { warnHours: 6, overdueHours: 24 }],
+      [{ warnHours: "garbage" }, { warnHours: 4, overdueHours: 24 }],
+      [
+        { warnHours: 9, overdueHours: 2 },
+        { warnHours: 2, overdueHours: 2 },
+      ],
+      [
+        { warnHours: 721, overdueHours: 721 },
+        { warnHours: 4, overdueHours: 24 },
+      ],
+      [
+        { warnHours: 0, overdueHours: 1.5 },
+        { warnHours: 4, overdueHours: 24 },
+      ],
+      [{}, { warnHours: 4, overdueHours: 24 }],
+    ] as const) {
+      await db().update(projects).set({ settings }).where(eq(projects.id, projectId));
+      expect(await current()).toMatchObject(expected);
+    }
   });
 });
 describe("projects and changes that do not exist", () => {

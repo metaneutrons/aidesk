@@ -9,6 +9,8 @@ export const webhookEvents = [
   "ticket.status_changed",
   "draft.created",
   "ticket.assigned",
+  "ticket.warning",
+  "ticket.overdue",
   "change.proposed",
 ] as const;
 export type WebhookEvent = (typeof webhookEvents)[number];
@@ -18,6 +20,8 @@ export const webhookDescriptions: Record<WebhookEvent, string> = {
   "ticket.status_changed": "A ticket was resolved or reopened",
   "draft.created": "An agent wrote a reply that waits for a person",
   "ticket.assigned": "A ticket was assigned to a person or an agent, or to nobody",
+  "ticket.warning": "A ticket has waited for an answer as long as the warning limit of the project",
+  "ticket.overdue": "A ticket has waited for an answer as long as the overdue limit of the project",
   "change.proposed": "An agent proposed a change that waits for a person",
 };
 const name = z.string().trim().min(1).max(100);

@@ -122,11 +122,18 @@ test("counts overdue by the limit of the project", async ({ page, desk, signIn, 
     ).length;
   };
   const original = await read();
-  const setLimit = async (hours: number) => {
+  // The warning limit is never later than the overdue limit, so it follows a short one.
+  const setLimit = async (
+    hours: number,
+    warn = Math.min(hours, Number(original.config.warnHours)),
+  ) => {
     const now = await read();
     const response = await page.request.put(`/api/v1/projects/${alpha.id}/config`, {
       headers,
-      data: { config: { ...now.config, overdueHours: hours }, expectedVersion: now.version },
+      data: {
+        config: { ...now.config, warnHours: warn, overdueHours: hours },
+        expectedVersion: now.version,
+      },
     });
     expect(response.ok()).toBe(true);
   };
@@ -147,6 +154,6 @@ test("counts overdue by the limit of the project", async ({ page, desk, signIn, 
       String(all.projects.reduce((total, row) => total + row.overdue, 0)),
     );
   } finally {
-    await setLimit(Number(original.config.overdueHours));
+    await setLimit(Number(original.config.overdueHours), Number(original.config.warnHours));
   }
 });

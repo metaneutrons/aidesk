@@ -19,10 +19,16 @@ export const configDocument = z
     outboundConnectionId: z.uuid().nullable(),
     // Stops all outgoing mail of the project without removing the connection.
     pauseOutgoing: z.boolean(),
-    // How long a ticket may wait for an answer before it counts as overdue.
+    // How long a ticket may wait for an answer before it is flagged as late, and before it
+    // counts as overdue. The first is never longer than the second.
+    warnHours: z.number().int().min(1).max(720),
     overdueHours: z.number().int().min(1).max(720),
   })
-  .strict();
+  .strict()
+  .refine((config) => config.warnHours <= config.overdueHours, {
+    message: "The warning comes before the overdue limit or at the same time",
+    path: ["warnHours"],
+  });
 export type ConfigDocument = z.infer<typeof configDocument>;
 export const configWrite = z
   .object({

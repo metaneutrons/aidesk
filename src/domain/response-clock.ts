@@ -18,3 +18,19 @@ export function responseState(
   if (age >= overdueHours * 3_600_000) return "overdue";
   return age >= warnHours * 3_600_000 ? "warning" : "pending";
 }
+const hours = (value: unknown, fallback: number): number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 720
+    ? value
+    : fallback;
+// The limits of a project, from its settings: its own values when they are valid, the defaults
+// otherwise, and a warning never later than the overdue limit.
+export function limitsOf(settings: Record<string, unknown>): {
+  warnHours: number;
+  overdueHours: number;
+} {
+  const overdueHours = hours(settings.overdueHours, defaultOverdueHours);
+  return {
+    warnHours: Math.min(hours(settings.warnHours, defaultWarnHours), overdueHours),
+    overdueHours,
+  };
+}

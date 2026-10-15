@@ -6,7 +6,7 @@ import { emitEvent } from "./webhooks";
 import { aiWorkOf } from "./ai-work";
 import type { Tx } from "./changes";
 import { clampLimit, listStep } from "../domain/paging";
-import { defaultOverdueHours } from "../domain/response-clock";
+import { defaultOverdueHours, defaultWarnHours } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import { db } from "./db";
@@ -65,6 +65,7 @@ export async function listProjects(principal: Principal) {
       acknowledgements: sql<boolean>`coalesce((${projects.settings}->>'acknowledgements')::boolean, false)`,
       portalLinks: sql<boolean>`coalesce((${projects.settings}->>'portalLinks')::boolean, false)`,
       overdueHours: sql<number>`coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours})`,
+      warnHours: sql<number>`least(coalesce((${projects.settings}->>'warnHours')::int, ${defaultWarnHours}), coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
     })
     .from(projects)
     .where(inArray(projects.id, allowed))
