@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { configDocument } from "../../domain/configuration";
+import { connectionDirections, connectionKinds } from "../../domain/connections";
 import { emailDesignConfig } from "../../domain/email-design";
 import { actions } from "../../domain/permissions";
 import { agents, ingress, messages, projects, tickets } from "../db/schema";
@@ -303,8 +304,8 @@ export const configDecision = z.object({
 export const connectionOut = z.object({
   id: z.uuid(),
   projectId: z.uuid(),
-  kind: z.enum(["imap", "cloudflare", "smtp"]),
-  direction: z.enum(["inbound", "outbound", "ai"]),
+  kind: z.enum(connectionKinds),
+  direction: z.enum(connectionDirections),
   name: z.string(),
   status: z.enum(["draft", "ready", "degraded", "disabled"]),
   lastErrorCode: z.string().nullable(),
