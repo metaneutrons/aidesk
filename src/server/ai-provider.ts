@@ -16,6 +16,8 @@ export interface Call {
   // The base address of a connection that names its own, without the version path.
   endpoint: string | undefined;
   apiKey: string;
+  // Only for Anthropic: the workspace of a key that is not tied to one.
+  workspaceId?: string | undefined;
   model: string;
   system: string;
   prompt: string;
@@ -42,7 +44,11 @@ function modelOf(call: Call): LanguageModel {
       ? {}
       : { baseURL: `${call.endpoint.replace(/\/+$/, "")}${versionPath[call.kind]}` };
   const settings = { apiKey: call.apiKey, ...baseURL };
-  if (call.kind === "anthropic") return createAnthropic(settings)(call.model);
+  if (call.kind === "anthropic")
+    return createAnthropic({
+      ...settings,
+      ...(call.workspaceId ? { headers: { "anthropic-workspace-id": call.workspaceId } } : {}),
+    })(call.model);
   // Chat completions, which the gateways that offer a compatible address speak.
   if (call.kind === "openai") return createOpenAI(settings).chat(call.model);
   return createGoogle(settings)(call.model);

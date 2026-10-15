@@ -211,6 +211,10 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
     const answer = await generate({
       kind: connection.kind,
       endpoint,
+      workspaceId:
+        typeof connection.config.workspaceId === "string"
+          ? connection.config.workspaceId
+          : undefined,
       apiKey: secret.data.apiKey,
       model: profile.model,
       system: request.system,
