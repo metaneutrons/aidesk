@@ -78,8 +78,8 @@ const notCalled: Record<string, string> = {
   "junk.restore": "needs a mail in the junk folder",
   "tickets.junk": "moves a ticket of the fixture; covered by the desk test",
   "tickets.restore": "needs a ticket in the junk folder",
-  "tickets.resume_agent":
-    "needs a ticket that a person took over from a managed agent; covered by the managed agent tests",
+  "workspace.controls_set":
+    "sets a switch of the whole installation, which would stop the agents or the mail of the tests that run beside; covered by the controls tests",
   "messages.send_draft": "needs a draft by an agent; covered by the drafts test",
   "messages.discard_draft": "needs a draft by an agent; covered by the drafts test",
 };
@@ -260,6 +260,19 @@ test("answers every documented route in the published shape, with real data", as
     data: { userId: null, agentId: String(managedAgent.id) },
   });
   await call("tickets.agent_runs", { params: { ticketId: ticket } });
+  // Stopped on the ticket and let go on again, which names the revision that was read; then
+  // stopped and released for the project, and the switches of the workspace read.
+  await call("tickets.stop_agent", { params: { ticketId: ticket }, data: {} });
+  const stopped = await call("tickets.get", { params: { ticketId: ticket } });
+  await call("tickets.resume_agent", {
+    params: { ticketId: ticket },
+    data: { expectedRevision: (stopped.ticket as { revision: number }).revision },
+  });
+  await call("projects.agent_controls", { params: { projectId: project } });
+  await call("projects.agent_stop", { params: { projectId: project }, data: { stopped: true } });
+  await call("projects.agent_stop", { params: { projectId: project }, data: { stopped: false } });
+  await call("projects.resume_agents", { params: { projectId: project }, data: {} });
+  await call("workspace.controls_get");
   await call("tickets.assign", {
     params: { ticketId: ticket },
     data: { userId: null, agentId: null },

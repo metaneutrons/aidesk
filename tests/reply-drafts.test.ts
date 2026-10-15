@@ -12,10 +12,12 @@ import {
   messages,
   projects,
   tickets,
+  workspaceSettings,
   user,
 } from "../src/server/db/schema";
 import { discardDraft, getTicket, reply, sendDraft } from "../src/server/operations";
 import { getConfig, putConfig } from "../src/server/configuration";
+import { controlsKey, useControlsKey } from "../src/server/controls";
 import { runNext } from "../src/worker/jobs";
 import type { Action, Principal } from "../src/domain/permissions";
 import { startFakeSmtp, type FakeSmtp } from "./support/smtp";
@@ -97,6 +99,8 @@ const draftBody = (revision: number, extra: Record<string, unknown> = {}) => ({
   resolve: false,
   ...extra,
 });
+// The switches of the whole workspace are a row of this file, not that of the other files.
+useControlsKey(`controls-drafts-${randomUUID()}`);
 const setPolicy = async (policy: "review" | "direct") => {
   const read = await getConfig(manager, projectId);
   if (read.config.approvalPolicy !== policy)
@@ -164,6 +168,7 @@ beforeAll(async () => {
 afterAll(async () => {
   vi.unstubAllEnvs();
   await smtp.close();
+  await db().delete(workspaceSettings).where(eq(workspaceSettings.key, controlsKey()));
   await db().delete(jobs).where(eq(jobs.projectId, projectId));
   await db()
     .delete(audit)
@@ -354,6 +359,32 @@ describe("an agent under the direct policy", () => {
     expect(
       await reply(agent(), next, draftBody((await getTicket(manager, next)).ticket.revision)),
     ).toMatchObject({ draft: true });
+  });
+  it("does not send while the whole workspace stops its agents", async () => {
+    await setPolicy("direct");
+    const id = await ticket();
+    const queued = await reply(
+      agent(),
+      id,
+      draftBody((await getTicket(manager, id)).ticket.revision),
+    );
+    expect(queued.draft).toBe(false);
+    await db()
+      .insert(workspaceSettings)
+      .values({ key: controlsKey(), value: { stopAutonomous: true } });
+    const before = smtp.messages.length;
+    try {
+      await drain();
+    } finally {
+      await db().delete(workspaceSettings).where(eq(workspaceSettings.key, controlsKey()));
+      await setPolicy("review");
+    }
+    expect(smtp.messages.length).toBe(before);
+    const [job] = (await jobsOf(id)).filter((entry) => entry.type === "mail.send");
+    expect(job).toMatchObject({
+      status: "review",
+      lastErrorCode: "autonomous_dispatch_not_enabled",
+    });
   });
   it("does not send when the project is on review at dispatch time", async () => {
     await setPolicy("direct");

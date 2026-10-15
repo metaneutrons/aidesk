@@ -52,7 +52,17 @@ import {
   tagsInput,
 } from "../operations";
 import { assistDraft } from "../assist";
-import { listAgentRuns, resumeAgent } from "../agent-runs";
+import { listAgentRuns, resumeAgent, resumeInput } from "../agent-runs";
+import {
+  getAgentControls,
+  getWorkspaceControls,
+  resumeAgentsInProject,
+  setProjectAgentStop,
+  setWorkspaceControls,
+  stopAgentOnTicket,
+  stopInput,
+  workspaceInput,
+} from "../agent-controls";
 import { assistInput } from "../../domain/assist";
 import {
   createEmailDesign,
@@ -981,10 +991,88 @@ export const routes: Route[] = [
     path: "/tickets/{ticketId}/resume-agent",
     tag: "Tickets",
     summary:
-      "Let the managed agent of a ticket work it again after a person took it over; it starts from the current revision",
+      "Let the managed agent of a ticket work it again after a person took it over or stopped it. Names the revision that was read; the agent starts from it",
     access: "ticket.assign",
+    body: resumeInput,
     response: z.object({ resumed: z.boolean(), run: z.uuid().nullable() }),
-    run: ({ principal, params }) => resumeAgent(principal, params.ticketId ?? ""),
+    run: ({ principal, params, input }) => resumeAgent(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "tickets.stop_agent",
+    mcp: { not: "Stopping the work of an agent on a ticket is a decision of a person" },
+    method: "POST",
+    path: "/tickets/{ticketId}/stop-agent",
+    tag: "Tickets",
+    summary:
+      "Stop the managed agent on a ticket: its open runs are cancelled and it does not work the ticket again until a person resumes it",
+    access: "ticket.assign",
+    response: z.object({ stopped: z.boolean(), changed: z.boolean() }),
+    run: ({ principal, params }) => stopAgentOnTicket(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "projects.agent_controls",
+    mcp: { tool: "projects_agent_controls" },
+    method: "GET",
+    path: "/projects/{projectId}/agent-controls",
+    tag: "Projects",
+    summary:
+      "Whether managed agents are stopped and outgoing mail is paused, for the project and for the whole workspace",
+    access: "project.read",
+    response: z.object({
+      project: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
+      workspace: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
+    }),
+    run: ({ principal, params }) => getAgentControls(principal, params.projectId ?? ""),
+  },
+  {
+    id: "projects.agent_stop",
+    mcp: { not: "Only a person stops or releases the managed agents of a project" },
+    method: "PUT",
+    path: "/projects/{projectId}/agent-stop",
+    tag: "Projects",
+    summary:
+      "Stop the managed agents of a project, or let them work again. A stop cancels their queued and running runs; lifting it queues nothing",
+    access: "ticket.assign",
+    body: stopInput,
+    response: z.object({ stopped: z.boolean() }),
+    run: ({ principal, params, input }) =>
+      setProjectAgentStop(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "projects.resume_agents",
+    mcp: { not: "Only a person lets the managed agents of a project work again" },
+    method: "POST",
+    path: "/projects/{projectId}/resume-agents",
+    tag: "Projects",
+    summary:
+      "After a stop: queue a run for every open ticket that a managed agent works and that still waits for an answer",
+    access: "ticket.assign",
+    response: z.object({ queued: z.number().int() }),
+    run: ({ principal, params }) => resumeAgentsInProject(principal, params.projectId ?? ""),
+  },
+  {
+    id: "workspace.controls_get",
+    mcp: { not: "The switches of the whole workspace are for its owner" },
+    method: "GET",
+    path: "/workspace/controls",
+    tag: "Workspace",
+    summary: "The stop of managed agents and the pause of outgoing mail for the whole workspace",
+    access: "owner",
+    response: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
+    run: ({ principal }) => getWorkspaceControls(principal),
+  },
+  {
+    id: "workspace.controls_set",
+    mcp: { not: "The switches of the whole workspace are for its owner" },
+    method: "PUT",
+    path: "/workspace/controls",
+    tag: "Workspace",
+    summary:
+      "Stop all managed agents or pause all outgoing mail, for every project. Naming one switch leaves the other as it is",
+    access: "owner",
+    body: workspaceInput,
+    response: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
+    run: ({ principal, input }) => setWorkspaceControls(principal, input),
   },
   {
     id: "messages.send_draft",

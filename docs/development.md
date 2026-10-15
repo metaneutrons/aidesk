@@ -942,8 +942,8 @@ needs_person.
   at its end does not undo the cancellation.
 - **Takeover.** A person who answers a ticket (a public reply, not a private note) that a
   managed agent works ends its runs and sets `agent_paused_at` on the ticket: the agent does not
-  work it again until a person who may assign resumes it (`POST /tickets/{id}/resume-agent`,
-  which queues a run for the current revision) or assigns the ticket anew.
+  work it again until a person who may assign resumes it (`POST /tickets/{id}/resume-agent`
+  with the revision that the person read, which queues a run for it; an older revision is a 409) or assigns the ticket anew.
 - **Before it goes on,** the worker asks again (`staleReason`): the run still counts, the ticket
   is not in junk or taken over, the agent is still the assignee and is active and managed, the
   revision is still the one the run answers (a newer message has its own run) and the project has
@@ -993,8 +993,38 @@ person with `config.approve` switches it on).
   have been accepted (a timeout, a network error, a 503) is not repeated and not sent to another
   provider: the run needs a person and its job goes to review. Every end is audited without the
   content (`agent.run`).
-- Not built yet: stops at workspace and ticket level and the project switch in the settings
-  (P2-A3), fallback to an approved model after a refusal, knowledge search (P5).
+- Not built yet: the desk and the settings for the stops (P2-A3), fallback to an approved model
+  after a refusal, knowledge search (P5).
+
+### Stopping agents and outgoing mail
+
+The stops of the plan are at three levels, and only people set them (a token never does, and no
+model result lifts one).
+
+- **Workspace** (`PUT /workspace/controls`, owner only; `GET` the same): `stopAutonomous` stops
+  every managed agent, `pauseOutgoing` pauses all outgoing mail, for every project. Naming one
+  switch leaves the other as it is. They are stored in the row `controls` of `workspace_setting`.
+- **Project** (`PUT /projects/{id}/agent-stop` with `{ "stopped": true | false }`, for people who
+  may assign tickets): `settings.stopAutonomous`. The pause of outgoing mail of a project stays in
+  its configuration (`pauseOutgoing`), where a change goes through the approval of the project.
+  `GET /projects/{id}/agent-controls` shows both levels, also to an agent (tool
+  `projects_agent_controls`), so that it can see that it is stopped.
+- **Ticket** (`POST /tickets/{id}/stop-agent`): sets `agent_paused_at`, the same flag as a
+  takeover, and cancels the open runs. `POST /tickets/{id}/resume-agent` lifts it, with the revision that the person read, so that a
+  message that came in meanwhile has been read first; the audit entry `agent.resume` names it.
+
+Setting a stop cancels the queued and running runs (reasons `stopped` for the project and the
+ticket, `workspace_stopped` for the workspace), and a run that is in flight ends at its next
+check. While a stop holds, nothing is queued. Lifting a stop queues nothing by itself, because
+what was queued before is out of date: `POST /projects/{id}/resume-agents` queues a run for every
+ticket with an assignee that still waits for an answer, at its current revision, for the agents
+that may work it (it answers 409 while a stop holds). Every change is audited (the workspace
+change is logged, since the audit belongs to a project).
+
+The worker that sends asks again immediately before it hands a message over: a paused workspace
+or project stops every dispatch and the test mail of the designs, and an agent's message under
+the `direct` policy also needs that neither the project nor the workspace is stopped. A message
+that is not sent for that reason waits in review like any other refused dispatch.
 
 ## Webhooks
 

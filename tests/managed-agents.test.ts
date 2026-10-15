@@ -350,12 +350,26 @@ describe("taking a run back", () => {
     await customerWrites(id);
     expect((await runsOf(id)).filter((run) => run.state === "queued")).toEqual([]);
     // A person who may assign resumes it; the run is for the current revision.
-    await expect(resumeAgent(reader, id)).rejects.toMatchObject({ status: 403 });
-    const resumed = await resumeAgent(assigner, id);
+    const read = await revisionOf(id);
+    await expect(resumeAgent(reader, id, { expectedRevision: read })).rejects.toMatchObject({
+      status: 403,
+    });
+    // A person who read an older revision has not read what the customer wrote since.
+    await expect(resumeAgent(assigner, id, { expectedRevision: read - 1 })).rejects.toMatchObject({
+      status: 409,
+    });
+    await expect(resumeAgent(assigner, id, {})).rejects.toThrow();
+    const resumed = await resumeAgent(assigner, id, { expectedRevision: read });
     expect(resumed).toMatchObject({ resumed: true });
+    const entries = await db().select().from(audit).where(eq(audit.targetId, id));
+    expect(entries.find((entry) => entry.action === "agent.resume")?.detail).toEqual({
+      revision: read,
+    });
     const [again] = await runsOf(id);
     expect(again).toMatchObject({ state: "queued", revision: await revisionOf(id) });
-    await expect(resumeAgent(assigner, id)).rejects.toMatchObject({ status: 409 });
+    await expect(resumeAgent(assigner, id, { expectedRevision: read })).rejects.toMatchObject({
+      status: 409,
+    });
   });
   it("is not a takeover when a person writes a private note or an agent answers", async () => {
     const id = await ticket();
