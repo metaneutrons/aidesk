@@ -4231,7 +4231,8 @@
                         "type": "string",
                         "enum": [
                           "inbound",
-                          "outbound"
+                          "outbound",
+                          "ai"
                         ]
                       },
                       "name": {
@@ -4661,6 +4662,174 @@
                         },
                         "required": [
                           "apiToken"
+                        ]
+                      },
+                      "idempotencyKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "direction",
+                      "name",
+                      "config",
+                      "secret"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "anthropic"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "const": "ai"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "config": {
+                        "type": "object",
+                        "properties": {
+                          "endpoint": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "developmentOnly": {
+                            "default": false,
+                            "type": "boolean"
+                          }
+                        }
+                      },
+                      "secret": {
+                        "type": "object",
+                        "properties": {
+                          "apiKey": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "apiKey"
+                        ]
+                      },
+                      "idempotencyKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "direction",
+                      "name",
+                      "config",
+                      "secret"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "openai"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "const": "ai"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "config": {
+                        "type": "object",
+                        "properties": {
+                          "endpoint": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "developmentOnly": {
+                            "default": false,
+                            "type": "boolean"
+                          }
+                        }
+                      },
+                      "secret": {
+                        "type": "object",
+                        "properties": {
+                          "apiKey": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "apiKey"
+                        ]
+                      },
+                      "idempotencyKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "direction",
+                      "name",
+                      "config",
+                      "secret"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "google"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "const": "ai"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "config": {
+                        "type": "object",
+                        "properties": {
+                          "endpoint": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "developmentOnly": {
+                            "default": false,
+                            "type": "boolean"
+                          }
+                        }
+                      },
+                      "secret": {
+                        "type": "object",
+                        "properties": {
+                          "apiKey": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "apiKey"
                         ]
                       },
                       "idempotencyKey": {
