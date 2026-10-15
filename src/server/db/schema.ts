@@ -268,6 +268,32 @@ export const attachmentTexts = pgTable("attachment_text", {
   failure: text("failure"),
   createdAt: created(),
 });
+// What a task of the product asks of a model, per project: which connection and
+// model, the limits, and whether the task may run at all. Off by default; a
+// profile that is on sends ticket content to the provider of its connection.
+export const aiProfiles = pgTable(
+  "ai_profile",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    task: text("task").notNull(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => connections.id),
+    model: text("model").notNull(),
+    timeoutSeconds: integer("timeout_seconds").notNull(),
+    maxOutputTokens: integer("max_output_tokens").notNull(),
+    dailyTokenBudget: integer("daily_token_budget").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    // Raised by every change; a writer names the version it read.
+    version: integer("version").notNull().default(1),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("ai_profile_project_task_unique").on(t.projectId, t.task)],
+);
 export const participants = pgTable(
   "participant",
   {

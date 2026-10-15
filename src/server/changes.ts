@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { ConfigDiffEntry } from "../domain/configuration";
-import type { Principal } from "../domain/permissions";
+import { permits, type Principal } from "../domain/permissions";
 import { db } from "./db";
 import { audit, configChanges, projects } from "./db/schema";
 import { DomainError } from "./errors";
@@ -28,6 +28,9 @@ export interface ChangeSpec {
     version: number | null;
     payload: Record<string, unknown>;
     diff: ConfigDiffEntry[];
+    // The change decides where customer data goes, so only a person with
+    // config.approve applies it, under every policy; anyone else proposes it.
+    approval?: boolean;
   }>;
   // Applies the payload, inside the same transaction.
   apply: (
@@ -87,7 +90,9 @@ export async function submitChange(
         diff,
         validated: options.validate === true,
       };
-    const direct = principal.kind === "human" || owner.settings.approvalPolicy === "direct";
+    const direct = prepared.approval
+      ? principal.kind === "human" && permits(principal, project, "config.approve")
+      : principal.kind === "human" || owner.settings.approvalPolicy === "direct";
     if (options.validate)
       return {
         outcome: direct ? "applied" : "proposed",

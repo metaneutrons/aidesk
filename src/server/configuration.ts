@@ -14,6 +14,7 @@ import { defaultOverdueHours } from "../domain/response-clock";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
 import { applyTextPayload, textProposalStale } from "./texts";
+import { aiProfileProposalStale, applyAiProfilePayload } from "./ai-profiles";
 import { applyWebhookPayload, emitEvent, webhookProposalStale } from "./webhooks";
 import { audit, configChanges, connections, projects } from "./db/schema";
 import { DomainError } from "./errors";
@@ -281,6 +282,8 @@ type Proposal = typeof configChanges.$inferSelect;
 async function proposalStale(tx: Tx, project: string, proposal: Proposal): Promise<boolean> {
   if (proposal.kind === "text.set")
     return textProposalStale(tx, project, proposal.payload, proposal.baseVersion);
+  if (proposal.kind === "ai_profile.set")
+    return aiProfileProposalStale(tx, project, proposal.target, proposal.baseVersion);
   if (proposal.kind.startsWith("webhook.")) {
     if (proposal.kind === "webhook.create") return false;
     return webhookProposalStale(tx, project, proposal.target, proposal.baseVersion);
@@ -301,6 +304,8 @@ async function applyProposal(
 ): Promise<{ target: string; version: number }> {
   if (proposal.kind === "text.set")
     return applyTextPayload(tx, project, proposal.payload, actor, proposal.diff);
+  if (proposal.kind === "ai_profile.set")
+    return applyAiProfilePayload(tx, project, proposal.payload, actor, proposal.diff);
   if (proposal.kind.startsWith("webhook."))
     return applyWebhookPayload(
       tx,

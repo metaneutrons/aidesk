@@ -71,6 +71,8 @@ import {
   testConnection,
   updateConnection,
 } from "../connections";
+import { aiProfileWrite } from "../../domain/ai";
+import { listAiProfiles, setAiProfile } from "../ai-profiles";
 import { listTextVersions, listTexts, setText, textWrite } from "../texts";
 import {
   createWebhook,
@@ -803,6 +805,44 @@ export const routes: Route[] = [
     response: out.connectionTest,
     run: ({ principal, params }) =>
       testConnection(principal, params.projectId ?? "", params.connectionId ?? ""),
+  },
+  {
+    id: "ai_profiles.list",
+    mcp: { tool: "ai_profiles_list" },
+    method: "GET",
+    path: "/projects/{projectId}/ai-profiles",
+    tag: "AI",
+    summary:
+      "The profile of every task that asks a model (reply.draft, note.draft): connection, model, limits and whether it is on, with the version to name in a write. A task without a profile has version 0",
+    access: "config.read",
+    response: list(out.aiProfileEntry),
+    run: ({ principal, params }) => listAiProfiles(principal, params.projectId ?? ""),
+  },
+  {
+    id: "ai_profiles.set",
+    mcp: { tool: "ai_profiles_set" },
+    method: "PUT",
+    path: "/projects/{projectId}/ai-profiles/{task}",
+    tag: "AI",
+    summary:
+      "Set the profile of a task. A profile is off unless enabled is true, and a profile that is on sends ticket content to the provider of its connection, so switching one on, or pointing one that is on at another connection, is applied only by a person with config.approve (200); anyone else, an agent under any policy, gets a proposal (202). Other changes follow the approval policy",
+    access: "config.write",
+    query: validateQuery,
+    body: aiProfileWrite,
+    response: out.aiProfileResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) => {
+      const result = await setAiProfile(
+        principal,
+        params.projectId ?? "",
+        params.task ?? "",
+        input,
+        {
+          validate: query.get("validate") === "true",
+        },
+      );
+      return result.outcome === "proposed" && !result.validated ? new Reply(result, 202) : result;
+    },
   },
   {
     id: "texts.list",

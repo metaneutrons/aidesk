@@ -862,6 +862,37 @@ refused connection is tried again after 30 seconds, 2 minutes, 10 minutes, 1 hou
 redirect is not followed and counts as a failure. The settings page lists the
 webhooks with the last outcome, offers a test event and disabling, and shows no secret.
 
+## AI task profiles
+
+A task of the product that asks a model has a profile per project (C6-A2). The tasks
+are `reply.draft` and `note.draft` for now. A profile names a connection to a model
+provider of the project, a model, a timeout (1 to 300 seconds, 60 by default), a cap
+for the output (1 to 16 000 tokens, 2000) and a daily budget in tokens (200 000), and
+it says whether the task may run at all (`enabled`, off by default). No code calls a
+model through a profile yet; that is the execution boundary of C6-A3.
+
+- `GET /api/v1/projects/{id}/ai-profiles` (`config.read`, tool `ai_profiles_list`)
+  lists the profile of every task. A task without one shows version 0, the defaults
+  and no connection or model.
+- `PUT .../ai-profiles/{task}` (`config.write`, tool `ai_profiles_set`) sets the
+  profile and names the version that was read (`expectedVersion`, 0 for the first
+  write). It accepts `?validate=true` and an `idempotencyKey`. The connection has to
+  be a connection to a model provider of the same project that is not disabled; the
+  answer names the field `connectionId` otherwise, and again when a proposal is
+  decided and the connection has been disabled since. A model name has letters, digits
+  and `. _ : / -`. Whether the provider knows the model is not checked here: the
+  provider refuses an unknown name when a task runs.
+- **Switching on is a decision about customer data.** A profile that is on sends ticket
+  content to the provider of its connection. Switching a profile on, and pointing a
+  profile that is on at another connection, is applied at once only by a person with
+  `config.approve`. Anyone else, a person with `config.write` and an agent, also under
+  the `direct` policy, makes a proposal (`202`) that a person with `config.approve`
+  decides at `/config/changes/{id}/decision`; an agent cannot decide. Other changes
+  (the model, the limits, switching off) follow the approval policy like any other
+  change: a person applies, an agent proposes under `review`.
+- A proposal on a version of the profile that has changed since is superseded and
+  never applies. Every change is audited as `ai_profile.set` and kept with its diff.
+
 ## Overview and list size
 
 The overview counts in the database over every ticket of the authorized
