@@ -5978,7 +5978,8 @@
                         "enum": [
                           "reply.draft",
                           "note.draft",
-                          "image.read"
+                          "image.read",
+                          "agent.respond"
                         ]
                       },
                       "version": {

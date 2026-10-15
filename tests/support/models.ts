@@ -12,9 +12,63 @@ export interface FakeModels {
     text?: string;
     error?: Record<string, unknown>;
     headers?: Record<string, string>;
+    // The model asks for a tool instead of answering in text.
+    toolCall?: { name: string; input: Record<string, unknown> };
   };
   close(): Promise<void>;
 }
+const callAnswers: Record<
+  Kind,
+  (call: { name: string; input: Record<string, unknown> }) => unknown
+> = {
+  anthropic: (call) => ({
+    id: "msg_2",
+    type: "message",
+    role: "assistant",
+    model: "fake",
+    content: [{ type: "tool_use", id: "toolu_1", name: call.name, input: call.input }],
+    stop_reason: "tool_use",
+    stop_sequence: null,
+    usage: { input_tokens: 21, output_tokens: 9 },
+  }),
+  openai: (call) => ({
+    id: "chatcmpl-2",
+    object: "chat.completion",
+    created: 1,
+    model: "fake",
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "call_1",
+              type: "function",
+              function: { name: call.name, arguments: JSON.stringify(call.input) },
+            },
+          ],
+        },
+        finish_reason: "tool_calls",
+      },
+    ],
+    usage: { prompt_tokens: 21, completion_tokens: 9, total_tokens: 30 },
+  }),
+  google: (call) => ({
+    candidates: [
+      {
+        content: {
+          role: "model",
+          parts: [{ functionCall: { name: call.name, args: call.input } }],
+        },
+        finishReason: "STOP",
+        index: 0,
+      },
+    ],
+    usageMetadata: { promptTokenCount: 21, candidatesTokenCount: 9, totalTokenCount: 30 },
+  }),
+};
 const answers: Record<Kind, (text: string) => unknown> = {
   anthropic: (text) => ({
     id: "msg_1",
@@ -72,7 +126,9 @@ export async function startFakeModels(kind: Kind): Promise<FakeModels> {
         response.end(
           JSON.stringify(
             status === 200
-              ? answers[kind](state.behaviour.text ?? "A drafted answer")
+              ? state.behaviour.toolCall
+                ? callAnswers[kind](state.behaviour.toolCall)
+                : answers[kind](state.behaviour.text ?? "A drafted answer")
               : { error: state.behaviour.error ?? { message: "refused" } },
           ),
         );
