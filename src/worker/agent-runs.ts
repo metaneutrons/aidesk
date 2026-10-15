@@ -26,6 +26,7 @@ import {
   tickets,
 } from "../server/db/schema";
 import { DomainError } from "../server/errors";
+import { searchKnowledge } from "../server/knowledge";
 import { readAttachment, reply } from "../server/operations";
 import { activeTexts } from "../server/texts";
 import { claimJob } from "./claim";
@@ -117,7 +118,7 @@ interface Result {
 async function callTool(
   run: Run,
   principal: Principal,
-  counters: { attachments: number },
+  counters: { attachments: number; searches: number },
   name: string,
   input: unknown,
 ): Promise<Result> {
@@ -152,6 +153,22 @@ async function callTool(
     return outcome === "no_reply_needed"
       ? { text: "Done.", end: { state: "nothing_to_do", reason: null } }
       : { text: "Done.", end: { state: "needs_person", reason: "agent_finished" } };
+  }
+  if (name === "search_knowledge") {
+    const { query } = parsed.data as z.infer<typeof agentTools.search_knowledge.schema>;
+    if (!permits(principal, ticket.projectId, "ticket.read")) return refuse("search_knowledge");
+    if (counters.searches >= agentLimits.searches)
+      return { text: "No more searches can be made in this run." };
+    counters.searches += 1;
+    try {
+      return {
+        text: JSON.stringify(await searchKnowledge(principal, ticket.id, query)).slice(0, 30_000),
+      };
+    } catch (error) {
+      if (error instanceof DomainError) return { text: `The search was refused (${error.code}).` };
+      if (error instanceof ZodError) return { text: "The query has to hold letters or digits." };
+      throw error;
+    }
   }
   if (name === "read_attachment") {
     const { attachmentId } = parsed.data as z.infer<typeof agentTools.read_attachment.schema>;
@@ -354,7 +371,7 @@ export async function runAgents(
     messages: await conversationOf(ticket.id),
   });
   const transcript: ModelMessage[] = [];
-  const counters = { attachments: 0 };
+  const counters = { attachments: 0, searches: 0 };
   const tools = Object.fromEntries(
     Object.entries(agentTools).map(([name, { description, schema }]) => [
       name,

@@ -478,6 +478,13 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "knowledge.search": {
+    operation: "searchKnowledge",
+    action: "ticket.read",
+    ui: "src/components/knowledge.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+  },
   "tickets.agent_runs": {
     operation: "listAgentRuns",
     action: "ticket.read",

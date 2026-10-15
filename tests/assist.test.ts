@@ -272,6 +272,7 @@ describe("a draft", () => {
     expect(await assistDraft(both, ticketId, { mode: "reply" }, deps)).toEqual({
       text: "Hello Kim,\n\nyour order ships tomorrow.",
       truncated: false,
+      knowledgePassages: 0,
     });
     expect(calls).toHaveLength(1);
     const [call] = calls;
@@ -393,6 +394,7 @@ describe("a draft", () => {
     expect(await assistDraft(both, ticketId, { mode: "reply" }, deps)).toEqual({
       text: "Hi Kim",
       truncated: true,
+      knowledgePassages: 0,
     });
   });
   it("is audited with the run and without the instruction, the typed text and the draft", async () => {

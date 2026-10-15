@@ -63,6 +63,34 @@ export const anthropicConfig = aiConfig.extend({
     .describe("The workspace to use, for an Anthropic key that is not tied to one"),
 });
 export const aiSecret = z.object({ apiKey: z.string().min(1) });
+// Sources of knowledge for a project: issues of its repositories, pages of its documentation and
+// what a system of its own knows about a customer. They are only read, by the product and for the
+// project that owns the connection. A repository is written as owner/name.
+export const repositoryName = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/, "A repository looks like owner/name");
+export const githubConfig = z.object({
+  repositories: z.array(repositoryName).min(1).max(20),
+  // The address of the API of a GitHub Enterprise server; github.com when left out.
+  endpoint: z.url().optional(),
+  developmentOnly: z.boolean().default(false),
+});
+export const githubSecret = z.object({ token: z.string().min(1) });
+export const docsConfig = z.object({
+  pages: z
+    .array(z.object({ title: z.string().trim().min(1).max(100), url: z.url() }).strict())
+    .min(1)
+    .max(30),
+  developmentOnly: z.boolean().default(false),
+});
+export const docsSecret = z.object({ token: z.string().min(1) });
+export const contextConfig = z.object({
+  // Asked for what is known about the requester of a ticket: GET endpoint?email=...
+  endpoint: z.url(),
+  developmentOnly: z.boolean().default(false),
+});
+export const contextSecret = z.object({ apiKey: z.string().min(1) });
+export const knowledgeKinds = ["github", "docs", "context"] as const;
 export const aiKinds = ["anthropic", "openai", "google"] as const;
 // One entry per kind and direction: how to check its configuration and secret.
 export const connectionTypes = {
@@ -81,6 +109,9 @@ export const connectionTypes = {
   "anthropic:ai": { config: anthropicConfig, secret: aiSecret, secretRequired: true },
   "openai:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
   "google:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
+  "github:knowledge": { config: githubConfig, secret: githubSecret, secretRequired: true },
+  "docs:knowledge": { config: docsConfig, secret: docsSecret, secretRequired: false },
+  "context:knowledge": { config: contextConfig, secret: contextSecret, secretRequired: true },
 } as const;
 export type ConnectionTypeKey = keyof typeof connectionTypes;
 // The kinds and the directions of every connection type, for the schemas that
@@ -140,6 +171,9 @@ const members = {
   "anthropic:ai": define("anthropic", "ai", anthropicConfig, aiSecret, true),
   "openai:ai": define("openai", "ai", aiConfig, aiSecret, true),
   "google:ai": define("google", "ai", aiConfig, aiSecret, true),
+  "github:knowledge": define("github", "knowledge", githubConfig, githubSecret, true),
+  "docs:knowledge": define("docs", "knowledge", docsConfig, docsSecret, false),
+  "context:knowledge": define("context", "knowledge", contextConfig, contextSecret, true),
 } as const;
 export const connectionCreate = z.union([
   members["imap:inbound"],
@@ -149,6 +183,9 @@ export const connectionCreate = z.union([
   members["anthropic:ai"],
   members["openai:ai"],
   members["google:ai"],
+  members["github:knowledge"],
+  members["docs:knowledge"],
+  members["context:knowledge"],
 ]);
 export type ConnectionCreate = z.infer<typeof connectionCreate>;
 // Reads a definition by its kind and direction first, so that an error names the
@@ -162,7 +199,7 @@ export function parseConnectionCreate(input: unknown): ConnectionCreate {
         code: "custom",
         path: ["kind"],
         message:
-          "One of imap/inbound, cloudflare/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai",
+          "One of imap/inbound, cloudflare/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
       },
     ]);
   return members[key].parse(input);
