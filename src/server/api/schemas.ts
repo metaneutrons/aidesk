@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiFailures, aiTasks } from "../../domain/ai";
 import { configDocument } from "../../domain/configuration";
 import { connectionDirections, connectionKinds } from "../../domain/connections";
 import { emailDesignConfig } from "../../domain/email-design";
@@ -162,27 +163,46 @@ export const attachmentText = z.object({
   size: z.number(),
   readable: z.boolean(),
   reason: z
-    .enum(["not_stored", "type_not_readable", "extraction_pending", "extraction_failed"])
+    .enum([
+      "not_stored",
+      "type_not_readable",
+      "extraction_pending",
+      "extraction_failed",
+      "image_reading_off",
+    ])
     .optional()
     .describe(
-      "Why the file is not read; present when readable is false. extraction_pending: a PDF or Office file is being read, ask again in a moment",
+      "Why the file is not read; present when readable is false. extraction_pending: the file is being read by the worker, ask again in a moment. image_reading_off: an image or a scan, and the project has not switched on the task image.read",
     ),
   failure: z
-    .enum(["unsupported", "damaged", "encrypted", "too_large", "timeout", "empty", "failed"])
+    .enum([
+      "unsupported",
+      "damaged",
+      "encrypted",
+      "too_large",
+      "timeout",
+      "empty",
+      "failed",
+      ...aiFailures,
+    ])
     .optional()
-    .describe("With extraction_failed: what the reader of documents found out about the file"),
+    .describe(
+      "With extraction_failed: what the reader found out about the file, or how the run of the model ended (ai_*). An ai_* failure is of the moment: ask again after a few minutes",
+    ),
   text: z.string().optional().describe("The content as text; present when readable is true"),
   extraction: z
     .object({
       method: z.string(),
       units: z.number(),
-      unit: z.enum(["pages", "sheets", "slides"]),
+      unit: z.enum(["pages", "sheets", "slides", "file"]),
       hidden: z
         .number()
         .describe("Parts of the document that a reader does not see and that were left out"),
     })
     .optional()
-    .describe("Present when the text was extracted from a PDF or Office file"),
+    .describe(
+      "Present when the text was extracted from a PDF or Office file, or read by a model from an image or a scan (method ai:<model>, which can misread)",
+    ),
   truncated: z.boolean().describe("The content was cut at 256 KiB"),
 });
 export const originalText = z.object({
@@ -358,7 +378,7 @@ export const textResult = z.object({
   validated: z.boolean(),
 });
 export const aiProfileEntry = z.object({
-  task: z.enum(["reply.draft", "note.draft"]),
+  task: z.enum(aiTasks),
   version: z.number().describe("0 when the task has no profile yet; a write names this version"),
   connectionId: z.uuid().nullable(),
   model: z.string().nullable(),

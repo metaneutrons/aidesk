@@ -300,6 +300,7 @@
   "aiNoProviders": "No model provider is connected yet. Define one through the API (Anthropic, OpenAI or Google) and test it.",
   "aiTask_reply_draft": "Draft a reply to the customer",
   "aiTask_note_draft": "Draft an internal note",
+  "aiTask_image_read": "Read images and scanned PDF files for agents",
   "aiConnection": "Model provider",
   "aiConnectionCurrent": "Current connection",
   "aiConnectionNone": "No connection",

@@ -44,6 +44,10 @@ test("sets the profile of a task on the settings page and switches it on and off
   await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
   const section = page.getByRole("region", { name: `AI tasks of ${alpha.name}` });
   const task = section.getByRole("group", { name: "Draft a reply to the customer" });
+  // The task that reads images is offered like the others.
+  await expect(
+    section.getByRole("group", { name: "Read images and scanned PDF files for agents" }),
+  ).toBeVisible();
   await expect(task.getByLabel("Model provider")).toBeVisible();
   await task.getByLabel("Model provider").selectOption({ label: `${connection} (Anthropic)` });
   await expect(task.getByRole("button", { name: "Save task" })).toBeDisabled();

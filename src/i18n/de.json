@@ -300,6 +300,7 @@
   "aiNoProviders": "Es ist noch kein KI-Anbieter verbunden. Lege einen über die API an (Anthropic, OpenAI oder Google) und teste ihn.",
   "aiTask_reply_draft": "Antwort an den Kunden entwerfen",
   "aiTask_note_draft": "Interne Notiz entwerfen",
+  "aiTask_image_read": "Bilder und gescannte PDF-Dateien für Agenten lesen",
   "aiConnection": "KI-Anbieter",
   "aiConnectionCurrent": "Aktuelle Verbindung",
   "aiConnectionNone": "Keine Verbindung",

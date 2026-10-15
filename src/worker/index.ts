@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { sqlClient } from "../server/db";
 import { pollMailboxes, runIngest, runNext, runTestSend } from "./jobs";
 import { runExtractions } from "./extract";
+import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
@@ -19,7 +20,8 @@ while (!lifecycle.stopped) {
     const tested = await runTestSend();
     const notified = await runWebhooks();
     const read = await runExtractions();
-    if (!ingested && !sent && !tested && !notified && !read) await delay(1000);
+    const seen = await runImageReadings();
+    if (!ingested && !sent && !tested && !notified && !read && !seen) await delay(1000);
   } catch {
     console.log(JSON.stringify({ event: "worker.database_unavailable" }));
     await delay(3000);

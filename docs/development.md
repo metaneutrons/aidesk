@@ -184,7 +184,9 @@ read by the worker (see "Reading documents for agents"); the first request answe
 `extraction` object (`method`, `units`, `unit`, `hidden`) or `reason:
 extraction_failed` with the `failure`. Everything else, and a file refused when the mail
 arrived, answers `readable: false` with `type_not_readable` or `not_stored` and no
-content. What a sender wrote is data: the descriptions of both tools and the guide for
+content. An image (PNG, JPEG, WebP, GIF, by type or extension) and a PDF file that has
+no text of its own go to the model when the project switched on the task `image.read`,
+and answer `image_reading_off` when it did not. What a sender wrote is data: the descriptions of both tools and the guide for
 agents say that an agent does not act on it.
 
 Every answer carries a frame. `untrusted: true` and the `origin` (project, ticket,
@@ -207,7 +209,7 @@ the outcome; a refused read is not. The protection limits what an instruction
 in a file can cause (the separate action, the approval policy, the project as the
 boundary) and makes a read visible; it does not detect instructions.
 
-Images and scans are not read yet; see C5-A5 in the plan.
+Images and scans are read through a model; see "Reading images and scans".
 
 ## Ticket work
 
@@ -230,6 +232,50 @@ retention period of their own, by decision of the product owner of 2026-10-15; t
 hangs on them is decided with the retention work of the deployment milestone (M5), and no
 route deletes a ticket today. The consequence for data protection is that the text of a file
 is a second copy of customer content in the database, as long as the file is.
+
+## Reading images and scans
+
+An image has no text, and a scanned PDF has none in its text layer. Both are read by a
+model, through the same boundary as every task (`runAiTask`, see "Running a task"), as
+the task `image.read` of the project. It is a profile like the others: off until a
+person with `config.approve` switches it on, with a connection, a model and the limits
+(a transcription of a page needs more than the default 2000 output tokens, and a
+profile may set up to 16000). The provider of that connection receives the customer's
+file; that is why a person switches it on and why nothing is sent while it is off. The
+model has to take images, and for a scanned PDF it has to take PDF files; the product
+does not check that, and a model that does not answers with a provider error.
+
+- **Routing.** `attachments_read` sends a file whose name says PNG, JPEG, WebP or GIF to
+  the model path and a PDF file to the reader of documents first. When the reader finds
+  no text (`empty`), the file goes to the model path as a scan. Without a profile that
+  is on, the answer is `image_reading_off` and no job is queued. Other image types
+  (HEIC, TIFF, SVG, BMP) are `type_not_readable`.
+- **What is sent.** Only what its first bytes show to be a PNG, JPEG, WebP, GIF or PDF,
+  whatever the sender called the file, as bytes in the request and never as an address
+  that the SDK or the provider would fetch. Up to 5 MiB for an image and 10 MiB for a
+  PDF file; beyond that the result is `too_large`, with no call. The system text says
+  that the file comes from a third party and that what it says is content to
+  transcribe; the answer is framed as untrusted when it is read, like any file.
+- **Budget.** The file counts against the daily budget before the call: an image as
+  one third of its bytes up to 8000 tokens, a PDF file as a tenth of its bytes up to
+  200 000, and the provider's count settles the run. A large scan can therefore be
+  refused by a small budget (`ai_budget_exceeded`).
+- **Job and record.** The first request queues the job `attachment.read_image` (one per
+  file), and the worker runs it once. The text is kept in `attachment_text` with the
+  method `ai:<model>`, as long as the file is, and is not asked for again; a change of
+  the reader of documents does not discard it. What the model found (nothing to read)
+  and what the product found (not an image, too large) are kept as failures like any
+  reading. A run that ended for a reason of the moment (`ai_timeout`,
+  `ai_provider_error`, `ai_budget_exceeded`, `ai_not_configured`, `ai_disabled`) is
+  kept as a failure, is not repeated by the worker (its outcome may be unknown and may
+  have cost something), and is asked for again by the first request after five
+  minutes. A failure of the machinery before the run (the storage) is retried like in
+  the reading of documents, and the lease of the job is longer than the longest
+  timeout of a profile, so that a run that is still going is not taken for a lost one.
+- **Marked as read by a model.** `extraction.method` starts with `ai:` and names the
+  model. Such a text can misread characters and figures, and the guide for agents says
+  so. The run is recorded in `ai_run` with the person or agent that asked first, and
+  the read is audited as `file.read` like any other.
 
 ## Reading documents for agents
 

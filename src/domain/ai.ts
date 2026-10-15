@@ -3,7 +3,7 @@ import { z } from "zod";
 // connection and model run it, under which limits, and whether it may run. A
 // profile that is on sends ticket content to the provider of its connection, so
 // it is off by default (see src/server/ai-profiles.ts for who may switch it on).
-export const aiTasks = ["reply.draft", "note.draft"] as const;
+export const aiTasks = ["reply.draft", "note.draft", "image.read"] as const;
 export type AiTask = (typeof aiTasks)[number];
 export const isAiTask = (value: string): value is AiTask => aiTasks.some((task) => task === value);
 export const aiDefaults = {
@@ -49,3 +49,10 @@ export type AiFailure = (typeof aiFailures)[number];
 // the text, which is more than Latin text needs and about what other scripts need.
 // It decides how much of the budget a run holds while it is running.
 export const estimateTokens = (text: string): number => Math.ceil(Buffer.byteLength(text) / 3);
+// What a file held in the request costs: an image is scaled down by the providers
+// and costs little however large it is, a PDF costs for every page it has. Both are
+// estimated high and capped; the provider's count settles the run.
+export const estimateFileTokens = (mediaType: string, bytes: number): number =>
+  mediaType === "application/pdf"
+    ? Math.min(Math.ceil(bytes / 10), 200_000)
+    : Math.min(Math.ceil(bytes / 3), 8_000);
