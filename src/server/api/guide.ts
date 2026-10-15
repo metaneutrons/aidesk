@@ -22,7 +22,7 @@ export const agentGuide = [
   "",
   "## Proposals",
   "",
-  "Each project has an approval policy. Under `review`, the default, your change to configuration, texts, connections or webhooks is not applied. The answer has `outcome: proposed` (status `202`) and a `changeId`. A person with the right to approve activates or rejects it. You cannot decide on a proposal, not even your own. `GET /projects/{id}/config/changes?status=pending` shows what is still waiting. A proposal made on a version that has changed since is superseded and never applies, so read again and propose again. Under `direct` the change is applied at once with `outcome: applied`. `outcome: unchanged` means the object already had that content.",
+  "Each project has an approval policy. Under `review`, the default, your change to configuration, texts, connections or webhooks is not applied. The answer has `outcome: proposed` (status `202`) and a `changeId`. A person with the right to approve activates or rejects it. You cannot decide on a proposal, not even your own. `GET /projects/{id}/config/changes?status=pending` shows what is still waiting. A proposal made on a version that has changed since is superseded and never applies, so read again and propose again. Switching on an AI task profile (`ai_profiles_set` with `enabled: true`), or pointing an enabled one at another connection, is always a proposal for an agent, under `direct` too, because it decides where ticket content goes. Under `direct` the change is applied at once with `outcome: applied`. `outcome: unchanged` means the object already had that content.",
   "",
   "## Tickets and replies",
   "",

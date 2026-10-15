@@ -356,6 +356,19 @@ export const textResult = z.object({
   diff: configDiff,
   validated: z.boolean(),
 });
+export const aiProfileEntry = z.object({
+  task: z.enum(["reply.draft", "note.draft"]),
+  version: z.number().describe("0 when the task has no profile yet; a write names this version"),
+  connectionId: z.uuid().nullable(),
+  model: z.string().nullable(),
+  timeoutSeconds: z.number(),
+  maxOutputTokens: z.number(),
+  dailyTokenBudget: z.number().describe("Tokens per day, over input and output"),
+  enabled: z
+    .boolean()
+    .describe("When true, ticket content is sent to the provider of the connection"),
+});
+export const aiProfileResult = textResult;
 export const ticketStatus = z.object({
   status: z.enum(["open", "waiting", "resolved"]),
   revision: z.number(),
