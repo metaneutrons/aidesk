@@ -8,6 +8,9 @@ const config: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   output: "standalone",
   poweredByHeader: false,
+  // The sandbox of the file extraction builds its code with esbuild at run time. A route that reaches
+  // it (the worker tick) must not have the compiler and its binary bundled.
+  serverExternalPackages: ["esbuild"],
   experimental: { serverActions: { bodySizeLimit: "2mb" } },
 };
 export default createNextIntlPlugin("./src/i18n/request.ts")(config);
