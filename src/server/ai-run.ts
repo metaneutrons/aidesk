@@ -1,4 +1,4 @@
-import { APICallError } from "ai";
+import { APICallError, type ModelMessage } from "ai";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { estimateFileTokens, estimateTokens, type AiFailure, type AiTask } from "../domain/ai";
@@ -7,7 +7,13 @@ import { unseal } from "./crypto";
 import { db } from "./db";
 import { aiBudgets, aiProfiles, aiRuns, connections } from "./db/schema";
 import { env } from "./env";
-import { generate as callProvider, type CallFile, type Generate } from "./ai-provider";
+import {
+  generate as callProvider,
+  type CallFile,
+  type CallTool,
+  type Generate,
+  type ToolCall,
+} from "./ai-provider";
 import { checkHost } from "./host-guard";
 // The one boundary through which a task of the product asks a model. A run needs a
 // profile that is on and a connection that is ready, holds its share of the daily
@@ -27,6 +33,10 @@ export interface AiRequest {
   prompt: string;
   // Images or PDFs the model reads with the prompt; they count against the budget.
   files?: CallFile[];
+  // A conversation with tools: what was said and called so far, and the tools that the
+  // model may call. Both count against the budget.
+  messages?: ModelMessage[];
+  tools?: Record<string, CallTool>;
   actor: { id: string; kind: "human" | "agent" | "system" };
 }
 export type AiOutcome =
@@ -38,6 +48,8 @@ export type AiOutcome =
       // The answer reached the cap of the profile and was cut by the provider.
       truncated: boolean;
       usage: { inputTokens: number | null; outputTokens: number | null };
+      // The tools that the model asked to be called, in the order it asked.
+      toolCalls: ToolCall[];
       runId: string;
     }
   // The wait that the provider asked for, when it said, for a limit or a quota.
@@ -237,6 +249,18 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
   const held =
     estimateTokens(request.system) +
     estimateTokens(request.prompt) +
+    (request.messages ? estimateTokens(JSON.stringify(request.messages)) : 0) +
+    (request.tools
+      ? estimateTokens(
+          JSON.stringify(
+            Object.entries(request.tools).map(([name, { description, schema }]) => [
+              name,
+              description,
+              z.toJSONSchema(schema),
+            ]),
+          ),
+        )
+      : 0) +
     (request.files ?? []).reduce(
       (sum, file) => sum + estimateFileTokens(file.mediaType, file.data.length),
       0,
@@ -278,6 +302,8 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       system: request.system,
       prompt: request.prompt,
       files: request.files,
+      messages: request.messages,
+      tools: request.tools,
       maxOutputTokens: profile.maxOutputTokens,
       timeoutMs: profile.timeoutSeconds * 1000,
     });
@@ -293,6 +319,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       model: profile.model,
       truncated: answer.finishReason === "length",
       usage: { inputTokens, outputTokens },
+      toolCalls: answer.toolCalls ?? [],
       runId: await record("ok", { ...withConnection, inputTokens, outputTokens }),
     };
   } catch (error) {
