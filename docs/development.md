@@ -905,8 +905,8 @@ A task of the product that asks a model has a profile per project (C6-A2). The t
 are `reply.draft` and `note.draft` for now. A profile names a connection to a model
 provider of the project, a model, a timeout (1 to 300 seconds, 60 by default), a cap
 for the output (1 to 16 000 tokens, 2000) and a daily budget in tokens (200 000), and
-it says whether the task may run at all (`enabled`, off by default). No code calls a
-model through a profile yet; that is the execution boundary of C6-A3.
+it says whether the task may run at all (`enabled`, off by default). A task asks a model
+through one boundary, `runAiTask` (see "Running a task" below).
 
 - `GET /api/v1/projects/{id}/ai-profiles` (`config.read`, tool `ai_profiles_list`)
   lists the profile of every task. A task without one shows version 0, the defaults
@@ -929,6 +929,48 @@ model through a profile yet; that is the execution boundary of C6-A3.
   change: a person applies, an agent proposes under `review`.
 - A proposal on a version of the profile that has changed since is superseded and
   never applies. Every change is audited as `ai_profile.set` and kept with its diff.
+
+### Running a task
+
+`runAiTask` in `src/server/ai-run.ts` is the one way a task of the product asks a model
+(C6-A3). Nothing calls it yet; the draft button of C6-A4 is the first user. It takes the
+project, the task, a system text, a prompt and who asks, and answers with the text, whether
+the provider cut it at the cap of the profile, the tokens used and the id of the run, or with
+one of these codes:
+
+- `ai_not_configured`: the project has no profile for the task, or its connection is not a
+  connection of the project to a model provider that is `ready` and has a key, or its own
+  address no longer passes the host guard (checked again on every run);
+- `ai_disabled`: the profile is off;
+- `ai_budget_exceeded`: the day's budget of the task has not enough left for this run;
+- `ai_timeout`: the provider did not answer within the timeout of the profile;
+- `ai_provider_error`: the provider refused or failed.
+
+**Budget.** Each profile has a daily budget in tokens, counted per project, task and UTC
+day in `ai_budget`. A run holds its share before it calls the provider: the input as
+estimated (one token for every three bytes, which is more than Latin text needs) plus the
+longest answer the profile allows. The hold is one statement that adds to the day's count
+only if the sum stays within the budget, so concurrent runs cannot spend more than the
+budget. After the call the hold is replaced by what the provider counted; if it did not
+say, the hold stays charged.
+
+**One call, no repeat, no other provider.** The provider is called once, without the
+retries of the SDK (`maxRetries: 0`), and a run never tries another connection. When the
+outcome is not known (a timeout, a failure of the network or of the provider, a status 408
+or 5xx) the request may have been accepted and may have cost something, so the hold stays
+charged. When the provider refused before it did anything (a status 4xx other than 408) the
+hold is given back. The answer is asked for with the output cap of the profile and ends at
+its timeout.
+
+**Records.** Every run, also one that did not start, is a row in `ai_run`: task, version of
+the profile, connection, model, the outcome (`ok` or the code), tokens, duration and who
+asked. It holds no prompt, no ticket content and no answer. The provider is reached through
+`@ai-sdk/anthropic`, `@ai-sdk/openai` (chat completions, which gateways speak) and
+`@ai-sdk/google`; the address of a connection that names its own gets the version path of
+the provider added (`/v1` or `/v1beta`).
+
+Not covered here: the prompts, what a task does with the answer, a page that shows the
+usage, and a run against a real provider.
 
 ## Overview and list size
 
