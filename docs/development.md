@@ -826,8 +826,12 @@ an optional `endpoint`, the base address that the paths of the provider are adde
 for a gateway or a regional address; without one the provider's own address is used.
 An `endpoint` has to be HTTPS, passes the host guard like any other host and is
 checked again on every test; `developmentOnly` allows a plain address on a
-development stack. The secret is `apiKey`, stored sealed and never returned. A
-project can have several.
+development stack. For `anthropic` there is an optional `workspaceId` (`wrkspc_…`): a key
+that is not made inside one workspace is refused with 400 ("must include the
+anthropic-workspace-id header") unless that header names the workspace, and the test and
+every run then send it. A key made inside a workspace needs none, and the other kinds do
+not take the field. The secret is `apiKey`, stored sealed and never returned. A project
+can have several.
 
 A test asks for the list of models, which needs the key and costs nothing:
 `GET /v1/models` with `X-Api-Key` and `anthropic-version: 2023-06-01` (Anthropic),
