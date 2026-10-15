@@ -10,7 +10,11 @@ const schema = z.object({
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
   // One-time secret for claiming the first owner; remove it after the claim.
-  OWNER_CLAIM_TOKEN: z.string().min(32).optional(),
+  // An empty value, as in the example file, is no token.
+  OWNER_CLAIM_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
 });
 let cached: z.infer<typeof schema> | undefined;
 export function env(): z.infer<typeof schema> {
