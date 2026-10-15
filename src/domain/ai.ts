@@ -34,3 +34,18 @@ export const aiProfileWrite = z
   })
   .strict();
 export type AiProfileWrite = z.infer<typeof aiProfileWrite>;
+// How a run of a task can end without an answer. The codes name no provider, no
+// host and no key.
+export const aiFailures = [
+  // No profile, or the connection of the profile is not ready or its host is not allowed.
+  "ai_not_configured",
+  "ai_disabled",
+  "ai_budget_exceeded",
+  "ai_timeout",
+  "ai_provider_error",
+] as const;
+export type AiFailure = (typeof aiFailures)[number];
+// A count of tokens that is high rather than exact: one for every three bytes of
+// the text, which is more than Latin text needs and about what other scripts need.
+// It decides how much of the budget a run holds while it is running.
+export const estimateTokens = (text: string): number => Math.ceil(Buffer.byteLength(text) / 3);
