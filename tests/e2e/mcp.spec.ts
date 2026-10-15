@@ -70,6 +70,7 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
   // The hand-written tools and the ones the route table offers for these actions.
   expect(tools).toEqual([
     "overview_get",
+    "projects_agent_controls",
     "projects_list",
     "tags_list",
     "tickets_agent_runs",
