@@ -49,6 +49,13 @@ test("sets the profile of a task on the settings page and switches it on and off
     section.getByRole("group", { name: "Read images and scanned PDF files for agents" }),
   ).toBeVisible();
   await expect(task.getByLabel("Model provider")).toBeVisible();
+  // What a person who chooses a model should know, for a draft and for a reading.
+  await expect(task.getByText(/Smaller models follow them more often/)).toBeVisible();
+  await expect(
+    section
+      .getByRole("group", { name: "Read images and scanned PDF files for agents" })
+      .getByText(/can misread characters and figures/),
+  ).toBeVisible();
   await task.getByLabel("Model provider").selectOption({ label: `${connection} (Anthropic)` });
   await expect(task.getByRole("button", { name: "Save task" })).toBeDisabled();
   await task.getByLabel("Model", { exact: true }).fill("model-e2e");
