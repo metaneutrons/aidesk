@@ -24,6 +24,7 @@ const statusOf: Record<AiFailure, number> = {
   ai_disabled: 409,
   ai_budget_exceeded: 429,
   ai_timeout: 504,
+  ai_quota_exhausted: 402,
   ai_model_unavailable: 409,
   ai_rate_limited: 503,
   ai_provider_error: 502,

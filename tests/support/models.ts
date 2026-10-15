@@ -6,7 +6,7 @@ export type Kind = "anthropic" | "openai" | "google";
 export interface FakeModels {
   url: string;
   requests: { url: string; headers: IncomingHttpHeaders; body: Record<string, unknown> }[];
-  behaviour: { status?: number; delay?: number; text?: string };
+  behaviour: { status?: number; delay?: number; text?: string; error?: Record<string, unknown> };
   close(): Promise<void>;
 }
 const answers: Record<Kind, (text: string) => unknown> = {
@@ -64,7 +64,7 @@ export async function startFakeModels(kind: Kind): Promise<FakeModels> {
           JSON.stringify(
             status === 200
               ? answers[kind](state.behaviour.text ?? "A drafted answer")
-              : { error: { message: "refused" } },
+              : { error: state.behaviour.error ?? { message: "refused" } },
           ),
         );
       };

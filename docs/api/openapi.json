@@ -1942,6 +1942,7 @@
                         "ai_budget_exceeded",
                         "ai_timeout",
                         "ai_model_unavailable",
+                        "ai_quota_exhausted",
                         "ai_rate_limited",
                         "ai_provider_error"
                       ]
