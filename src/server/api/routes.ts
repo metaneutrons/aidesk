@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { locales } from "../../domain/locale";
+import { translationStatuses } from "../../domain/translation";
 import type { Action } from "../../domain/permissions";
 import type { Principal } from "../../domain/permissions";
 import { emailDesignConfig } from "../../domain/email-design";
@@ -54,6 +56,18 @@ import {
 } from "../operations";
 import { assistDraft } from "../assist";
 import { listAgentRuns, resumeAgent, resumeInput } from "../agent-runs";
+import {
+  correctMessage,
+  deleteTranslations,
+  listTranslations,
+  requestTranslation,
+} from "../translation";
+import {
+  translateDraft,
+  translateDraftInput,
+  translateTemplate,
+  translateTemplateInput,
+} from "../translate-text";
 import {
   getAgentControls,
   getWorkspaceControls,
@@ -1088,6 +1102,93 @@ export const routes: Route[] = [
     body: workspaceInput,
     response: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
     run: ({ principal, input }) => setWorkspaceControls(principal, input),
+  },
+  {
+    id: "translations.request",
+    mcp: { tool: "messages_request_translation" },
+    method: "POST",
+    path: "/messages/{messageId}/translations",
+    tag: "Translations",
+    summary:
+      "Ask for a machine translation of the current revision of a message into a language. It is a record next to the message: it never replaces the source and sends nothing. Asking again returns the same record; a failed one is tried again",
+    access: "ticket.read",
+    body: z.object({ language: z.enum(locales) }).strict(),
+    response: z.object({
+      id: z.uuid(),
+      status: z.enum(translationStatuses),
+      language: z.string(),
+    }),
+    status: 202,
+    run: ({ principal, params, input }) =>
+      requestTranslation(
+        principal,
+        params.messageId ?? "",
+        (input as { language: string }).language,
+      ),
+  },
+  {
+    id: "translations.list",
+    mcp: { tool: "messages_translations" },
+    method: "GET",
+    path: "/messages/{messageId}/translations",
+    tag: "Translations",
+    summary:
+      "The translations of a message with their state (queued, ready, failed, stale), the model and the revision of the profile that made them, and the reason of a failure",
+    access: "ticket.read",
+    response: list(out.translationOut),
+    run: ({ principal, params }) => listTranslations(principal, params.messageId ?? ""),
+  },
+  {
+    id: "translations.delete",
+    mcp: { not: "Removing derived content is a decision of a person" },
+    method: "POST",
+    path: "/messages/{messageId}/translations/delete",
+    tag: "Translations",
+    summary: "Remove every translation of a message; the source stays",
+    access: "ticket.reply",
+    response: z.object({ deleted: z.number().int() }),
+    run: ({ principal, params }) => deleteTranslations(principal, params.messageId ?? ""),
+  },
+  {
+    id: "messages.correct",
+    mcp: { not: "Correcting what a customer wrote is a decision of a person" },
+    method: "POST",
+    path: "/messages/{messageId}/correct",
+    tag: "Tickets",
+    summary:
+      "Correct the text of a received message or a note, for example a wrong extraction. The message gets a new revision and the translations of an earlier one become stale",
+    access: "ticket.read",
+    body: z.object({ markdown: z.string() }).strict(),
+    response: z.object({ revision: z.number().int() }),
+    run: ({ principal, params, input }) =>
+      correctMessage(principal, params.messageId ?? "", (input as { markdown: string }).markdown),
+  },
+  {
+    id: "tickets.translate_draft",
+    mcp: { not: "A draft is translated for a person who is writing it" },
+    method: "POST",
+    path: "/tickets/{ticketId}/translate-draft",
+    tag: "Tickets",
+    summary:
+      "Translate the text of a reply or a note that is being written into a language, at once. Nothing is stored or sent",
+    access: "ticket.read",
+    body: translateDraftInput,
+    response: z.object({ text: z.string() }),
+    run: ({ principal, params, input }) => translateDraft(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "texts.translate",
+    mcp: { not: "A standard text is changed by a person who reads the suggestion" },
+    method: "POST",
+    path: "/projects/{projectId}/texts/{key}/translate",
+    tag: "Texts",
+    summary:
+      "Suggest the standard text of the project in the other language, from the wording that is in use. Nothing is saved",
+    access: "config.write",
+    body: translateTemplateInput,
+    response: z.object({ text: z.string() }),
+    run: ({ principal, params, input }) =>
+      translateTemplate(principal, params.projectId ?? "", params.key ?? "", input),
   },
   {
     id: "messages.send_draft",

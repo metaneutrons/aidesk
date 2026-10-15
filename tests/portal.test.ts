@@ -3,7 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
-import { audit, messages, participants, projects, tickets } from "../src/server/db/schema";
+import {
+  audit,
+  messages,
+  participants,
+  projects,
+  tickets,
+  translations,
+} from "../src/server/db/schema";
 import {
   getPortalTicket,
   issuePortalGrant,
@@ -123,6 +130,71 @@ afterAll(async () => {
   await db().delete(audit).where(inArray(audit.projectId, ids));
   await db().delete(projects).where(inArray(projects.id, ids));
   await sqlClient().end();
+});
+describe("translations on the customer page", () => {
+  it("shows a ready translation into the language of the page, for a message that has not changed, and nothing else", async () => {
+    const id = await ticket();
+    const { token } = await issuePortalGrant(staff, id);
+    const [answer] = await db()
+      .select()
+      .from(messages)
+      .where(and(eq(messages.ticketId, id), eq(messages.markdown, "Public answer")));
+    const record = (values: Partial<typeof translations.$inferInsert>) =>
+      db()
+        .insert(translations)
+        .values({
+          messageId: answer?.id ?? "",
+          sourceRevision: 1,
+          language: "de",
+          markdown: "Öffentliche **Antwort**",
+          status: "ready",
+          ...values,
+        })
+        .returning({ id: translations.id });
+    // No translation: nothing is shown, whatever the language of the page.
+    expect(
+      (await getPortalTicket(token, "de")).messages.map((message) => message.translation),
+    ).toEqual([null, null]);
+    const [made] = await record({});
+    expect(
+      (await getPortalTicket(token, "de")).messages.map((message) => message.translation),
+    ).toEqual([null, "<p>Öffentliche <strong>Antwort</strong></p>\n"]);
+    // Only in the language of the page, with a region and the case of the header allowed.
+    expect((await getPortalTicket(token, "en")).messages[1]?.translation).toBeNull();
+    expect((await getPortalTicket(token, "DE-at")).messages[1]?.translation).toContain("Antwort");
+    expect((await getPortalTicket(token)).messages[1]?.translation).toBeNull();
+    // Not while it waits, after it failed or went stale, nor when the message changed since.
+    for (const status of ["queued", "failed", "stale"])
+      await db()
+        .update(translations)
+        .set({ status })
+        .where(eq(translations.id, made?.id ?? ""));
+    expect((await getPortalTicket(token, "de")).messages[1]?.translation).toBeNull();
+    await db()
+      .update(translations)
+      .set({ status: "ready" })
+      .where(eq(translations.id, made?.id ?? ""));
+    await db()
+      .update(messages)
+      .set({ revision: 2 })
+      .where(eq(messages.id, answer?.id ?? ""));
+    expect((await getPortalTicket(token, "de")).messages[1]?.translation).toBeNull();
+    // A private note is not in the conversation, and neither is its translation.
+    const [note] = await db()
+      .select()
+      .from(messages)
+      .where(and(eq(messages.ticketId, id), eq(messages.markdown, "Internal note")));
+    await db()
+      .insert(translations)
+      .values({
+        messageId: note?.id ?? "",
+        sourceRevision: 1,
+        language: "de",
+        markdown: "Interne Notiz",
+        status: "ready",
+      });
+    expect(JSON.stringify(await getPortalTicket(token, "de"))).not.toContain("Interne Notiz");
+  });
 });
 describe("portal grants", () => {
   it("lets the holder of a token read the public conversation of one ticket", async () => {

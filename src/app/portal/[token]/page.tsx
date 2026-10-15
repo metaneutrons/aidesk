@@ -21,7 +21,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   const locale = negotiateLocale((await headers()).get("accept-language"));
   let view;
   try {
-    view = await getPortalTicket(token);
+    view = await getPortalTicket(token, locale);
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
   }

@@ -34,6 +34,9 @@ export function Texts({
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<Message | null>(null);
+  // The text that is being translated, and why a suggestion could not be made.
+  const [working, setWorking] = useState<string | null>(null);
+  const [suggestFailed, setSuggestFailed] = useState<string | null>(null);
   // Drafts are cleared only after a save, so a slower load never takes away what
   // a person has typed.
   const load = useCallback(
@@ -65,6 +68,24 @@ export function Texts({
     else setMessage(response.status === 202 ? "textProposed" : "textApplied");
     await load(true);
     router.refresh();
+  }
+  // The wording in the other language as a suggestion in the field, to read, edit and save.
+  async function suggest(entry: Entry, lang: Lang, from: Lang): Promise<void> {
+    const id = `${entry.key}:${lang}`;
+    setWorking(id);
+    setSuggestFailed(null);
+    const response = await fetch(`/api/v1/projects/${projectId}/texts/${entry.key}/translate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from, language: lang }),
+    }).catch(() => null);
+    const body: unknown = response ? await response.json().catch(() => null) : null;
+    const text = z.object({ text: z.string() }).safeParse(body);
+    const code = z.object({ error: z.string() }).safeParse(body);
+    if (response?.ok && text.success)
+      setDrafts((current) => ({ ...current, [id]: text.data.text }));
+    else setSuggestFailed(code.success ? code.data.error : "unavailable");
+    setWorking(null);
   }
   if (entries === null) return null;
   return (
@@ -117,6 +138,18 @@ export function Texts({
                     <button
                       type="button"
                       className="secondary"
+                      disabled={working !== null}
+                      onClick={() => {
+                        void suggest(entry, lang, lang === "en" ? "de" : "en");
+                      }}
+                    >
+                      {t(working === id ? "textsTranslateWorking" : "textsTranslate", {
+                        language: languageNames[lang === "en" ? "de" : "en"],
+                      })}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
                       disabled={state.own === null}
                       onClick={() => {
                         void write(entry, lang, null);
@@ -131,6 +164,11 @@ export function Texts({
           })}
         </fieldset>
       ))}
+      {suggestFailed && (
+        <p className="error" role="alert">
+          {t("textsTranslateFailed", { code: suggestFailed })}
+        </p>
+      )}
       {message && (
         <p
           className={message === "error" || message === "configStale" ? "error" : "muted"}

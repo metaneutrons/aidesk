@@ -144,6 +144,22 @@ describe("reading the profiles", () => {
         enabled: false,
         ...aiDefaults,
       },
+      {
+        task: "message.translate",
+        version: 0,
+        connectionId: null,
+        model: null,
+        enabled: false,
+        ...aiDefaults,
+      },
+      {
+        task: "template.translate",
+        version: 0,
+        connectionId: null,
+        model: null,
+        enabled: false,
+        ...aiDefaults,
+      },
     ]);
   });
   it("needs config.read and shows nothing of another project", async () => {
@@ -213,7 +229,7 @@ describe("setting a profile that is off", () => {
   });
   it("names the field that is wrong", async () => {
     expect(await refusal(setAiProfile(writer, projectId, "translate", body()))).toEqual([
-      "task: One of reply.draft, note.draft, image.read, agent.respond, intake.extract, intake.junk",
+      "task: One of reply.draft, note.draft, image.read, agent.respond, intake.extract, intake.junk, message.translate, template.translate",
     ]);
     expect(
       await refusal(setAiProfile(writer, projectId, "reply.draft", body({ model: "bad model!" }))),

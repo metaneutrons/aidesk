@@ -1,7 +1,7 @@
-import { and, asc, eq, lt } from "drizzle-orm";
+import { and, asc, eq, like, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { audit, messages, tickets, translations } from "./db/schema";
+import { audit, jobs, messages, tickets, translations } from "./db/schema";
 import { DomainError } from "./errors";
 import { markdownHtml } from "./markdown";
 import { locales } from "../domain/locale";
@@ -12,6 +12,7 @@ import { permits, type Principal } from "../domain/permissions";
 // follow the source's revision: an edit makes the earlier ones stale. The
 // translating provider itself is part of M4; it reports through
 // completeTranslation and failTranslation.
+export const translationJob = "translation.run";
 const id = z.uuid();
 async function sourceOf(
   principal: Principal,
@@ -40,36 +41,60 @@ export async function requestTranslation(
   if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
   if (message.language.toLowerCase().split("-")[0] === target)
     throw new DomainError("conflict", 409);
-  await db()
-    .insert(translations)
-    .values({ messageId: message.id, sourceRevision: message.revision, language: target })
-    .onConflictDoNothing();
-  const [record] = await db()
-    .select()
-    .from(translations)
-    .where(
-      and(
-        eq(translations.messageId, message.id),
-        eq(translations.sourceRevision, message.revision),
-        eq(translations.language, target),
-      ),
-    );
-  if (!record) throw new DomainError("conflict", 409);
-  // A failed one is tried again; ready and pending ones are returned as they are.
-  if (record.status === "failed") {
-    await db()
-      .update(translations)
-      .set({ status: "queued", markdown: null, provenance: {} })
-      .where(and(eq(translations.id, record.id), eq(translations.status, "failed")));
-    return { id: record.id, status: "queued" as const, language: record.language };
-  }
-  return { id: record.id, status: record.status, language: record.language };
+  return db().transaction(async (tx) => {
+    const inserted = await tx
+      .insert(translations)
+      .values({ messageId: message.id, sourceRevision: message.revision, language: target })
+      .onConflictDoNothing()
+      .returning({ id: translations.id });
+    const [record] = await tx
+      .select()
+      .from(translations)
+      .where(
+        and(
+          eq(translations.messageId, message.id),
+          eq(translations.sourceRevision, message.revision),
+          eq(translations.language, target),
+        ),
+      )
+      .for("update");
+    if (!record) throw new DomainError("conflict", 409);
+    // A failed one is tried again; ready and pending ones are returned as they are.
+    const again = record.status === "failed";
+    if (again)
+      await tx
+        .update(translations)
+        .set({ status: "queued", markdown: null, provenance: {} })
+        .where(eq(translations.id, record.id));
+    if (inserted.length > 0 || again) {
+      // One job per try: asking again after a failure is a new job, asking while it waits is not.
+      const [tries] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(jobs)
+        .where(like(jobs.dedupKey, `translation:${record.id}:%`));
+      await tx.insert(jobs).values({
+        projectId: ticket.projectId,
+        type: translationJob,
+        dedupKey: `translation:${record.id}:${String((tries?.count ?? 0) + 1)}`,
+        payload: { translationId: record.id, actorId: principal.id, actorKind: principal.kind },
+      });
+    }
+    return {
+      id: record.id,
+      status: again ? ("queued" as const) : record.status,
+      language: record.language,
+    };
+  });
 }
 // The provider's result. A result for an outdated revision is discarded, and
 // one that changed code, links, addresses or placeholders is a failure.
 export async function completeTranslation(
   translationId: string,
-  result: { markdown: string; provenance?: Record<string, unknown> },
+  result: {
+    markdown: string;
+    provenance?: Record<string, unknown>;
+    profile?: { id: string; revision: number };
+  },
 ) {
   return db().transaction(async (tx) => {
     const [row] = await tx
@@ -98,6 +123,8 @@ export async function completeTranslation(
             error: "protected_content_changed",
             missing: check.missing.length,
             added: check.added.length,
+            numbersMissing: check.numbersMissing.length,
+            numbersAdded: check.numbersAdded.length,
           },
         })
         .where(eq(translations.id, row.translation.id));
@@ -105,7 +132,14 @@ export async function completeTranslation(
     }
     await tx
       .update(translations)
-      .set({ status: "ready", markdown: result.markdown, provenance: result.provenance ?? {} })
+      .set({
+        status: "ready",
+        markdown: result.markdown,
+        provenance: result.provenance ?? {},
+        ...(result.profile
+          ? { profileId: result.profile.id, profileRevision: result.profile.revision }
+          : {}),
+      })
       .where(eq(translations.id, row.translation.id));
     return { status: "ready" as const };
   });
@@ -134,6 +168,15 @@ export async function listTranslations(principal: Principal, messageId: string) 
     sourceRevision: row.sourceRevision,
     current: row.sourceRevision === message.revision,
     status: row.status,
+    // What a translation is: made by a machine, with the model and the revision of the profile that
+    // made it, or the reason why there is none.
+    machine: true as const,
+    model: typeof row.provenance.model === "string" ? row.provenance.model : null,
+    profileRevision: row.profileRevision,
+    error:
+      row.status === "failed" && typeof row.provenance.error === "string"
+        ? row.provenance.error
+        : null,
     markdown: row.status === "ready" ? row.markdown : null,
     html: row.status === "ready" && row.markdown ? markdownHtml(row.markdown) : null,
   }));

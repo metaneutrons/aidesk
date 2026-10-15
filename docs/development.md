@@ -1049,6 +1049,43 @@ continue, which sends the revision that the page shows. The state is followed wh
 queued or running. The settings show the stop of a project and the switches of the workspace
 (`src/components/agent-controls.tsx`).
 
+### Translation
+
+Machine translation of messages is a derived record (`translation`) next to the source, with its own
+profile (`message.translate`; `template.translate` for the standard texts), off by default like every
+AI task. A translation never replaces the source, is never a message of its own, never sends and
+never resets the response clock.
+
+- **Messages.** `POST /messages/{id}/translations` (tool `messages_request_translation`) queues one
+  record per revision and language and a job `translation.run`; asking again returns the record, a
+  failed one is queued again as a new job. `GET .../translations` (tool `messages_translations`) lists
+  them with state (`queued`, `ready`, `failed`, `stale`), `machine`, the model, the revision of the
+  profile and, for a failure, its reason. The job checks again before it asks the model: the message
+  may have been corrected (the record is `stale`, no call is made), the ticket may be in junk, the
+  person or agent that asked may have lost the right to read it, and a text over 20,000 characters is
+  not sent. A limit of the provider is waited for (three tries); every other failure is shown on the
+  record and is not repeated by itself, because a request that may have been accepted is not made
+  twice. A person removes translations with `POST .../translations/delete`.
+- **What is accepted.** The model gets the text as data between markers that cannot be guessed, with
+  the languages, and answers with the translation only. The answer must keep code, links, e-mail
+  addresses and placeholders literally, and the numbers (amounts, quantities, order numbers; dates
+  are left out because they are written by language, and 1.250,50 and 1,250.50 are the same
+  number), must be about as long as the text (between a fifth and five times), and must not be cut
+  off. Anything else is a failure with its reason (`protected_content_changed`, `implausible_length`,
+  `truncated`). Negation, intent and terms are not checked by rule; real providers are qualified with
+  fixtures (P7).
+- **At once.** `POST /tickets/{id}/translate-draft` translates the text of a reply or a note that is
+  being written into the language of the customer (needs the right to write one), and
+  `POST /projects/{id}/texts/{key}/translate` suggests a standard text in the other language
+  (needs `config.write`). Nothing is stored or sent; both fail alone, with the status of the failure
+  (and 422 `translation_unusable` for an answer that fails the checks above), so a provider that does
+  not answer blocks this action and no other work. A draft that is clearly in the language already is
+  a 409.
+- **Display.** The desk shows a translation under its message, labelled as machine translation with
+  the model and the profile revision, and a button translates the draft in the composer (with undo);
+  the settings suggest a text in the other language. The customer page shows a ready, current
+  translation of a message into the language of the page when a person had one made.
+
 ### Stopping agents and outgoing mail
 
 The stops of the plan are at three levels, and only people set them (a token never does, and no

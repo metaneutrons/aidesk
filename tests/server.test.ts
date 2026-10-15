@@ -503,6 +503,8 @@ describe("authenticated API and MCP principal", () => {
       "overview_get",
       "tickets_agent_runs",
       "projects_agent_controls",
+      "messages_request_translation",
+      "messages_translations",
     ]);
     for (const [name, args] of [
       ["projects_list", {}],

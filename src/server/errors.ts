@@ -10,6 +10,8 @@ export class DomainError extends Error {
       | "idempotency_conflict"
       | "invalid_input"
       | "rate_limited"
+      // A model answered, but not with a translation that can be shown.
+      | "translation_unusable"
       // A task that asks a model ended without an answer.
       | AiFailure,
     readonly status: number,

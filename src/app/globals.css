@@ -1602,3 +1602,35 @@ li.tag-chip button {
     font: inherit;
     color: var(--muted);
 }
+
+.message-translate {
+    margin-top: 6px;
+}
+
+.message-translate summary {
+    display: inline-block;
+    min-height: 24px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.translations {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.translations-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.translation {
+    padding: 8px 12px;
+    border-left: 3px solid var(--line);
+    background: var(--accent-soft);
+}
