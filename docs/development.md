@@ -266,7 +266,8 @@ does not check that, and a model that does not answers with a provider error.
   the reader of documents does not discard it. What the model found (nothing to read)
   and what the product found (not an image, too large) are kept as failures like any
   reading. A run that ended for a reason of the moment (`ai_timeout`,
-  `ai_provider_error`, `ai_budget_exceeded`, `ai_not_configured`, `ai_disabled`) is
+  `ai_model_unavailable`, `ai_rate_limited`, `ai_provider_error`, `ai_budget_exceeded`,
+  `ai_not_configured`, `ai_disabled`) is
   kept as a failure, is not repeated by the worker (its outcome may be unknown and may
   have cost something), and is asked for again by the first request after five
   minutes. A failure of the machinery before the run (the storage) is retried like in
@@ -997,7 +998,15 @@ one of these codes:
 - `ai_disabled`: the profile is off;
 - `ai_budget_exceeded`: the day's budget of the task has not enough left for this run;
 - `ai_timeout`: the provider did not answer within the timeout of the profile;
-- `ai_provider_error`: the provider refused or failed.
+- `ai_model_unavailable`: the provider does not know the model of the profile (status 404,
+  for example a model that was retired; a list of models can still show it). The share of
+  the budget is given back. The profile has to name another model;
+- `ai_rate_limited`: the provider limits the requests or is busy (status 429, 503 or 529).
+  A later call may work. After a 429 the share is given back, after a 503 or 529 it stays
+  charged like for any failure whose outcome is not known;
+- `ai_provider_error`: any other refusal or failure of the provider (a refused key, a
+  malformed request, a server error, a network failure). The provider's own text is not
+  kept or shown.
 
 **Budget.** Each profile has a daily budget in tokens, counted per project, task and UTC
 day in `ai_budget`. A run holds its share before it calls the provider: the input as
@@ -1041,8 +1050,9 @@ field (up to 8000 characters); the answer is `text` and `truncated`.
   model, limits and switch. Without a profile that is on the answer is
   `ai_not_configured` or `ai_disabled` (409) and the desk says that AI drafts are not
   set up and who switches them on. The other codes of `runAiTask` are 429
-  (`ai_budget_exceeded`), 504 (`ai_timeout`) and 502 (`ai_provider_error`, also for an
-  answer that is empty after cleaning).
+  (`ai_budget_exceeded`), 504 (`ai_timeout`), 409 (`ai_model_unavailable`), 503
+  (`ai_rate_limited`) and 502 (`ai_provider_error`, also for an answer that is empty after
+  cleaning).
 - **The standard instruction is a text of the project.** The keys `assist.reply` and
   `assist.note` (English and German, up to 2000 characters, no placeholders) are read,
   versioned and written like every text, so changing them needs `config.write` and an

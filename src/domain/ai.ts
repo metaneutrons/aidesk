@@ -42,6 +42,13 @@ export const aiFailures = [
   "ai_disabled",
   "ai_budget_exceeded",
   "ai_timeout",
+  // The provider does not know the model of the profile (status 404), for example
+  // because it was retired: the profile has to name another one.
+  "ai_model_unavailable",
+  // The provider limits the requests or is overloaded (status 429, 503, 529): a
+  // later call may work.
+  "ai_rate_limited",
+  // Any other refusal or failure of the provider.
   "ai_provider_error",
 ] as const;
 export type AiFailure = (typeof aiFailures)[number];

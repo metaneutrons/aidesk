@@ -1941,6 +1941,8 @@
                         "ai_disabled",
                         "ai_budget_exceeded",
                         "ai_timeout",
+                        "ai_model_unavailable",
+                        "ai_rate_limited",
                         "ai_provider_error"
                       ]
                     },

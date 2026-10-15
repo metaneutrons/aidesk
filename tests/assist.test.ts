@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { APICallError } from "ai";
 import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
@@ -526,6 +527,18 @@ describe("who may ask, and what a failure says", () => {
     await expect(
       assistDraft(both, ticketId, { mode: "reply" }, timeout.deps),
     ).rejects.toMatchObject({ code: "ai_timeout", status: 504 });
+    const refusal = (statusCode: number) =>
+      new APICallError({ message: "no", url: "https://p.test", requestBodyValues: {}, statusCode });
+    for (const [statusCode, code, status] of [
+      [404, "ai_model_unavailable", 409],
+      [429, "ai_rate_limited", 503],
+      [503, "ai_rate_limited", 503],
+    ] as const) {
+      const failing = fake(refusal(statusCode));
+      await expect(
+        assistDraft(both, ticketId, { mode: "reply" }, failing.deps),
+      ).rejects.toMatchObject({ code, status });
+    }
     const broken = fake(new Error("boom"));
     await expect(assistDraft(both, ticketId, { mode: "reply" }, broken.deps)).rejects.toMatchObject(
       { code: "ai_provider_error", status: 502 },
