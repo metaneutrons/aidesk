@@ -5,6 +5,8 @@ import nodemailer from "nodemailer";
 import { and, asc, eq } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import {
+  aiConfig,
+  aiSecret,
   cloudflareInboundConfig,
   cloudflareInboundSecret,
   cloudflareOutboundConfig,
@@ -30,6 +32,27 @@ import { submitChange } from "./changes";
 import { DomainError } from "./errors";
 import { env } from "./env";
 const id = z.uuid();
+type AiKey = "anthropic:ai" | "openai:ai" | "google:ai";
+const isAi = (key: ConnectionTypeKey): key is AiKey => key.endsWith(":ai");
+// Where a provider is reached unless a connection names another address, and the
+// cheapest request that needs the key: the list of models, which costs nothing.
+const providers = {
+  "anthropic:ai": {
+    base: "https://api.anthropic.com",
+    path: "/v1/models",
+    headers: (apiKey: string) => ({ "x-api-key": apiKey, "anthropic-version": "2023-06-01" }),
+  },
+  "openai:ai": {
+    base: "https://api.openai.com",
+    path: "/v1/models",
+    headers: (apiKey: string) => ({ authorization: `Bearer ${apiKey}` }),
+  },
+  "google:ai": {
+    base: "https://generativelanguage.googleapis.com",
+    path: "/v1beta/models",
+    headers: (apiKey: string) => ({ "x-goog-api-key": apiKey }),
+  },
+} as const;
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
 type Row = typeof connections.$inferSelect;
 function manageable(principal: Principal, project: string): void {
@@ -85,7 +108,7 @@ async function checkDefinition(key: ConnectionTypeKey, config: Record<string, un
     invalid(["config", "secure"], "TLS is required");
   if (key === "smtp:outbound" && config.secure !== true && config.port !== 587)
     invalid(["config", "port"], "Use TLS, or port 587 with STARTTLS");
-  if (key === "cloudflare:inbound") {
+  if (key === "cloudflare:inbound" || (isAi(key) && config.endpoint !== undefined)) {
     const url = new URL(String(config.endpoint));
     if (url.protocol !== "https:") invalid(["config", "endpoint"], "HTTPS is required");
   }
@@ -103,7 +126,7 @@ function hostOf(
 ): { host: string; path: string[] } | null {
   if (key === "imap:inbound" || key === "smtp:outbound")
     return { host: String(config.host), path: ["config", "host"] };
-  if (key === "cloudflare:inbound")
+  if (key === "cloudflare:inbound" || (isAi(key) && config.endpoint !== undefined))
     return { host: new URL(String(config.endpoint)).hostname, path: ["config", "endpoint"] };
   return null;
 }
@@ -381,11 +404,18 @@ export function failureCode(error: unknown): string {
   const info = error as {
     code?: unknown;
     authenticationFailed?: unknown;
+    providerStatus?: unknown;
     cause?: { code?: unknown };
   };
   const text = (value: unknown) => (typeof value === "string" ? value : "");
   const code = text(info.code) || text(info.cause?.code);
   if (code === "HOST_REFUSED") return "host_refused";
+  // A model provider answered with a status: the key was refused, the provider asks
+  // for fewer requests, or it failed in another way.
+  if (typeof info.providerStatus === "number") {
+    if (info.providerStatus === 401 || info.providerStatus === 403) return "auth_failed";
+    return info.providerStatus === 429 ? "rate_limited" : "provider_error";
+  }
   if (info.authenticationFailed === true || code === "EAUTH" || code === "AUTHENTICATIONFAILED")
     return "auth_failed";
   if (
@@ -474,6 +504,24 @@ async function probe(row: Row): Promise<void> {
     } finally {
       transport.close();
     }
+    return;
+  }
+  if (isAi(key)) {
+    const config = aiConfig.parse(row.config);
+    const secret = aiSecret.parse(secretText);
+    const provider = providers[key];
+    // The key goes in a header, never in the address, and a redirect is not followed
+    // because it would take the key to another host.
+    const response = await fetch(
+      `${(config.endpoint ?? provider.base).replace(/\/+$/, "")}${provider.path}`,
+      {
+        headers: provider.headers(secret.apiKey),
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeout),
+      },
+    );
+    if (!response.ok)
+      throw Object.assign(new Error("provider"), { providerStatus: response.status });
     return;
   }
   // Cloudflare outbound: the token has to be active. Whether it may send is
