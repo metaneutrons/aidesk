@@ -3,12 +3,13 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { aiTasks } from "../domain/ai";
 // The AI tasks of one project: which model provider and model each task uses, its
 // limits, and whether it may run. A task that is on sends ticket content to the
 // provider of its connection, so the switch says so, and switching on is applied
 // only by a person who may approve; for anyone else the button proposes it.
 const profileSchema = z.object({
-  task: z.enum(["reply.draft", "note.draft"]),
+  task: z.enum(aiTasks),
   version: z.number(),
   connectionId: z.string().nullable(),
   model: z.string().nullable(),
