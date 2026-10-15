@@ -227,10 +227,25 @@ jobs:
             test-results/
           retention-days: 7
 
+  image:
+    name: Production image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build the image that runs
+        run: docker build --target production --tag aidesk-production:ci .
+      # The reader of documents runs in a closed process of Node's permission model that
+      # is started through /bin/sh; the image has to be able to do that.
+      - name: The closed process of the reader works in the image
+        run: docker run --rm aidesk-production:ci node_modules/.bin/tsx scripts/smoke.ts
+      - name: The process is not root and cannot write the application files
+        run: docker run --rm aidesk-production:ci sh -c 'test "$(id -u)" != 0 && ! test -w /app'
+
   ci-success:
     name: CI Success
     if: always()
-    needs: [quality, security, commit-hygiene, browser]
+    needs: [quality, security, commit-hygiene, browser, image]
     runs-on: ubuntu-24.04
     steps:
       - name: Every preceding job must have succeeded or been skipped
