@@ -1478,6 +1478,36 @@ li.tag-chip button {
     border-radius: 8px;
 }
 
+.ai-profiles {
+    display: grid;
+    gap: 12px;
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+}
+
+.ai-profile {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.ai-profile label {
+    display: grid;
+    gap: 4px;
+}
+
+.ai-profile label.checkbox {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 .text-language {
     display: grid;
     gap: 8px;

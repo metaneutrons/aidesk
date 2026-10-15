@@ -36,12 +36,14 @@ The same operations are open to people, scripts and AI agents. The web interface
 | MCP server | Streamable HTTP with project-scoped bearer tokens; tools come from the same route table |
 | Operations | Versioned configuration, texts and connections that people and agents can edit under the approval policy |
 | Webhooks | Signed events (new ticket, received message, status change, agent draft, proposed change) delivered to endpoints of a project, with retries |
+| Files for agents | Text attachments, the source of a mail and the text of PDF and Office files, read behind a separate right and handed over as untrusted |
+| AI layer | Connections to Anthropic, OpenAI and Google per project, task profiles that are off by default, and one boundary with a daily budget that runs a task |
 
 ---
 
 ## Status
 
-`aidesk` is under development and is not a production deployment. The first milestones are largely implemented and tested; real single sign-on providers, the AI execution layer, knowledge sources, production hosting and recovery are still open. The milestone issues track what is accepted and what is not:
+`aidesk` is under development and is not a production deployment. The first milestones are largely implemented and tested; real single sign-on providers, the first AI tasks (draft assistance, reading images and scans), knowledge sources, production hosting and recovery are still open. No task asks a model yet, and nothing has been run against a real provider. The milestone issues track what is accepted and what is not:
 
 - [Epic: aidesk v1](https://github.com/metaneutrons/aidesk/issues/1) with its five milestones
 - [Epic: API definition and AI-editable configuration](https://github.com/metaneutrons/aidesk/issues/68)
@@ -67,6 +69,8 @@ curl -H "Authorization: Bearer $TOKEN" https://desk.example.test/api/v1/overview
 - **Changes are versioned.** Configuration, texts and connections are written against the version that was read, can be validated without writing, and every change is audited and kept.
 - **A person sends what an agent writes.** Under the `review` policy an agent's reply to a customer is a draft that a person sends or discards; the project can switch to `direct` to let agents answer on their own.
 - **People decide what changes a project.** Under the `review` policy an agent's change waits for a person with the right to approve it, and a proposal made on a version that has since changed is refused.
+- **Files are read with a right of their own.** Reading attachments and the source of a mail needs `ticket.read_files`, which `ticket.read` does not include. The text is cleaned of hidden characters, flagged for instruction patterns, marked as untrusted, and every read is audited; PDF and Office files are read by a worker in a closed process without network or secrets.
+- **Customer data leaves only when a person says so.** A task profile that sends ticket content to a model provider is off by default, and switching it on is applied only by a person with the right to approve, whatever the approval policy says.
 - **Events leave signed.** Each webhook delivery carries an HMAC-SHA256 signature over its timestamp and body. Delivery is at least once, so a receiver drops repeats by the event id.
 
 ---
