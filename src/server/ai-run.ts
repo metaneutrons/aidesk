@@ -40,7 +40,8 @@ export type AiOutcome =
       usage: { inputTokens: number | null; outputTokens: number | null };
       runId: string;
     }
-  | { ok: false; code: AiFailure; runId: string | null };
+  // The wait that the provider asked for, when it said, for a limit or a quota.
+  | { ok: false; code: AiFailure; runId: string | null; retryAfterSeconds?: number };
 export interface AiDeps {
   generate?: Generate;
   now?: () => Date;
@@ -62,44 +63,96 @@ const providerBody = z.object({
   error: z
     .object({
       type: z.string().nullish(),
-      code: z.string().nullish(),
+      code: z.union([z.string(), z.number()]).nullish(),
       message: z.string().nullish(),
+      details: z.array(z.unknown()).optional(),
     })
     .loose(),
 });
-// An account without credit is told by what the provider says, because the status
-// is shared with other failures: OpenAI answers 429 with the type insufficient_quota
-// (the status of a limit of requests too), Anthropic answers 400 with a text.
-function noCredit(error: APICallError): boolean {
+const googleDetail = z.object({
+  violations: z.array(z.object({ quotaId: z.string().nullish() }).loose()).optional(),
+  retryDelay: z.string().optional(),
+});
+// The body of a failed call, parsed, when the provider sent one that looks like an error.
+function bodyOf(error: APICallError) {
   let raw: unknown = error.data;
   if (raw === undefined && error.responseBody) {
     try {
       raw = JSON.parse(error.responseBody);
     } catch {
-      return false;
+      return null;
     }
   }
   const parsed = providerBody.safeParse(raw);
-  if (!parsed.success) return false;
-  const { type, code, message } = parsed.data.error;
+  return parsed.success ? parsed.data.error : null;
+}
+const details = (body: ReturnType<typeof bodyOf>) =>
+  (body?.details ?? []).flatMap((entry) => {
+    const detail = googleDetail.safeParse(entry);
+    return detail.success ? [detail.data] : [];
+  });
+// An account without credit is told by what the provider says, because the status
+// is shared with other failures: OpenAI answers 429 with the type insufficient_quota
+// (the status of a limit of requests too), Anthropic answers 400 with a text or the
+// type billing_error, and Google answers 429 for a quota of the day with the same
+// status as a limit per minute, which only the name of the quota tells apart.
+function noCredit(error: APICallError): boolean {
+  const body = bodyOf(error);
+  if (!body) return false;
   return (
-    type === "insufficient_quota" ||
-    code === "insufficient_quota" ||
-    code === "credit_balance_exhausted" ||
-    /credit balance is too low/i.test(message ?? "")
+    body.type === "insufficient_quota" ||
+    body.type === "billing_error" ||
+    body.code === "insufficient_quota" ||
+    body.code === "credit_balance_exhausted" ||
+    /credit balance is too low/i.test(body.message ?? "") ||
+    details(body).some((detail) =>
+      detail.violations?.some((violation) => (violation.quotaId ?? "").includes("PerDay")),
+    )
   );
+}
+// How long the provider asks to wait, in whole seconds, from the headers (a number of
+// seconds, a date, or OpenAI's milliseconds) or from the retry information in the body
+// of Google. A wait of more than a week is not taken at face value.
+const longestWait = 7 * 24 * 3600;
+function waitOf(error: APICallError): number | undefined {
+  const headers = error.responseHeaders ?? {};
+  const candidates: number[] = [];
+  const ms = Number(headers["retry-after-ms"]);
+  if (Number.isFinite(ms) && ms > 0) candidates.push(ms / 1000);
+  const after = headers["retry-after"];
+  if (after !== undefined) {
+    const seconds = Number(after);
+    if (Number.isFinite(seconds) && seconds > 0) candidates.push(seconds);
+    else {
+      const date = Date.parse(after);
+      if (!Number.isNaN(date)) candidates.push((date - Date.now()) / 1000);
+    }
+  }
+  for (const detail of details(bodyOf(error))) {
+    const match = /^(\d+(?:\.\d+)?)s$/.exec(detail.retryDelay ?? "");
+    if (match?.[1]) candidates.push(Number(match[1]));
+  }
+  const seconds = candidates.find((value) => value > 0 && value <= longestWait);
+  return seconds === undefined ? undefined : Math.ceil(seconds);
+}
+interface Failed {
+  code: AiFailure;
+  retryAfterSeconds?: number;
 }
 // What the status and the kind of a failed call tell the operator to do: nothing is
 // told of the provider's own words, which may carry names and request details.
-function failureOf(
-  error: unknown,
-): "ai_quota_exhausted" | "ai_model_unavailable" | "ai_rate_limited" | "ai_provider_error" {
-  if (!APICallError.isInstance(error)) return "ai_provider_error";
-  if (noCredit(error)) return "ai_quota_exhausted";
-  if (error.statusCode === 404) return "ai_model_unavailable";
+function failureOf(error: unknown): Failed {
+  if (!APICallError.isInstance(error)) return { code: "ai_provider_error" };
+  const wait = waitOf(error);
+  const timed = (code: AiFailure): Failed => ({
+    code,
+    ...(wait === undefined ? {} : { retryAfterSeconds: wait }),
+  });
+  if (noCredit(error)) return timed("ai_quota_exhausted");
+  if (error.statusCode === 404) return { code: "ai_model_unavailable" };
   if (error.statusCode === 429 || error.statusCode === 503 || error.statusCode === 529)
-    return "ai_rate_limited";
-  return "ai_provider_error";
+    return timed("ai_rate_limited");
+  return { code: "ai_provider_error" };
 }
 function timedOut(error: unknown): boolean {
   const name = error instanceof Error ? error.name : "";
@@ -136,10 +189,15 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       .returning({ id: aiRuns.id });
     return row?.id ?? "";
   };
-  const fail = async (code: AiFailure, extra = {}): Promise<AiOutcome> => ({
+  const fail = async (
+    code: AiFailure,
+    extra = {},
+    retryAfterSeconds?: number,
+  ): Promise<AiOutcome> => ({
     ok: false,
     code,
     runId: await record(code, extra),
+    ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
   });
   const [profile] = await db()
     .select()
@@ -236,8 +294,11 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
   } catch (error) {
     if (refused(error)) {
       await adjust(-held);
-      return fail(failureOf(error), withConnection);
+      const failed = failureOf(error);
+      return fail(failed.code, withConnection, failed.retryAfterSeconds);
     }
-    return fail(timedOut(error) ? "ai_timeout" : failureOf(error), withConnection);
+    if (timedOut(error)) return fail("ai_timeout", withConnection);
+    const failed = failureOf(error);
+    return fail(failed.code, withConnection, failed.retryAfterSeconds);
   }
 }

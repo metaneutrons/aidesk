@@ -376,7 +376,7 @@ against the earlier one.
 
 2026-10-15: the first run against a real provider showed that a retired model (a 404 that the list of models does not announce) and a limit of the provider (429, 503) ended as the same code as any other failure, so an operator could not tell whether to wait or to change the model. C6-A3 names two codes more, `ai_model_unavailable` and `ai_rate_limited`; `ai_provider_error` keeps every other failure. The codes still name no provider, host or key.
 
-2026-10-15: a run against OpenAI without credit ended as `ai_rate_limited`, because OpenAI answers 429 for both, and an operator would have been told to wait. C6-A3 names `ai_quota_exhausted` as well: an account without credit or quota, told by the body of the provider's answer (OpenAI `insufficient_quota`, Anthropic "credit balance is too low"); Google's 429 for a quota cannot be told from a limit and stays `ai_rate_limited`.
+2026-10-15: a run against OpenAI without credit ended as `ai_rate_limited`, because OpenAI answers 429 for both, and an operator would have been told to wait. C6-A3 names `ai_quota_exhausted` as well: an account without credit or quota, told by the body of the provider's answer (OpenAI `insufficient_quota`, Anthropic "credit balance is too low"); Google's 429 for a quota of the day (the name of the quota has `PerDay` in it) is told the same way, and one per minute stays `ai_rate_limited`. The wait that a provider names is passed on, in the header `Retry-After` of the REST answer.
 
 2026-10-15: further decisions of the product owner. (1) Attachments, the originals of
 mails and the text that was read from a file are kept as long as their ticket; there is

@@ -364,13 +364,14 @@ describe("the daily budget", () => {
   });
 });
 describe("a call whose outcome is not known, and one that was refused", () => {
-  const failure = (statusCode?: number, data?: unknown) =>
+  const failure = (statusCode?: number, data?: unknown, responseHeaders?: Record<string, string>) =>
     new APICallError({
       message: "failed",
       url: "https://provider.example.test",
       requestBodyValues: {},
       ...(statusCode === undefined ? {} : { statusCode }),
       ...(data === undefined ? {} : { data }),
+      ...(responseHeaders === undefined ? {} : { responseHeaders }),
     });
   it("ends at the timeout, is not repeated and keeps the share charged", async () => {
     await profile({ timeoutSeconds: 1 });
@@ -437,6 +438,40 @@ describe("a call whose outcome is not known, and one that was refused", () => {
       // Neither a body that does not say so nor a body that is not an error object.
       [failure(429, { error: { code: "credit_balance_exhausted" } }), "ai_quota_exhausted"],
       [failure(429, { error: { code: "insufficient_quota" } }), "ai_quota_exhausted"],
+      // Anthropic names a billing failure by its type.
+      [failure(402, { type: "error", error: { type: "billing_error" } }), "ai_quota_exhausted"],
+      // Google: a quota of the day is an account that cannot go on today, a quota per
+      // minute is a limit; both come as 429.
+      [
+        failure(429, {
+          error: {
+            code: 429,
+            status: "RESOURCE_EXHAUSTED",
+            details: [
+              { "@type": "type.googleapis.com/google.rpc.Help", links: [] },
+              {
+                "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier" }],
+              },
+            ],
+          },
+        }),
+        "ai_quota_exhausted",
+      ],
+      [
+        failure(429, {
+          error: {
+            code: 429,
+            details: [
+              {
+                "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                violations: [{ quotaId: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier" }],
+              },
+            ],
+          },
+        }),
+        "ai_rate_limited",
+      ],
       [failure(429, { error: { message: "slow down" } }), "ai_rate_limited"],
       [failure(429, "insufficient_quota"), "ai_rate_limited"],
     ] as const) {
@@ -445,6 +480,60 @@ describe("a call whose outcome is not known, and one that was refused", () => {
     }
     // The share is given back for every one of them, as for any refusal.
     expect(await charged()).toBe(0);
+  });
+  it("passes on how long the provider asks to wait, from its headers or its body, and drops what is not credible", async () => {
+    await profile();
+    const google = (quotaId: string, retryDelay?: string) => ({
+      error: {
+        code: 429,
+        details: [
+          { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaId }] },
+          ...(retryDelay
+            ? [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay }]
+            : []),
+        ],
+      },
+    });
+    const inSeconds = new Date(Date.now() + 90_000).toUTCString();
+    for (const [error, code, wait] of [
+      [failure(429, undefined, { "retry-after": "120" }), "ai_rate_limited", 120],
+      // OpenAI also says it in milliseconds, which is more exact.
+      [
+        failure(429, undefined, { "retry-after-ms": "1728000", "retry-after": "1" }),
+        "ai_rate_limited",
+        1728,
+      ],
+      [failure(503, undefined, { "retry-after": inSeconds }), "ai_rate_limited", 90],
+      [
+        failure(429, google("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "19684s")),
+        "ai_quota_exhausted",
+        19_684,
+      ],
+      [
+        failure(429, google("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "2.5s")),
+        "ai_rate_limited",
+        3,
+      ],
+      // No time, a time that has passed, nonsense, and more than a week.
+      [failure(429), "ai_rate_limited", undefined],
+      [failure(429, undefined, { "retry-after": "0" }), "ai_rate_limited", undefined],
+      [failure(429, undefined, { "retry-after": "soon" }), "ai_rate_limited", undefined],
+      [failure(429, undefined, { "retry-after": "99999999" }), "ai_rate_limited", undefined],
+      [
+        failure(429, google("GenerateRequestsPerMinutePerProjectPerModel", "abc")),
+        "ai_rate_limited",
+        undefined,
+      ],
+      // A model that the provider does not have does not wait.
+      [failure(404, undefined, { "retry-after": "60" }), "ai_model_unavailable", undefined],
+    ] as const) {
+      const { generate } = fakeGenerate(error);
+      const outcome = await runAiTask(request(), { generate });
+      expect(outcome).toMatchObject({ ok: false, code });
+      const seconds = outcome.ok ? undefined : outcome.retryAfterSeconds;
+      if (wait === undefined) expect(seconds).toBeUndefined();
+      else expect(Math.abs((seconds ?? 0) - wait)).toBeLessThanOrEqual(wait === 90 ? 3 : 0);
+    }
   });
   it("gives the share back when the provider refused the request before doing anything", async () => {
     await profile();
@@ -653,6 +742,14 @@ describe("the real call to each provider, against a fake one", () => {
         expect(await charged()).toBe(0);
         models.behaviour = { status: 429 };
         expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_rate_limited" });
+      });
+      it("passes on the wait that the headers of a real answer name", async () => {
+        models.behaviour = { status: 429, headers: { "retry-after": "75" } };
+        expect(await runAiTask(request())).toMatchObject({
+          ok: false,
+          code: "ai_rate_limited",
+          retryAfterSeconds: 75,
+        });
       });
       it("keeps the share after a failure of the provider and gives it back after a refusal, with one request each", async () => {
         models.behaviour = { status: 500 };

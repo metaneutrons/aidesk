@@ -6,7 +6,13 @@ export type Kind = "anthropic" | "openai" | "google";
 export interface FakeModels {
   url: string;
   requests: { url: string; headers: IncomingHttpHeaders; body: Record<string, unknown> }[];
-  behaviour: { status?: number; delay?: number; text?: string; error?: Record<string, unknown> };
+  behaviour: {
+    status?: number;
+    delay?: number;
+    text?: string;
+    error?: Record<string, unknown>;
+    headers?: Record<string, string>;
+  };
   close(): Promise<void>;
 }
 const answers: Record<Kind, (text: string) => unknown> = {
@@ -59,7 +65,10 @@ export async function startFakeModels(kind: Kind): Promise<FakeModels> {
       state.requests.push({ url: request.url ?? "", headers: request.headers, body });
       const answer = () => {
         const status = state.behaviour.status ?? 200;
-        response.writeHead(status, { "content-type": "application/json" });
+        response.writeHead(status, {
+          "content-type": "application/json",
+          ...(status === 200 ? {} : state.behaviour.headers),
+        });
         response.end(
           JSON.stringify(
             status === 200
