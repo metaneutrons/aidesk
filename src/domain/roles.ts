@@ -19,6 +19,9 @@ export const operatorRoles = {
 export type OperatorRole = keyof typeof operatorRoles;
 export const tokenRoles = {
   read,
+  // Reading files is a right of its own: a file is written by the sender and may try to
+  // instruct a model, so a token gets it only when someone chooses it.
+  readFiles: [...read, "ticket.read_files"],
   notes: [...read, "ticket.note"],
   respond: [...read, "ticket.reply", "ticket.note"],
 } as const satisfies Record<string, readonly Action[]>;

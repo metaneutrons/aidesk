@@ -48,6 +48,7 @@ const roleLabels: Record<OperatorRole | "custom", string> = {
 };
 const tokenLabels: Record<TokenRole | "custom", string> = {
   read: "tokenRoleRead",
+  readFiles: "tokenRoleReadFiles",
   notes: "tokenRoleNotes",
   respond: "tokenRoleRespond",
   custom: "roleCustom",

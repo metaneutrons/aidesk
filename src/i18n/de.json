@@ -137,6 +137,7 @@
   "tokenName": "Token-Name",
   "tokenRole": "Zugriff",
   "tokenRoleRead": "Lesen",
+  "tokenRoleReadFiles": "Lesen, mit Anhängen und Mailquellen",
   "tokenRoleNotes": "Lesen und Notizen",
   "tokenRoleRespond": "Antworten",
   "tokenExpiry": "Gültig für",
