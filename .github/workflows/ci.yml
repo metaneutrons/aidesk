@@ -234,13 +234,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build the image that runs
-        run: docker build --target production --tag aidesk-production:ci .
+        run: docker build --target production --tag aidesk-production:ci --tag aidesk-production .
       # The reader of documents runs in a closed process of Node's permission model that
       # is started through /bin/sh; the image has to be able to do that.
       - name: The closed process of the reader works in the image
         run: docker run --rm aidesk-production:ci node_modules/.bin/tsx scripts/smoke.ts
       - name: The process is not root and cannot write the application files
         run: docker run --rm aidesk-production:ci sh -c 'test "$(id -u)" != 0 && ! test -w /app'
+      # The Compose setup from a clean state: ready, a restart, a backup, the loss of the
+      # volumes and the restore, with throwaway values that exist only for this run.
+      - name: The Compose setup starts, is backed up and is restored
+        run: |
+          set -euo pipefail
+          umask 077
+          {
+            echo APP_URL=http://localhost:3000
+            echo COMPOSE_PROFILES=bundled
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "S3_ACCESS_KEY=$(openssl rand -hex 8)"
+            echo "S3_SECRET_KEY=$(openssl rand -hex 16)"
+            echo "BETTER_AUTH_SECRET=$(openssl rand -hex 24)"
+            echo "ENCRYPTION_KEY=$(openssl rand -hex 32)"
+          } > .env.check
+          ENV_FILE=.env.check sh scripts/check-production.sh
 
   ci-success:
     name: CI Success
