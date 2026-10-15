@@ -19,6 +19,7 @@ vi.mock("node:dns/promises", () => ({
 }));
 import { db, sqlClient } from "../src/server/db";
 import {
+  agents,
   audit,
   configChanges,
   connections,
@@ -32,7 +33,7 @@ import {
 } from "../src/server/db/schema";
 import { acceptInbound, processIngress } from "../src/server/inbound";
 import { decideConfigChange, getConfig, putConfig } from "../src/server/configuration";
-import { getTicket, reply, setTicketStatus } from "../src/server/operations";
+import { assignTicket, getTicket, reply, setTicketStatus } from "../src/server/operations";
 import {
   applyWebhookPayload,
   createWebhook,
@@ -59,6 +60,7 @@ const manager = person("manager", "human", [
   "ticket.read",
   "ticket.resolve",
   "ticket.reply",
+  "ticket.assign",
   "integration.manage",
   "config.read",
   "config.write",
@@ -91,6 +93,7 @@ const body = (extra: Record<string, unknown> = {}) => ({
     "message.received",
     "ticket.status_changed",
     "draft.created",
+    "ticket.assigned",
     "change.proposed",
   ],
   secret,
@@ -460,6 +463,46 @@ describe("events", () => {
         .map((job) => (job.payload.event as { data: { kind: string } }).data.kind)
         .sort(),
     ).toEqual(["config", "webhook.create"]);
+  });
+});
+describe("the event ticket.assigned", () => {
+  it("is queued when the assignee changes, with identifiers only, and not when it stays", async () => {
+    await reset();
+    await createWebhook(manager, projectId, body({ events: ["ticket.assigned"] }));
+    const id = await ticket();
+    const [held] = await db()
+      .insert(agents)
+      .values({
+        name: "Assignee",
+        projectId,
+        actions: ["ticket.read"],
+        tokenHash: randomUUID(),
+        expiresAt: new Date(Date.now() + 3_600_000),
+      })
+      .returning({ id: agents.id });
+    const agentId = held?.id ?? "";
+    await assignTicket(manager, id, { userId: null, agentId });
+    const first = await webhookJobs();
+    expect(first).toHaveLength(1);
+    expect((first[0]?.payload.event as { data: unknown }).data).toEqual({
+      ticketId: id,
+      number: (await getTicket(manager, id)).ticket.number,
+      assigneeUserId: null,
+      assigneeAgentId: agentId,
+      previousUserId: null,
+      previousAgentId: null,
+      actorId: manager.id,
+    });
+    // The same assignee again changes nothing and announces nothing.
+    await assignTicket(manager, id, { userId: null, agentId });
+    expect(await webhookJobs()).toHaveLength(1);
+    await assignTicket(manager, id, { userId: null, agentId: null });
+    const all = await webhookJobs();
+    expect(all).toHaveLength(2);
+    expect(
+      all.map((job) => (job.payload.event as { data: { previousAgentId: string | null } }).data),
+    ).toContainEqual(expect.objectContaining({ previousAgentId: agentId, assigneeAgentId: null }));
+    await db().delete(agents).where(eq(agents.id, agentId));
   });
 });
 describe("delivery", () => {

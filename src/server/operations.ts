@@ -3,6 +3,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
 import { emitEvent } from "./webhooks";
+import { aiWorkOf } from "./ai-work";
+import type { Tx } from "./changes";
 import { clampLimit, listStep } from "../domain/paging";
 import { defaultOverdueHours } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
@@ -337,6 +339,31 @@ export const assignInput = z
     message: "Name a person or an agent, not both",
     path: ["agentId"],
   });
+// Whom a ticket can be assigned to: the people with access to its project and its active agents.
+export async function listAssignees(principal: Principal, ticketId: string) {
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.assign"))
+    throw new DomainError("forbidden", 403);
+  const people = await db()
+    .select({ id: user.id, name: user.name, actions: memberships.actions })
+    .from(memberships)
+    .innerJoin(user, eq(user.id, memberships.userId))
+    .where(and(eq(memberships.projectId, ticket.projectId), eq(user.active, true)))
+    .orderBy(user.name);
+  const held = await db()
+    .select()
+    .from(agents)
+    .where(and(eq(agents.projectId, ticket.projectId), eq(agents.active, true)))
+    .orderBy(agents.name);
+  return {
+    users: people
+      .filter((person) => person.actions.includes("ticket.read"))
+      .map(({ id, name }) => ({ id, name })),
+    agents: held
+      .filter((agent) => agent.expiresAt > new Date() && agent.actions.includes("ticket.read"))
+      .map(({ id, name, managed }) => ({ id, name, managed })),
+  };
+}
 export async function assignTicket(principal: Principal, ticketId: string, input: unknown) {
   const values = assignInput.parse(input);
   const { ticket } = await getTicket(principal, ticketId);
@@ -395,6 +422,16 @@ export async function assignTicket(principal: Principal, ticketId: string, input
     });
     await tx.update(tickets).set({ agentPausedAt: null }).where(eq(tickets.id, ticket.id));
     if (values.agentId) await queueAgentRun(tx, ticket.id, "assignment");
+    if ((ticket.assigneeUserId ?? ticket.assigneeAgentId) !== (values.userId ?? values.agentId))
+      await emitEvent(tx, ticket.projectId, "ticket.assigned", {
+        ticketId: ticket.id,
+        number: ticket.number,
+        assigneeUserId: values.userId,
+        assigneeAgentId: values.agentId,
+        previousUserId: ticket.assigneeUserId,
+        previousAgentId: ticket.assigneeAgentId,
+        actorId: principal.id,
+      });
     return { assigneeUserId: values.userId, assigneeAgentId: values.agentId };
   });
 }
@@ -444,13 +481,41 @@ export async function listTags(principal: Principal, requested: string[] = []) {
     group by tag order by count desc, tag asc limit 100`);
   return rows.map((row) => ({ tag: row.tag, count: row.count }));
 }
+// Who has the ticket, by name, for the desk and for an agent that reads it.
+async function assigneeOf(tx: Pick<Tx, "select">, ticket: typeof tickets.$inferSelect) {
+  if (ticket.assigneeUserId) {
+    const [person] = await tx
+      .select({ name: user.name })
+      .from(user)
+      .where(eq(user.id, ticket.assigneeUserId));
+    return {
+      kind: "user" as const,
+      id: ticket.assigneeUserId,
+      name: person?.name ?? "",
+      managed: false,
+    };
+  }
+  if (ticket.assigneeAgentId) {
+    const [agent] = await tx
+      .select({ name: agents.name, managed: agents.managed })
+      .from(agents)
+      .where(eq(agents.id, ticket.assigneeAgentId));
+    return {
+      kind: "agent" as const,
+      id: ticket.assigneeAgentId,
+      name: agent?.name ?? "",
+      managed: agent?.managed === true,
+    };
+  }
+  return null;
+}
 export async function getTicket(principal: Principal, ticketId: string) {
   const allowed = allowedProjectIds(principal, "ticket.read");
   if (!allowed.length) throw new DomainError("not_found", 404);
   // One snapshot for ticket and messages. Read separately, a delivery that
   // commits in between returned the message as sent with the ticket still
   // open, and the desk stopped refreshing on that inconsistent state.
-  const { ticket, conversation, files } = await db().transaction(
+  const { ticket, conversation, files, assignee, work } = await db().transaction(
     async (tx) => {
       const [found] = await tx
         .select()
@@ -483,12 +548,20 @@ export async function getTicket(principal: Principal, ticketId: string) {
             )
             .orderBy(attachments.messageId, attachments.position)
         : [];
-      return { ticket: found, conversation: rows, files };
+      return {
+        ticket: found,
+        conversation: rows,
+        files,
+        assignee: await assigneeOf(tx, found),
+        work: await aiWorkOf(tx, found),
+      };
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },
   );
   return {
     ticket,
+    assignee,
+    aiWork: work,
     messages: conversation.map(({ rawObjectKey, ...message }) => ({
       ...message,
       // The rendered mail is read through getSentSnapshot; here only its facts.

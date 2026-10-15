@@ -22,6 +22,7 @@ import {
   getOverview,
   createManagedAgent,
   getTicket,
+  listAssignees,
   grantInput,
   issueAgentToken,
   issueInput,
@@ -971,6 +972,20 @@ export const routes: Route[] = [
     body: assignInput,
     response: out.ticketAssignee,
     run: ({ principal, params, input }) => assignTicket(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "tickets.assignees",
+    mcp: { tool: "tickets_assignees" },
+    method: "GET",
+    path: "/tickets/{ticketId}/assignees",
+    tag: "Tickets",
+    summary: "The people and agents that a ticket can be assigned to",
+    access: "ticket.assign",
+    response: z.object({
+      users: z.array(z.object({ id: z.string(), name: z.string() })),
+      agents: z.array(z.object({ id: z.uuid(), name: z.string(), managed: z.boolean() })),
+    }),
+    run: ({ principal, params }) => listAssignees(principal, params.ticketId ?? ""),
   },
   {
     id: "tickets.agent_runs",

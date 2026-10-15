@@ -1567,3 +1567,24 @@ li.tag-chip button {
 .draft-links code {
     overflow-wrap: anywhere;
 }
+
+.assignment {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.ai-state {
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 13px;
+}
+
+.ai-state-failed,
+.ai-state-needs_person,
+.ai-state-stopped {
+    border-color: var(--warning);
+    background: var(--warning-bg);
+}

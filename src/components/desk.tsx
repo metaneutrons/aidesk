@@ -33,6 +33,8 @@ import { listCeiling, listStep } from "../domain/paging";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
+import { Assignment } from "./assignment";
+import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
@@ -164,6 +166,21 @@ const refusals: Record<string, string> = {
 const addressSchema = z.object({ name: z.string(), address: z.string() });
 const conversationSchema = z.object({
   ticket: ticketSchema,
+  assignee: z
+    .object({
+      kind: z.enum(["user", "agent"]),
+      id: z.string(),
+      name: z.string(),
+      managed: z.boolean(),
+    })
+    .nullable(),
+  aiWork: z
+    .object({
+      state: z.enum(aiWorkStates),
+      reason: z.string().nullable(),
+      stoppedBy: z.enum(stopLevels).nullable(),
+    })
+    .nullable(),
   messages: z.array(messageSchema),
   actions: z.array(z.enum(actions)),
   sender: addressSchema.nullable(),
@@ -310,6 +327,35 @@ export function Desk({
     const list = messageList.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [selected, messageCount]);
+  // The AI work on a ticket goes on in the worker as well: follow it until it ends.
+  const aiWorking =
+    conversation?.aiWork?.state === "queued" || conversation?.aiWork?.state === "running";
+  useEffect(() => {
+    if (!selected || !aiWorking) return;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > 60) {
+        window.clearInterval(timer);
+        return;
+      }
+      void fetch(`/api/v1/tickets/${selected}`)
+        .then(async (response) => {
+          if (!response.ok) return;
+          const next = conversationSchema.parse(await response.json());
+          if (next.aiWork?.state === "queued" || next.aiWork?.state === "running") return;
+          window.clearInterval(timer);
+          setConversation(next);
+          transition(() => {
+            router.refresh();
+          });
+        })
+        .catch(() => undefined);
+    }, 3_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [selected, aiWorking, router]);
   // Delivery happens in the worker. While a reply is queued, refresh the
   // conversation until the transport outcome is recorded, then refresh the
   // server-rendered list so status and response clock follow.
@@ -1026,6 +1072,27 @@ export function Desk({
                       <span className="status-badge">
                         {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
                       </span>
+                      {!conversation.ticket.junkAt && (
+                        <Assignment
+                          key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
+                          ticketId={conversation.ticket.id}
+                          revision={conversation.ticket.revision}
+                          assignee={conversation.assignee}
+                          aiWork={conversation.aiWork}
+                          canAssign={conversation.actions.includes("ticket.assign")}
+                          onChanged={() => {
+                            void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
+                              .then(async (response) => {
+                                if (response.ok)
+                                  setConversation(conversationSchema.parse(await response.json()));
+                              })
+                              .catch(() => undefined);
+                            transition(() => {
+                              router.refresh();
+                            });
+                          }}
+                        />
+                      )}
                       {conversation.actions.includes("ticket.reply") &&
                         !conversation.ticket.junkAt && (
                           <PortalLink

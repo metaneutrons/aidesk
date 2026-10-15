@@ -3,6 +3,7 @@ import { aiFailures, aiTasks } from "../../domain/ai";
 import { configDocument } from "../../domain/configuration";
 import { connectionDirections, connectionKinds } from "../../domain/connections";
 import { emailDesignConfig } from "../../domain/email-design";
+import { aiWorkStates, stopLevels } from "../../domain/agent-work";
 import { actions } from "../../domain/permissions";
 import { agentRuns, agents, ingress, messages, projects, tickets } from "../db/schema";
 import { isoDate, rowSchema } from "./rows";
@@ -88,8 +89,23 @@ export const messageOut = rowSchema(messages, {
     attachments: z.array(attachmentSummary),
   })
   .meta({ id: "Message" });
+export const aiWorkOut = z.object({
+  state: z.enum(aiWorkStates),
+  runId: z.uuid().nullable(),
+  reason: z.string().nullable(),
+  at: isoDate.nullable(),
+  stoppedBy: z.enum(stopLevels).nullable(),
+});
+export const assigneeOut = z.object({
+  kind: z.enum(["user", "agent"]),
+  id: z.string(),
+  name: z.string(),
+  managed: z.boolean(),
+});
 export const ticketDetail = z.object({
   ticket: ticketRow,
+  assignee: assigneeOut.nullable(),
+  aiWork: aiWorkOut.nullable(),
   messages: z.array(messageOut),
   actions: z.array(z.enum(actions)),
   sender: address.nullable(),
