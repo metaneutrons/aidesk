@@ -942,8 +942,8 @@ needs_person.
   at its end does not undo the cancellation.
 - **Takeover.** A person who answers a ticket (a public reply, not a private note) that a
   managed agent works ends its runs and sets `agent_paused_at` on the ticket: the agent does not
-  work it again until a person who may assign resumes it (`POST /tickets/{id}/resume-agent`,
-  which queues a run for the current revision) or assigns the ticket anew.
+  work it again until a person who may assign resumes it (`POST /tickets/{id}/resume-agent`
+  with the revision that the person read, which queues a run for it; an older revision is a 409) or assigns the ticket anew.
 - **Before it goes on,** the worker asks again (`staleReason`): the run still counts, the ticket
   is not in junk or taken over, the agent is still the assignee and is active and managed, the
   revision is still the one the run answers (a newer message has its own run) and the project has
@@ -1010,7 +1010,8 @@ model result lifts one).
   `GET /projects/{id}/agent-controls` shows both levels, also to an agent (tool
   `projects_agent_controls`), so that it can see that it is stopped.
 - **Ticket** (`POST /tickets/{id}/stop-agent`): sets `agent_paused_at`, the same flag as a
-  takeover, and cancels the open runs. `POST /tickets/{id}/resume-agent` lifts it.
+  takeover, and cancels the open runs. `POST /tickets/{id}/resume-agent` lifts it, with the revision that the person read, so that a
+  message that came in meanwhile has been read first; the audit entry `agent.resume` names it.
 
 Setting a stop cancels the queued and running runs (reasons `stopped` for the project and the
 ticket, `workspace_stopped` for the workspace), and a run that is in flight ends at its next

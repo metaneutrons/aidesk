@@ -52,7 +52,7 @@ import {
   tagsInput,
 } from "../operations";
 import { assistDraft } from "../assist";
-import { listAgentRuns, resumeAgent } from "../agent-runs";
+import { listAgentRuns, resumeAgent, resumeInput } from "../agent-runs";
 import {
   getAgentControls,
   getWorkspaceControls,
@@ -991,10 +991,11 @@ export const routes: Route[] = [
     path: "/tickets/{ticketId}/resume-agent",
     tag: "Tickets",
     summary:
-      "Let the managed agent of a ticket work it again after a person took it over; it starts from the current revision",
+      "Let the managed agent of a ticket work it again after a person took it over or stopped it. Names the revision that was read; the agent starts from it",
     access: "ticket.assign",
+    body: resumeInput,
     response: z.object({ resumed: z.boolean(), run: z.uuid().nullable() }),
-    run: ({ principal, params }) => resumeAgent(principal, params.ticketId ?? ""),
+    run: ({ principal, params, input }) => resumeAgent(principal, params.ticketId ?? "", input),
   },
   {
     id: "tickets.stop_agent",

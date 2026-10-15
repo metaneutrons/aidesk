@@ -7172,7 +7172,7 @@
         "tags": [
           "Tickets"
         ],
-        "summary": "Let the managed agent of a ticket work it again after a person took it over; it starts from the current revision",
+        "summary": "Let the managed agent of a ticket work it again after a person took it over or stopped it. Names the revision that was read; the agent starts from it",
         "x-required-access": "ticket.assign",
         "parameters": [
           {
@@ -7185,6 +7185,27 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success",

@@ -250,7 +250,9 @@ describe("stopping the agent on one ticket", () => {
       changed: false,
     });
     expect(await queue(id)).toBeNull();
-    const resumed = await resumeAgent(manager, id);
+    const resumed = await resumeAgent(manager, id, {
+      expectedRevision: (await getTicket(manager, id)).ticket.revision,
+    });
     expect(resumed.resumed).toBe(true);
     expect((await runsOf(id))[0]?.state).toBe("queued");
     const entries = await db().select().from(audit).where(eq(audit.targetId, id));

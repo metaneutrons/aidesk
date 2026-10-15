@@ -171,9 +171,12 @@ export async function takeOver(tx: Tx, ticketId: string): Promise<void> {
   await cancelAgentRuns(tx, ticketId, "taken_over");
   await tx.update(tickets).set({ agentPausedAt: new Date() }).where(eq(tickets.id, ticketId));
 }
-// A person lets the managed agent work the ticket again, from its current revision.
-export async function resumeAgent(principal: Principal, ticketId: string) {
+export const resumeInput = z.object({ expectedRevision: z.number().int().min(0) }).strict();
+// A person lets the managed agent work the ticket again, from its current revision. The person
+// names the revision that they read: a customer who wrote in the meantime has to be read first.
+export async function resumeAgent(principal: Principal, ticketId: string, input: unknown) {
   const id = z.uuid().parse(ticketId);
+  const values = resumeInput.parse(input);
   const [ticket] = await db().select().from(tickets).where(eq(tickets.id, id));
   if (!ticket || !permits(principal, ticket.projectId, "ticket.read"))
     throw new DomainError("not_found", 404);
@@ -181,12 +184,19 @@ export async function resumeAgent(principal: Principal, ticketId: string) {
     throw new DomainError("forbidden", 403);
   if (ticket.agentPausedAt === null) throw new DomainError("conflict", 409);
   return db().transaction(async (tx) => {
+    const [current] = await tx
+      .select({ revision: tickets.revision })
+      .from(tickets)
+      .where(eq(tickets.id, ticket.id))
+      .for("update");
+    if (current?.revision !== values.expectedRevision) throw new DomainError("conflict", 409);
     await tx.update(tickets).set({ agentPausedAt: null }).where(eq(tickets.id, ticket.id));
     await tx.insert(audit).values({
       projectId: ticket.projectId,
       actorId: principal.id,
       action: "agent.resume",
       targetId: ticket.id,
+      detail: { revision: values.expectedRevision },
     });
     const queued = await queueAgentRun(tx, ticket.id, "assignment");
     return { resumed: true, run: queued?.id ?? null };
