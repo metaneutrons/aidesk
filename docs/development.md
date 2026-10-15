@@ -218,6 +218,18 @@ person with access to the project (`userId`), to an active agent of the project
 (`agentId`), or to nobody (both `null`); it needs `ticket.assign`. Internal notes are
 `tickets_reply` with `internal: true`.
 
+## Retention of files
+
+Attachments, the stored originals of mails and the text that was read from a file
+(`attachment_text`) are kept as long as their ticket and the message they belong to, and
+the rows go when those go (the foreign keys cascade). The files themselves are objects in
+the private storage, and a database cascade does not remove them: deleting a ticket has to
+delete its objects as well, which is part of the rule that is still to be made. There is no
+retention period of their own, by decision of the product owner of 2026-10-15; the rule for deleting tickets and what
+hangs on them is decided with the retention work of the deployment milestone (M5), and no
+route deletes a ticket today. The consequence for data protection is that the text of a file
+is a second copy of customer content in the database, as long as the file is.
+
 ## Reading documents for agents
 
 The building block that reads the text of PDF, Word, Excel and PowerPoint files is

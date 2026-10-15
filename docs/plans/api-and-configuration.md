@@ -372,3 +372,13 @@ reasons that have nothing to do with the profile, so a write refuses a malformed
 and the provider's refusal of an unknown one is a failure of the task (`ai_provider_error`
 in C6-A3). The wording of the criterion is the only change; no acceptance was recorded
 against the earlier one.
+
+2026-10-15: further decisions of the product owner. (1) Attachments, the originals of
+mails and the text that was read from a file are kept as long as their ticket; there is
+no retention period of their own, and a rule for deleting tickets and what hangs on them
+is decided with the retention work of M5. (2) The reply field of the customer portal
+gets no draft button: the portal speaks for the customer, and the draft reads ticket
+content. (3) Changing the standard prompts of draft assistance needs `config.write`, like
+any other text of a project, and an agent under `review` only proposes it. (4) Reading
+images and scans through the model (C5-A5) is built before the draft button (C6-A4), so
+C5 can be closed first.
