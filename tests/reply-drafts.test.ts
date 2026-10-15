@@ -285,8 +285,12 @@ describe("sending a draft", () => {
       deliveryState: "sent",
       authorType: "agent",
     });
-    const [entry] = await db().select().from(audit).where(eq(audit.targetId, draft.id));
-    expect(entry?.action).toBe("ticket.draft");
+    // The draft and its sending are two entries on one target, in no fixed order.
+    const entries = await db().select().from(audit).where(eq(audit.targetId, draft.id));
+    expect(entries.map((entry) => entry.action).sort()).toEqual([
+      "ticket.draft",
+      "ticket.draft_send",
+    ]);
     await expect(sendDraft(manager, draft.id)).rejects.toMatchObject({ code: "conflict" });
   });
   it("is refused when the ticket changed since the draft was written", async () => {
