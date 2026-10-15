@@ -73,6 +73,7 @@ export async function queueAgentRun(
         trigger,
         steps: 0,
         replies: 0,
+        currentRevision: ticket.revision,
         startedAt: null,
         endedAt: null,
       })
@@ -107,6 +108,7 @@ export async function queueAgentRun(
       agentId: agent.id,
       jobId: job?.id ?? null,
       revision: ticket.revision,
+      currentRevision: ticket.revision,
       trigger,
     })
     .returning({ id: agentRuns.id });
@@ -248,7 +250,7 @@ export async function staleReason(runId: string): Promise<string | null> {
   if (ticket.junkAt !== null) return "ticket_junk";
   if (ticket.agentPausedAt !== null) return "taken_over";
   if (ticket.assigneeAgentId !== run.agentId) return "reassigned";
-  if (ticket.revision !== run.revision) return "stale_revision";
+  if (ticket.revision !== run.currentRevision) return "stale_revision";
   const [agent] = await db().select().from(agents).where(eq(agents.id, run.agentId));
   if (
     !agent?.managed ||

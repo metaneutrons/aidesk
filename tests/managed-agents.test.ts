@@ -408,14 +408,14 @@ describe("an agent answers only the tickets that are assigned to it, under the d
   });
 });
 describe("the worker takes a run", () => {
-  it("ends a queued run that may go on as needing a person until the runner exists", async () => {
+  it("ends a run that may go on as needing a person when the project has not set up the task", async () => {
     await db().delete(jobs).where(eq(jobs.type, "agent.run"));
     const id = await ticket();
     await assignTicket(assigner, id, { userId: null, agentId: managed });
     expect(await drain()).toBe(1);
     expect((await runsOf(id))[0]).toMatchObject({
       state: "needs_person",
-      reason: "runner_not_available",
+      reason: "ai_not_configured",
     });
     expect((await runsOf(id))[0]?.startedAt).not.toBeNull();
   });

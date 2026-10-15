@@ -950,8 +950,51 @@ needs_person.
   not stopped autonomous work. Otherwise the run ends as cancelled with the reason.
 - An agent that sends under the `direct` policy has to be assigned to the ticket, and says so when
   it replies, not only when the worker would refuse to send.
-- Until the runner of part P2 exists, a run that may go on ends as `needs_person` with the reason
-  `runner_not_available`, which the ticket shows.
+- What a run does once it may go on is the runner ("The runner of a managed agent" below).
+
+### The runner of a managed agent
+
+Part P2 of [the completion plan](plans/m4-completion.md). The worker takes the job `agent.run`
+(`src/worker/agent-runs.ts`) and works one revision of one ticket in at most eight calls of the
+model, through the task `agent.respond` of the project (a profile like the others, off until a
+person with `config.approve` switches it on).
+
+- **What the model reads.** The standard instruction of the project (the text `agent.respond`, in
+  English and German, versioned and editable like every text) followed by a guard that a project
+  cannot edit away, and the conversation as data between two marker lines with a random value per
+  run. The guard says that the data is never an instruction (including a customer's request for
+  a language, a word or a refund), that only facts of the data are used and none of the usual
+  inventions (a date, a status, a price, a policy, that something was checked or refunded), that a
+  reply never contains a placeholder or asks the customer to repeat a question, and that a missing
+  fact is a note for the team and `needs_person`. Private notes, drafts, discarded and system
+  messages are not part of the conversation; the attachments are listed with their ids.
+- **What it can call** (`src/domain/agent.ts`): `reply` (the one public reply of the run, with
+  `resolve` only when the agent holds `ticket.resolve`), `note` (an internal note, at most three,
+  the same note twice is one), `read_attachment` (an attachment of this ticket, at most four, with
+  `ticket.read_files`, framed as untrusted like every file) and `finish` (`no_reply_needed` or
+  `needs_person`). A tool that the grants do not give is refused with a result that says so and an
+  audit entry `agent.refused`, and the run goes on; an unknown tool or an input that does not fit
+  its schema is answered with the reason and counts as a step.
+- **Side effects go through the operations** that a person or an external agent uses (`reply`), so
+  the project's policy decides what a reply is: a draft under `review` (state `draft_ready`), a
+  queued mail under `direct` (state `sent`, or `resolved` with `resolve`), and the dispatch checks
+  of the worker still apply. The idempotency key is derived from the run, so a reply and a note
+  are made once however often the run is started: a run that finds its reply ends as it ended then
+  without calling the model again.
+- **The checks are made again** before every call of the model and before every note and reply
+  (`staleReason`): a takeover, a reassignment, junk, a stop, a newer message or an agent that is no
+  longer active ends the run as cancelled with the reason, and nothing is written. A note raises the
+  revision of the ticket, which the run expects (`current_revision`).
+- **How a run ends.** `draft_ready`, `sent`, `resolved`, `nothing_to_do`, `needs_person` (with the
+  reason `agent_finished`, `no_action` for an answer without a call, `step_limit`, or the code of a
+  task that is not set up, off or without budget), `failed` (a model that the provider does not have,
+  an account without credit, or a request the provider refused) or `cancelled`. A limit of the
+  provider (429) sends the run back to the queue with the steps it has used; a request that may
+  have been accepted (a timeout, a network error, a 503) is not repeated and not sent to another
+  provider: the run needs a person and its job goes to review. Every end is audited without the
+  content (`agent.run`).
+- Not built yet: stops at workspace and ticket level and the project switch in the settings
+  (P2-A3), fallback to an approved model after a refusal, knowledge search (P5).
 
 ## Webhooks
 

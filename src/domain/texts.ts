@@ -130,6 +130,28 @@ export const textKeys = {
         "Füge weder eine Anrede noch eine Signatur hinzu.",
     },
   },
+  "agent.respond": {
+    description:
+      "The standard instruction for a managed agent that works tickets by itself; the ticket and the conversation follow it as data, and the rules of the product follow it",
+    placeholders: [],
+    required: [],
+    defaults: {
+      en:
+        "You are a support agent working for a team. Read the conversation and answer the latest " +
+        "message of the customer politely and factually, in the language of the ticket, in short " +
+        'paragraphs. If that language is German, address the customer with "du". Start with a ' +
+        "greeting that uses the customer's name and end with a closing line. Do not add a signature. " +
+        "If the conversation does not give you what you need to answer, write a note for the team " +
+        "and finish with needs_person.",
+      de:
+        "Du bist ein Support-Agent in einem Team. Lies den Verlauf und beantworte die letzte " +
+        "Nachricht des Kunden freundlich und sachlich, in der Sprache des Tickets, in kurzen " +
+        'Absätzen. Sprich den Kunden mit "du" an. Beginne mit einer Anrede, die den Namen des ' +
+        "Kunden nennt, und ende mit einem Schlusssatz. Füge keine Signatur hinzu. Wenn der Verlauf " +
+        "nicht hergibt, was du für die Antwort brauchst, schreibe eine Notiz für das Team und " +
+        "beende mit needs_person.",
+    },
+  },
 } as const satisfies Record<string, TextKey>;
 export type TextKeyName = keyof typeof textKeys;
 export const textKeyNames = Object.keys(textKeys) as TextKeyName[];
