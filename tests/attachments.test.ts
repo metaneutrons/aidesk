@@ -737,7 +737,7 @@ describe("files for agents", () => {
             content: Buffer.from(pdf([[{ text: "x" }]], { password: "hunter2" })),
           },
           { filename: "picture.png", contentType: "image/png", content: randomBytes(64) },
-          // The declared type says image: no job is queued for it, whatever it is called.
+          // The declared type says image: the model path, which is off here, so no job is queued.
           { filename: "photo.pdf", contentType: "image/png", content: randomBytes(64) },
         ],
       }),
@@ -774,7 +774,7 @@ describe("files for agents", () => {
     for (const name of ["picture.png", "photo.pdf"])
       expect(await readAttachment(fileReader, idOf(name)), name).toMatchObject({
         readable: false,
-        reason: "type_not_readable",
+        reason: "image_reading_off",
       });
     // Asking again queues nothing more.
     await readAttachment(fileReader, idOf("report.docx"));
