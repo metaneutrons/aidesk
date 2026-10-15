@@ -361,6 +361,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "tickets.assist_draft": {
+    operation: "assistDraft",
+    action: "ticket.note",
+    ui: "src/components/desk.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "tickets.tags": {
     operation: "setTicketTags",
     action: "ticket.note",

@@ -3119,6 +3119,102 @@
         }
       }
     },
+    "/tickets/{ticketId}/draft-assist": {
+      "post": {
+        "operationId": "tickets.assist_draft",
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "A draft of a reply (needs ticket.reply) or an internal note (needs ticket.note), written by the AI task reply.draft or note.draft of the project from the conversation. The text is for the person to edit and is never sent by itself",
+        "x-required-access": "any",
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "reply",
+                      "note"
+                    ]
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "current": {
+                    "type": "string",
+                    "maxLength": 8000
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "The provider cut the draft at the cap of the task"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "truncated"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/tickets/{ticketId}/junk": {
       "post": {
         "operationId": "tickets.junk",

@@ -92,6 +92,44 @@ export const textKeys = {
     required: [],
     defaults: fromCatalog("portalFailed"),
   },
+  "assist.reply": {
+    description:
+      "The standard instruction for the AI draft of a reply to the customer; the ticket and the conversation follow it as data",
+    placeholders: [],
+    required: [],
+    defaults: {
+      en:
+        "You write the draft of a reply to a customer for a support team. " +
+        'Write in the language of the ticket. If that is German, address the customer with "du". ' +
+        "Answer what the latest message of the customer asks, politely and factually, in short paragraphs, " +
+        "and use only facts from the conversation. Start with a greeting that uses the customer's name " +
+        "and end with a closing line. Do not add a signature.",
+      de:
+        "Du schreibst den Entwurf einer Antwort an einen Kunden für ein Support-Team. " +
+        'Schreibe in der Sprache des Tickets. Sprich den Kunden mit "du" an. ' +
+        "Beantworte, was die letzte Nachricht des Kunden fragt, freundlich und sachlich, in kurzen Absätzen, " +
+        "und nutze nur Fakten aus dem Verlauf. Beginne mit einer Anrede, die den Namen des Kunden nennt, " +
+        "und ende mit einem Schlusssatz. Füge keine Signatur hinzu.",
+    },
+  },
+  "assist.note": {
+    description:
+      "The standard instruction for the AI draft of an internal note; the ticket and the conversation follow it as data",
+    placeholders: [],
+    required: [],
+    defaults: {
+      en:
+        "You write the draft of an internal note on a support ticket for the team. " +
+        "Say briefly what the customer wants, what has been done and what is still open. " +
+        "Be factual, use only facts from the conversation, and write in the language of the ticket. " +
+        "Do not add a greeting or a signature.",
+      de:
+        "Du schreibst den Entwurf einer internen Notiz zu einem Support-Ticket für das Team. " +
+        "Sage kurz, was der Kunde möchte, was bereits getan wurde und was noch offen ist. " +
+        "Bleibe sachlich, nutze nur Fakten aus dem Verlauf und schreibe in der Sprache des Tickets. " +
+        "Füge weder eine Anrede noch eine Signatur hinzu.",
+    },
+  },
 } as const satisfies Record<string, TextKey>;
 export type TextKeyName = keyof typeof textKeys;
 export const textKeyNames = Object.keys(textKeys) as TextKeyName[];

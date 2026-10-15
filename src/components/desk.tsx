@@ -17,6 +17,8 @@ import {
   Plus,
   Search,
   Send,
+  Sparkles,
+  Undo2,
   Settings as SettingsIcon,
   ShieldAlert,
   Sun,
@@ -92,6 +94,17 @@ const searchHitSchema = z.object({
   snippet: z.string().nullable(),
 });
 type SearchHit = z.infer<typeof searchHitSchema>;
+// What a failed draft says, by the code of the answer.
+const assistErrors: Record<
+  string,
+  "assistNotConfigured" | "assistBudget" | "assistTimeout" | "assistFailed"
+> = {
+  ai_not_configured: "assistNotConfigured",
+  ai_disabled: "assistNotConfigured",
+  ai_budget_exceeded: "assistBudget",
+  ai_timeout: "assistTimeout",
+  ai_provider_error: "assistFailed",
+};
 const deliveryErrors: Record<string, string> = {
   recipient_suppressed: "deliveryRecipientSuppressed",
   suppression_check_failed: "deliverySuppressionCheckFailed",
@@ -210,12 +223,21 @@ export function Desk({
   const [draft, setDraft] = useState("");
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
+  // A draft that a model wrote: running, the instruction for the next one, what the
+  // field held before (to undo it) and what to tell the person about it.
+  const [assisting, setAssisting] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [undo, setUndo] = useState<string | null>(null);
+  const [assistNote, setAssistNote] = useState<"assistDone" | "assistTruncated" | null>(null);
   const [theme, setTheme] = useState<Theme>("system");
   const [now, setNow] = useState(serverTime);
   const [creating, setCreating] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [slug, setSlug] = useState("");
   const messageList = useRef<HTMLDivElement>(null);
+  // Where the person is now, so that a draft that arrives after they moved on is dropped.
+  const place = useRef({ selected: initialTicketId, internal: false });
+  place.current = { selected, internal };
   useEffect(() => {
     document.documentElement.lang = initialLocale;
   }, [initialLocale]);
@@ -241,6 +263,8 @@ export function Desk({
     setError(null);
     setDraft(localStorage.getItem(`aidesk:${operator.id}:${selected}:draft`) ?? "");
     setInternal(false);
+    setUndo(null);
+    setAssistNote(null);
     void fetch(`/api/v1/tickets/${selected}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("no_access");
@@ -453,6 +477,48 @@ export function Desk({
       router.refresh();
     });
   }
+  // A first version of the reply or the note, from the AI task of the project. It
+  // replaces the field as text to edit, keeps what was there for an undo, and is not
+  // sent.
+  async function assist(): Promise<void> {
+    if (!conversation || !selected) return;
+    const asked = { selected, internal };
+    const before = draft;
+    setAssisting(true);
+    setError(null);
+    setUndo(null);
+    setAssistNote(null);
+    try {
+      const response = await fetch(`/api/v1/tickets/${selected}/draft-assist`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: internal ? "note" : "reply",
+          ...(instruction.trim() ? { instruction: instruction.trim() } : {}),
+          ...(draft.trim() ? { current: draft.slice(0, 8000) } : {}),
+        }),
+      });
+      if (!response.ok) {
+        const code = z
+          .object({ error: z.string() })
+          .safeParse(await response.json().catch(() => null));
+        setError((code.success ? assistErrors[code.data.error] : undefined) ?? "assistFailed");
+        return;
+      }
+      const result = z
+        .object({ text: z.string(), truncated: z.boolean() })
+        .parse(await response.json());
+      if (place.current.selected !== asked.selected || place.current.internal !== asked.internal)
+        return;
+      setUndo(before);
+      editDraft(result.text);
+      setAssistNote(result.truncated ? "assistTruncated" : "assistDone");
+    } catch {
+      setError("assistFailed");
+    } finally {
+      setAssisting(false);
+    }
+  }
   async function send(): Promise<void> {
     if (!conversation || !selected || !draft.trim()) return;
     setSending(true);
@@ -474,6 +540,8 @@ export function Desk({
         return;
       }
       editDraft("");
+      setUndo(null);
+      setAssistNote(null);
       const fresh = await fetch(`/api/v1/tickets/${selected}`);
       if (!fresh.ok) throw new Error("refresh_failed");
       const body: unknown = await fresh.json();
@@ -1132,6 +1200,8 @@ export function Desk({
                               className={!internal ? "active" : ""}
                               onClick={() => {
                                 setInternal(false);
+                                setUndo(null);
+                                setAssistNote(null);
                               }}
                             >
                               {t("reply")}
@@ -1143,6 +1213,8 @@ export function Desk({
                               className={internal ? "active" : ""}
                               onClick={() => {
                                 setInternal(true);
+                                setUndo(null);
+                                setAssistNote(null);
                               }}
                             >
                               {t("note")}
@@ -1157,7 +1229,54 @@ export function Desk({
                             editDraft(event.target.value);
                           }}
                           rows={4}
+                          readOnly={assisting}
                         />
+                        <div className="assist-row">
+                          <input
+                            type="text"
+                            aria-label={t("assistInstruction")}
+                            placeholder={t("assistInstruction")}
+                            maxLength={1000}
+                            value={instruction}
+                            onChange={(event) => {
+                              setInstruction(event.target.value);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={
+                              assisting ||
+                              sending ||
+                              !conversation.actions.includes(
+                                internal ? "ticket.note" : "ticket.reply",
+                              )
+                            }
+                            onClick={() => {
+                              void assist();
+                            }}
+                          >
+                            <Sparkles size={14} />
+                            {t(assisting ? "assistWorking" : "assistButton")}
+                          </button>
+                          {undo !== null && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                editDraft(undo);
+                                setUndo(null);
+                                setAssistNote(null);
+                              }}
+                            >
+                              <Undo2 size={14} />
+                              {t("assistUndo")}
+                            </button>
+                          )}
+                        </div>
+                        {assistNote && (
+                          <p className="assist-note" role="status">
+                            {t(assistNote)}
+                          </p>
+                        )}
                         <div className="compose-footer">
                           <small className="compose-identity">
                             {internal ? (

@@ -64,6 +64,8 @@ const notCalled: Record<string, string> = {
   "operators.active": "disables an operator; the shape is checked by the invalid call",
   "config.decide": "needs a pending proposal, which the sign-in of the fixture cannot make",
   "ai_profiles.set": "needs a connection to a model provider; covered by the profile tests",
+  "tickets.assist_draft":
+    "needs an AI task that is set up and a model provider; covered by the draft tests",
   "connections.test": "makes a request to the host of the connection",
   "designs.test": "sends a mail; covered by the designs test",
   "designs.test_status": "needs a queued test mail",

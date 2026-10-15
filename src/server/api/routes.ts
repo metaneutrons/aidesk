@@ -49,6 +49,8 @@ import {
   setTicketTags,
   tagsInput,
 } from "../operations";
+import { assistDraft } from "../assist";
+import { assistInput } from "../../domain/assist";
 import {
   createEmailDesign,
   getTestMail,
@@ -580,6 +582,24 @@ export const routes: Route[] = [
     body: reminderInput,
     response: z.object({ remindAt: isoDate.nullable() }),
     run: ({ principal, params, input }) => setReminder(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "tickets.assist_draft",
+    mcp: {
+      not: "An agent writes its own drafts; the button is for a person who writes a text and wants a first version",
+    },
+    method: "POST",
+    path: "/tickets/{ticketId}/draft-assist",
+    tag: "Tickets",
+    summary:
+      "A draft of a reply (needs ticket.reply) or an internal note (needs ticket.note), written by the AI task reply.draft or note.draft of the project from the conversation. The text is for the person to edit and is never sent by itself",
+    access: "any",
+    body: assistInput,
+    response: z.object({
+      text: z.string(),
+      truncated: z.boolean().describe("The provider cut the draft at the cap of the task"),
+    }),
+    run: ({ principal, params, input }) => assistDraft(principal, params.ticketId ?? "", input),
   },
   {
     id: "tickets.junk",
