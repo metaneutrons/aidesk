@@ -305,6 +305,8 @@
   "aiConnectionCurrent": "Current connection",
   "aiConnectionNone": "No connection",
   "aiModel": "Model",
+  "aiModelHintDraft": "A draft is written from text of customers, which can contain instructions. Smaller models follow them more often and invent facts such as dates and statuses. Choose a larger model for this task and read each draft before it is sent.",
+  "aiModelHintImage": "A model can misread characters and figures. Check amounts and numbers against the original.",
   "aiTimeout": "Timeout in seconds",
   "aiMaxOutput": "Longest answer in tokens",
   "aiDailyBudget": "Budget per day in tokens",
