@@ -1,4 +1,5 @@
 import { APICallError } from "ai";
+import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { estimateFileTokens, estimateTokens, type AiFailure, type AiTask } from "../domain/ai";
 import { aiSecret } from "../domain/connections";
@@ -57,12 +58,44 @@ function refused(error: unknown): boolean {
     error.statusCode !== 408
   );
 }
-// What the status of a failed call tells the operator to do: nothing is told of
-// the provider's own words, which may carry names and request details.
+const providerBody = z.object({
+  error: z
+    .object({
+      type: z.string().nullish(),
+      code: z.string().nullish(),
+      message: z.string().nullish(),
+    })
+    .loose(),
+});
+// An account without credit is told by what the provider says, because the status
+// is shared with other failures: OpenAI answers 429 with the type insufficient_quota
+// (the status of a limit of requests too), Anthropic answers 400 with a text.
+function noCredit(error: APICallError): boolean {
+  let raw: unknown = error.data;
+  if (raw === undefined && error.responseBody) {
+    try {
+      raw = JSON.parse(error.responseBody);
+    } catch {
+      return false;
+    }
+  }
+  const parsed = providerBody.safeParse(raw);
+  if (!parsed.success) return false;
+  const { type, code, message } = parsed.data.error;
+  return (
+    type === "insufficient_quota" ||
+    code === "insufficient_quota" ||
+    code === "credit_balance_exhausted" ||
+    /credit balance is too low/i.test(message ?? "")
+  );
+}
+// What the status and the kind of a failed call tell the operator to do: nothing is
+// told of the provider's own words, which may carry names and request details.
 function failureOf(
   error: unknown,
-): "ai_model_unavailable" | "ai_rate_limited" | "ai_provider_error" {
+): "ai_quota_exhausted" | "ai_model_unavailable" | "ai_rate_limited" | "ai_provider_error" {
   if (!APICallError.isInstance(error)) return "ai_provider_error";
+  if (noCredit(error)) return "ai_quota_exhausted";
   if (error.statusCode === 404) return "ai_model_unavailable";
   if (error.statusCode === 429 || error.statusCode === 503 || error.statusCode === 529)
     return "ai_rate_limited";

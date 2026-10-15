@@ -364,12 +364,13 @@ describe("the daily budget", () => {
   });
 });
 describe("a call whose outcome is not known, and one that was refused", () => {
-  const failure = (statusCode?: number) =>
+  const failure = (statusCode?: number, data?: unknown) =>
     new APICallError({
       message: "failed",
       url: "https://provider.example.test",
       requestBodyValues: {},
       ...(statusCode === undefined ? {} : { statusCode }),
+      ...(data === undefined ? {} : { data }),
     });
   it("ends at the timeout, is not repeated and keeps the share charged", async () => {
     await profile({ timeoutSeconds: 1 });
@@ -401,6 +402,49 @@ describe("a call whose outcome is not known, and one that was refused", () => {
     }
     expect(await charged()).toBe(held(500) * 5);
     expect(other).not.toBe("");
+  });
+  it("tells an account without credit from a limit, by what the provider says", async () => {
+    await profile();
+    const outOfCredit = {
+      type: "insufficient_quota",
+      code: "credit_balance_exhausted",
+      message: "x",
+    };
+    for (const [error, code] of [
+      // OpenAI: the status of a limit of requests, told apart by the type.
+      [failure(429, { error: outOfCredit }), "ai_quota_exhausted"],
+      [
+        failure(429, { error: { type: "requests", code: "rate_limit_exceeded" } }),
+        "ai_rate_limited",
+      ],
+      // Anthropic: a 400 with a text.
+      [
+        failure(400, {
+          type: "error",
+          error: {
+            type: "invalid_request_error",
+            message: "Your credit balance is too low to access the Anthropic API.",
+          },
+        }),
+        "ai_quota_exhausted",
+      ],
+      [
+        failure(400, {
+          error: { type: "invalid_request_error", message: "max_tokens is too large" },
+        }),
+        "ai_provider_error",
+      ],
+      // Neither a body that does not say so nor a body that is not an error object.
+      [failure(429, { error: { code: "credit_balance_exhausted" } }), "ai_quota_exhausted"],
+      [failure(429, { error: { code: "insufficient_quota" } }), "ai_quota_exhausted"],
+      [failure(429, { error: { message: "slow down" } }), "ai_rate_limited"],
+      [failure(429, "insufficient_quota"), "ai_rate_limited"],
+    ] as const) {
+      const { generate } = fakeGenerate(error);
+      expect(await runAiTask(request(), { generate })).toMatchObject({ ok: false, code });
+    }
+    // The share is given back for every one of them, as for any refusal.
+    expect(await charged()).toBe(0);
   });
   it("gives the share back when the provider refused the request before doing anything", async () => {
     await profile();
@@ -610,6 +654,19 @@ describe("the real call to each provider, against a fake one", () => {
         expect(codes.filter((code) => code === "ai_model_unavailable")).toHaveLength(1);
         expect(codes.filter((code) => code === "ai_rate_limited")).toHaveLength(3);
       }, 15_000);
+      it("tells the lack of credit from the body of a real answer", async () => {
+        models.behaviour = {
+          status: kind === "anthropic" ? 400 : 429,
+          error:
+            kind === "anthropic"
+              ? { type: "invalid_request_error", message: "Your credit balance is too low" }
+              : { type: "insufficient_quota", code: "credit_balance_exhausted", message: "none" },
+        };
+        expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_quota_exhausted" });
+        expect(await charged()).toBe(0);
+        models.behaviour = { status: 429 };
+        expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_rate_limited" });
+      });
       it("keeps the share after a failure of the provider and gives it back after a refusal, with one request each", async () => {
         models.behaviour = { status: 500 };
         expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_provider_error" });

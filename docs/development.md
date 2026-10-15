@@ -266,8 +266,8 @@ does not check that, and a model that does not answers with a provider error.
   the reader of documents does not discard it. What the model found (nothing to read)
   and what the product found (not an image, too large) are kept as failures like any
   reading. A run that ended for a reason of the moment (`ai_timeout`,
-  `ai_model_unavailable`, `ai_rate_limited`, `ai_provider_error`, `ai_budget_exceeded`,
-  `ai_not_configured`, `ai_disabled`) is
+  `ai_quota_exhausted`, `ai_model_unavailable`, `ai_rate_limited`, `ai_provider_error`,
+  `ai_budget_exceeded`, `ai_not_configured`, `ai_disabled`) is
   kept as a failure, is not repeated by the worker (its outcome may be unknown and may
   have cost something), and is asked for again by the first request after five
   minutes. A failure of the machinery before the run (the storage) is retried like in
@@ -1002,6 +1002,12 @@ one of these codes:
 - `ai_disabled`: the profile is off;
 - `ai_budget_exceeded`: the day's budget of the task has not enough left for this run;
 - `ai_timeout`: the provider did not answer within the timeout of the profile;
+- `ai_quota_exhausted`: the account at the provider has no credit or quota left, so waiting
+  does not help. It is told by what the provider says, because the status is shared with a
+  limit of requests: OpenAI answers 429 with the type `insufficient_quota`, Anthropic answers
+  400 with "credit balance is too low". Google reports an exhausted quota as a 429 that
+  cannot be told from a limit, so it stays `ai_rate_limited`. The share of the budget is
+  given back;
 - `ai_model_unavailable`: the provider does not know the model of the profile (status 404,
   for example a model that was retired; a list of models can still show it). The share of
   the budget is given back. The profile has to name another model;
@@ -1054,8 +1060,8 @@ field (up to 8000 characters); the answer is `text` and `truncated`.
   model, limits and switch. Without a profile that is on the answer is
   `ai_not_configured` or `ai_disabled` (409) and the desk says that AI drafts are not
   set up and who switches them on. The other codes of `runAiTask` are 429
-  (`ai_budget_exceeded`), 504 (`ai_timeout`), 409 (`ai_model_unavailable`), 503
-  (`ai_rate_limited`) and 502 (`ai_provider_error`, also for an answer that is empty after
+  (`ai_budget_exceeded`), 504 (`ai_timeout`), 402 (`ai_quota_exhausted`), 409
+  (`ai_model_unavailable`), 503 (`ai_rate_limited`) and 502 (`ai_provider_error`, also for an answer that is empty after
   cleaning).
 - **The standard instruction is a text of the project.** The keys `assist.reply` and
   `assist.note` (English and German, up to 2000 characters, no placeholders) are read,
