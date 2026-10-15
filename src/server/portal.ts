@@ -1,3 +1,4 @@
+import { queueAgentRun } from "./agent-runs";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -329,6 +330,8 @@ export async function portalReply(token: unknown, input: unknown) {
       action: "portal.reply",
       targetId: ticket.id,
     });
+    // A managed agent that works the ticket answers the new message.
+    await queueAgentRun(tx, ticket.id, "message");
     return { id: message.id, duplicate: false };
   });
 }

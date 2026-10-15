@@ -148,6 +148,13 @@
       "when": 1792043340126,
       "tag": "0020_ai_run",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792098591550,
+      "tag": "0021_managed_agents",
+      "breakpoints": true
     }
   ]
 }

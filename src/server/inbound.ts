@@ -15,6 +15,7 @@ import {
 } from "../domain/acknowledgement";
 import { isMessageId } from "../domain/threading";
 import { activeTexts } from "./texts";
+import { queueAgentRun } from "./agent-runs";
 import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
 import { decideLanguage, detectLanguage } from "../domain/language";
@@ -377,6 +378,8 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
           from: target.status,
           to: "open",
         });
+      // A managed agent that works the ticket answers the new message.
+      await queueAgentRun(tx, target.id, "message");
       return finish(target.id, "processed", recentlyResolved ? "reopened" : "appended");
     }
     const [project] = await tx

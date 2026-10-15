@@ -915,6 +915,44 @@ project is switched back to `review` while such a reply is queued, the worker do
 not send it and the job goes to review. The earlier setting `aiMode` no longer
 exists; a migration made every project that had it on `autonomous` a `direct` project.
 
+## Managed agents
+
+Part P1 of [the completion plan](plans/m4-completion.md). A managed agent is an agent record
+that the product runs itself (`agent.managed`): it has a name and grants, which cap what a
+model working for it may do, and no token that anyone knows (the stored hash is of a secret
+that was thrown away). A person with `agent.manage` creates one with
+`POST /projects/{id}/agents/managed`, with grants that do not exceed their own and never
+`agent.manage` or `config.approve`; an agent cannot create agents. External agents with a
+token work as before and their model settings are not controlled by aidesk.
+
+A **run** (`agent_run`) is the work of a managed agent on one revision of a ticket. It is
+executed by the job `agent.run` and is what a person sees (`GET /tickets/{id}/agent-runs`, the
+tool `tickets_agent_runs`) and what the worker checks again before it acts. Its states are
+queued, running, draft_ready, sent, resolved, noted, nothing_to_do, cancelled, failed and
+needs_person.
+
+- **Queued** when a ticket is assigned to a managed agent and when a customer writes on a
+  ticket that is assigned to one (mail and portal), for the revision at that moment, once:
+  asking again for the same revision gives the same run, and a run that was cancelled for that
+  revision starts over. Nothing is queued for a person or an external agent, for a ticket in
+  junk, a resolved ticket or one that was taken over.
+- **Cancelled** (with the reason in `reason`) when the ticket is reassigned, resolved or moved to
+  junk, when the agent is revoked, and by a takeover. A queued job is cancelled with it; a run that
+  has started finds its state changed and stops at its next side effect, and what it would write
+  at its end does not undo the cancellation.
+- **Takeover.** A person who answers a ticket (a public reply, not a private note) that a
+  managed agent works ends its runs and sets `agent_paused_at` on the ticket: the agent does not
+  work it again until a person who may assign resumes it (`POST /tickets/{id}/resume-agent`,
+  which queues a run for the current revision) or assigns the ticket anew.
+- **Before it goes on,** the worker asks again (`staleReason`): the run still counts, the ticket
+  is not in junk or taken over, the agent is still the assignee and is active and managed, the
+  revision is still the one the run answers (a newer message has its own run) and the project has
+  not stopped autonomous work. Otherwise the run ends as cancelled with the reason.
+- An agent that sends under the `direct` policy has to be assigned to the ticket, and says so when
+  it replies, not only when the worker would refuse to send.
+- Until the runner of part P2 exists, a run that may go on ends as `needs_person` with the reason
+  `runner_not_available`, which the ticket shows.
+
 ## Webhooks
 
 A project can have events delivered to HTTPS endpoints of its own, so that an

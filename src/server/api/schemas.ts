@@ -4,7 +4,7 @@ import { configDocument } from "../../domain/configuration";
 import { connectionDirections, connectionKinds } from "../../domain/connections";
 import { emailDesignConfig } from "../../domain/email-design";
 import { actions } from "../../domain/permissions";
-import { agents, ingress, messages, projects, tickets } from "../db/schema";
+import { agentRuns, agents, ingress, messages, projects, tickets } from "../db/schema";
 import { isoDate, rowSchema } from "./rows";
 // What the REST API answers, as JSON. The schemas describe the response after
 // serialization, so timestamps are ISO strings. Outside production the router
@@ -247,7 +247,27 @@ export const agentOut = rowSchema(agents, { shapes: { actions: z.array(z.string(
   name: true,
   actions: true,
   active: true,
+  managed: true,
   expiresAt: true,
+  createdAt: true,
+});
+export const managedAgentOut = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  actions: z.array(z.string()),
+  managed: z.boolean(),
+});
+export const agentRunOut = rowSchema(agentRuns).pick({
+  id: true,
+  agentId: true,
+  revision: true,
+  trigger: true,
+  state: true,
+  reason: true,
+  steps: true,
+  replies: true,
+  startedAt: true,
+  endedAt: true,
   createdAt: true,
 });
 export const designOut = z.object({

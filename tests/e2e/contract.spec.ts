@@ -78,6 +78,8 @@ const notCalled: Record<string, string> = {
   "junk.restore": "needs a mail in the junk folder",
   "tickets.junk": "moves a ticket of the fixture; covered by the desk test",
   "tickets.restore": "needs a ticket in the junk folder",
+  "tickets.resume_agent":
+    "needs a ticket that a person took over from a managed agent; covered by the managed agent tests",
   "messages.send_draft": "needs a draft by an agent; covered by the drafts test",
   "messages.discard_draft": "needs a draft by an agent; covered by the drafts test",
 };
@@ -247,6 +249,22 @@ test("answers every documented route in the published shape, with real data", as
     params: hookParams,
     data: { expectedVersion: renamed.version },
   });
+  // A managed agent: assigned to a ticket, which gives the ticket a run to list. The ticket is
+  // given back at the end.
+  const managedAgent = await call("agents.create_managed", {
+    params: { projectId: project },
+    data: { name: `Contract managed ${desk.run}`, actions: ["ticket.read"] },
+  });
+  await call("tickets.assign", {
+    params: { ticketId: ticket },
+    data: { userId: null, agentId: String(managedAgent.id) },
+  });
+  await call("tickets.agent_runs", { params: { ticketId: ticket } });
+  await call("tickets.assign", {
+    params: { ticketId: ticket },
+    data: { userId: null, agentId: null },
+  });
+  await call("agents.revoke", { params: { agentId: String(managedAgent.id) } });
   // Every route is called above or has a reason here, and no reason is stale.
   const all = operations.map((entry) => entry.operation.operationId);
   const missing = all.filter((id) => !covered.has(id) && !(id in notCalled));
