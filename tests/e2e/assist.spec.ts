@@ -107,6 +107,7 @@ test("shows what each failure of a draft means", async ({ page, desk, signIn }) 
       "The provider does not offer the model of the AI task for drafts.",
     ],
     [503, "ai_rate_limited", "The provider limits requests or is busy right now."],
+    [402, "ai_quota_exhausted", "The account at the provider has no credit or quota left."],
     [409, "ai_disabled", "AI drafts are not set up for this project."],
     [500, "unavailable", "The AI could not write a draft."],
   ] as const) {

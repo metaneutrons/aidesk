@@ -100,6 +100,7 @@ const assistErrors: Record<
   | "assistNotConfigured"
   | "assistBudget"
   | "assistTimeout"
+  | "assistQuota"
   | "assistModel"
   | "assistRateLimited"
   | "assistFailed"
@@ -108,6 +109,7 @@ const assistErrors: Record<
   ai_disabled: "assistNotConfigured",
   ai_budget_exceeded: "assistBudget",
   ai_timeout: "assistTimeout",
+  ai_quota_exhausted: "assistQuota",
   ai_model_unavailable: "assistModel",
   ai_rate_limited: "assistRateLimited",
   ai_provider_error: "assistFailed",
