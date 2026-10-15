@@ -1246,8 +1246,35 @@ refused, a wrong owner token was refused and the right one started a claim; the 
 passed inside the worker with its read-only root; data in the database survived stopping and
 starting the stack. The first run showed that a clean installation could not become ready,
 because only the development seed created the bucket; `scripts/migrate.ts` does it now.
-Not done: TLS and a proxy, measured start and recovery times, backup and restore, and a run
-of the same checks in CI.
+Not done: TLS and a proxy.
+
+#### Backup and restore
+
+`sh scripts/production-backup.sh backup <directory>` writes `database.dump` (PostgreSQL
+custom format, from the bundled database; for a database of your own use its own backup
+tool), a copy of the objects (`objects-copy/`, a file per key and `manifest.jsonl` with size,
+type and SHA-256, made through the S3 API, so any storage works) and `SHA256SUMS`. The
+database is dumped first and the objects after it: an object is stored before the row that
+names it, so a copy of the objects that is newer than the dump holds objects that no row names
+yet, which the sweep removes, while the other order could leave a row without its object.
+`sh scripts/production-backup.sh restore <directory>` checks the sums, stops the web server
+and the worker, restores the dump (`pg_restore --clean --if-exists`), imports the objects only
+if every file matches the manifest (a damaged copy changes nothing), and starts the services
+again. The directory has to be on the machine that runs Docker (on Docker Desktop or Colima, in
+a folder that the VM shares). Run the sweep afterwards, as the script prints.
+
+`ENV_FILE=<file> sh scripts/check-production.sh` qualifies the setup on a machine and the CI
+job "Production image" runs it with throwaway values: it starts the project `aidesk-check`
+from a clean state, puts a ticket with a message and an attachment and three objects into it
+(one of them named by no row), restarts the services, makes a backup, deletes the volumes,
+starts again, restores, and checks that the rows and every object (by SHA-256 and type) are
+back and that the sweep finds nothing that a row names. Measured on 2026-10-15 on an Apple
+silicon laptop with the image built, bundled PostgreSQL and storage and almost no data: ready
+after 7 s from a clean state, 1 s after a restart of the web server and the worker, 4 s from
+the start of a restore to ready, a backup in under a second. These are measurements of the
+mechanics on this machine and not recovery targets: the time of a restore grows with the
+data. A container that is killed by hand (`docker kill`) stays down under the policy
+`unless-stopped`, as it does for any manual stop; one that crashes is started again.
 
 ## Reproduce the local check
 
@@ -1337,7 +1364,8 @@ neither qualifies the planned production scale. Messenger adapters are reserved 
 the plan and in `src/domain/channels.ts` and are not presented as working
 connections.
 
-Vercel HTTPS, TLS and a proxy for the production Compose setup, real remote MCP, browser and
-usability/accessibility runs, repository-settings audit, backup/restore,
-retention/export/deletion and measured recovery targets also remain open.
+Vercel HTTPS, TLS and a proxy for the production Compose setup, recovery targets for real data sizes, real remote MCP, browser and
+usability/accessibility runs, repository-settings audit, a backup schedule and its
+monitoring, export and the deletion of tickets, and recovery targets at the data sizes of a
+real deployment also remain open.
 Do not equate a passing development build with these qualifications.

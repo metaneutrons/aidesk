@@ -57,6 +57,7 @@ COPY --from=build /app/src ./src
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts/migrate.ts ./scripts/migrate.ts
 COPY --from=build /app/scripts/smoke.ts ./scripts/smoke.ts
+COPY --from=build /app/scripts/objects.ts /app/scripts/sweep-objects.ts ./scripts/
 COPY --from=build /app/resources ./resources
 USER node
 EXPOSE 3000
