@@ -19,6 +19,7 @@ test("shows the counts the server reports and narrows them by project", async ({
   page,
   desk,
   signIn,
+  baseURL,
 }) => {
   const { alpha } = desk.projects;
   await signIn();
@@ -30,10 +31,11 @@ test("shows the counts the server reports and narrows them by project", async ({
   ) => rows.reduce((total, row) => total + row[key], 0);
   await page.goto("/");
   const metric = (label: string) => page.locator(".metric", { hasText: label }).locator("strong");
-  // Mail jobs of earlier tests change tickets after those tests ended, and the page
-  // counts when it loads or when the filter changes. So the page is compared with a
-  // fresh read of the same filter, and when they differ it counts again, until both
-  // agree.
+  // Mail jobs of earlier tests change tickets after those tests ended. The page
+  // counts once when it loads and narrows those figures by the filter in the
+  // browser, so a change after the load shows only after a reload. The page is
+  // compared with a fresh read of the same filter, and when they differ the page is
+  // loaded again, until both agree.
   const counts = [
     ["Overdue", "overdue"],
     ["Unassigned", "unassigned"],
@@ -59,17 +61,41 @@ test("shows the counts the server reports and narrows them by project", async ({
     await page.reload();
     await metric("Overdue").waitFor();
   });
-  // One project only: the counts follow the filter and are those of the API.
-  const one = await read(`?project=${alpha.id}`);
-  expect(one.projects.map((row) => row.projectId)).toEqual([alpha.id]);
-  expect(one.oldest.every((ticket) => ticket.projectId === alpha.id)).toBe(true);
-  await page.getByRole("button", { name: "All projects" }).click();
-  const choice = page.getByRole("checkbox", { name: alpha.name });
-  await choice.check();
-  await agree(`?project=${alpha.id}`, async () => {
-    await choice.uncheck();
+  // A ticket changes after the page was loaded: the figures of the page are stale
+  // until the next load, and the comparison has to load again to recover.
+  const moved = alpha.tickets[1];
+  const detail = z
+    .object({ ticket: z.object({ revision: z.number() }) })
+    .parse(await (await page.request.get(`/api/v1/tickets/${moved}`)).json());
+  const headers = { origin: baseURL ?? "" };
+  expect(
+    (
+      await page.request.post(`/api/v1/tickets/${moved}/status`, {
+        headers,
+        data: { status: "resolved", expectedRevision: detail.ticket.revision },
+      })
+    ).ok(),
+  ).toBe(true);
+  try {
+    // One project only: the counts follow the filter and are those of the API.
+    const one = await read(`?project=${alpha.id}`);
+    expect(one.projects.map((row) => row.projectId)).toEqual([alpha.id]);
+    expect(one.oldest.every((ticket) => ticket.projectId === alpha.id)).toBe(true);
+    await page.getByRole("button", { name: "All projects" }).click();
+    const choice = page.getByRole("checkbox", { name: alpha.name });
     await choice.check();
-  });
+    await agree(`?project=${alpha.id}`, async () => {
+      await page.reload();
+      await metric("Overdue").waitFor();
+      await page.getByRole("button", { name: "All projects" }).click();
+      await choice.check();
+    });
+  } finally {
+    await page.request.post(`/api/v1/tickets/${moved}/status`, {
+      headers,
+      data: { status: "open", expectedRevision: detail.ticket.revision + 1 },
+    });
+  }
 });
 test("counts overdue by the limit of the project", async ({ page, desk, signIn, baseURL }) => {
   const { alpha } = desk.projects;
