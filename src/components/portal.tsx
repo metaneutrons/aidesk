@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 interface PortalView {
@@ -32,6 +32,13 @@ export function Portal({
   // One key per attempt, kept until the reply was accepted, so a repeated
   // submission cannot create the message twice.
   const [key, setKey] = useState(() => crypto.randomUUID());
+  // Until hydration the field is server HTML without handlers; a submit would
+  // reload the page, and React would replace anything typed with the initial state.
+  // Keep the field and the button disabled until then.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   if (!view)
     return (
       <main className="portal">
@@ -91,11 +98,16 @@ export function Portal({
             rows={6}
             maxLength={20000}
             required
+            disabled={!hydrated}
             onChange={(event) => {
               setText(event.target.value);
             }}
           />
-          <button className="primary" type="submit" disabled={state === "sending" || !text.trim()}>
+          <button
+            className="primary"
+            type="submit"
+            disabled={!hydrated || state === "sending" || !text.trim()}
+          >
             {t("portalSend")}
           </button>
           {state !== "idle" && state !== "sending" && (
