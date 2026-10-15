@@ -292,6 +292,21 @@ describe("role presets", () => {
     expect(roleOf(operatorRoles, [])).toBe("none");
     expect(roleOf(operatorRoles, ["ticket.read"])).toBe("custom");
     expect(roleOf(tokenRoles, ["project.read", "ticket.read", "ticket.note"])).toBe("notes");
+    expect(roleOf(tokenRoles, ["project.read", "ticket.read", "ticket.read_files"])).toBe(
+      "readFiles",
+    );
+    // Reading files is in exactly one preset of a token and in none of the roles of a
+    // person except the one that holds every action.
+    expect(
+      Object.entries(tokenRoles)
+        .filter(([, actions]) => (actions as readonly string[]).includes("ticket.read_files"))
+        .map(([name]) => name),
+    ).toEqual(["readFiles"]);
+    expect(
+      Object.entries(operatorRoles)
+        .filter(([, actions]) => (actions as readonly string[]).includes("ticket.read_files"))
+        .map(([name]) => name),
+    ).toEqual(["manage"]);
     expect(within(operatorRoles.respond, ["project.read", "ticket.read", "ticket.note"])).toEqual([
       "project.read",
       "ticket.read",

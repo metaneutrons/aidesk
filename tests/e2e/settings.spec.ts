@@ -63,6 +63,41 @@ test("disables an operator and shows the state", async ({ page, desk, signIn }) 
   await row.getByRole("button", { name: `Enable: Invited ${desk.run}` }).click();
   await expect(row.getByText("Active")).toBeVisible();
 });
+test("issues a token that may read files only when that access is chosen", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  await signIn();
+  await openSettings(page);
+  await page.getByLabel("Project", { exact: true }).selectOption(desk.projects.alpha.id);
+  await page.getByLabel("Token name").fill("Files token");
+  await page.getByLabel("Access").selectOption("readFiles");
+  await page.getByRole("button", { name: "Issue token" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "It is not shown again" })).toBeVisible();
+  const item = page.getByRole("listitem").filter({ hasText: "Files token" });
+  await expect(item.getByText("Read, with attachments and mail sources")).toBeVisible();
+  const listed = z
+    .array(z.object({ name: z.string(), actions: z.array(z.string()) }))
+    .parse(
+      await (await page.request.get(`/api/v1/projects/${desk.projects.alpha.id}/agents`)).json(),
+    );
+  expect(listed.find((entry) => entry.name === "Files token")?.actions.sort()).toEqual([
+    "project.read",
+    "ticket.read",
+    "ticket.read_files",
+  ]);
+  // The other accesses never include it.
+  const options = await page.getByLabel("Access").locator("option").allTextContents();
+  expect(options).toEqual([
+    "Read",
+    "Read, with attachments and mail sources",
+    "Read and notes",
+    "Respond",
+  ]);
+  await item.getByRole("button", { name: "Revoke: Files token" }).click();
+  await expect(item.getByText("Revoked")).toBeVisible();
+});
 test("issues a token once and revokes it", async ({ page, desk, signIn }) => {
   await signIn();
   await openSettings(page);
