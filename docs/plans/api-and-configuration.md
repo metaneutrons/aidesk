@@ -291,7 +291,7 @@ an agent can propose it. The first delivered task is draft assistance.
   profile is off by default; switching it on is applied only by a person with
   `config.approve`, also under `direct`, and an agent's change that would switch it
   on is a proposal that waits for such a person. A connection of another project, a
-  disabled one or an unknown model name is refused with the field named. Every change
+  disabled one or a malformed model name is refused with the field named; whether the provider knows the model is found out when a task runs (C6-A3). Every change
   is audited and kept. Counter-probes cover an agent under `direct` switching a
   profile on, a person without `config.approve` doing it, a stale version and a
   connection of another project.
@@ -364,3 +364,11 @@ versions, not a field of the configuration document. (2) They are set per projec
 only, with no instance default. (3) Switching on a profile that sends ticket content
 to a provider is applied only by a person with `config.approve`, under every policy;
 it is off by default. (4) The first task delivered is draft assistance (M4-A12).
+
+2026-10-15: C6-A2 corrected before its acceptance. The criterion said that an unknown
+model name is refused when a profile is written. The product cannot know the models of a
+provider without a call to it, which a write should not make and which can fail for
+reasons that have nothing to do with the profile, so a write refuses a malformed name
+and the provider's refusal of an unknown one is a failure of the task (`ai_provider_error`
+in C6-A3). The wording of the criterion is the only change; no acceptance was recorded
+against the earlier one.
