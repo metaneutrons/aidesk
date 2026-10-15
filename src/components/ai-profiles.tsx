@@ -210,6 +210,9 @@ export function AiProfiles({
               <span>{t("aiEnabled")}</span>
             </label>
             <p className="muted">{t("aiEnabledHint")}</p>
+            <p className="muted">
+              {t(profile.task === "image.read" ? "aiModelHintImage" : "aiModelHintDraft")}
+            </p>
             {canWrite && (
               <span className="configuration-actions">
                 <button

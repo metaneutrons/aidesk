@@ -305,6 +305,8 @@
   "aiConnectionCurrent": "Aktuelle Verbindung",
   "aiConnectionNone": "Keine Verbindung",
   "aiModel": "Modell",
+  "aiModelHintDraft": "Ein Entwurf entsteht aus Text von Kunden, und der kann Anweisungen enthalten. Kleinere Modelle befolgen sie häufiger und erfinden Angaben wie Termine und Status. Wähle für diese Aufgabe ein größeres Modell und lies jeden Entwurf, bevor er gesendet wird.",
+  "aiModelHintImage": "Ein Modell kann Zeichen und Zahlen falsch lesen. Prüfe Beträge und Nummern am Original.",
   "aiTimeout": "Zeitlimit in Sekunden",
   "aiMaxOutput": "Längste Antwort in Tokens",
   "aiDailyBudget": "Budget pro Tag in Tokens",
