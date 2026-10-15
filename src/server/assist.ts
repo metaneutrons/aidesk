@@ -93,7 +93,8 @@ export async function assistDraft(
     },
     deps,
   );
-  if (!outcome.ok) throw new DomainError(outcome.code, statusOf[outcome.code]);
+  if (!outcome.ok)
+    throw new DomainError(outcome.code, statusOf[outcome.code], outcome.retryAfterSeconds);
   // What a model returns is cleaned of invisible characters like any text from outside.
   const text = cleanText(outcome.text).text.trim();
   if (!text) throw new DomainError("ai_provider_error", statusOf.ai_provider_error);

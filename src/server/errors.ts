@@ -13,6 +13,8 @@ export class DomainError extends Error {
       // A task that asks a model ended without an answer.
       | AiFailure,
     readonly status: number,
+    // How long the caller is asked to wait, in seconds, when a provider said.
+    readonly retryAfterSeconds?: number,
   ) {
     super(code);
     this.name = "DomainError";

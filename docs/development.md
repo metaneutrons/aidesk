@@ -1002,12 +1002,13 @@ one of these codes:
 - `ai_disabled`: the profile is off;
 - `ai_budget_exceeded`: the day's budget of the task has not enough left for this run;
 - `ai_timeout`: the provider did not answer within the timeout of the profile;
-- `ai_quota_exhausted`: the account at the provider has no credit or quota left, so waiting
-  does not help. It is told by what the provider says, because the status is shared with a
+- `ai_quota_exhausted`: the account at the provider has no credit or quota left, so a short wait
+  does not help (a quota of the day returns at midnight of the provider). It is told by what the provider says, because the status is shared with a
   limit of requests: OpenAI answers 429 with the type `insufficient_quota`, Anthropic answers
-  400 with "credit balance is too low". Google reports an exhausted quota as a 429 that
-  cannot be told from a limit, so it stays `ai_rate_limited`. The share of the budget is
-  given back;
+  400 with "credit balance is too low" or the type `billing_error`, and Google answers 429
+  for a quota of the day (the name of the quota in the answer contains `PerDay`, as for the
+  free tier) with the same status as a limit per minute, which stays `ai_rate_limited`.
+  The share of the budget is given back;
 - `ai_model_unavailable`: the provider does not know the model of the profile (status 404,
   for example a model that was retired; a list of models can still show it). The share of
   the budget is given back. The profile has to name another model;
@@ -1017,6 +1018,13 @@ one of these codes:
 - `ai_provider_error`: any other refusal or failure of the provider (a refused key, a
   malformed request, a server error, a network failure). The provider's own text is not
   kept or shown.
+
+For `ai_quota_exhausted` and `ai_rate_limited` the answer carries the wait that the provider
+asked for, when it said: from `Retry-After` (seconds or a date) or OpenAI's `retry-after-ms`,
+or from the retry information in the body of Google; a wait of more than a week is
+left out. A run gives it as `retryAfterSeconds`, and the REST answer of the draft route
+sets the standard header `Retry-After` (the published error body is unchanged). The desk
+says "try again in 2 minutes", "in 6 hours" or "in 5 days" when it has the header.
 
 **Budget.** Each profile has a daily budget in tokens, counted per project, task and UTC
 day in `ai_budget`. A run holds its share before it calls the provider: the input as
