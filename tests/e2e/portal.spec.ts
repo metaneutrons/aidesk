@@ -87,6 +87,47 @@ test("opens a ticket for its requester, takes a reply and ends with the link", a
     await context.close();
   }
 });
+test("keeps what a customer types before the page is ready", async ({
+  page,
+  desk,
+  signIn,
+  browser,
+  baseURL,
+}) => {
+  const ticketId = desk.projects.alpha.tickets[1];
+  const answer = `Early answer ${randomUUID()}`;
+  await signIn();
+  const grant = z.object({ url: z.string() }).parse(
+    await (
+      await page.request.post(`/api/v1/tickets/${ticketId}/portal-link`, {
+        data: {},
+        headers: { origin: baseURL ?? "" },
+      })
+    ).json(),
+  );
+  const context = await browser.newContext({ locale: "en-US" });
+  const customer = await context.newPage();
+  try {
+    // The scripts of the page arrive late, as on a slow connection or a busy server.
+    // Until they ran, the form is server HTML without handlers: a submit would
+    // reload the page and hydration would reset the field.
+    await context.route("**/_next/static/**/*.js", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.continue();
+    });
+    await customer.goto(grant.url, { waitUntil: "commit" });
+    const reply = customer.getByLabel("Your reply");
+    await expect(reply).toBeVisible();
+    await expect(reply).toBeDisabled();
+    await reply.fill(answer);
+    await customer.getByRole("button", { name: "Send reply" }).click();
+    await expect(customer.getByRole("article").filter({ hasText: answer })).toBeVisible({
+      timeout: 15_000,
+    });
+  } finally {
+    await context.close();
+  }
+});
 test("shows the page in German for a German browser and refuses an unknown link", async ({
   browser,
 }) => {
