@@ -63,11 +63,8 @@ const notCalled: Record<string, string> = {
   "operators.grant": "changes the rights of an operator; the shape is checked by the invalid call",
   "operators.active": "disables an operator; the shape is checked by the invalid call",
   "config.decide": "needs a pending proposal, which the sign-in of the fixture cannot make",
-  "connections.create": "needs a real mail host; its dry run is called below",
   "ai_profiles.set": "needs a connection to a model provider; covered by the profile tests",
-  "connections.update": "needs a real mail host",
-  "connections.disable": "needs a connection",
-  "connections.test": "opens a connection to a mail host",
+  "connections.test": "makes a request to the host of the connection",
   "designs.test": "sends a mail; covered by the designs test",
   "designs.test_status": "needs a queued test mail",
   "messages.original": "needs a stored original of a message",
@@ -134,7 +131,28 @@ test("answers every documented route in the published shape, with real data", as
   await call("junk.list");
   await call("agents.list", { params: { projectId: project } });
   await call("designs.list", { params: { projectId: project } });
+  // A connection to a model provider needs no host to be defined, so the routes of
+  // connections are called with one; the list is read after it exists.
+  const provider = await call("connections.create", {
+    params: { projectId: project },
+    data: {
+      kind: "anthropic",
+      direction: "ai",
+      name: `Contract ${desk.run}`,
+      config: {},
+      secret: { apiKey: "contract-key-never-shown" },
+    },
+  });
   await call("connections.list", { params: { projectId: project } });
+  const connectionParams = { projectId: project, connectionId: String(provider.connectionId) };
+  const renamedConnection = await call("connections.update", {
+    params: connectionParams,
+    data: { expectedVersion: provider.version, name: `Contract changed ${desk.run}` },
+  });
+  await call("connections.disable", {
+    params: connectionParams,
+    data: { expectedVersion: renamedConnection.version },
+  });
   await call("texts.list", { params: { projectId: project } });
   await call("ai_profiles.list", { params: { projectId: project } });
   await call("texts.versions", {

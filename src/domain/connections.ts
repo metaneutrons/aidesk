@@ -74,6 +74,17 @@ export const connectionTypes = {
   "google:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
 } as const;
 export type ConnectionTypeKey = keyof typeof connectionTypes;
+// The kinds and the directions of every connection type, for the schemas that
+// describe a connection to the outside. Taken from the types, so a new type is in
+// them without anyone listing it a second time.
+const typeKeys = Object.keys(connectionTypes) as ConnectionTypeKey[];
+export const connectionKinds = [...new Set(typeKeys.map((key) => key.split(":")[0] ?? ""))] as [
+  string,
+  ...string[],
+];
+export const connectionDirections = [
+  ...new Set(typeKeys.map((key) => key.split(":")[1] ?? "")),
+] as [string, ...string[]];
 export function typeKey(kind: string, direction: string): ConnectionTypeKey | null {
   const key = `${kind}:${direction}`;
   return key in connectionTypes ? (key as ConnectionTypeKey) : null;

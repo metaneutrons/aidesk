@@ -63,7 +63,13 @@ import {
 import { issuePortalGrant, portalLinkInput, portalUrl, revokePortalGrant } from "../portal";
 import { configDecision, configWrite } from "../../domain/configuration";
 import { decideConfigChange, getConfig, listConfigChanges, putConfig } from "../configuration";
-import { connectionCreate, connectionDisable, connectionUpdate } from "../../domain/connections";
+import {
+  connectionCreate,
+  connectionDirections,
+  connectionDisable,
+  connectionKinds,
+  connectionUpdate,
+} from "../../domain/connections";
 import {
   createConnection,
   disableConnection,
@@ -713,8 +719,8 @@ export const routes: Route[] = [
     mcp: {
       tool: "connections_create",
       input: {
-        kind: z.enum(["imap", "cloudflare", "smtp"]),
-        direction: z.enum(["inbound", "outbound"]),
+        kind: z.enum(connectionKinds),
+        direction: z.enum(connectionDirections),
         name: z.string(),
         config: z.record(z.string(), z.unknown()),
         secret: z.record(z.string(), z.unknown()).optional(),
