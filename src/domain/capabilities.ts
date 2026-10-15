@@ -120,7 +120,7 @@ export const capabilities = {
   "ai_profiles.list": {
     operation: "listAiProfiles",
     action: "config.read",
-    ui: null,
+    ui: "src/components/ai-profiles.tsx",
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
@@ -128,7 +128,7 @@ export const capabilities = {
   "ai_profiles.set": {
     operation: "setAiProfile",
     action: "config.write",
-    ui: null,
+    ui: "src/components/ai-profiles.tsx",
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
