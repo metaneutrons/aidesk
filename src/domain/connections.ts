@@ -45,6 +45,16 @@ export const smtpSecret = z.object({
   pass: z.string(),
   apiKey: z.string().min(1).optional(),
 });
+// A model provider. The product reaches the provider's own address unless the
+// connection names another one (a gateway, a regional address); that address is the
+// base the provider's paths are added to, and it has to be HTTPS and pass the host
+// guard like any other connection's host.
+export const aiConfig = z.object({
+  endpoint: z.url().optional(),
+  developmentOnly: z.boolean().default(false),
+});
+export const aiSecret = z.object({ apiKey: z.string().min(1) });
+export const aiKinds = ["anthropic", "openai", "google"] as const;
 // One entry per kind and direction: how to check its configuration and secret.
 export const connectionTypes = {
   "imap:inbound": { config: imapConfig, secret: imapSecret, secretRequired: true },
@@ -59,6 +69,9 @@ export const connectionTypes = {
     secret: cloudflareOutboundSecret,
     secretRequired: true,
   },
+  "anthropic:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
+  "openai:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
+  "google:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
 } as const;
 export type ConnectionTypeKey = keyof typeof connectionTypes;
 export function typeKey(kind: string, direction: string): ConnectionTypeKey | null {
@@ -104,12 +117,18 @@ const members = {
     cloudflareOutboundSecret,
     true,
   ),
+  "anthropic:ai": define("anthropic", "ai", aiConfig, aiSecret, true),
+  "openai:ai": define("openai", "ai", aiConfig, aiSecret, true),
+  "google:ai": define("google", "ai", aiConfig, aiSecret, true),
 } as const;
 export const connectionCreate = z.union([
   members["imap:inbound"],
   members["cloudflare:inbound"],
   members["smtp:outbound"],
   members["cloudflare:outbound"],
+  members["anthropic:ai"],
+  members["openai:ai"],
+  members["google:ai"],
 ]);
 export type ConnectionCreate = z.infer<typeof connectionCreate>;
 // Reads a definition by its kind and direction first, so that an error names the
@@ -122,7 +141,8 @@ export function parseConnectionCreate(input: unknown): ConnectionCreate {
       {
         code: "custom",
         path: ["kind"],
-        message: "One of imap/inbound, cloudflare/inbound, smtp/outbound, cloudflare/outbound",
+        message:
+          "One of imap/inbound, cloudflare/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai",
       },
     ]);
   return members[key].parse(input);
