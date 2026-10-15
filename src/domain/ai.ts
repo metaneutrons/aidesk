@@ -45,6 +45,10 @@ export const aiFailures = [
   // The provider does not know the model of the profile (status 404), for example
   // because it was retired: the profile has to name another one.
   "ai_model_unavailable",
+  // The account at the provider has no credit or quota left (OpenAI: 429 with the type
+  // insufficient_quota, Anthropic: 400 "credit balance is too low"): it has to be
+  // topped up there, waiting does not help.
+  "ai_quota_exhausted",
   // The provider limits the requests or is overloaded (status 429, 503, 529): a
   // later call may work.
   "ai_rate_limited",

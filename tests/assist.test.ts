@@ -529,6 +529,16 @@ describe("who may ask, and what a failure says", () => {
     ).rejects.toMatchObject({ code: "ai_timeout", status: 504 });
     const refusal = (statusCode: number) =>
       new APICallError({ message: "no", url: "https://p.test", requestBodyValues: {}, statusCode });
+    const noCredit = new APICallError({
+      message: "no",
+      url: "https://p.test",
+      requestBodyValues: {},
+      statusCode: 429,
+      data: { error: { type: "insufficient_quota" } },
+    });
+    await expect(
+      assistDraft(both, ticketId, { mode: "reply" }, fake(noCredit).deps),
+    ).rejects.toMatchObject({ code: "ai_quota_exhausted", status: 402 });
     for (const [statusCode, code, status] of [
       [404, "ai_model_unavailable", 409],
       [429, "ai_rate_limited", 503],

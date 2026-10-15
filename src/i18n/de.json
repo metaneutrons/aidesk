@@ -342,6 +342,7 @@
   "assistNotConfigured": "KI-Entwürfe sind für dieses Projekt nicht eingerichtet. Eine Person, die Änderungen freigeben darf, schaltet die Aufgabe unter Einstellungen, KI-Aufgaben ein.",
   "assistBudget": "Das Tageslimit der KI-Aufgabe für Entwürfe ist aufgebraucht.",
   "assistTimeout": "Die KI hat nicht rechtzeitig geantwortet. Versuche es erneut.",
+  "assistQuota": "Das Konto beim Anbieter hat kein Guthaben oder Kontingent mehr. Zahle dort Guthaben ein; Warten hilft nicht.",
   "assistModel": "Der Anbieter hat das Modell der KI-Aufgabe für Entwürfe nicht. Wähle in den Einstellungen des Projekts ein anderes Modell.",
   "assistRateLimited": "Der Anbieter begrenzt Anfragen oder ist gerade ausgelastet. Versuche es in einer Minute erneut.",
   "assistFailed": "Die KI konnte keinen Entwurf schreiben."
