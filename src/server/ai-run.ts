@@ -1,12 +1,12 @@
 import { APICallError } from "ai";
 import { and, eq, sql } from "drizzle-orm";
-import { estimateTokens, type AiFailure, type AiTask } from "../domain/ai";
+import { estimateFileTokens, estimateTokens, type AiFailure, type AiTask } from "../domain/ai";
 import { aiSecret } from "../domain/connections";
 import { unseal } from "./crypto";
 import { db } from "./db";
 import { aiBudgets, aiProfiles, aiRuns, connections } from "./db/schema";
 import { env } from "./env";
-import { generate as callProvider, type Generate } from "./ai-provider";
+import { generate as callProvider, type CallFile, type Generate } from "./ai-provider";
 import { checkHost } from "./host-guard";
 // The one boundary through which a task of the product asks a model. A run needs a
 // profile that is on and a connection that is ready, holds its share of the daily
@@ -24,12 +24,16 @@ export interface AiRequest {
   task: AiTask;
   system: string;
   prompt: string;
+  // Images or PDFs the model reads with the prompt; they count against the budget.
+  files?: CallFile[];
   actor: { id: string; kind: "human" | "agent" | "system" };
 }
 export type AiOutcome =
   | {
       ok: true;
       text: string;
+      // The model that answered, as the profile named it.
+      model: string;
       // The answer reached the cap of the profile and was cut by the provider.
       truncated: boolean;
       usage: { inputTokens: number | null; outputTokens: number | null };
@@ -129,7 +133,13 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
   // The share of the budget this run holds while it runs: the input as estimated and
   // the longest answer the profile allows.
   const held =
-    estimateTokens(request.system) + estimateTokens(request.prompt) + profile.maxOutputTokens;
+    estimateTokens(request.system) +
+    estimateTokens(request.prompt) +
+    (request.files ?? []).reduce(
+      (sum, file) => sum + estimateFileTokens(file.mediaType, file.data.length),
+      0,
+    ) +
+    profile.maxOutputTokens;
   const day = (deps.now?.() ?? new Date()).toISOString().slice(0, 10);
   if (held > profile.dailyTokenBudget) return fail("ai_budget_exceeded", withConnection);
   const [reserved] = await db()
@@ -161,6 +171,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       model: profile.model,
       system: request.system,
       prompt: request.prompt,
+      files: request.files,
       maxOutputTokens: profile.maxOutputTokens,
       timeoutMs: profile.timeoutSeconds * 1000,
     });
@@ -173,6 +184,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
     return {
       ok: true,
       text: answer.text,
+      model: profile.model,
       truncated: answer.finishReason === "length",
       usage: { inputTokens, outputTokens },
       runId: await record("ok", { ...withConnection, inputTokens, outputTokens }),

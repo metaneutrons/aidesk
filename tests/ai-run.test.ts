@@ -17,7 +17,7 @@ import { db, sqlClient } from "../src/server/db";
 import { aiBudgets, aiProfiles, aiRuns, connections, projects } from "../src/server/db/schema";
 import { runAiTask, type AiRequest } from "../src/server/ai-run";
 import type { Answer, Call } from "../src/server/ai-provider";
-import { estimateTokens } from "../src/domain/ai";
+import { estimateFileTokens, estimateTokens } from "../src/domain/ai";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
 import { startFakeModels, type FakeModels, type Kind } from "./support/models";
@@ -444,6 +444,47 @@ const kinds: {
       (body.generationConfig as { maxOutputTokens?: number } | undefined)?.maxOutputTokens,
   },
 ];
+describe("a run with files", () => {
+  const image = { mediaType: "image/png", data: new Uint8Array(6000).fill(7) };
+  const scan = { mediaType: "application/pdf", data: new Uint8Array(100_000).fill(9) };
+  it("hands the files to the provider and holds their share of the budget", async () => {
+    await profile({ task: "image.read", dailyTokenBudget: 100_000 });
+    const { calls, generate } = fakeGenerate(answer({ usage: {} }));
+    const outcome = await runAiTask(request({ task: "image.read", files: [image, scan] }), {
+      generate,
+    });
+    expect(outcome).toMatchObject({ ok: true, model: "model-one" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.files).toEqual([image, scan]);
+    // No usage from the provider, so what was held stays charged: the input, both
+    // files (2000 for the image, 10000 for the scan) and the longest answer.
+    expect(estimateFileTokens(image.mediaType, image.data.length)).toBe(2000);
+    expect(estimateFileTokens(scan.mediaType, scan.data.length)).toBe(10_000);
+    const [row] = await db()
+      .select()
+      .from(aiBudgets)
+      .where(and(eq(aiBudgets.projectId, projectId), eq(aiBudgets.task, "image.read")));
+    expect(row?.charged).toBe(held(500) + 12_000);
+  });
+  it("costs little for an image however large and is capped for a PDF", () => {
+    expect(estimateFileTokens("image/jpeg", 5 * 1024 * 1024)).toBe(8000);
+    expect(estimateFileTokens("application/pdf", 10 * 1024 * 1024)).toBe(200_000);
+  });
+  it("refuses a run whose files do not fit the budget, without a call", async () => {
+    await profile({ task: "image.read", dailyTokenBudget: held(500) + 11_999 });
+    const { calls, generate } = fakeGenerate(answer());
+    expect(
+      await runAiTask(request({ task: "image.read", files: [image, scan] }), { generate }),
+    ).toMatchObject({ ok: false, code: "ai_budget_exceeded" });
+    expect(calls).toHaveLength(0);
+  });
+  it("sends no files when there are none", async () => {
+    await profile();
+    const { calls, generate } = fakeGenerate(answer());
+    await runAiTask(request(), { generate });
+    expect(calls[0]?.files).toBeUndefined();
+  });
+});
 describe("the real call to each provider, against a fake one", () => {
   for (const { kind, path, key, limit } of kinds) {
     describe(kind, () => {
@@ -482,6 +523,33 @@ describe("the real call to each provider, against a fake one", () => {
         expect(limit(sent?.body ?? {})).toBe(321);
         expect(JSON.stringify(sent?.body)).toContain("where is my order 4711");
         expect(await charged()).toBe(18);
+      });
+      it("sends an image and a PDF as bytes in the form of the provider, with one request", async () => {
+        await profile({
+          task: "image.read",
+          connectionId: id,
+          timeoutSeconds: 2,
+          maxOutputTokens: 321,
+        });
+        const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 250, 251]);
+        const doc = Uint8Array.from(Buffer.from("%PDF-1.7 a scan \u00e4\u00f6", "latin1"));
+        const outcome = await runAiTask(
+          request({
+            task: "image.read",
+            files: [
+              { mediaType: "image/png", data: png },
+              { mediaType: "application/pdf", data: doc },
+            ],
+          }),
+        );
+        expect(outcome).toMatchObject({ ok: true });
+        expect(models.requests).toHaveLength(1);
+        const body = JSON.stringify(models.requests[0]?.body);
+        expect(body).toContain(Buffer.from(png).toString("base64"));
+        expect(body).toContain(Buffer.from(doc).toString("base64"));
+        expect(body).toContain("image/png");
+        expect(body).toContain("application/pdf");
+        expect(body).toContain("where is my order 4711");
       });
       it("ends at the timeout and is not repeated", async () => {
         models.behaviour = { delay: 3000 };

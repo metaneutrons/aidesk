@@ -27,14 +27,15 @@ import { markdownHtml, markdownLinks } from "./markdown";
 import { getObject } from "./storage";
 import {
   extractableByName,
+  imageByName,
   forAgent,
   looksBinary,
   looksLikeDocument,
   readableAsText,
   type Unreadable,
 } from "../domain/attachments";
-import { textState } from "./attachment-text";
-import type { Failure } from "./extract/types";
+import { modelState, textState, type ReadFailure, type TextState } from "./attachment-text";
+
 import { cleanText, flagsOf, type Flag } from "../domain/untrusted";
 import { htmlToMarkdown } from "./inbound";
 import { simpleParser } from "mailparser";
@@ -621,10 +622,16 @@ interface Extracted {
   unit: string;
   hidden: number;
 }
-type Reason = "not_stored" | Unreadable | "extraction_pending" | "extraction_failed";
+type Reason =
+  | "not_stored"
+  | Unreadable
+  | "extraction_pending"
+  | "extraction_failed"
+  // An image or a scan, and the project has not switched on the task that reads them.
+  | "image_reading_off";
 type Read =
   | { text: string; truncated: boolean; extraction?: Extracted }
-  | { reason: Reason; failure?: Failure };
+  | { reason: Reason; failure?: ReadFailure };
 async function recordRead(principal: Principal, origin: Origin, kind: string, read: Read) {
   const ready = "text" in read ? read : null;
   const unread = "reason" in read ? read : null;
@@ -668,8 +675,8 @@ async function framed(
   principal: Principal,
   origin: Origin,
   kind: "attachment" | "original",
-  read: { reason: Reason; failure?: Failure },
-): Promise<Frame & { readable: false; reason: Reason; failure?: Failure; truncated: false }>;
+  read: { reason: Reason; failure?: ReadFailure },
+): Promise<Frame & { readable: false; reason: Reason; failure?: ReadFailure; truncated: false }>;
 async function framed(principal: Principal, origin: Origin, kind: string, read: Read) {
   const { cleaned, flags } = await recordRead(principal, origin, kind, read);
   return {
@@ -709,7 +716,7 @@ export async function readAttachment(principal: Principal, attachmentId: string)
     contentType: cleanText(file.contentType).text,
     size: file.size,
   };
-  const unread = async (reason: Reason, failure?: Failure) => ({
+  const unread = async (reason: Reason, failure?: ReadFailure) => ({
     ...described,
     ...(await framed(principal, origin, "attachment", { reason, ...(failure ? { failure } : {}) })),
   });
@@ -724,9 +731,21 @@ export async function readAttachment(principal: Principal, attachmentId: string)
       };
   }
   // Not plain text: a file that is named like a document, or one that is called
-  // text and is not, goes to the reader of documents.
-  if (!asText && !extractableByName(file)) return unread("type_not_readable");
-  const state = await textState(file.projectId, attachmentId);
+  // text and is not, goes to the reader of documents. An image goes to the model,
+  // and so does a document that has no text of its own, a scan.
+  const asImage = !asText && imageByName(file);
+  if (!asText && !asImage && !extractableByName(file)) return unread("type_not_readable");
+  const asked = { id: principal.id, kind: principal.kind };
+  let state: TextState | { state: "off" } = asImage
+    ? await modelState(file.projectId, attachmentId, asked)
+    : await textState(file.projectId, attachmentId);
+  if (
+    !asImage &&
+    state.state === "failed" &&
+    (state.failure === "empty" || state.failure.startsWith("ai_"))
+  )
+    state = await modelState(file.projectId, attachmentId, asked);
+  if (state.state === "off") return unread("image_reading_off");
   if (state.state === "pending") return unread("extraction_pending");
   if (state.state === "failed") return unread("extraction_failed", state.failure);
   const { text, ...extraction } = state;

@@ -141,3 +141,35 @@ export function forAgent(content: Buffer): { text: string; truncated: boolean } 
   const truncated = content.length > agentReadLimit;
   return { text: content.subarray(0, agentReadLimit).toString("utf8"), truncated };
 }
+// What a model reads of a file that has no text of its own: an image, or a PDF
+// that is a scan. A model is sent only what its first bytes show to be one of
+// these, whatever the sender called the file, and only up to what the providers
+// accept.
+export const modelReadable = {
+  imageTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
+  imageBytes: 5 * 1024 * 1024,
+  pdfBytes: 10 * 1024 * 1024,
+} as const;
+const imageExtensions = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
+// A file named like an image the models read, by the type or, when the type says
+// nothing, by the extension. What it really is follows from its bytes.
+export function imageByName(file: { filename: string; contentType: string }): boolean {
+  const type = file.contentType.toLowerCase().split(";")[0]?.trim() ?? "";
+  if (type === "image/jpg") return true;
+  if (modelReadable.imageTypes.some((known) => known === type)) return true;
+  if (type !== "" && type !== "application/octet-stream") return false;
+  const dot = file.filename.lastIndexOf(".");
+  return dot >= 0 && imageExtensions.has(file.filename.slice(dot + 1).toLowerCase());
+}
+// The media type of the bytes of an image or a PDF a model reads, or null for
+// anything else.
+export function modelMediaType(content: Buffer): string | null {
+  const starts = (bytes: number[], at = 0) => bytes.every((b, i) => content[at + i] === b);
+  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (starts([0x47, 0x49, 0x46, 0x38]) && (content[4] === 0x37 || content[4] === 0x39))
+    return "image/gif";
+  if (starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
+  if (content.subarray(0, 1024).includes("%PDF-")) return "application/pdf";
+  return null;
+}

@@ -5,6 +5,12 @@ import { generateText, type LanguageModel } from "ai";
 // The one place that talks to a model provider. A call is one request: it is not
 // repeated by the SDK (`maxRetries: 0`), because a request whose outcome is unknown
 // may have been accepted, and it ends at a time limit.
+// A file in the request: an image or a PDF as bytes, never as an address the SDK or
+// the provider would fetch.
+export interface CallFile {
+  mediaType: string;
+  data: Uint8Array;
+}
 export interface Call {
   kind: "anthropic" | "openai" | "google";
   // The base address of a connection that names its own, without the version path.
@@ -13,6 +19,7 @@ export interface Call {
   model: string;
   system: string;
   prompt: string;
+  files?: CallFile[] | undefined;
   maxOutputTokens: number;
   timeoutMs: number;
 }
@@ -41,13 +48,35 @@ function modelOf(call: Call): LanguageModel {
   return createGoogle(settings)(call.model);
 }
 export const generate: Generate = async (call) => {
-  const result = await generateText({
-    model: modelOf(call),
-    system: call.system,
-    prompt: call.prompt,
+  const limits = {
     maxOutputTokens: call.maxOutputTokens,
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(call.timeoutMs),
-  });
+  };
+  const result = call.files?.length
+    ? await generateText({
+        model: modelOf(call),
+        system: call.system,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: call.prompt },
+              ...call.files.map((file) =>
+                file.mediaType === "application/pdf"
+                  ? ({ type: "file", data: file.data, mediaType: file.mediaType } as const)
+                  : ({ type: "image", image: file.data, mediaType: file.mediaType } as const),
+              ),
+            ],
+          },
+        ],
+        ...limits,
+      })
+    : await generateText({
+        model: modelOf(call),
+        system: call.system,
+        prompt: call.prompt,
+        ...limits,
+      });
   return { text: result.text, finishReason: result.finishReason, usage: result.usage };
 };

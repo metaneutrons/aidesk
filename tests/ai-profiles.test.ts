@@ -112,6 +112,14 @@ describe("reading the profiles", () => {
         enabled: false,
         ...aiDefaults,
       },
+      {
+        task: "image.read",
+        version: 0,
+        connectionId: null,
+        model: null,
+        enabled: false,
+        ...aiDefaults,
+      },
     ]);
   });
   it("needs config.read and shows nothing of another project", async () => {
@@ -181,7 +189,7 @@ describe("setting a profile that is off", () => {
   });
   it("names the field that is wrong", async () => {
     expect(await refusal(setAiProfile(writer, projectId, "translate", body()))).toEqual([
-      "task: One of reply.draft, note.draft",
+      "task: One of reply.draft, note.draft, image.read",
     ]);
     expect(
       await refusal(setAiProfile(writer, projectId, "reply.draft", body({ model: "bad model!" }))),
