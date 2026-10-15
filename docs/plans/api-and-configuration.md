@@ -252,6 +252,67 @@ visible.
   cover the setting off, a provider that fails and a result that is marked as
   machine-read.
 
+### C6: AI connections and task profiles
+
+Execution: [C6 #101](https://github.com/metaneutrons/aidesk/issues/101).
+Dependencies: C3 (connections, texts), C4. It supplies the configuration layer of
+the AI execution work of [M4](initial-product.md) (M4-A9, M4-A10); their
+qualification with two real providers stays with M4.
+Outcome: a project can connect a model provider and decide per task which model
+runs, under which limits, and whether ticket content may leave the system at all;
+the first task that uses it is draft assistance in free-text fields (M4-A12).
+
+Baseline on 2026-10-15: the AI SDK and the packages of three providers are
+dependencies, and no code calls a model. A project has no AI setting; the approval
+policy governs what agents do through the API, not what the product sends to a
+provider.
+
+Design decisions of 2026-10-15: task profiles are objects of their own with their
+own versions, routes and proposals, like webhooks and texts, and not a field of the
+configuration document, which stays small. They are set per project only, with no
+instance default, like the approval policy. A profile that sends ticket content to a
+provider is off by default, and switching it on is applied only by a person with
+`config.approve`, under every policy, because it decides where customer data goes;
+an agent can propose it. The first delivered task is draft assistance.
+
+- C6-A1: A project can define provider connections of the kinds `anthropic`,
+  `openai` and `google` through the API under `integration.manage` and the approval
+  policy, with the rules of the other connections: the key is stored sealed and
+  appears in no response, diff, proposal or audit entry; a custom endpoint passes the
+  host guard; a test makes a minimal request to the provider and records `ready` or
+  `degraded` with a code; a connection can be disabled. A project can have several.
+  Tests use a fake provider server and cover each of these, a refused host and a
+  provider that rejects the key.
+- C6-A2: A task profile is a versioned object of a project: the task (`reply.draft`
+  and `note.draft` first; later tasks extend the list), a connection of the same
+  project, a model name, a timeout, a cap for the output and a daily budget. It is
+  read, validated without writing, written against a version, listed with its
+  versions and disabled through REST and MCP, and shown on the settings page. A
+  profile is off by default; switching it on is applied only by a person with
+  `config.approve`, also under `direct`, and an agent's change that would switch it
+  on is a proposal that waits for such a person. A connection of another project, a
+  disabled one or an unknown model name is refused with the field named. Every change
+  is audited and kept. Counter-probes cover an agent under `direct` switching a
+  profile on, a person without `config.approve` doing it, a stale version and a
+  connection of another project.
+- C6-A3: Tasks run through one provider-neutral boundary. A run needs an enabled
+  profile and a ready connection; it enforces the timeout and the cap for the output
+  and reserves the daily budget before the call and settles it after; it records the
+  usage (profile and version, model, tokens, outcome) without the prompt, the
+  customer content or the answer; and it ends in one of the codes `ai_not_configured`,
+  `ai_disabled`, `ai_budget_exceeded`, `ai_timeout` or `ai_provider_error`. A call
+  whose acceptance is unknown is not repeated, and no other provider is tried in its
+  place. Tests use a fake provider for success, failure, timeout, an exhausted
+  budget, concurrent reservations and an unknown acceptance, and show that a profile
+  of another project cannot be used and that the usage record holds no content.
+- C6-A4: Draft assistance (M4-A12) works for the reply composer and the internal
+  note as that criterion states: a button, the standard prompt per mode as a project
+  text (English and German, versioned and editable through the API), a custom
+  instruction for one draft, a draft that replaces the field only as editable text
+  and can be undone, the ticket text treated as data, an audit entry without the
+  prompt and the draft, and the same operation over REST and not over MCP. A real
+  provider run is recorded as M4-A9 states.
+
 ## Migration, risks and verification cost
 
 Adoption is incremental: C1 changes no behaviour. Configuration writes by agents
@@ -267,10 +328,8 @@ activation only); secrets leaking through diffs (tested explicitly).
 Verification: focused unit and end-to-end tests per delivery; the full browser
 matrix only when the web interface changes.
 
-Open questions:
-
-- Where does the AI-profile configuration of M4 enter the configuration document?
-  (Decided 2026-10-14 for the other three questions; see Decision changes.)
+Open questions: none. The last one, where the AI-profile configuration of M4 enters
+the configuration document, was decided on 2026-10-15; see Decision changes.
 
 ## Decision changes
 
@@ -298,3 +357,10 @@ the AI model of the project, so C5-A5 waits for the AI execution layer. Reading 
 is the separate action `ticket.read_files`; the text attachments and the source of a
 mail that C4-A2 made readable moved behind it in the same delivery, before they were
 offered under `ticket.read`.
+
+2026-10-15: decisions of the product owner on the AI layer (C6), which answer the last
+open question of this plan. (1) Task profiles are objects of their own with their own
+versions, not a field of the configuration document. (2) They are set per project
+only, with no instance default. (3) Switching on a profile that sends ticket content
+to a provider is applied only by a person with `config.approve`, under every policy;
+it is off by default. (4) The first task delivered is draft assistance (M4-A12).
