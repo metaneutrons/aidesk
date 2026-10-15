@@ -160,6 +160,9 @@ export const agents = pgTable(
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     profileId: uuid("profile_id"),
+    // The product runs this agent itself (a model works the tickets assigned to it); it
+    // has no token that anyone knows, and its grants cap what the runner may do.
+    managed: boolean("managed").notNull().default(false),
     createdAt: created(),
   },
   (t) => [index("agent_project_idx").on(t.projectId)],
@@ -186,6 +189,9 @@ export const tickets = pgTable(
     assigneeUserId: text("assignee_user_id").references(() => user.id),
     assigneeAgentId: uuid("assignee_agent_id").references(() => agents.id),
     revision: integer("revision").notNull().default(1),
+    // A person took the ticket over, or stopped the agent on it: no managed agent sends
+    // for it until a person resumes it.
+    agentPausedAt: timestamp("agent_paused_at", { withTimezone: true }),
     pendingSince: timestamp("pending_since", { withTimezone: true }),
     // When the team wants to look at the ticket again; private to the team.
     remindAt: timestamp("remind_at", { withTimezone: true }),
@@ -418,6 +424,8 @@ export const jobStatus = pgEnum("job_status", [
   "retry",
   "succeeded",
   "review",
+  // Taken back before it ran, because what it was for no longer holds.
+  "cancelled",
 ]);
 export const jobs = pgTable(
   "job",
@@ -586,4 +594,41 @@ export const webhookDeliveries = pgTable(
     createdAt: created(),
   },
   (t) => [index("webhook_delivery_idx").on(t.webhookId, t.createdAt)],
+);
+// One run of a managed agent on a ticket, for one customer revision. The job executes it;
+// this row is what a person sees and what the worker checks again before it acts, so a
+// cancelled run stops even while its job is running.
+export const agentRuns = pgTable(
+  "agent_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    jobId: uuid("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    // The revision of the ticket that the run answers.
+    revision: integer("revision").notNull(),
+    // assignment or message.
+    trigger: text("trigger").notNull(),
+    // queued, running, draft_ready, sent, resolved, noted, nothing_to_do, cancelled,
+    // failed, needs_person.
+    state: text("state").notNull().default("queued"),
+    // Why a run was cancelled, or the code of a failure.
+    reason: text("reason"),
+    steps: integer("steps").notNull().default(0),
+    replies: integer("replies").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: created(),
+  },
+  (t) => [
+    index("agent_run_ticket_idx").on(t.ticketId, t.createdAt),
+    uniqueIndex("agent_run_revision_idx").on(t.agentId, t.ticketId, t.revision),
+  ],
 );

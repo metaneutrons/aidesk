@@ -1,3 +1,4 @@
+import { cancelAgentRuns, cancelRunsOfAgent, queueAgentRun, takeOver } from "./agent-runs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
@@ -322,6 +323,8 @@ export async function setTicketStatus(principal: Principal, ticketId: string, in
       from: ticket.status,
       to: values.status,
     });
+    // A resolved ticket is not worked on any more.
+    if (values.status === "resolved") await cancelAgentRuns(tx, ticket.id, "ticket_resolved");
     return { ...changed, changed: true };
   });
 }
@@ -384,6 +387,14 @@ export async function assignTicket(principal: Principal, ticketId: string, input
         to: values.userId ?? values.agentId,
       },
     });
+    // A new assignee is a takeover of what an agent was doing, and a managed agent that
+    // gets the ticket starts on it. A person who assigns a ticket also lifts a stop that a
+    // takeover had put on it.
+    await cancelAgentRuns(tx, ticket.id, "reassigned", {
+      ...(values.agentId ? { keepAgent: values.agentId } : {}),
+    });
+    await tx.update(tickets).set({ agentPausedAt: null }).where(eq(tickets.id, ticket.id));
+    if (values.agentId) await queueAgentRun(tx, ticket.id, "assignment");
     return { assigneeUserId: values.userId, assigneeAgentId: values.agentId };
   });
 }
@@ -980,6 +991,7 @@ async function setTicketJunk(principal: Principal, ticketId: string, junk: boole
       action: junk ? "ticket.junk" : "ticket.restore",
       targetId: ticket.id,
     });
+    if (junk) await cancelAgentRuns(tx, ticket.id, "ticket_junk");
     return { junk };
   });
 }
@@ -1070,6 +1082,15 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
   // stored, not queued, and a person with ticket.reply sends or discards it.
   const draft =
     !values.internal && principal.kind === "agent" && project?.settings.approvalPolicy !== "direct";
+  // Under direct an agent answers only the tickets assigned to it, and says so when it
+  // tries, not only when the worker would refuse to send.
+  if (
+    !values.internal &&
+    principal.kind === "agent" &&
+    !draft &&
+    ticket.assigneeAgentId !== principal.id
+  )
+    throw new DomainError("forbidden", 403);
   return db().transaction(async (tx) => {
     const dedupKey = `reply:${principal.id}:${values.idempotencyKey}`;
     const fingerprint = createHash("sha256")
@@ -1172,6 +1193,8 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
     await tx
       .insert(audit)
       .values({ projectId: ticket.projectId, actorId: principal.id, action, targetId: messageId });
+    // A person who answers a ticket that a managed agent works takes it over.
+    if (principal.kind === "human" && !values.internal) await takeOver(tx, ticket.id);
     return { id: messageId, duplicate: false, draft: false };
   });
 }
@@ -1348,6 +1371,7 @@ export async function listAgentTokens(principal: Principal, projectId: string) {
       name: agents.name,
       actions: agents.actions,
       active: agents.active,
+      managed: agents.managed,
       expiresAt: agents.expiresAt,
       createdAt: agents.createdAt,
     })
@@ -1365,6 +1389,7 @@ export async function revokeAgentToken(principal: Principal, agentId: string) {
   requireAgentManager(principal, agent.projectId);
   await db().transaction(async (tx) => {
     await tx.update(agents).set({ active: false }).where(eq(agents.id, agent.id));
+    await cancelRunsOfAgent(tx, agent.id, "agent_revoked");
     await tx.insert(audit).values({
       projectId: agent.projectId,
       actorId: principal.id,
@@ -1375,6 +1400,59 @@ export async function revokeAgentToken(principal: Principal, agentId: string) {
   return { revoked: true };
 }
 
+export const managedInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  actions: z
+    .array(z.string())
+    .min(1)
+    .max(40)
+    .transform((values) => [...new Set(values)]),
+});
+// An agent that the product runs itself. It has no token, so nobody can act as it from
+// outside; its grants are what a model working for it may do, and they never exceed those
+// of the person who creates it.
+export async function createManagedAgent(principal: Principal, projectId: string, input: unknown) {
+  const project = id.parse(projectId);
+  requireAgentManager(principal, project);
+  const values = managedInput.parse(input);
+  const held = principal.grants.find((grant) => grant.projectId === project)?.actions ?? [];
+  const requested: Action[] = [];
+  for (const action of values.actions) {
+    if (
+      !isAction(action) ||
+      action === "agent.manage" ||
+      action === "config.approve" ||
+      !held.includes(action)
+    )
+      throw new DomainError("forbidden", 403);
+    requested.push(action);
+  }
+  // A managed agent has no end date; it is revoked like any other.
+  const expiresAt = new Date("2100-01-01T00:00:00Z");
+  return db().transaction(async (tx) => {
+    const [agent] = await tx
+      .insert(agents)
+      .values({
+        name: values.name,
+        projectId: project,
+        actions: requested,
+        // The hash of a secret that is thrown away: no token matches it.
+        tokenHash: createHash("sha256").update(randomBytes(32)).digest("hex"),
+        expiresAt,
+        managed: true,
+      })
+      .returning({ id: agents.id });
+    if (!agent) throw new DomainError("conflict", 409);
+    await tx.insert(audit).values({
+      projectId: project,
+      actorId: principal.id,
+      action: "agent.create_managed",
+      targetId: agent.id,
+      detail: { actions: requested },
+    });
+    return { id: agent.id, name: values.name, actions: requested, managed: true };
+  });
+}
 // Operator administration. Owners create and disable operator identities;
 // project access is granted per project by people who manage that project,
 // never beyond the actions they hold there. Owner status alone does not grant

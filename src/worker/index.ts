@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { sqlClient } from "../server/db";
 import { pollMailboxes, runIngest, runNext, runTestSend } from "./jobs";
 import { runExtractions } from "./extract";
+import { runAgents } from "./agent-runs";
 import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
 const lifecycle = { stopped: false };
@@ -21,7 +22,8 @@ while (!lifecycle.stopped) {
     const notified = await runWebhooks();
     const read = await runExtractions();
     const seen = await runImageReadings();
-    if (!ingested && !sent && !tested && !notified && !read && !seen) await delay(1000);
+    const worked = await runAgents();
+    if (!ingested && !sent && !tested && !notified && !read && !seen && !worked) await delay(1000);
   } catch {
     console.log(JSON.stringify({ event: "worker.database_unavailable" }));
     await delay(3000);

@@ -20,6 +20,7 @@ import {
   getOriginal,
   getOriginalPreview,
   getOverview,
+  createManagedAgent,
   getTicket,
   grantInput,
   issueAgentToken,
@@ -31,6 +32,7 @@ import {
   listTags,
   listTickets,
   localeInput,
+  managedInput,
   moveTicketToJunk,
   operatorInput,
   projectSettingsInput,
@@ -50,6 +52,7 @@ import {
   tagsInput,
 } from "../operations";
 import { assistDraft } from "../assist";
+import { listAgentRuns, resumeAgent } from "../agent-runs";
 import { assistInput } from "../../domain/assist";
 import {
   createEmailDesign,
@@ -521,6 +524,21 @@ export const routes: Route[] = [
     run: ({ principal, params, input }) => sendTestMail(principal, params.projectId ?? "", input),
   },
   {
+    id: "agents.create_managed",
+    mcp: { not: "An agent cannot create agents, not even one that the product runs" },
+    method: "POST",
+    path: "/projects/{projectId}/agents/managed",
+    tag: "Agents",
+    summary:
+      "Create an agent that the product runs itself: it has no token, its grants are what a model working for it may do, and a ticket that is assigned to it queues a run",
+    access: "agent.manage",
+    body: managedInput,
+    response: out.managedAgentOut,
+    status: 201,
+    run: ({ principal, params, input }) =>
+      createManagedAgent(principal, params.projectId ?? "", input),
+  },
+  {
     id: "agents.revoke",
     mcp: { not: "Tokens are managed by people" },
     method: "POST",
@@ -943,6 +961,30 @@ export const routes: Route[] = [
     body: assignInput,
     response: out.ticketAssignee,
     run: ({ principal, params, input }) => assignTicket(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "tickets.agent_runs",
+    mcp: { tool: "tickets_agent_runs" },
+    method: "GET",
+    path: "/tickets/{ticketId}/agent-runs",
+    tag: "Tickets",
+    summary:
+      "The runs of managed agents on a ticket, newest first, with their state (queued, running, draft_ready, sent, resolved, noted, nothing_to_do, cancelled, failed, needs_person)",
+    access: "ticket.read",
+    response: list(out.agentRunOut),
+    run: ({ principal, params }) => listAgentRuns(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "tickets.resume_agent",
+    mcp: { not: "Letting an agent work a ticket again after a takeover is a decision of a person" },
+    method: "POST",
+    path: "/tickets/{ticketId}/resume-agent",
+    tag: "Tickets",
+    summary:
+      "Let the managed agent of a ticket work it again after a person took it over; it starts from the current revision",
+    access: "ticket.assign",
+    response: z.object({ resumed: z.boolean(), run: z.uuid().nullable() }),
+    run: ({ principal, params }) => resumeAgent(principal, params.ticketId ?? ""),
   },
   {
     id: "messages.send_draft",
