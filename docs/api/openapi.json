@@ -4224,7 +4224,10 @@
                         "enum": [
                           "imap",
                           "cloudflare",
-                          "smtp"
+                          "smtp",
+                          "anthropic",
+                          "openai",
+                          "google"
                         ]
                       },
                       "direction": {

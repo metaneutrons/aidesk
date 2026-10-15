@@ -24,6 +24,10 @@ import {
   testConnection,
 } from "../src/server/connections";
 import { decideConfigChange, listConfigChanges } from "../src/server/configuration";
+import { handle } from "../src/server/api/router";
+import { routes } from "../src/server/api/routes";
+import { connectionTypes } from "../src/domain/connections";
+import * as out from "../src/server/api/schemas";
 import type { Action, Principal } from "../src/domain/permissions";
 import { startFakeProvider, type FakeProvider } from "./support/provider";
 const projectId = randomUUID();
@@ -173,6 +177,41 @@ describe("defining a connection to a model provider", () => {
     expect((await listConnections(manager, projectId)).map((row) => row.kind)).toEqual([
       "anthropic",
     ]);
+  });
+});
+describe("the published shape of connections", () => {
+  it("lists the connections of a project that has one to a model provider, through the router", async () => {
+    for (const { kind } of kinds) await createConnection(manager, projectId, definition(kind));
+    // The router checks every answer against its published schema outside
+    // production, so a kind the schema does not know is a 500 here.
+    const response = await handle(
+      new Request(`http://localhost:3000/api/v1/projects/${projectId}/connections`),
+      manager,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { kind: string; direction: string }[];
+    expect(body.map((row) => `${row.kind}:${row.direction}`).sort()).toEqual([
+      "anthropic:ai",
+      "google:ai",
+      "openai:ai",
+    ]);
+  });
+  it("knows every kind and direction of every connection type in the answer and in the tool", () => {
+    const route = routes.find((entry) => entry.id === "connections.create");
+    const input = (
+      route?.mcp as { input?: Record<string, { safeParse: (v: unknown) => { success: boolean } }> }
+    ).input;
+    expect(input).toBeDefined();
+    for (const key of Object.keys(connectionTypes)) {
+      const [kind, direction] = key.split(":");
+      expect(out.connectionOut.shape.kind.safeParse(kind).success, key).toBe(true);
+      expect(out.connectionOut.shape.direction.safeParse(direction).success, key).toBe(true);
+      expect(input?.kind?.safeParse(kind).success, key).toBe(true);
+      expect(input?.direction?.safeParse(direction).success, key).toBe(true);
+    }
+    // And no other one.
+    expect(out.connectionOut.shape.kind.safeParse("mistral").success).toBe(false);
+    expect(input?.direction?.safeParse("sideways").success).toBe(false);
   });
 });
 describe("testing a connection to a model provider", () => {
