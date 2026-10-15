@@ -114,6 +114,17 @@ const assistErrors: Record<
   ai_rate_limited: "assistRateLimited",
   ai_provider_error: "assistFailed",
 };
+// The messages that name how long to wait, for the failures that can come with a wait.
+const assistWaits: Record<string, "assistRateLimitedWait" | "assistQuotaWait"> = {
+  assistRateLimited: "assistRateLimitedWait",
+  assistQuota: "assistQuotaWait",
+};
+function waitText(seconds: number, locale: string): string {
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
+  if (seconds < 3600) return format.format(Math.max(1, Math.ceil(seconds / 60)), "minute");
+  if (seconds < 2 * 86_400) return format.format(Math.ceil(seconds / 3600), "hour");
+  return format.format(Math.ceil(seconds / 86_400), "day");
+}
 const deliveryErrors: Record<string, string> = {
   recipient_suppressed: "deliveryRecipientSuppressed",
   suppression_check_failed: "deliverySuppressionCheckFailed",
@@ -229,6 +240,8 @@ export function Desk({
   const [conversation, setConversation] = useState<z.infer<typeof conversationSchema> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // How long the provider asked to wait, for the message of the key that came with it.
+  const [errorWait, setErrorWait] = useState<{ key: string; seconds: number } | null>(null);
   const [draft, setDraft] = useState("");
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
@@ -511,7 +524,10 @@ export function Desk({
         const code = z
           .object({ error: z.string() })
           .safeParse(await response.json().catch(() => null));
-        setError((code.success ? assistErrors[code.data.error] : undefined) ?? "assistFailed");
+        const key = (code.success ? assistErrors[code.data.error] : undefined) ?? "assistFailed";
+        const seconds = Number(response.headers.get("retry-after"));
+        setErrorWait(Number.isFinite(seconds) && seconds > 0 ? { key, seconds } : null);
+        setError(key);
         return;
       }
       const result = z
@@ -1332,7 +1348,11 @@ export function Desk({
                 )}
                 {error && (
                   <p className="error conversation-error" role="alert">
-                    {t(error)}
+                    {errorWait?.key === error && error in assistWaits
+                      ? t(assistWaits[error] ?? "assistFailed", {
+                          when: waitText(errorWait.seconds, initialLocale),
+                        })
+                      : t(error)}
                   </p>
                 )}
               </section>

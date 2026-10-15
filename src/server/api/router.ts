@@ -61,8 +61,19 @@ export async function dispatch(request: Request): Promise<Response> {
   }
 }
 // What a failure looks like to a caller, over REST and over MCP alike.
-export function errorOf(error: unknown): { status: number; body: Record<string, unknown> } {
-  if (error instanceof DomainError) return { status: error.status, body: { error: error.code } };
+export function errorOf(error: unknown): {
+  status: number;
+  body: Record<string, unknown>;
+  retryAfterSeconds?: number;
+} {
+  if (error instanceof DomainError)
+    return {
+      status: error.status,
+      body: { error: error.code },
+      ...(error.retryAfterSeconds === undefined
+        ? {}
+        : { retryAfterSeconds: error.retryAfterSeconds }),
+    };
   if (error instanceof ZodError)
     return {
       status: 400,
@@ -78,9 +89,16 @@ export function errorOf(error: unknown): { status: number; body: Record<string, 
   if (error instanceof SyntaxError) return { status: 400, body: { error: "invalid_input" } };
   return { status: 503, body: { error: "unavailable" } };
 }
-function failure(error: unknown): Response {
-  const { status, body } = errorOf(error);
-  return Response.json(body, { status });
+// A wait that a provider asked for goes in the standard header, not in the body, which
+// the published error shape does not have a place for.
+export function failure(error: unknown): Response {
+  const { status, body, retryAfterSeconds } = errorOf(error);
+  return Response.json(body, {
+    status,
+    ...(retryAfterSeconds === undefined
+      ? {}
+      : { headers: { "Retry-After": String(retryAfterSeconds) } }),
+  });
 }
 // Runs a request for an identified caller against the route table.
 export async function handle(request: Request, principal: Principal): Promise<Response> {

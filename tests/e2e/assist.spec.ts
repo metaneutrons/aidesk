@@ -116,6 +116,30 @@ test("shows what each failure of a draft means", async ({ page, desk, signIn }) 
     await expect(page.locator(".conversation-error")).toContainText(message);
   }
 });
+test("says how long to wait when the provider named a time", async ({ page, desk, signIn }) => {
+  const ticket = desk.projects.alpha.tickets[0];
+  let answer = { error: "ai_rate_limited", wait: "120" };
+  await page.route(`**/api/v1/tickets/${ticket}/draft-assist`, async (route) => {
+    await route.fulfill({
+      status: 503,
+      headers: { "retry-after": answer.wait },
+      json: { error: answer.error },
+    });
+  });
+  await signIn();
+  await page.goto(`/?ticket=${ticket}`);
+  const button = page.getByRole("button", { name: "Draft with AI" });
+  for (const [error, wait, message] of [
+    ["ai_rate_limited", "120", "Try again in 2 minutes."],
+    ["ai_rate_limited", "10", "Try again in 1 minute."],
+    ["ai_quota_exhausted", "19684", "Add credit there or try again in 6 hours."],
+    ["ai_quota_exhausted", "400000", "Add credit there or try again in 5 days."],
+  ] as const) {
+    answer = { error, wait };
+    await button.click();
+    await expect(page.locator(".conversation-error")).toContainText(message);
+  }
+});
 test("drops a draft that arrives after the person moved to another ticket", async ({
   page,
   desk,

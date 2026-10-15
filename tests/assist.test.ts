@@ -537,6 +537,16 @@ describe("who may ask, and what a failure says", () => {
     ).rejects.toMatchObject({ code: "ai_timeout", status: 504 });
     const refusal = (statusCode: number) =>
       new APICallError({ message: "no", url: "https://p.test", requestBodyValues: {}, statusCode });
+    const slow = new APICallError({
+      message: "no",
+      url: "https://p.test",
+      requestBodyValues: {},
+      statusCode: 429,
+      responseHeaders: { "retry-after": "120" },
+    });
+    await expect(
+      assistDraft(both, ticketId, { mode: "reply" }, fake(slow).deps),
+    ).rejects.toMatchObject({ code: "ai_rate_limited", status: 503, retryAfterSeconds: 120 });
     const noCredit = new APICallError({
       message: "no",
       url: "https://p.test",

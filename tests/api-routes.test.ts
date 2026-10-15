@@ -4,7 +4,7 @@ import SwaggerParser from "@apidevtools/swagger-parser";
 import { ZodError, z } from "zod";
 import { DomainError } from "../src/server/errors";
 import { routes, type Route } from "../src/server/api/routes";
-import { handle, matchRoute, dispatch } from "../src/server/api/router";
+import { handle, matchRoute, dispatch, failure } from "../src/server/api/router";
 import { openApiDocument } from "../src/server/api/openapi";
 import { agentGuide } from "../src/server/api/guide";
 import { actions, type Principal } from "../src/domain/permissions";
@@ -233,5 +233,16 @@ describe("the router", () => {
       owner,
     );
     expect(foreign.status).toBe(403);
+  });
+});
+describe("a wait that a provider asked for", () => {
+  it("goes in the standard header and not in the body, and only when there is one", async () => {
+    const waiting = failure(new DomainError("ai_rate_limited", 503, 120));
+    expect(waiting.status).toBe(503);
+    expect(waiting.headers.get("retry-after")).toBe("120");
+    expect(await waiting.json()).toEqual({ error: "ai_rate_limited" });
+    const plain = failure(new DomainError("ai_rate_limited", 503));
+    expect(plain.headers.get("retry-after")).toBeNull();
+    expect(failure(new DomainError("not_found", 404)).headers.get("retry-after")).toBeNull();
   });
 });
