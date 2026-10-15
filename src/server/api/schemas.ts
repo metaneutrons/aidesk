@@ -304,7 +304,7 @@ export const connectionOut = z.object({
   id: z.uuid(),
   projectId: z.uuid(),
   kind: z.enum(["imap", "cloudflare", "smtp"]),
-  direction: z.enum(["inbound", "outbound"]),
+  direction: z.enum(["inbound", "outbound", "ai"]),
   name: z.string(),
   status: z.enum(["draft", "ready", "degraded", "disabled"]),
   lastErrorCode: z.string().nullable(),

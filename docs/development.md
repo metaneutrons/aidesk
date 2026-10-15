@@ -758,6 +758,31 @@ accepts only an outgoing connection of the project that is not disabled.
 The settings page lists the connections with their status and offers test and
 disable; it has no form for credentials.
 
+### Model providers
+
+A project can connect a model provider: the kinds `anthropic`, `openai` and `google`
+with the direction `ai` (C6-A1). They follow the rules above. The configuration is
+an optional `endpoint`, the base address that the paths of the provider are added to,
+for a gateway or a regional address; without one the provider's own address is used.
+An `endpoint` has to be HTTPS, passes the host guard like any other host and is
+checked again on every test; `developmentOnly` allows a plain address on a
+development stack. The secret is `apiKey`, stored sealed and never returned. A
+project can have several.
+
+A test asks for the list of models, which needs the key and costs nothing:
+`GET /v1/models` with `X-Api-Key` and `anthropic-version: 2023-06-01` (Anthropic),
+`GET /v1/models` with `Authorization: Bearer` (OpenAI) and `GET /v1beta/models` with
+`x-goog-api-key` (Google). The key goes in a header and never in the address, and a
+redirect is not followed, since it would take the key to another host. A status of
+`401` or `403` is `auth_failed`, `429` is `rate_limited`, any other failure of the
+provider is `provider_error`; the codes name no host and no key. The paths and
+headers of Anthropic and OpenAI were checked against their documentation on
+2026-10-15. The documentation of Google shows the key as a query parameter for the
+list of models and the header for other calls; the header is used so that the key
+is not in an address, and it has not been tried against the live service. A
+connection says that a project may reach a provider; which task runs on which model,
+and whether ticket content may be sent at all, is decided by task profiles (C6-A2).
+
 ## Texts
 
 A project can set its own wording for a fixed set of texts, in English and in German:
