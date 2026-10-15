@@ -560,6 +560,19 @@ describe("the real call to each provider, against a fake one", () => {
         expect(body).toContain("application/pdf");
         expect(body).toContain("where is my order 4711");
       });
+      it("sends the workspace of the connection in a header for Anthropic, and for no other kind", async () => {
+        const workspaceId = "wrkspc_01VbRKx84B4vA6YW45KH2BkQ";
+        const named = await connection(projectId, {
+          kind,
+          config: { endpoint: models.url, developmentOnly: true, workspaceId },
+        });
+        await profile({ connectionId: named, timeoutSeconds: 2, maxOutputTokens: 321 });
+        models.requests.length = 0;
+        expect(await runAiTask(request())).toMatchObject({ ok: true });
+        expect(models.requests[0]?.headers["anthropic-workspace-id"]).toBe(
+          kind === "anthropic" ? workspaceId : undefined,
+        );
+      });
       it("ends at the timeout and is not repeated", async () => {
         models.behaviour = { delay: 3000 };
         expect(await runAiTask(request())).toMatchObject({ ok: false, code: "ai_timeout" });

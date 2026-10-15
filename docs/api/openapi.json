@@ -4813,6 +4813,11 @@
                           "developmentOnly": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "workspaceId": {
+                            "description": "The workspace to use, for an Anthropic key that is not tied to one",
+                            "type": "string",
+                            "pattern": "^wrkspc_[A-Za-z0-9]{10,}$"
                           }
                         }
                       },

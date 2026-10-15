@@ -53,6 +53,15 @@ export const aiConfig = z.object({
   endpoint: z.url().optional(),
   developmentOnly: z.boolean().default(false),
 });
+// A key of Anthropic that is not tied to one workspace needs the id of the workspace
+// in a header of every request; a key made inside a workspace does not.
+export const anthropicConfig = aiConfig.extend({
+  workspaceId: z
+    .string()
+    .regex(/^wrkspc_[A-Za-z0-9]{10,}$/, "A workspace id looks like wrkspc_ and letters and digits")
+    .optional()
+    .describe("The workspace to use, for an Anthropic key that is not tied to one"),
+});
 export const aiSecret = z.object({ apiKey: z.string().min(1) });
 export const aiKinds = ["anthropic", "openai", "google"] as const;
 // One entry per kind and direction: how to check its configuration and secret.
@@ -69,7 +78,7 @@ export const connectionTypes = {
     secret: cloudflareOutboundSecret,
     secretRequired: true,
   },
-  "anthropic:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
+  "anthropic:ai": { config: anthropicConfig, secret: aiSecret, secretRequired: true },
   "openai:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
   "google:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
 } as const;
@@ -128,7 +137,7 @@ const members = {
     cloudflareOutboundSecret,
     true,
   ),
-  "anthropic:ai": define("anthropic", "ai", aiConfig, aiSecret, true),
+  "anthropic:ai": define("anthropic", "ai", anthropicConfig, aiSecret, true),
   "openai:ai": define("openai", "ai", aiConfig, aiSecret, true),
   "google:ai": define("google", "ai", aiConfig, aiSecret, true),
 } as const;
