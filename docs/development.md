@@ -1210,9 +1210,44 @@ services of the development stack: the web server became healthy and answered th
 page, the API definition, the agent guide and a static file; the migration command ended
 without a change; the worker started and refused the development connections of that
 database (`development_connection_not_allowed`), which is the behaviour of a production
-process. Not done: a Compose file for production with persistent services (M5-A2), TLS and
-a proxy in front, a read-only root file system, the measured start and recovery times, and
-Vercel.
+process. A Compose file for it follows. Not done: TLS and a proxy in front, measured start
+and recovery times, backup and restore, and Vercel.
+
+### Compose
+
+`compose.production.yaml` runs the image with a database and a storage of its own or yours.
+It holds no secret: every value comes from the environment, from a `.env.production` next
+to it (mode 0600, passed with `--env-file`; `.env.example` lists most of the names) or from your
+deployment tool.
+
+    docker compose --env-file .env.production --profile bundled -f compose.production.yaml up -d --build
+
+- **Required:** `APP_URL`, `BETTER_AUTH_SECRET` (32 characters or more), `ENCRYPTION_KEY`
+  (64 hexadecimal characters), `S3_ACCESS_KEY`, `S3_SECRET_KEY`, and `POSTGRES_PASSWORD`
+  unless `DATABASE_URL` is given. `OWNER_CLAIM_TOKEN` (32 characters or more) is needed
+  once, to claim the first owner at `/setup`; remove it afterwards. An empty value counts as
+  none.
+- **Services:** `migrate` applies the migrations and creates the bucket of the storage (nothing
+  else did; without the bucket the web server reports itself not ready) and ends; `app`
+  (the web server, on `127.0.0.1:3000`, `APP_BIND` and `APP_PORT` change that) and `worker`
+  start after it. The profile `bundled` adds PostgreSQL and the Silo storage with volumes;
+  leave it off and give `DATABASE_URL` and `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET` to use
+  your own.
+- **Containers:** the root file system of `migrate`, `app` and `worker` is read-only, with
+  `/tmp` as a temporary file system (the worker builds the reader of documents there), and
+  nothing but the web server is published. TLS is for a proxy in front; the standalone
+  server's `KEEP_ALIVE_TIMEOUT` is 65 000 ms here, longer than the idle time of common
+  proxies.
+
+Checked on 2026-10-15 from a clean state with generated throwaway values: the project came up
+with `migrate` ending successfully, `app` healthy and `worker` running; `/api/health/ready`
+answered ready, `/setup` and the API definition answered, an unauthenticated call was
+refused, a wrong owner token was refused and the right one started a claim; the smoke check
+passed inside the worker with its read-only root; data in the database survived stopping and
+starting the stack. The first run showed that a clean installation could not become ready,
+because only the development seed created the bucket; `scripts/migrate.ts` does it now.
+Not done: TLS and a proxy, measured start and recovery times, backup and restore, and a run
+of the same checks in CI.
 
 ## Reproduce the local check
 
@@ -1302,7 +1337,7 @@ neither qualifies the planned production scale. Messenger adapters are reserved 
 the plan and in `src/domain/channels.ts` and are not presented as working
 connections.
 
-Vercel HTTPS, a Compose setup of the production image with persistent services, real remote MCP, browser and
+Vercel HTTPS, TLS and a proxy for the production Compose setup, real remote MCP, browser and
 usability/accessibility runs, repository-settings audit, backup/restore,
 retention/export/deletion and measured recovery targets also remain open.
 Do not equate a passing development build with these qualifications.
