@@ -53,7 +53,15 @@ export type AiOutcome =
       runId: string;
     }
   // The wait that the provider asked for, when it said, for a limit or a quota.
-  | { ok: false; code: AiFailure; runId: string | null; retryAfterSeconds?: number };
+  // `refused`: the provider did nothing (or no request was made), so the same request may be
+  // made again; otherwise the request may have been accepted and must not be repeated.
+  | {
+      ok: false;
+      code: AiFailure;
+      runId: string | null;
+      refused: boolean;
+      retryAfterSeconds?: number;
+    };
 export interface AiDeps {
   generate?: Generate;
   now?: () => Date;
@@ -201,14 +209,17 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       .returning({ id: aiRuns.id });
     return row?.id ?? "";
   };
+  // A run that ends before a request was made, or that the provider refused, did nothing.
   const fail = async (
     code: AiFailure,
     extra = {},
     retryAfterSeconds?: number,
+    refusedByProvider = true,
   ): Promise<AiOutcome> => ({
     ok: false,
     code,
     runId: await record(code, extra),
+    refused: refusedByProvider,
     ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
   });
   const [profile] = await db()
@@ -328,8 +339,8 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       const failed = failureOf(error);
       return fail(failed.code, withConnection, failed.retryAfterSeconds);
     }
-    if (timedOut(error)) return fail("ai_timeout", withConnection);
+    if (timedOut(error)) return fail("ai_timeout", withConnection, undefined, false);
     const failed = failureOf(error);
-    return fail(failed.code, withConnection, failed.retryAfterSeconds);
+    return fail(failed.code, withConnection, failed.retryAfterSeconds, false);
   }
 }

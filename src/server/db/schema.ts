@@ -614,6 +614,9 @@ export const agentRuns = pgTable(
     jobId: uuid("job_id").references(() => jobs.id, { onDelete: "set null" }),
     // The revision of the ticket that the run answers.
     revision: integer("revision").notNull(),
+    // The revision that the run expects the ticket to be at: its own note raises the revision
+    // of the ticket, and any other change makes the run stale.
+    currentRevision: integer("current_revision").notNull(),
     // assignment or message.
     trigger: text("trigger").notNull(),
     // queued, running, draft_ready, sent, resolved, noted, nothing_to_do, cancelled,
@@ -623,6 +626,7 @@ export const agentRuns = pgTable(
     reason: text("reason"),
     steps: integer("steps").notNull().default(0),
     replies: integer("replies").notNull().default(0),
+    notes: integer("notes").notNull().default(0),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     createdAt: created(),
