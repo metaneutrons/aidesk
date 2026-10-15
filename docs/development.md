@@ -172,8 +172,9 @@ mail with its headers. Both need `ticket.read_files`, give at most 256 KiB and r
 `truncated`. The action is separate from `ticket.read` on purpose: a file is written by
 the sender and may carry instructions for a model, so an agent that is allowed to answer
 by itself (`direct`) reads files only when someone granted that. People who manage a
-project hold it (migration 0017); no token role of the settings page includes it, and it is
-granted through the API with explicit actions. Plain text is decoded at once: the
+project hold it (migration 0017). Of the token accesses of the settings page, only
+"Read, with attachments and mail sources" includes it; through the API it is granted with
+explicit actions. Plain text is decoded at once: the
 declared type is `text/*` or a text format (JSON, XML, YAML and the like), or the type
 is `application/octet-stream` and the extension is a text one, and the content has no
 NUL byte in its first 8 KiB and does not start like a document. A PDF file and a Word, Excel or PowerPoint file (by type or extension, or
