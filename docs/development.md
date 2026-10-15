@@ -239,8 +239,8 @@ An image has no text, and a scanned PDF has none in its text layer. Both are rea
 model, through the same boundary as every task (`runAiTask`, see "Running a task"), as
 the task `image.read` of the project. It is a profile like the others: off until a
 person with `config.approve` switches it on, with a connection, a model and the limits
-(a transcription of a page needs more than the default 2000 output tokens, and a
-profile may set up to 16000). The provider of that connection receives the customer's
+(a transcription of a page can need more than the default 4000 output tokens, and a
+profile may set up to 16000; a model that thinks spends output tokens on it). The provider of that connection receives the customer's
 file; that is why a person switches it on and why nothing is sent while it is off. The
 model has to take images, and for a scanned PDF it has to take PDF files; the product
 does not check that, and a model that does not answers with a provider error.
@@ -951,7 +951,7 @@ webhooks with the last outcome, offers a test event and disabling, and shows no 
 A task of the product that asks a model has a profile per project (C6-A2). The tasks
 are `reply.draft` and `note.draft` for now. A profile names a connection to a model
 provider of the project, a model, a timeout (1 to 300 seconds, 60 by default), a cap
-for the output (1 to 16 000 tokens, 2000) and a daily budget in tokens (200 000), and
+for the output (1 to 16 000 tokens, 4000) and a daily budget in tokens (200 000), and
 it says whether the task may run at all (`enabled`, off by default). A task asks a model
 through one boundary, `runAiTask` (see "Running a task" below).
 
