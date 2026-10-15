@@ -5,7 +5,7 @@ import nodemailer from "nodemailer";
 import { and, asc, eq } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import {
-  aiConfig,
+  anthropicConfig,
   aiSecret,
   cloudflareInboundConfig,
   cloudflareInboundSecret,
@@ -40,17 +40,21 @@ const providers = {
   "anthropic:ai": {
     base: "https://api.anthropic.com",
     path: "/v1/models",
-    headers: (apiKey: string) => ({ "x-api-key": apiKey, "anthropic-version": "2023-06-01" }),
+    headers: (apiKey: string, workspaceId?: string) => ({
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}),
+    }),
   },
   "openai:ai": {
     base: "https://api.openai.com",
     path: "/v1/models",
-    headers: (apiKey: string) => ({ authorization: `Bearer ${apiKey}` }),
+    headers: (apiKey: string, _workspaceId?: string) => ({ authorization: `Bearer ${apiKey}` }),
   },
   "google:ai": {
     base: "https://generativelanguage.googleapis.com",
     path: "/v1beta/models",
-    headers: (apiKey: string) => ({ "x-goog-api-key": apiKey }),
+    headers: (apiKey: string, _workspaceId?: string) => ({ "x-goog-api-key": apiKey }),
   },
 } as const;
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
@@ -507,7 +511,7 @@ async function probe(row: Row): Promise<void> {
     return;
   }
   if (isAi(key)) {
-    const config = aiConfig.parse(row.config);
+    const config = anthropicConfig.parse(row.config);
     const secret = aiSecret.parse(secretText);
     const provider = providers[key];
     // The key goes in a header, never in the address, and a redirect is not followed
@@ -515,7 +519,7 @@ async function probe(row: Row): Promise<void> {
     const response = await fetch(
       `${(config.endpoint ?? provider.base).replace(/\/+$/, "")}${provider.path}`,
       {
-        headers: provider.headers(secret.apiKey),
+        headers: provider.headers(secret.apiKey, config.workspaceId),
         redirect: "manual",
         signal: AbortSignal.timeout(timeout),
       },
