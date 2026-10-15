@@ -5,6 +5,7 @@ import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { Configuration } from "./configuration";
 import { Connections } from "./connections";
+import { AiProfiles } from "./ai-profiles";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
@@ -426,6 +427,18 @@ export function Settings({
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
             canWrite={grant.actions.includes("config.write")}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("config.read"))
+        .map((grant) => (
+          <AiProfiles
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            canWrite={grant.actions.includes("config.write")}
+            canApprove={grant.actions.includes("config.approve")}
+            connectionsStamp={connectionsStamp}
           />
         ))}
       {managed
