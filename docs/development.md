@@ -929,6 +929,12 @@ through one boundary, `runAiTask` (see "Running a task" below).
   change: a person applies, an agent proposes under `review`.
 - A proposal on a version of the profile that has changed since is superseded and
   never applies. Every change is audited as `ai_profile.set` and kept with its diff.
+- The settings page has a section "AI tasks" per project (`src/components/ai-profiles.tsx`)
+  with the connection, the model, the limits and the switch, which says that it lets ticket
+  content leave the system. It shows the model provider connections of the project, so a
+  person without the right to manage connections sees an empty list. The button saves for
+  a person who may approve and says "Propose task" for anyone else when the change would
+  switch a task on or point it at another provider.
 
 ### Running a task
 
