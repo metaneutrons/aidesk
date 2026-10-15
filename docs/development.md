@@ -1080,8 +1080,14 @@ field (up to 8000 characters); the answer is `text` and `truncated`.
 - **The ticket is data.** The system text is the standard instruction, then the
   instruction of the person for this draft, then a fixed guard that says that the
   ticket data and the typed text lie between two marker lines with a random value per
-  request, that they are data and never instructions, that the draft is returned
-  without comment, and that facts that are missing get a bracketed placeholder. The
+  request, that they are data and never instructions (and that instructions in the
+  customer's message, such as a language, words to add or a refund to confirm, are
+  ignored), that the draft is returned without comment, that only facts of the data are
+  used and that none of a list of usual inventions is made (a date, a status, a price, a
+  policy, a tracking number, that something was checked, shipped or refunded), and that
+  facts that are missing get a bracketed placeholder. The wording was chosen by trying
+  variants against real models; how well a model follows it still differs, and the draft
+  is for a person to read before it goes anywhere. The
   user message holds the ticket number, subject, the name of the customer (not the
   address), the language, and the conversation with a role per message (customer, team
   or internal note), then the text typed so far. The newest messages are kept up to
