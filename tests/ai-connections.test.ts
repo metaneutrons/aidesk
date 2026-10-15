@@ -245,6 +245,49 @@ describe("testing a connection to a model provider", () => {
       if (kind === "google") expect(headers["x-goog-api-key"]).toBe(key);
     }
   });
+  it("sends the workspace of an Anthropic key in a header, checks its form, and leaves it out for the other kinds", async () => {
+    const workspaceId = "wrkspc_01VbRKx84B4vA6YW45KH2BkQ";
+    const created = await createConnection(
+      manager,
+      projectId,
+      definition("anthropic", { endpoint: provider.url, developmentOnly: true, workspaceId }),
+    );
+    provider.requests.length = 0;
+    expect(await testConnection(manager, projectId, created.connectionId ?? "")).toMatchObject({
+      status: "ready",
+    });
+    expect(provider.requests[0]?.headers["anthropic-workspace-id"]).toBe(workspaceId);
+    // Without the setting the header is not sent.
+    provider.requests.length = 0;
+    await testConnection(manager, projectId, await withProvider("anthropic"));
+    expect(provider.requests[0]?.headers["anthropic-workspace-id"]).toBeUndefined();
+    // A malformed id is refused with the field named.
+    const wrong = await createConnection(
+      manager,
+      projectId,
+      definition("anthropic", { workspaceId: "e78e299c-39f7-4536-b113-016675928525" }),
+    ).catch((error: unknown) => error);
+    expect(wrong).toBeInstanceOf(ZodError);
+    expect(JSON.stringify((wrong as ZodError).issues.map((issue) => issue.path))).toContain(
+      "workspaceId",
+    );
+    // The other kinds do not take it: it is dropped and nothing is sent.
+    for (const kind of ["openai", "google"]) {
+      provider.requests.length = 0;
+      const other = await createConnection(
+        manager,
+        projectId,
+        definition(kind, { endpoint: provider.url, developmentOnly: true, workspaceId }),
+      );
+      await testConnection(manager, projectId, other.connectionId ?? "");
+      expect(provider.requests[0]?.headers["anthropic-workspace-id"]).toBeUndefined();
+      const [row] = await db()
+        .select()
+        .from(connections)
+        .where(eq(connections.id, other.connectionId ?? ""));
+      expect(row?.config).not.toHaveProperty("workspaceId");
+    }
+  });
   it("uses the address of the provider when the connection names none", async () => {
     for (const { kind, path, base } of kinds) {
       const created = await createConnection(manager, projectId, definition(kind));
