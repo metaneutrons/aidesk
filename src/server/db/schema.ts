@@ -294,6 +294,47 @@ export const aiProfiles = pgTable(
   },
   (t) => [uniqueIndex("ai_profile_project_task_unique").on(t.projectId, t.task)],
 );
+// The tokens a task of a project has used on a day, and those held for calls that
+// are running or whose outcome is not known. A run reserves its share before it
+// calls the provider and settles it after, so concurrent runs cannot spend more
+// than the daily budget of the profile.
+export const aiBudgets = pgTable(
+  "ai_budget",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    task: text("task").notNull(),
+    day: text("day").notNull(),
+    charged: integer("charged").notNull().default(0),
+  },
+  (t) => [uniqueIndex("ai_budget_day_unique").on(t.projectId, t.task, t.day)],
+);
+// What each run of a task was, without what it was about: no prompt, no ticket
+// content and no answer are kept.
+export const aiRuns = pgTable(
+  "ai_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    task: text("task").notNull(),
+    profileVersion: integer("profile_version"),
+    connectionId: uuid("connection_id"),
+    model: text("model"),
+    // ok, or the code of the failure.
+    outcome: text("outcome").notNull(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    durationMs: integer("duration_ms").notNull(),
+    actorKind: text("actor_kind").notNull(),
+    actorId: text("actor_id").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("ai_run_project_idx").on(t.projectId, t.task)],
+);
 export const participants = pgTable(
   "participant",
   {
