@@ -963,7 +963,8 @@ webhooks with the last outcome, offers a test event and disabling, and shows no 
 ## AI task profiles
 
 A task of the product that asks a model has a profile per project (C6-A2). The tasks
-are `reply.draft` and `note.draft` for now. A profile names a connection to a model
+are `reply.draft`, `note.draft`, `image.read` and `agent.respond` (the runner of a managed
+agent, part P2 of [the completion plan](plans/m4-completion.md)). A profile names a connection to a model
 provider of the project, a model, a timeout (1 to 300 seconds, 60 by default), a cap
 for the output (1 to 16 000 tokens, 4000) and a daily budget in tokens (200 000), and
 it says whether the task may run at all (`enabled`, off by default). A task asks a model
@@ -1000,10 +1001,9 @@ through one boundary, `runAiTask` (see "Running a task" below).
 ### Running a task
 
 `runAiTask` in `src/server/ai-run.ts` is the one way a task of the product asks a model
-(C6-A3). Nothing calls it yet; the draft button of C6-A4 is the first user. It takes the
-project, the task, a system text, a prompt and who asks, and answers with the text, whether
-the provider cut it at the cap of the profile, the tokens used and the id of the run, or with
-one of these codes:
+(C6-A3). It takes the project, the task, a system text, a prompt and who asks, and answers
+with the text, whether the provider cut it at the cap of the profile, the tokens used and the
+id of the run, or with one of these codes:
 
 - `ai_not_configured`: the project has no profile for the task, or its connection is not a
   connection of the project to a model provider that is `ready` and has a key, or its own
@@ -1034,6 +1034,13 @@ or from the retry information in the body of Google; a wait of more than a week 
 left out. A run gives it as `retryAfterSeconds`, and the REST answer of the draft route
 sets the standard header `Retry-After` (the published error body is unchanged). The desk
 says "try again in 2 minutes", "in 6 hours" or "in 5 days" when it has the header.
+
+**Tools.** A request can carry the conversation so far (`messages`, with the calls of tools
+and what they gave back) and tools (a description and a schema each). A tool has no
+`execute`: the model's request for it comes back as `toolCalls` (an id, the name and the
+input) and the product runs it, so that every side effect passes the checks of the product
+first. The messages and the tools count against the budget before the call, like the files.
+Each step of a conversation is one request with one run record; none is repeated by the SDK.
 
 **Budget.** Each profile has a daily budget in tokens, counted per project, task and UTC
 day in `ai_budget`. A run holds its share before it calls the provider: the input as
