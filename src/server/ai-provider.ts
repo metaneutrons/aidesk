@@ -62,10 +62,8 @@ export const generate: Generate = async (call) => {
             role: "user",
             content: [
               { type: "text", text: call.prompt },
-              ...call.files.map((file) =>
-                file.mediaType === "application/pdf"
-                  ? ({ type: "file", data: file.data, mediaType: file.mediaType } as const)
-                  : ({ type: "image", image: file.data, mediaType: file.mediaType } as const),
+              ...call.files.map(
+                (file) => ({ type: "file", data: file.data, mediaType: file.mediaType }) as const,
               ),
             ],
           },

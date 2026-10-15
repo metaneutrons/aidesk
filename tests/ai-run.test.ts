@@ -533,6 +533,11 @@ describe("the real call to each provider, against a fake one", () => {
         });
         const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 250, 251]);
         const doc = Uint8Array.from(Buffer.from("%PDF-1.7 a scan \u00e4\u00f6", "latin1"));
+        // The SDK reports a deprecated way of passing a file; none may be used.
+        const warnings: unknown[] = [];
+        Reflect.set(globalThis, "AI_SDK_LOG_WARNINGS", (warning: unknown) =>
+          warnings.push(warning),
+        );
         const outcome = await runAiTask(
           request({
             task: "image.read",
@@ -541,8 +546,9 @@ describe("the real call to each provider, against a fake one", () => {
               { mediaType: "application/pdf", data: doc },
             ],
           }),
-        );
+        ).finally(() => Reflect.deleteProperty(globalThis, "AI_SDK_LOG_WARNINGS"));
         expect(outcome).toMatchObject({ ok: true });
+        expect(warnings).toEqual([]);
         expect(models.requests).toHaveLength(1);
         const body = JSON.stringify(models.requests[0]?.body);
         expect(body).toContain(Buffer.from(png).toString("base64"));

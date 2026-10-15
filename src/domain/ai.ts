@@ -8,7 +8,7 @@ export type AiTask = (typeof aiTasks)[number];
 export const isAiTask = (value: string): value is AiTask => aiTasks.some((task) => task === value);
 export const aiDefaults = {
   timeoutSeconds: 60,
-  maxOutputTokens: 2000,
+  maxOutputTokens: 4000,
   dailyTokenBudget: 200_000,
 } as const;
 // A model name as the providers write them: letters, digits and a few signs.
