@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { expect, test } from "./fixtures";
 // A walkthrough of the operator and of the customer with what a mouse-free, zoomed or narrow
 // reader needs: German and English, light and dark, the keyboard alone, a window of 320 px and the
@@ -94,8 +95,23 @@ test.describe("a narrow window and zoom", () => {
       await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
       await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
       expect(await overflow(page), `settings at ${name}`).toBeLessThanOrEqual(1);
-      // The customer's page, from a link.
-      await page.goto(`/?ticket=${desk.projects.alpha.tickets[1]}`);
+      // The customer's page, from a link, with a message that holds a long address that cannot break
+      // (an answer with a link in it is one that other specs of the run leave on this ticket).
+      const target = desk.projects.alpha.tickets[1];
+      const current = z
+        .object({ ticket: z.object({ revision: z.number(), language: z.string() }) })
+        .parse(await (await page.request.get(`/api/v1/tickets/${target}`)).json());
+      const sent = await page.request.post(`/api/v1/tickets/${target}/reply`, {
+        headers: { origin: baseURL ?? "" },
+        data: {
+          markdown: `https://example.test/portal/${"a1b2c3d4".repeat(12)}`,
+          expectedRevision: current.ticket.revision,
+          idempotencyKey: randomUUID(),
+          language: current.ticket.language,
+        },
+      });
+      expect(sent.status()).toBe(202);
+      await page.goto(`/?ticket=${target}`);
       await page.getByRole("button", { name: "Create portal link" }).click();
       const url = await page.getByLabel("Link to the customer's view").inputValue();
       const context = await browser.newContext({ locale: "de-DE", viewport: { width, height } });
