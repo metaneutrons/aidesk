@@ -122,3 +122,29 @@ test("issues a token once and revokes it", async ({ page, desk, signIn }) => {
   await expect(item.getByText("Revoked")).toBeVisible();
   expect((await page.request.get("/api/v1/projects", { headers: bearer })).status()).toBe(401);
 });
+test("creates a managed agent without a token and revokes it", async ({ page, desk, signIn }) => {
+  await signIn();
+  await openSettings(page);
+  await page.getByLabel("Project", { exact: true }).selectOption(desk.projects.alpha.id);
+  await page.getByLabel("Token name").fill("Settings managed agent");
+  await page.getByLabel("Access").selectOption("respond");
+  await page.getByLabel("Run by aidesk (managed agent, no token)").check();
+  // A managed agent has no end date.
+  await expect(page.getByLabel("Valid for")).toHaveCount(0);
+  await page.getByRole("button", { name: "Create managed agent" }).click();
+  await expect(page.getByText("The managed agent was created.")).toBeVisible();
+  await expect(page.getByText("It is not shown again")).toHaveCount(0);
+  const item = page.getByRole("listitem").filter({ hasText: "Settings managed agent" });
+  await expect(item.getByText("Managed agent", { exact: true })).toBeVisible();
+  // The API lists it as managed, with the access that was chosen.
+  const list = z
+    .array(z.object({ name: z.string(), managed: z.boolean(), actions: z.array(z.string()) }))
+    .parse(
+      await (await page.request.get(`/api/v1/projects/${desk.projects.alpha.id}/agents`)).json(),
+    );
+  const created = list.find((agent) => agent.name === "Settings managed agent");
+  expect(created?.managed).toBe(true);
+  expect(created?.actions).toContain("ticket.reply");
+  await item.getByRole("button", { name: "Revoke: Settings managed agent" }).click();
+  await expect(item.getByText("Revoked")).toBeVisible();
+});

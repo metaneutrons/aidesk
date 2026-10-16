@@ -974,7 +974,10 @@ that the product runs itself (`agent.managed`): it has a name and grants, which 
 model working for it may do, and no token that anyone knows (the stored hash is of a secret
 that was thrown away). A person with `agent.manage` creates one with
 `POST /projects/{id}/agents/managed`, with grants that do not exceed their own and never
-`agent.manage` or `config.approve`; an agent cannot create agents. External agents with a
+`agent.manage` or `config.approve`; an agent cannot create agents, so MCP has no tool for it. The
+settings page creates one from the form that issues tokens: the box "Run by aidesk" hides the
+validity, posts to this route and shows the agent as "Managed agent" in the list, where it is
+revoked like a token. External agents with a
 token work as before and their model settings are not controlled by aidesk.
 
 A **run** (`agent_run`) is the work of a managed agent on one revision of a ticket. It is
@@ -1565,6 +1568,13 @@ deployment tool.
   unless `DATABASE_URL` is given. `OWNER_CLAIM_TOKEN` (32 characters or more) is needed
   once, to claim the first owner at `/setup`; remove it afterwards. An empty value counts as
   none.
+- **Database connections:** the web server keeps up to ten connections (`DATABASE_POOL_MAX`) with
+  prepared statements. On a platform that starts many short-lived instances behind a pooler,
+  ten for each instance exhaust the pooler (a session pool of 15 connections at Supabase gave
+  `EMAXCONNSESSION` with a few instances and two test workers). Use the transaction mode of the
+  pooler with `DATABASE_POOL_MAX=1` and `DATABASE_PREPARE=false`, which the pooler needs because it
+  does not keep prepared statements; the product uses no feature that needs a session (no
+  advisory lock, no `LISTEN`, no setting that lasts beyond a transaction).
 - **Services:** `migrate` applies the migrations and creates the bucket of the storage (nothing
   else did; without the bucket the web server reports itself not ready) and ends; `app`
   (the web server, on `127.0.0.1:3000`, `APP_BIND` and `APP_PORT` change that) and `worker`

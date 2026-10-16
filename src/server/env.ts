@@ -2,6 +2,17 @@ import { z } from "zod";
 const schema = z.object({
   APP_URL: z.url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
+  // A platform that starts many short-lived instances needs few connections for each, and a pooler
+  // in transaction mode does not keep prepared statements: DATABASE_POOL_MAX=1 and
+  // DATABASE_PREPARE=false. An empty value is the default.
+  DATABASE_POOL_MAX: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(50).default(10),
+  ),
+  DATABASE_PREPARE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.enum(["true", "false"]).default("true"),
+  ),
   BETTER_AUTH_SECRET: z.string().min(32),
   ENCRYPTION_KEY: z.string().regex(/^[a-f0-9]{64}$/),
   S3_ENDPOINT: z.url(),

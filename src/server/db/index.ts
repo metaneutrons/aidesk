@@ -5,7 +5,8 @@ import { env } from "../env";
 const state = globalThis as typeof globalThis & { aideskSql?: ReturnType<typeof postgres> };
 export function sqlClient(): ReturnType<typeof postgres> {
   state.aideskSql ??= postgres(env().DATABASE_URL, {
-    max: 10,
+    max: env().DATABASE_POOL_MAX,
+    prepare: env().DATABASE_PREPARE === "true",
     idle_timeout: 20,
     connect_timeout: 10,
   });

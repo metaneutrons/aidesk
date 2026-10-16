@@ -33,6 +33,7 @@ const tokenSchema = z.object({
   name: z.string(),
   actions: z.array(action),
   active: z.boolean(),
+  managed: z.boolean(),
   expiresAt: z.string(),
 });
 type Person = z.infer<typeof personSchema>;
@@ -84,6 +85,9 @@ export function Settings({
   const [tokenName, setTokenName] = useState("");
   const [tokenRole, setTokenRole] = useState<TokenRole>("read");
   const [tokenDays, setTokenDays] = useState(30);
+  // An agent that aidesk runs itself has no token and no end date.
+  const [tokenManaged, setTokenManaged] = useState(false);
+  const [managedCreated, setManagedCreated] = useState(false);
   // Raised when a connection changed, so other sections that list them reload.
   const [connectionsStamp, setConnectionsStamp] = useState(0);
   const [issued, setIssued] = useState<string | null>(null);
@@ -139,90 +143,94 @@ export function Settings({
       {people === null ? (
         <p className="muted">{t("loading")}</p>
       ) : (
-        <table className="settings-table">
-          <thead>
-            <tr>
-              <th scope="col">{t("name")}</th>
-              <th scope="col">{t("status")}</th>
-              {managed.map((grant) => (
-                <th scope="col" key={grant.projectId}>
-                  {projectName(grant.projectId)}
-                </th>
-              ))}
-              {owner && (
-                <th scope="col">
-                  <span className="visually-hidden">{t("operatorActions")}</span>
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {people.map((person) => (
-              <tr key={person.id}>
-                <td>
-                  <strong>{person.name}</strong>
-                  <small>{person.email}</small>
-                </td>
-                <td>
-                  {t(person.active ? "statusActive" : "statusDisabled")}
-                  {person.owner && ` · ${t("ownerBadge")}`}
-                  {person.signIn.length > 0 &&
-                    ` · ${person.signIn.map((kind) => t(kind === "sso" ? "signInSsoBadge" : "signInPasswordBadge")).join(", ")}`}
-                </td>
-                {managed.map((grant) => {
-                  const current =
-                    person.grants.find((entry) => entry.projectId === grant.projectId)?.actions ??
-                    [];
-                  const role = roleOf(operatorRoles, current);
-                  return (
-                    <td key={grant.projectId}>
-                      <select
-                        aria-label={`${t("role")}: ${person.name}, ${projectName(grant.projectId)}`}
-                        value={role}
-                        onChange={(event) => {
-                          const next = event.target.value as OperatorRole;
-                          void act(
-                            send(`/operators/${person.id}/grants`, {
-                              projectId: grant.projectId,
-                              actions: within(operatorRoles[next], held(grant.projectId)),
-                            }),
-                            load,
-                          );
-                        }}
-                      >
-                        {role === "custom" && <option value="custom">{t("roleCustom")}</option>}
-                        {(Object.keys(operatorRoles) as OperatorRole[]).map((option) => (
-                          <option key={option} value={option}>
-                            {t(roleLabels[option])}
-                          </option>
-                        ))}
-                      </select>
+        <div>
+          <div className="table-scroll" role="region" aria-label={t("operatorsTitle")} tabIndex={0}>
+            <table className="settings-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("name")}</th>
+                  <th scope="col">{t("status")}</th>
+                  {managed.map((grant) => (
+                    <th scope="col" key={grant.projectId}>
+                      {projectName(grant.projectId)}
+                    </th>
+                  ))}
+                  {owner && (
+                    <th scope="col">
+                      <span className="visually-hidden">{t("operatorActions")}</span>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {people.map((person) => (
+                  <tr key={person.id}>
+                    <td>
+                      <strong>{person.name}</strong>
+                      <small>{person.email}</small>
                     </td>
-                  );
-                })}
-                {owner && (
-                  <td>
-                    {!person.owner && person.id !== viewerId && (
-                      <button
-                        type="button"
-                        className="secondary"
-                        aria-label={`${t(person.active ? "disable" : "enable")}: ${person.name}`}
-                        onClick={() => {
-                          void act(
-                            send(`/operators/${person.id}/active`, { active: !person.active }),
-                            load,
-                          );
-                        }}
-                      >
-                        {t(person.active ? "disable" : "enable")}
-                      </button>
+                    <td>
+                      {t(person.active ? "statusActive" : "statusDisabled")}
+                      {person.owner && ` · ${t("ownerBadge")}`}
+                      {person.signIn.length > 0 &&
+                        ` · ${person.signIn.map((kind) => t(kind === "sso" ? "signInSsoBadge" : "signInPasswordBadge")).join(", ")}`}
+                    </td>
+                    {managed.map((grant) => {
+                      const current =
+                        person.grants.find((entry) => entry.projectId === grant.projectId)
+                          ?.actions ?? [];
+                      const role = roleOf(operatorRoles, current);
+                      return (
+                        <td key={grant.projectId}>
+                          <select
+                            aria-label={`${t("role")}: ${person.name}, ${projectName(grant.projectId)}`}
+                            value={role}
+                            onChange={(event) => {
+                              const next = event.target.value as OperatorRole;
+                              void act(
+                                send(`/operators/${person.id}/grants`, {
+                                  projectId: grant.projectId,
+                                  actions: within(operatorRoles[next], held(grant.projectId)),
+                                }),
+                                load,
+                              );
+                            }}
+                          >
+                            {role === "custom" && <option value="custom">{t("roleCustom")}</option>}
+                            {(Object.keys(operatorRoles) as OperatorRole[]).map((option) => (
+                              <option key={option} value={option}>
+                                {t(roleLabels[option])}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      );
+                    })}
+                    {owner && (
+                      <td>
+                        {!person.owner && person.id !== viewerId && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            aria-label={`${t(person.active ? "disable" : "enable")}: ${person.name}`}
+                            onClick={() => {
+                              void act(
+                                send(`/operators/${person.id}/active`, { active: !person.active }),
+                                load,
+                              );
+                            }}
+                          >
+                            {t(person.active ? "disable" : "enable")}
+                          </button>
+                        )}
+                      </td>
                     )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
       {owner && (
         <form
@@ -297,11 +305,13 @@ export function Settings({
                       <span>{t(tokenLabels[roleOf(tokenRoles, token.actions)])}</span>
                       <span>
                         {token.active
-                          ? t("tokenExpires", {
-                              date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
-                                new Date(token.expiresAt),
-                              ),
-                            })
+                          ? token.managed
+                            ? t("agentManagedLabel")
+                            : t("tokenExpires", {
+                                date: new Intl.DateTimeFormat(locale, {
+                                  dateStyle: "medium",
+                                }).format(new Date(token.expiresAt)),
+                              })
                           : t("statusRevoked")}
                       </span>
                       {token.active && (
@@ -327,7 +337,20 @@ export function Settings({
                 onSubmit={(event) => {
                   event.preventDefault();
                   setIssued(null);
+                  setManagedCreated(false);
                   void (async () => {
+                    if (tokenManaged) {
+                      const created = await send(`/projects/${tokenProject}/agents/managed`, {
+                        name: tokenName,
+                        actions: within(tokenRoles[tokenRole], held(tokenProject)),
+                      }).catch(() => null);
+                      if (created?.ok) {
+                        setManagedCreated(true);
+                        setTokenName("");
+                      } else setFailure("error");
+                      await loadTokens(tokenProject);
+                      return;
+                    }
                     const response = await send(`/projects/${tokenProject}/agents`, {
                       name: tokenName,
                       actions: within(tokenRoles[tokenRole], held(tokenProject)),
@@ -344,7 +367,20 @@ export function Settings({
                   })();
                 }}
               >
-                <h3>{t("tokenIssue")}</h3>
+                <h3>{t(tokenManaged ? "managedCreate" : "tokenIssue")}</h3>
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={tokenManaged}
+                    onChange={(event) => {
+                      setTokenManaged(event.target.checked);
+                      setIssued(null);
+                      setManagedCreated(false);
+                    }}
+                  />
+                  <span>{t("managedAgent")}</span>
+                </label>
+                {tokenManaged && <p className="muted">{t("managedAgentHint")}</p>}
                 <label>
                   {t("tokenName")}
                   <input
@@ -369,23 +405,32 @@ export function Settings({
                     </option>
                   ))}
                 </select>
-                <label htmlFor={`${fieldId}-expiry`}>{t("tokenExpiry")}</label>
-                <select
-                  id={`${fieldId}-expiry`}
-                  value={tokenDays}
-                  onChange={(event) => {
-                    setTokenDays(Number(event.target.value));
-                  }}
-                >
-                  {[7, 30, 90].map((days) => (
-                    <option key={days} value={days}>
-                      {t("days", { count: days })}
-                    </option>
-                  ))}
-                </select>
+                {!tokenManaged && (
+                  <>
+                    <label htmlFor={`${fieldId}-expiry`}>{t("tokenExpiry")}</label>
+                    <select
+                      id={`${fieldId}-expiry`}
+                      value={tokenDays}
+                      onChange={(event) => {
+                        setTokenDays(Number(event.target.value));
+                      }}
+                    >
+                      {[7, 30, 90].map((days) => (
+                        <option key={days} value={days}>
+                          {t("days", { count: days })}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 <button className="primary" type="submit">
-                  {t("tokenIssue")}
+                  {t(tokenManaged ? "managedCreate" : "tokenIssue")}
                 </button>
+                {managedCreated && (
+                  <p className="muted" role="status">
+                    {t("managedCreated")}
+                  </p>
+                )}
                 {issued && (
                   <div className="issued-token" role="status">
                     <p>{t("tokenShownOnce")}</p>
