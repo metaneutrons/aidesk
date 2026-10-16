@@ -211,6 +211,11 @@ test("answers every documented route in the published shape, with real data", as
     params: { projectId: project },
     data: { acknowledgements: true },
   });
+  // The project is shared with the specs of the run, which expect to find acknowledgements off.
+  await call("projects.settings", {
+    params: { projectId: project },
+    data: { acknowledgements: false },
+  });
   await call("operator.locale", { data: { locale: null } });
   // Designs.
   await call("designs.preview", { params: { projectId: project }, data: {} });

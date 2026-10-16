@@ -196,9 +196,12 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
     name: `Configuration of ${desk.projects.alpha.name}`,
   });
   const toggle = section.getByLabel("Send an acknowledgement for each new ticket");
-  await toggle.check();
-  await section.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(section.getByText("Saved.")).toBeVisible();
+  // Another spec may have left it on; Save is enabled only for a change.
+  if (!(await toggle.isChecked())) {
+    await toggle.check();
+    await section.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(section.getByText("Saved.")).toBeVisible();
+  }
   await expect(toggle).toBeChecked();
   try {
     await smtp.sendMail({
