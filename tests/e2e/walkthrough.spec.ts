@@ -144,7 +144,7 @@ test("the desk can be used with the keyboard alone", async ({
   await page.keyboard.press("Enter");
   const row = page
     .getByRole("region", { name: "Inbox" })
-    .getByRole("button", { name: /request 1/ })
+    .getByRole("button", { name: new RegExp(`${desk.projects.alpha.name} request 1`) })
     .first();
   await expect(row).toBeVisible();
   await row.focus();
