@@ -139,90 +139,94 @@ export function Settings({
       {people === null ? (
         <p className="muted">{t("loading")}</p>
       ) : (
-        <table className="settings-table">
-          <thead>
-            <tr>
-              <th scope="col">{t("name")}</th>
-              <th scope="col">{t("status")}</th>
-              {managed.map((grant) => (
-                <th scope="col" key={grant.projectId}>
-                  {projectName(grant.projectId)}
-                </th>
-              ))}
-              {owner && (
-                <th scope="col">
-                  <span className="visually-hidden">{t("operatorActions")}</span>
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {people.map((person) => (
-              <tr key={person.id}>
-                <td>
-                  <strong>{person.name}</strong>
-                  <small>{person.email}</small>
-                </td>
-                <td>
-                  {t(person.active ? "statusActive" : "statusDisabled")}
-                  {person.owner && ` · ${t("ownerBadge")}`}
-                  {person.signIn.length > 0 &&
-                    ` · ${person.signIn.map((kind) => t(kind === "sso" ? "signInSsoBadge" : "signInPasswordBadge")).join(", ")}`}
-                </td>
-                {managed.map((grant) => {
-                  const current =
-                    person.grants.find((entry) => entry.projectId === grant.projectId)?.actions ??
-                    [];
-                  const role = roleOf(operatorRoles, current);
-                  return (
-                    <td key={grant.projectId}>
-                      <select
-                        aria-label={`${t("role")}: ${person.name}, ${projectName(grant.projectId)}`}
-                        value={role}
-                        onChange={(event) => {
-                          const next = event.target.value as OperatorRole;
-                          void act(
-                            send(`/operators/${person.id}/grants`, {
-                              projectId: grant.projectId,
-                              actions: within(operatorRoles[next], held(grant.projectId)),
-                            }),
-                            load,
-                          );
-                        }}
-                      >
-                        {role === "custom" && <option value="custom">{t("roleCustom")}</option>}
-                        {(Object.keys(operatorRoles) as OperatorRole[]).map((option) => (
-                          <option key={option} value={option}>
-                            {t(roleLabels[option])}
-                          </option>
-                        ))}
-                      </select>
+        <div>
+          <div className="table-scroll" role="region" aria-label={t("operatorsTitle")} tabIndex={0}>
+            <table className="settings-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("name")}</th>
+                  <th scope="col">{t("status")}</th>
+                  {managed.map((grant) => (
+                    <th scope="col" key={grant.projectId}>
+                      {projectName(grant.projectId)}
+                    </th>
+                  ))}
+                  {owner && (
+                    <th scope="col">
+                      <span className="visually-hidden">{t("operatorActions")}</span>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {people.map((person) => (
+                  <tr key={person.id}>
+                    <td>
+                      <strong>{person.name}</strong>
+                      <small>{person.email}</small>
                     </td>
-                  );
-                })}
-                {owner && (
-                  <td>
-                    {!person.owner && person.id !== viewerId && (
-                      <button
-                        type="button"
-                        className="secondary"
-                        aria-label={`${t(person.active ? "disable" : "enable")}: ${person.name}`}
-                        onClick={() => {
-                          void act(
-                            send(`/operators/${person.id}/active`, { active: !person.active }),
-                            load,
-                          );
-                        }}
-                      >
-                        {t(person.active ? "disable" : "enable")}
-                      </button>
+                    <td>
+                      {t(person.active ? "statusActive" : "statusDisabled")}
+                      {person.owner && ` · ${t("ownerBadge")}`}
+                      {person.signIn.length > 0 &&
+                        ` · ${person.signIn.map((kind) => t(kind === "sso" ? "signInSsoBadge" : "signInPasswordBadge")).join(", ")}`}
+                    </td>
+                    {managed.map((grant) => {
+                      const current =
+                        person.grants.find((entry) => entry.projectId === grant.projectId)
+                          ?.actions ?? [];
+                      const role = roleOf(operatorRoles, current);
+                      return (
+                        <td key={grant.projectId}>
+                          <select
+                            aria-label={`${t("role")}: ${person.name}, ${projectName(grant.projectId)}`}
+                            value={role}
+                            onChange={(event) => {
+                              const next = event.target.value as OperatorRole;
+                              void act(
+                                send(`/operators/${person.id}/grants`, {
+                                  projectId: grant.projectId,
+                                  actions: within(operatorRoles[next], held(grant.projectId)),
+                                }),
+                                load,
+                              );
+                            }}
+                          >
+                            {role === "custom" && <option value="custom">{t("roleCustom")}</option>}
+                            {(Object.keys(operatorRoles) as OperatorRole[]).map((option) => (
+                              <option key={option} value={option}>
+                                {t(roleLabels[option])}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      );
+                    })}
+                    {owner && (
+                      <td>
+                        {!person.owner && person.id !== viewerId && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            aria-label={`${t(person.active ? "disable" : "enable")}: ${person.name}`}
+                            onClick={() => {
+                              void act(
+                                send(`/operators/${person.id}/active`, { active: !person.active }),
+                                load,
+                              );
+                            }}
+                          >
+                            {t(person.active ? "disable" : "enable")}
+                          </button>
+                        )}
+                      </td>
                     )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
       {owner && (
         <form

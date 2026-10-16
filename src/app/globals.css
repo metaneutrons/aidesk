@@ -1075,6 +1075,13 @@ label {
     margin: 0;
     font-size: 14px;
 }
+/* A table with a column for each project is wider than a narrow window; it scrolls inside its box
+   and the page does not. */
+.table-scroll {
+    position: relative;
+    max-width: 100%;
+    overflow-x: auto;
+}
 .settings-table {
     width: 100%;
     border-collapse: collapse;

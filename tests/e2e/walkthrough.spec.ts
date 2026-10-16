@@ -94,6 +94,9 @@ test.describe("a narrow window and zoom", () => {
         .catch(() => undefined);
       await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
       await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
+      // The heading is there while the list is still loading; the table with a column for each
+      // project is what is wide.
+      await expect(page.getByRole("table")).toBeVisible();
       expect(await overflow(page), `settings at ${name}`).toBeLessThanOrEqual(1);
       // The customer's page, from a link, with a message that holds a long address that cannot break
       // (an answer with a link in it is one that other specs of the run leave on this ticket).
