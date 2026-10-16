@@ -64,18 +64,16 @@ export const capabilities = {
   "connections.create": {
     operation: "createConnection",
     action: "integration.manage",
-    ui: null,
+    ui: "src/components/connection-form.tsx",
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
-    difference: "docs/capabilities.md",
   },
   "connections.update": {
     operation: "updateConnection",
     action: "integration.manage",
-    ui: null,
+    ui: "src/components/connection-form.tsx",
     api: "src/server/api/routes.ts",
     mcp: "src/server/mcp.ts",
-    difference: "docs/capabilities.md",
   },
   "connections.disable": {
     operation: "disableConnection",
