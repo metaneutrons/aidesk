@@ -1,4 +1,5 @@
 import type { AiFailure } from "../domain/ai";
+import type { AttachmentRefusal } from "../domain/attachments";
 export class DomainError extends Error {
   constructor(
     readonly code:
@@ -14,6 +15,8 @@ export class DomainError extends Error {
       | "translation_unusable"
       // A source outside the product that was asked did not answer as needed.
       | "source_unavailable"
+      // A file that was sent is not accepted.
+      | AttachmentRefusal
       // A task that asks a model ended without an answer.
       | AiFailure,
     readonly status: number,

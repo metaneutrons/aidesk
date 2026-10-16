@@ -12,12 +12,19 @@ interface PortalView {
     html: string;
     // A machine translation into the language of the page, when there is one.
     translation: string | null;
+    attachments: { filename: string; size: number }[];
     createdAt: string;
   }[];
 }
 // The customer's view of one ticket: the public conversation and a reply form.
 // Without a valid view the page only says that the link does not work, the same
 // for every reason (unknown, expired, revoked).
+const formatBytes = (size: number): string =>
+  size < 1024
+    ? `${String(size)} B`
+    : size < 1_048_576
+      ? `${String(Math.round(size / 1024))} kB`
+      : `${(size / 1_048_576).toFixed(1)} MB`;
 export function Portal({
   token,
   locale,
@@ -30,7 +37,10 @@ export function Portal({
   const t = useTranslations();
   const router = useRouter();
   const [text, setText] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "failed" | "closed" | "limited">("idle");
+  const [state, setState] = useState<
+    "idle" | "sending" | "failed" | "closed" | "limited" | "blocked" | "large" | "many"
+  >("idle");
+  const [files, setFiles] = useState<File[]>([]);
   // One key per attempt, kept until the reply was accepted, so a repeated
   // submission cannot create the message twice.
   const [key, setKey] = useState(() => crypto.randomUUID());
@@ -51,19 +61,44 @@ export function Portal({
   const format = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
   async function submit() {
     setState("sending");
+    const form = new FormData();
+    form.set("token", token);
+    form.set("markdown", text);
+    form.set("idempotencyKey", key);
+    for (const file of files) form.append("files", file);
     const response = await fetch("/api/portal/reply", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token, markdown: text, idempotencyKey: key }),
+      ...(files.length === 0
+        ? {
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ token, markdown: text, idempotencyKey: key }),
+          }
+        : { body: form }),
     }).catch(() => null);
     if (response?.ok) {
       setText("");
+      setFiles([]);
       setKey(crypto.randomUUID());
       setState("idle");
       router.refresh();
       return;
     }
-    setState(response?.status === 409 ? "closed" : response?.status === 429 ? "limited" : "failed");
+    const code = response
+      ? ((await response.json().catch(() => null)) as { error?: string } | null)?.error
+      : undefined;
+    setState(
+      code === "attachment_type_blocked"
+        ? "blocked"
+        : code === "attachment_too_large"
+          ? "large"
+          : code === "attachment_count_exceeded"
+            ? "many"
+            : response?.status === 409
+              ? "closed"
+              : response?.status === 429
+                ? "limited"
+                : "failed",
+    );
   }
   return (
     <main className="portal">
@@ -82,6 +117,15 @@ export function Portal({
               <time dateTime={message.createdAt}>{format.format(new Date(message.createdAt))}</time>
             </header>
             <div className="prose" dangerouslySetInnerHTML={{ __html: message.html }} />
+            {message.attachments.length > 0 && (
+              <ul className="attachments" aria-label={t("portalAttachments")}>
+                {message.attachments.map((file, index) => (
+                  <li key={`${file.filename}:${String(index)}`}>
+                    {file.filename} <small>{formatBytes(file.size)}</small>
+                  </li>
+                ))}
+              </ul>
+            )}
             {message.translation !== null && (
               <section className="translation" aria-label={t("portalTranslation")}>
                 <small className="muted">{t("portalTranslation")}</small>
@@ -111,6 +155,18 @@ export function Portal({
               setText(event.target.value);
             }}
           />
+          <label htmlFor="portal-files">{t("portalAttach")}</label>
+          <input
+            id="portal-files"
+            type="file"
+            multiple
+            disabled={!hydrated}
+            onChange={(event) => {
+              setFiles([...(event.target.files ?? [])]);
+            }}
+          />
+          <small className="muted">{t("portalAttachHint")}</small>
+          {files.length > 0 && <p role="status">{t("portalAttached", { count: files.length })}</p>}
           <button
             className="primary"
             type="submit"
@@ -125,7 +181,13 @@ export function Portal({
                   ? "portalClosed"
                   : state === "limited"
                     ? "portalLimited"
-                    : "portalFailed",
+                    : state === "blocked"
+                      ? "portalAttachBlocked"
+                      : state === "large"
+                        ? "portalAttachLarge"
+                        : state === "many"
+                          ? "portalAttachMany"
+                          : "portalFailed",
               )}
             </p>
           )}
