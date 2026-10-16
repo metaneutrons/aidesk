@@ -418,7 +418,7 @@ export const capabilities = {
   "agents.create_managed": {
     operation: "createManagedAgent",
     action: "agent.manage",
-    ui: null,
+    ui: "src/components/settings.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
     difference: "docs/capabilities.md",

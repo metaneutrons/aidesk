@@ -33,6 +33,7 @@ const tokenSchema = z.object({
   name: z.string(),
   actions: z.array(action),
   active: z.boolean(),
+  managed: z.boolean(),
   expiresAt: z.string(),
 });
 type Person = z.infer<typeof personSchema>;
@@ -84,6 +85,9 @@ export function Settings({
   const [tokenName, setTokenName] = useState("");
   const [tokenRole, setTokenRole] = useState<TokenRole>("read");
   const [tokenDays, setTokenDays] = useState(30);
+  // An agent that aidesk runs itself has no token and no end date.
+  const [tokenManaged, setTokenManaged] = useState(false);
+  const [managedCreated, setManagedCreated] = useState(false);
   // Raised when a connection changed, so other sections that list them reload.
   const [connectionsStamp, setConnectionsStamp] = useState(0);
   const [issued, setIssued] = useState<string | null>(null);
@@ -301,11 +305,13 @@ export function Settings({
                       <span>{t(tokenLabels[roleOf(tokenRoles, token.actions)])}</span>
                       <span>
                         {token.active
-                          ? t("tokenExpires", {
-                              date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
-                                new Date(token.expiresAt),
-                              ),
-                            })
+                          ? token.managed
+                            ? t("agentManagedLabel")
+                            : t("tokenExpires", {
+                                date: new Intl.DateTimeFormat(locale, {
+                                  dateStyle: "medium",
+                                }).format(new Date(token.expiresAt)),
+                              })
                           : t("statusRevoked")}
                       </span>
                       {token.active && (
@@ -331,7 +337,20 @@ export function Settings({
                 onSubmit={(event) => {
                   event.preventDefault();
                   setIssued(null);
+                  setManagedCreated(false);
                   void (async () => {
+                    if (tokenManaged) {
+                      const created = await send(`/projects/${tokenProject}/agents/managed`, {
+                        name: tokenName,
+                        actions: within(tokenRoles[tokenRole], held(tokenProject)),
+                      }).catch(() => null);
+                      if (created?.ok) {
+                        setManagedCreated(true);
+                        setTokenName("");
+                      } else setFailure("error");
+                      await loadTokens(tokenProject);
+                      return;
+                    }
                     const response = await send(`/projects/${tokenProject}/agents`, {
                       name: tokenName,
                       actions: within(tokenRoles[tokenRole], held(tokenProject)),
@@ -348,7 +367,20 @@ export function Settings({
                   })();
                 }}
               >
-                <h3>{t("tokenIssue")}</h3>
+                <h3>{t(tokenManaged ? "managedCreate" : "tokenIssue")}</h3>
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={tokenManaged}
+                    onChange={(event) => {
+                      setTokenManaged(event.target.checked);
+                      setIssued(null);
+                      setManagedCreated(false);
+                    }}
+                  />
+                  <span>{t("managedAgent")}</span>
+                </label>
+                {tokenManaged && <p className="muted">{t("managedAgentHint")}</p>}
                 <label>
                   {t("tokenName")}
                   <input
@@ -373,23 +405,32 @@ export function Settings({
                     </option>
                   ))}
                 </select>
-                <label htmlFor={`${fieldId}-expiry`}>{t("tokenExpiry")}</label>
-                <select
-                  id={`${fieldId}-expiry`}
-                  value={tokenDays}
-                  onChange={(event) => {
-                    setTokenDays(Number(event.target.value));
-                  }}
-                >
-                  {[7, 30, 90].map((days) => (
-                    <option key={days} value={days}>
-                      {t("days", { count: days })}
-                    </option>
-                  ))}
-                </select>
+                {!tokenManaged && (
+                  <>
+                    <label htmlFor={`${fieldId}-expiry`}>{t("tokenExpiry")}</label>
+                    <select
+                      id={`${fieldId}-expiry`}
+                      value={tokenDays}
+                      onChange={(event) => {
+                        setTokenDays(Number(event.target.value));
+                      }}
+                    >
+                      {[7, 30, 90].map((days) => (
+                        <option key={days} value={days}>
+                          {t("days", { count: days })}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 <button className="primary" type="submit">
-                  {t("tokenIssue")}
+                  {t(tokenManaged ? "managedCreate" : "tokenIssue")}
                 </button>
+                {managedCreated && (
+                  <p className="muted" role="status">
+                    {t("managedCreated")}
+                  </p>
+                )}
                 {issued && (
                   <div className="issued-token" role="status">
                     <p>{t("tokenShownOnce")}</p>
