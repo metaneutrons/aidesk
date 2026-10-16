@@ -3,7 +3,7 @@ import type { APIRequestContext } from "@playwright/test";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, remote, test } from "./fixtures";
 // Contract tests for the published API definition. The definition is read from
 // the running application, exactly as a client reads it, and every answer is
 // checked against it with a JSON Schema validator that has nothing to do with the
@@ -248,10 +248,11 @@ test("answers every documented route in the published shape, with real data", as
     params: { projectId: project },
     data: {
       name: `Contract ${desk.run}`,
-      url: "http://localhost:3000/api/health/live",
+      // A deployment refuses an address of the development stack; any public HTTPS address does.
+      url: remote ? "https://example.com/aidesk-contract" : "http://localhost:3000/api/health/live",
       events: ["ticket.created"],
       secret: "contract-signing-secret",
-      developmentOnly: true,
+      ...(remote ? {} : { developmentOnly: true }),
     },
   });
   // A proposal or a change names its object as `target` and gives the new version.

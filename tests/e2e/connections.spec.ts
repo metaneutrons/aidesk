@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./fixtures";
+import { expect, remote, test } from "./fixtures";
 // Connections: defined through the API, tested and disabled on the settings
 // page, which never shows a credential.
 test.describe.configure({ mode: "serial" });
@@ -9,6 +9,7 @@ test("tests a connection, shows why a failing one fails and disables one", async
   signIn,
   baseURL,
 }) => {
+  test.skip(remote, "The connections of this test are mail servers of the development stack.");
   const { alpha } = desk.projects;
   const headers = { origin: baseURL ?? "" };
   await signIn();

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./fixtures";
+import { expect, remote, test } from "./fixtures";
 // Translations in the desk: asking for one on a message, what is shown when none can be made, and
 // the translation of a draft. No model is set up in the stack, so the worker and the routes answer
 // that none can be made; the cases with a model are in the translation tests.
@@ -9,6 +9,10 @@ test("asks for a translation, shows why there is none, and translates a draft", 
   desk,
   signIn,
 }) => {
+  test.skip(
+    remote,
+    "The translation is made by a job, and a deployment takes jobs only when its schedule calls the worker.",
+  );
   const { alpha } = desk.projects;
   await signIn();
   await page.goto(`/?ticket=${alpha.tickets[0]}`);

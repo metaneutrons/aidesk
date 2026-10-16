@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, remote, test } from "./fixtures";
 import { createIdpUser, deleteIdpUser } from "./keycloak";
 // Operator and token administration through the settings view.
 test.describe.configure({ mode: "serial" });
@@ -16,6 +16,7 @@ test("an operator added in settings signs in through SSO with the granted access
   signIn,
   browser,
 }) => {
+  test.skip(remote, "Signing in through SSO needs the identity provider of the development stack.");
   const email = `${desk.prefix}-invited@oidc.aidesk.test`;
   const password = randomBytes(16).toString("hex");
   await signIn();
@@ -55,6 +56,10 @@ test("an operator added in settings signs in through SSO with the granted access
   }
 });
 test("disables an operator and shows the state", async ({ page, desk, signIn }) => {
+  test.skip(
+    remote,
+    "The operator of this test is made by the SSO test, which a deployment does not run.",
+  );
   await signIn();
   await openSettings(page);
   const row = page.getByRole("row").filter({ hasText: `Invited ${desk.run}` });

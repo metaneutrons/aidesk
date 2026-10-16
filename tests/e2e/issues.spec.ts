@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, fixture, test } from "./fixtures";
+import { expect, fixture, remote, test } from "./fixtures";
 // Issues from a ticket: the panel appears when the project has a repository, a draft is written and
 // read as it will go out, and a publication that GitHub refuses leaves the draft where it was. The
 // "GitHub" of this test is the address of the app itself, which refuses everything it is asked.
@@ -11,6 +11,10 @@ test("writes a draft of an issue, reviews it and keeps it when the repository re
   desk,
   signIn,
 }) => {
+  test.skip(
+    remote,
+    "The repository of this test is the address of the app inside the development stack.",
+  );
   const { gamma } = desk.projects;
   await signIn();
   await page.goto(`/?ticket=${gamma.tickets[0]}`);
