@@ -574,6 +574,164 @@ describe("a call whose outcome is not known, and one that was refused", () => {
     expect(await charged()).toBe(0);
   });
 });
+describe("the fallback model of a profile", () => {
+  const failure = (statusCode?: number, data?: unknown) =>
+    new APICallError({
+      message: "failed",
+      url: "https://provider.example.test",
+      requestBodyValues: {},
+      ...(statusCode === undefined ? {} : { statusCode }),
+      ...(data === undefined ? {} : { data }),
+    });
+  // Answers the first call with the failure and every later one with the second result.
+  function sequence(first: Error, second: Answer | Error) {
+    const calls: Call[] = [];
+    const generate = (call: Call): Promise<Answer> => {
+      calls.push(call);
+      const result = calls.length === 1 ? first : second;
+      return result instanceof Error ? Promise.reject(result) : Promise.resolve(result);
+    };
+    return { calls, generate };
+  }
+  let backup = "";
+  beforeAll(async () => {
+    backup = await connection(projectId, { kind: "openai" });
+  });
+  const withFallback = (overrides: Partial<typeof aiProfiles.$inferInsert> = {}) =>
+    profile({ fallbackConnectionId: backup, fallbackModel: "model-two", ...overrides });
+  it("is asked once when the model is not there, with its own connection, and keeps the record of the first failure", async () => {
+    await withFallback();
+    const { calls, generate } = sequence(failure(404), answer());
+    const outcome = await runAiTask(request(), { generate });
+    expect(outcome).toMatchObject({ ok: true, model: "model-two" });
+    expect(calls.map((call) => [call.kind, call.model])).toEqual([
+      ["anthropic", "model-one"],
+      ["openai", "model-two"],
+    ]);
+    const rows = (await runs()).sort((a, b) => (a.outcome < b.outcome ? -1 : 1));
+    expect(
+      rows.map((row) => [row.outcome, row.connectionId, row.model, row.fallbackOf ?? null]),
+    ).toEqual([
+      ["ai_model_unavailable", ready, "model-one", null],
+      ["ok", backup, "model-two", "ai_model_unavailable"],
+    ]);
+    // The share was held once and is settled by the answer that came.
+    expect(await charged()).toBe(52);
+  });
+  it("is asked after a refusal of the request as well", async () => {
+    await withFallback();
+    for (const status of [400, 401, 403]) {
+      const { calls, generate } = sequence(failure(status), answer());
+      expect(await runAiTask(request(), { generate }), String(status)).toMatchObject({
+        ok: true,
+        model: "model-two",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  });
+  it("is not asked after a limit, a quota, a failure of unknown outcome or a timeout", async () => {
+    await withFallback();
+    const timeout = Object.assign(new Error("timed out"), { name: "TimeoutError" });
+    const outOfCredit = failure(429, { error: { type: "insufficient_quota" } });
+    for (const error of [
+      failure(429),
+      failure(503),
+      failure(500),
+      failure(),
+      outOfCredit,
+      timeout,
+      new Error("socket hang up"),
+    ]) {
+      const { calls, generate } = sequence(error, answer());
+      const outcome = await runAiTask(request(), { generate });
+      expect(outcome.ok).toBe(false);
+      expect(calls).toHaveLength(1);
+    }
+  });
+  it("is not asked when the first model answered or the budget did not allow the run", async () => {
+    await withFallback();
+    const good = fakeGenerate(answer());
+    expect(await runAiTask(request(), { generate: good.generate })).toMatchObject({ ok: true });
+    expect(good.calls).toHaveLength(1);
+    await withFallback({ dailyTokenBudget: 10 });
+    const over = fakeGenerate(answer());
+    expect(await runAiTask(request(), { generate: over.generate })).toMatchObject({
+      code: "ai_budget_exceeded",
+    });
+    expect(over.calls).toHaveLength(0);
+  });
+  it("gives the last failure when the fallback fails too, and gives the share back only if it was refused", async () => {
+    await withFallback();
+    const refusedTwice = sequence(failure(404), failure(401));
+    expect(await runAiTask(request(), { generate: refusedTwice.generate })).toMatchObject({
+      ok: false,
+      code: "ai_provider_error",
+      refused: true,
+    });
+    expect(refusedTwice.calls).toHaveLength(2);
+    expect(await charged()).toBe(0);
+    expect((await runs()).map((row) => row.outcome).sort()).toEqual([
+      "ai_model_unavailable",
+      "ai_provider_error",
+    ]);
+    await db().delete(aiRuns).where(eq(aiRuns.projectId, projectId));
+    const unknown = sequence(failure(404), failure(500));
+    expect(await runAiTask(request(), { generate: unknown.generate })).toMatchObject({
+      ok: false,
+      code: "ai_provider_error",
+      refused: false,
+    });
+    // The second request may have been accepted, so its share stays charged.
+    expect(await charged()).toBe(held(500));
+    const timeout = Object.assign(new Error("timed out"), { name: "TimeoutError" });
+    const slow = sequence(failure(404), timeout);
+    expect(await runAiTask(request(), { generate: slow.generate })).toMatchObject({
+      ok: false,
+      code: "ai_timeout",
+      refused: false,
+    });
+  });
+  it("is not used when none is named, when its connection cannot be used or when its address now points somewhere refused", async () => {
+    await profile();
+    const none = sequence(failure(404), answer());
+    expect(await runAiTask(request(), { generate: none.generate })).toMatchObject({
+      ok: false,
+      code: "ai_model_unavailable",
+    });
+    expect(none.calls).toHaveLength(1);
+    dns.table.set("fallback.example.test", ["93.184.216.34"]);
+    const gateway = await connection(projectId, {
+      kind: "openai",
+      config: { endpoint: "https://fallback.example.test" },
+    });
+    for (const connectionId of [
+      await connection(projectId, { kind: "openai", status: "degraded" }),
+      await connection(projectId, { kind: "openai", secret: false }),
+      await connection(otherProject, { kind: "openai" }),
+      gateway,
+    ]) {
+      if (connectionId === gateway) dns.table.set("fallback.example.test", ["127.0.0.1"]);
+      await withFallback({ fallbackConnectionId: connectionId });
+      const { calls, generate } = sequence(failure(404), answer());
+      expect(await runAiTask(request(), { generate }), connectionId).toMatchObject({
+        ok: false,
+        code: "ai_model_unavailable",
+      });
+      expect(calls).toHaveLength(1);
+    }
+    // Only the first failure of each run was recorded, and the share went back.
+    expect(await charged()).toBe(0);
+  });
+  it("shows the fallback of a run in the record of the request that answered, not in the first", async () => {
+    await withFallback();
+    const { generate } = sequence(failure(404), answer());
+    const outcome = await runAiTask(request(), { generate });
+    const rows = await runs();
+    const answered = rows.find((row) => row.outcome === "ok");
+    expect(outcome.runId).toBe(answered?.id);
+    expect(rows.find((row) => row.outcome !== "ok")?.fallbackOf).toBeNull();
+  });
+});
 const kinds: {
   kind: Kind;
   path: string;

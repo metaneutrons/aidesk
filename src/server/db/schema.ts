@@ -293,6 +293,10 @@ export const aiProfiles = pgTable(
       .notNull()
       .references(() => connections.id),
     model: text("model").notNull(),
+    // A second model, approved with the profile, that is tried once after a refusal that did
+    // nothing (a model the provider no longer has, or a request that it refused).
+    fallbackConnectionId: uuid("fallback_connection_id").references(() => connections.id),
+    fallbackModel: text("fallback_model"),
     timeoutSeconds: integer("timeout_seconds").notNull(),
     maxOutputTokens: integer("max_output_tokens").notNull(),
     dailyTokenBudget: integer("daily_token_budget").notNull(),
@@ -336,6 +340,8 @@ export const aiRuns = pgTable(
     model: text("model"),
     // ok, or the code of the failure.
     outcome: text("outcome").notNull(),
+    // The failure of the profile's own model after which this run used the fallback.
+    fallbackOf: text("fallback_of"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     durationMs: integer("duration_ms").notNull(),

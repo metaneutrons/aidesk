@@ -39,9 +39,16 @@ export const aiProfileWrite = z
     maxOutputTokens: z.number().int().min(1).max(16_000).default(aiDefaults.maxOutputTokens),
     dailyTokenBudget: z.number().int().min(1).max(100_000_000).default(aiDefaults.dailyTokenBudget),
     enabled: z.boolean().default(false),
+    // A second model for a refusal that did nothing: both or none.
+    fallbackConnectionId: z.uuid().nullable().default(null),
+    fallbackModel: model.nullable().default(null),
     idempotencyKey: z.uuid().optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => (value.fallbackConnectionId === null) === (value.fallbackModel === null), {
+    message: "Name the connection and the model of the fallback together, or neither",
+    path: ["fallbackModel"],
+  });
 export type AiProfileWrite = z.infer<typeof aiProfileWrite>;
 // How a run of a task can end without an answer. The codes name no provider, no
 // host and no key.
@@ -76,3 +83,8 @@ export const estimateFileTokens = (mediaType: string, bytes: number): number =>
   mediaType === "application/pdf"
     ? Math.min(Math.ceil(bytes / 10), 200_000)
     : Math.min(Math.ceil(bytes / 3), 8_000);
+// The failures after which the model of a profile may be replaced by its fallback: the provider did
+// nothing, because the model is not there or because it refused the request. A limit, a quota, a
+// budget, a timeout and a failure whose outcome is unknown are not among them: the same request
+// would meet the same limit, or may have been accepted already.
+export const fallbackCodes: AiFailure[] = ["ai_model_unavailable", "ai_provider_error"];
