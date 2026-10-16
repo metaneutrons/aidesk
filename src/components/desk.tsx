@@ -35,6 +35,7 @@ import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
 import { Assignment } from "./assignment";
+import { Knowledge } from "./knowledge";
 import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
@@ -282,6 +283,8 @@ export function Desk({
     "assistDone" | "assistTruncated" | "translateDone" | null
   >(null);
   const [translating, setTranslating] = useState(false);
+  const [useKnowledge, setUseKnowledge] = useState(false);
+  const [assistSources, setAssistSources] = useState(0);
   const [theme, setTheme] = useState<Theme>("system");
   const [now, setNow] = useState(serverTime);
   const [creating, setCreating] = useState(false);
@@ -578,6 +581,7 @@ export function Desk({
           mode: internal ? "note" : "reply",
           ...(instruction.trim() ? { instruction: instruction.trim() } : {}),
           ...(draft.trim() ? { current: draft.slice(0, 8000) } : {}),
+          ...(useKnowledge ? { knowledge: true } : {}),
         }),
       });
       if (!response.ok) {
@@ -591,12 +595,17 @@ export function Desk({
         return;
       }
       const result = z
-        .object({ text: z.string(), truncated: z.boolean() })
+        .object({
+          text: z.string(),
+          truncated: z.boolean(),
+          knowledgePassages: z.number().default(0),
+        })
         .parse(await response.json());
       if (place.current.selected !== asked.selected || place.current.internal !== asked.internal)
         return;
       setUndo(before);
       editDraft(result.text);
+      setAssistSources(result.knowledgePassages);
       setAssistNote(result.truncated ? "assistTruncated" : "assistDone");
     } catch {
       setError("assistFailed");
@@ -1127,6 +1136,16 @@ export function Desk({
                         {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
                       </span>
                       {!conversation.ticket.junkAt && (
+                        <details className="ticket-knowledge">
+                          <summary>{t("knowledgeToggle")}</summary>
+                          <Knowledge
+                            key={conversation.ticket.id}
+                            ticketId={conversation.ticket.id}
+                            locale={initialLocale}
+                          />
+                        </details>
+                      )}
+                      {!conversation.ticket.junkAt && (
                         <Assignment
                           key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
                           ticketId={conversation.ticket.id}
@@ -1469,6 +1488,16 @@ export function Desk({
                                     ) ?? conversation.ticket.language,
                                 })}
                           </button>
+                          <label className="assist-knowledge">
+                            <input
+                              type="checkbox"
+                              checked={useKnowledge}
+                              onChange={(event) => {
+                                setUseKnowledge(event.target.checked);
+                              }}
+                            />
+                            {t("assistKnowledge")}
+                          </label>
                           {undo !== null && (
                             <button
                               type="button"
@@ -1486,6 +1515,9 @@ export function Desk({
                         {assistNote && (
                           <p className="assist-note" role="status">
                             {t(assistNote)}
+                            {assistNote !== "translateDone" && assistSources > 0
+                              ? ` ${t("assistSources", { count: assistSources })}`
+                              : ""}
                           </p>
                         )}
                         <div className="compose-footer">

@@ -1086,6 +1086,38 @@ never resets the response clock.
   the settings suggest a text in the other language. The customer page shows a ready, current
   translation of a message into the language of the page when a person had one made.
 
+### Sources of knowledge
+
+Part P5 of [the completion plan](plans/m4-completion.md). A project can have connections of the
+direction `knowledge`, which are only read, by the product and for the project that owns them:
+
+- `github/knowledge`: up to 20 repositories (`owner/name`), an optional API address for GitHub
+  Enterprise, a token. Issues and pull requests of those repositories are searched.
+- `docs/knowledge`: up to 30 pages by title and HTTPS address, an optional bearer token. Pages are
+  read as text (HTML is converted) and searched by paragraph; a page is kept for two minutes.
+- `context/knowledge`: an HTTPS endpoint and a key. It is asked `GET endpoint?email=<requester>` for
+  what the customer system knows about the requester of the ticket.
+
+A definition needs HTTPS and an allowed host like every connection (`developmentOnly` only on a
+development stack), the host is checked again when the source is read, a redirect is not followed
+(it would take the key elsewhere), and a test reads one repository, one page or the endpoint.
+
+`GET /tickets/{id}/knowledge?q=` (tool `tickets_knowledge`, needs `ticket.read`) searches the ready
+sources of the ticket's project at once and answers with the passages (source, reference, title,
+text of at most 800 characters, time of the fetch) and the state of each source (`ok`,
+`unavailable` with a code such as `http_401`, `timeout` or `bad_response`, or `not_verified`).
+Nothing is made up for a source that does not answer. The query is reduced to words (letters and
+digits), so that it cannot carry a qualifier such as `repo:` that would widen a search; a result of a
+repository that is not on the connection is dropped. The text is written by others and marked
+`untrusted`. Customer data is only asked for the requester of that ticket, and only when the ticket
+has a portal record of that address that is verified and not revoked (the record is made when the
+portal link for the address is issued; it is not proof that the customer owns the mailbox).
+
+The runner has the tool `search_knowledge` (at most three searches a run, with `ticket.read`), and
+the draft button can use the sources (`knowledge: true`): the passages go to the model as data with
+their source, and the draft is told to name the source of a fact that it takes from one. A source
+that fails leaves the draft without it. The desk shows the search under the ticket.
+
 ### Stopping agents and outgoing mail
 
 The stops of the plan are at three levels, and only people set them (a token never does, and no

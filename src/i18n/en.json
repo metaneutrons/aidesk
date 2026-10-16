@@ -417,5 +417,20 @@
   "textsTranslate": "Suggest translation from {language}",
   "textsTranslateWorking": "Translating…",
   "textsTranslateFailed": "No suggestion could be made ({code}).",
-  "portalTranslation": "Machine translation of this message"
+  "portalTranslation": "Machine translation of this message",
+  "connectionKind_github": "GitHub",
+  "connectionKind_docs": "Documentation",
+  "connectionKind_context": "Customer data",
+  "connection_knowledge": "source of knowledge",
+  "knowledgeToggle": "Knowledge",
+  "knowledgePlaceholder": "Words to search for",
+  "knowledgeSearch": "Search",
+  "knowledgeNone": "Nothing found.",
+  "knowledgeNoSources": "This project has no sources of knowledge.",
+  "knowledgeUnavailable": "{name} could not be read ({code}).",
+  "knowledgeNotVerified": "{name}: the customer of this ticket is not verified, so nothing was asked.",
+  "knowledgeFetched": "fetched {date}",
+  "knowledgeError": "The search could not be made.",
+  "assistKnowledge": "Use knowledge sources",
+  "assistSources": "{count, plural, one {It used # passage of the knowledge sources; check the cited source.} other {It used # passages of the knowledge sources; check the cited sources.}}"
 }

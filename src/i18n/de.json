@@ -417,5 +417,20 @@
   "textsTranslate": "Übersetzung aus dem {language} vorschlagen",
   "textsTranslateWorking": "Wird übersetzt…",
   "textsTranslateFailed": "Es konnte kein Vorschlag gemacht werden ({code}).",
-  "portalTranslation": "Maschinelle Übersetzung dieser Nachricht"
+  "portalTranslation": "Maschinelle Übersetzung dieser Nachricht",
+  "connectionKind_github": "GitHub",
+  "connectionKind_docs": "Dokumentation",
+  "connectionKind_context": "Kundendaten",
+  "connection_knowledge": "Wissensquelle",
+  "knowledgeToggle": "Wissen",
+  "knowledgePlaceholder": "Suchbegriffe",
+  "knowledgeSearch": "Suchen",
+  "knowledgeNone": "Nichts gefunden.",
+  "knowledgeNoSources": "Dieses Projekt hat keine Wissensquellen.",
+  "knowledgeUnavailable": "{name} konnte nicht gelesen werden ({code}).",
+  "knowledgeNotVerified": "{name}: Der Kunde dieses Tickets ist nicht verifiziert, deshalb wurde nichts abgefragt.",
+  "knowledgeFetched": "abgerufen {date}",
+  "knowledgeError": "Die Suche konnte nicht ausgeführt werden.",
+  "assistKnowledge": "Wissensquellen nutzen",
+  "assistSources": "{count, plural, one {Es hat # Textstelle der Wissensquellen verwendet; prüfe die genannte Quelle.} other {Es hat # Textstellen der Wissensquellen verwendet; prüfe die genannten Quellen.}}"
 }

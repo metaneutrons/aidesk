@@ -13,6 +13,12 @@ import {
   cloudflareOutboundSecret,
   connectionDisable,
   connectionTypes,
+  contextConfig,
+  contextSecret,
+  docsConfig,
+  docsSecret,
+  githubConfig,
+  githubSecret,
   parseConnectionCreate,
   connectionUpdate,
   imapConfig,
@@ -116,23 +122,49 @@ async function checkDefinition(key: ConnectionTypeKey, config: Record<string, un
     const url = new URL(String(config.endpoint));
     if (url.protocol !== "https:") invalid(["config", "endpoint"], "HTTPS is required");
   }
-  const target = hostOf(key, config);
-  if (target) {
+  for (const target of knowledgeAddresses(key, config))
+    if (new URL(target.url).protocol !== "https:") invalid(target.path, "HTTPS is required");
+  for (const target of hostsOf(key, config)) {
     const verdict = await checkHost(target.host);
     if (verdict === "refused") invalid(target.path, "This host is not allowed");
     if (verdict === "unresolved") invalid(target.path, "This host does not resolve");
   }
 }
-// The host a connection reaches, and the field that names it.
-function hostOf(
+// The addresses of a source of knowledge, and the field that names each.
+function knowledgeAddresses(
   key: ConnectionTypeKey,
   config: Record<string, unknown>,
-): { host: string; path: string[] } | null {
+): { url: string; path: (string | number)[] }[] {
+  if (key === "github:knowledge")
+    return typeof config.endpoint === "string"
+      ? [{ url: config.endpoint, path: ["config", "endpoint"] }]
+      : [];
+  if (key === "context:knowledge")
+    return typeof config.endpoint === "string"
+      ? [{ url: config.endpoint, path: ["config", "endpoint"] }]
+      : [];
+  if (key === "docs:knowledge")
+    return (Array.isArray(config.pages) ? config.pages : []).map(
+      (page: { url?: unknown }, index) => ({
+        url: String(page.url),
+        path: ["config", "pages", index, "url"],
+      }),
+    );
+  return [];
+}
+// The hosts a connection reaches, and the field that names each.
+function hostsOf(
+  key: ConnectionTypeKey,
+  config: Record<string, unknown>,
+): { host: string; path: (string | number)[] }[] {
   if (key === "imap:inbound" || key === "smtp:outbound")
-    return { host: String(config.host), path: ["config", "host"] };
+    return [{ host: String(config.host), path: ["config", "host"] }];
   if (key === "cloudflare:inbound" || (isAi(key) && config.endpoint !== undefined))
-    return { host: new URL(String(config.endpoint)).hostname, path: ["config", "endpoint"] };
-  return null;
+    return [{ host: new URL(String(config.endpoint)).hostname, path: ["config", "endpoint"] }];
+  return knowledgeAddresses(key, config).map((target) => ({
+    host: new URL(target.url).hostname,
+    path: target.path,
+  }));
 }
 async function parseConfig(
   key: ConnectionTypeKey,
@@ -443,9 +475,9 @@ const timeout = 15_000;
 async function guardHost(row: Row): Promise<void> {
   const key = typeKey(row.kind, row.direction);
   if (!key || row.config.developmentOnly === true) return;
-  const target = hostOf(key, row.config);
-  if (target && (await checkHost(target.host)) !== "allowed")
-    throw Object.assign(new Error("host"), { code: "HOST_REFUSED" });
+  for (const target of hostsOf(key, row.config))
+    if ((await checkHost(target.host)) !== "allowed")
+      throw Object.assign(new Error("host"), { code: "HOST_REFUSED" });
 }
 async function probe(row: Row): Promise<void> {
   const key = typeKey(row.kind, row.direction);
@@ -526,6 +558,53 @@ async function probe(row: Row): Promise<void> {
     );
     if (!response.ok)
       throw Object.assign(new Error("provider"), { providerStatus: response.status });
+    return;
+  }
+  if (key === "github:knowledge" || key === "docs:knowledge" || key === "context:knowledge") {
+    // The source answers a request that reads one thing: a repository, a page, or the endpoint.
+    // A key goes in a header and a redirect is not followed, because it would take it elsewhere.
+    const requests: { url: string; headers: Record<string, string> }[] = [];
+    if (key === "github:knowledge") {
+      const config = githubConfig.parse(row.config);
+      const secret = githubSecret.parse(secretText);
+      const base = (config.endpoint ?? "https://api.github.com").replace(/\/+$/, "");
+      for (const repository of config.repositories)
+        requests.push({
+          url: `${base}/repos/${repository}`,
+          headers: {
+            Authorization: `Bearer ${secret.token}`,
+            Accept: "application/vnd.github+json",
+            "User-Agent": "aidesk",
+          },
+        });
+    } else if (key === "docs:knowledge") {
+      const config = docsConfig.parse(row.config);
+      const secret = secretText === undefined ? undefined : docsSecret.parse(secretText);
+      for (const page of config.pages)
+        requests.push({
+          url: page.url,
+          headers: secret ? { Authorization: `Bearer ${secret.token}` } : {},
+        });
+    } else {
+      const config = contextConfig.parse(row.config);
+      const secret = contextSecret.parse(secretText);
+      requests.push({
+        url: config.endpoint,
+        headers: { Authorization: `Bearer ${secret.apiKey}`, Accept: "application/json" },
+      });
+    }
+    for (const request of requests) {
+      const response = await fetch(request.url, {
+        headers: request.headers,
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeout),
+      });
+      // A system of customer data may answer a request without a customer with an error of the
+      // request; what shows that it is not reachable or refuses the key is the rest.
+      const reachable =
+        response.ok || (key === "context:knowledge" && [400, 404, 422].includes(response.status));
+      if (!reachable) throw Object.assign(new Error("source"), { providerStatus: response.status });
+    }
     return;
   }
   // Cloudflare outbound: the token has to be active. Whether it may send is

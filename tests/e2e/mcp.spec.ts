@@ -77,6 +77,7 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
     "tags_list",
     "tickets_agent_runs",
     "tickets_get",
+    "tickets_knowledge",
     "tickets_list",
     "tickets_reply",
     "tickets_search",

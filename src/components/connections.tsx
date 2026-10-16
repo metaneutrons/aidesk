@@ -8,7 +8,7 @@ import { z } from "zod";
 const connectionSchema = z.object({
   id: z.string(),
   kind: z.string(),
-  direction: z.enum(["inbound", "outbound", "ai"]),
+  direction: z.enum(["inbound", "outbound", "ai", "knowledge"]),
   name: z.string(),
   status: z.enum(["draft", "ready", "degraded", "disabled"]),
   lastErrorCode: z.string().nullable(),

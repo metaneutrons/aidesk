@@ -631,7 +631,8 @@ describe("a mail that is processed twice or while a person changes it", () => {
     const [message] = await db()
       .select()
       .from(messages)
-      .where(eq(messages.ticketId, ticket?.id ?? ""));
+      .where(eq(messages.ticketId, ticket?.id ?? ""))
+      .orderBy(messages.createdAt);
     expect(message?.markdown).toContain("printer still prints grey pages");
     expect(message?.markdown).not.toContain("hat am 3. März");
     expect(message?.source).toMatchObject({ extraction: "ai" });
@@ -682,7 +683,8 @@ describe("the steps through the job of the intake", () => {
     const [message] = await db()
       .select()
       .from(messages)
-      .where(eq(messages.ticketId, entry?.ticketId ?? ""));
+      .where(eq(messages.ticketId, entry?.ticketId ?? ""))
+      .orderBy(messages.createdAt);
     expect(message?.source).toMatchObject({ extraction: "ai" });
     expect(message?.markdown).not.toContain("hat am 3. März");
     fake.behaviour = {};

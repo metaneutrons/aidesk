@@ -1634,3 +1634,32 @@ li.tag-chip button {
     border-left: 3px solid var(--line);
     background: var(--accent-soft);
 }
+
+.ticket-knowledge summary {
+    display: inline-block;
+    min-height: 24px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.knowledge form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.knowledge-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.knowledge-list p {
+    margin: 2px 0;
+    white-space: pre-wrap;
+}

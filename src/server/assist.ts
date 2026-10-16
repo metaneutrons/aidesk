@@ -17,6 +17,7 @@ import { runAiTask, type AiDeps } from "./ai-run";
 import { db } from "./db";
 import { audit, messages, tickets } from "./db/schema";
 import { DomainError } from "./errors";
+import { searchKnowledge, type KnowledgeDeps } from "./knowledge";
 import { activeTexts } from "./texts";
 // How a run that ended without an answer is shown to the caller.
 const statusOf: Record<AiFailure, number> = {
@@ -43,6 +44,7 @@ export async function assistDraft(
   ticketId: string,
   input: unknown,
   deps: AiDeps = {},
+  knowledgeDeps: KnowledgeDeps = {},
 ) {
   const request = assistInput.parse(input);
   const readable = allowedProjectIds(principal, "ticket.read");
@@ -69,6 +71,17 @@ export async function assistDraft(
     const role = row.internal ? "note" : row.authorType === "customer" ? "customer" : "team";
     return [{ role, name: row.authorName, at: row.createdAt, text: row.markdown }];
   });
+  // The sources of the project, asked about the subject and the newest words of the customer. A
+  // source that does not answer is left out; the draft is made without it.
+  const lastCustomer = [...rows].reverse().find((row) => row.authorType === "customer");
+  const found = request.knowledge
+    ? await searchKnowledge(
+        principal,
+        ticket.id,
+        `${ticket.subject} ${lastCustomer?.markdown.slice(0, 150) ?? ""}`.trim().slice(0, 200),
+        knowledgeDeps,
+      ).catch(() => null)
+    : null;
   const boundary = `ticket-data-${randomUUID()}`;
   const standard = effectiveText(
     assistKey[request.mode],
@@ -88,6 +101,7 @@ export async function assistDraft(
         language: ticket.language,
         messages: conversation,
         current: request.current,
+        ...(found ? { knowledge: found.passages } : {}),
       }),
       actor: { id: principal.id, kind: principal.kind },
     },
@@ -111,8 +125,9 @@ export async function assistDraft(
         actorKind: principal.kind,
         withInstruction: Boolean(request.instruction),
         withText: Boolean(request.current),
+        knowledgePassages: found?.passages.length ?? 0,
         truncated: outcome.truncated,
       },
     });
-  return { text, truncated: outcome.truncated };
+  return { text, truncated: outcome.truncated, knowledgePassages: found?.passages.length ?? 0 };
 }

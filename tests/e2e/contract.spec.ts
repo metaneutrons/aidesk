@@ -258,6 +258,8 @@ test("answers every documented route in the published shape, with real data", as
     params: hookParams,
     data: { expectedVersion: renamed.version },
   });
+  // The sources of knowledge: the project has none in the fixture, which the answer says.
+  await call("knowledge.search", { params: { ticketId: ticket }, query: { q: "printer" } });
   // Translations of a message: asked for, listed (the worker answers that none can be made, as no
   // model is set up), removed; and a correction of the text, which gives it a new revision.
   const first = (detail.messages as { id: string; language: string; markdown: string }[])[0];
