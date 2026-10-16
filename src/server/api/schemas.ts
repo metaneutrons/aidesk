@@ -86,6 +86,10 @@ export const messageOut = rowSchema(messages, {
       .describe("For a draft of an agent: the links it carries, with text and address"),
     hasOriginal: z.boolean(),
     extractionUncertain: z.boolean(),
+    extraction: z.enum(["parser", "ai"]),
+    extractionFailure: z.string().nullable(),
+    parserMarkdown: z.string().nullable(),
+    junkCheck: z.enum(["clean", "uncertain", "failed"]).nullable(),
     deliveryError: z.string().nullable(),
     attachments: z.array(attachmentSummary),
   })

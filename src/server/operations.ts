@@ -482,6 +482,11 @@ export async function listTags(principal: Principal, requested: string[] = []) {
     group by tag order by count desc, tag asc limit 100`);
   return rows.map((row) => ({ tag: row.tag, count: row.count }));
 }
+function junkCheckOf(value: unknown): "clean" | "uncertain" | "failed" | null {
+  const result =
+    typeof value === "object" && value !== null && "result" in value ? value.result : null;
+  return result === "clean" || result === "uncertain" || result === "failed" ? result : null;
+}
 // Who has the ticket, by name, for the desk and for an agent that reads it.
 async function assigneeOf(tx: Pick<Tx, "select">, ticket: typeof tickets.$inferSelect) {
   if (ticket.assigneeUserId) {
@@ -575,6 +580,23 @@ export async function getTicket(principal: Principal, ticketId: string) {
       // The private original can be downloaded; the storage key stays inside.
       hasOriginal: rawObjectKey !== null,
       extractionUncertain: message.source.uncertain === true,
+      // How the text of a customer's mail was found, for the desk: by the parser or by a model, why
+      // the model's result was not used, the parser's text when a model's was used, and what a
+      // model said about junk when it was asked.
+      extraction: message.source.extraction === "ai" ? ("ai" as const) : ("parser" as const),
+      extractionFailure:
+        typeof message.source.extractionFailure === "string"
+          ? message.source.extractionFailure
+          : null,
+      parserMarkdown:
+        message.source.extraction === "ai" &&
+        typeof message.source.parser === "object" &&
+        message.source.parser !== null &&
+        "markdown" in message.source.parser &&
+        typeof message.source.parser.markdown === "string"
+          ? message.source.parser.markdown
+          : null,
+      junkCheck: junkCheckOf(message.source.junkCheck),
       // Why a reply went to review; only meaningful while it is there.
       deliveryError:
         message.deliveryState === "review" && typeof message.source.deliveryError === "string"

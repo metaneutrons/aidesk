@@ -37,6 +37,8 @@ export interface AiRequest {
   // model may call. Both count against the budget.
   messages?: ModelMessage[];
   tools?: Record<string, CallTool>;
+  // A shorter wait than the profile allows, for a caller that has others waiting for it.
+  maxWaitSeconds?: number;
   actor: { id: string; kind: "human" | "agent" | "system" };
 }
 export type AiOutcome =
@@ -316,7 +318,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       messages: request.messages,
       tools: request.tools,
       maxOutputTokens: profile.maxOutputTokens,
-      timeoutMs: profile.timeoutSeconds * 1000,
+      timeoutMs: Math.min(profile.timeoutSeconds, request.maxWaitSeconds ?? Infinity) * 1000,
     });
     const inputTokens = answer.usage.inputTokens ?? null;
     const outputTokens = answer.usage.outputTokens ?? null;

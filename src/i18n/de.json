@@ -387,5 +387,16 @@
   "workspaceControlsHint": "Gilt für jedes Projekt. Nur ein Owner kann das ändern.",
   "workspaceStopAgents": "Alle KI-Agenten stoppen",
   "workspacePauseOutgoing": "Alle ausgehenden Mails pausieren",
-  "configWarn": "Warnung nach (Stunden)"
+  "configWarn": "Warnung nach (Stunden)",
+  "aiTask_intake_extract": "Neuen Text eingehender Mails finden",
+  "aiTask_intake_junk": "Spam von Supportmails unterscheiden",
+  "extractionAi": "Die KI hat den Text ausgewählt. Version des Parsers anzeigen.",
+  "extractionFailed": "Die KI konnte den Text nicht finden ({code}); das Ergebnis des Parsers wird angezeigt.",
+  "junkCheckUncertain": "Die KI konnte nicht entscheiden, ob diese Mail Spam ist. Es wurde keine Eingangsbestätigung gesendet; bitte prüfe sie.",
+  "junkCheckFailed": "Die KI-Prüfung auf Spam ist fehlgeschlagen. Es wurde keine Eingangsbestätigung gesendet; bitte prüfe diese Mail.",
+  "junkReasonAdvertising": "Werbung, von der KI erkannt",
+  "junkReasonPhishing": "Phishing oder Betrug, von der KI erkannt",
+  "junkReasonNewsletter": "Newsletter oder Massenmail, von der KI erkannt",
+  "junkReasonAutomated": "Automatische Benachrichtigung, von der KI erkannt",
+  "junkReasonAiOther": "Junk, von der KI erkannt"
 }

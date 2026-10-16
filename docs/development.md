@@ -482,6 +482,44 @@ Not yet implemented: translation. GreenMail is a
 real IMAP server but not a provider mailbox; real provider qualification is still
 open.
 
+### AI at intake
+
+Two steps of the intake can ask a model, each switched on by the profile of its own task
+(`intake.extract`, `intake.junk`; off by default, and switching on needs `config.approve` like every
+AI task, because the mail text goes to the provider). They are independent, optional and run for
+every admitted mail from both adapters (IMAP and Cloudflare), because both end in `processIngress`.
+
+- **Where.** After the raw mail is stored and before the transaction that creates the ticket: the
+  calls are made outside the transaction, in parallel, each with at most 30 seconds of wait (the
+  profile's timeout when it is shorter). A mail that the rules call junk, a delivery report and a
+  copy of a mail that is already in are not asked about (so they cost nothing); a reply to a ticket
+  is asked for its new content but not whether it is junk, and a mail that a person restored is not
+  classified again. The results are stored with the mail (`ingress.classification.ai`), so a mail
+  that is processed again after a crash, or after a person put it aside while the model answered, is
+  not sent to the model again. A result is stored also when the call failed: a request that may have
+  been accepted is not made twice.
+- **Extraction.** The model gets the lines of the mail, numbered, between marker lines with a random
+  value, and answers by calling a tool with ranges of line numbers; the product assembles the new
+  content from those lines of the mail. The model never writes the text that people read, so an
+  instruction in a mail cannot put words of its own into the ticket. Ranges that do not fit the
+  mail (past its end, backwards, none) or an answer without the tool call are a failure. A mail over
+  30,000 characters is not sent. Whatever the model answers, the parser result stays: when the
+  model's lines are used the message says `extraction: ai` and keeps the parser's text
+  (`source.parser`) next to the original mail; when they are not, `extraction: parser` and
+  `extractionFailure` name why (`no_selection`, `bad_selection`, `context_limit`, or the code of the
+  AI boundary such as `ai_budget_exceeded`). The desk shows both, and the parser's text on request.
+- **Junk.** The model gets the sender, the subject, the first 3,000 characters, the number of
+  attachments and a few header signals, and answers `junk`, `support` or `unsure` with a kind
+  (advertising, phishing, newsletter, automated, other). The rules stay the floor: a mail that they
+  call junk is junk, and `support` does not clear it. Only `junk` for a mail that would start a
+  ticket keeps it out of the inbox (state `junk`, `source: ai`, the kind as reason), where a person
+  can restore it like any other junk, with the IMAP mailbox following. `unsure` and a failure leave
+  a ticket like any other, marked on its first message (`junkCheck: uncertain | failed`), and the
+  acknowledgement is not sent for it: the product does not answer a mail that it could not clear
+  before a person has looked at it.
+- **Failure never loses a mail.** A step that is off, over budget, refused, slow or unusable leaves
+  the parser and the rules as the result, and the failure is visible on the message.
+
 ## Cloudflare mail
 
 Inbound, Cloudflare Email Routing hands each message for a routed address to

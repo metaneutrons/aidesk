@@ -2,11 +2,15 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { simpleParser, type AddressObject } from "mailparser";
 import TurndownService from "turndown";
+import type { Tx } from "./changes";
 import { db } from "./db";
 import { attachments, ingress, jobs, messages, projects, tickets } from "./db/schema";
 import { getObject, putObject } from "./storage";
 import { extractReply } from "../domain/extraction";
 import { classifyJunk } from "../domain/junk";
+import { assemble, textLines, type ExtractResult, type JunkResult } from "../domain/intake";
+import type { AiDeps } from "./ai-run";
+import { runIntakeAi } from "./intake-ai";
 import { attachmentRefusal, safeFilename } from "../domain/attachments";
 import {
   acknowledgementInterval,
@@ -96,9 +100,49 @@ turndown.addRule("signature", {
 export function htmlToMarkdown(html: string): string {
   return turndown.turndown(html);
 }
+// The ticket that a reply continues: a reference to one of its messages in this project, from the
+// requester of the ticket. Claimed identifiers alone, or another sender, find none.
+async function findTarget(
+  reader: Pick<Tx, "select">,
+  projectId: string,
+  references: string[],
+  sender: string,
+): Promise<typeof tickets.$inferSelect | undefined> {
+  if (!references.length) return undefined;
+  const [match] = await reader
+    .select({ ticket: tickets })
+    .from(messages)
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(
+      and(
+        eq(tickets.projectId, projectId),
+        or(
+          inArray(messages.receivedMessageId, references),
+          inArray(sql<string>`${messages.source}->>'messageId'`, references),
+        ),
+      ),
+    )
+    .orderBy(sql`${messages.createdAt} desc`)
+    .limit(1);
+  return match?.ticket.requesterEmail.toLowerCase() === sender ? match.ticket : undefined;
+}
+// A header value of the parser as text: most are strings, some are objects with a value.
+function headerText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+// What the stored results of an earlier run of this mail say, for a mail that is processed again.
+function storedAi(classification: Record<string, unknown> | null) {
+  const ai = classification?.ai;
+  return typeof ai === "object" && ai !== null
+    ? (ai as { extract?: ExtractResult; junk?: JunkResult })
+    : undefined;
+}
 export type IngestOutcome =
   "created" | "appended" | "reopened" | "duplicate" | "follow_up" | "junk" | "bounced" | "report";
-export async function processIngress(ingressId: string): Promise<IngestOutcome | "done"> {
+export async function processIngress(
+  ingressId: string,
+  deps: AiDeps = {},
+): Promise<IngestOutcome | "done"> {
   const [entry] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
   if (!entry) throw new Error("ingress_missing");
   if (entry.state !== "queued") return "done";
@@ -113,11 +157,66 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
     typeof mail.html === "string" && mail.html.trim()
       ? htmlToMarkdown(mail.html)
       : (mail.text ?? "");
-  const extraction = extractReply(body.trim() ? body : "(no text content)");
+  const text = body.trim() ? body : "(no text content)";
+  const parser = extractReply(text);
   const references = referenceIds(mail.inReplyTo, mail.references);
-  const detection = detectLanguage(extraction.markdown);
   const subject = (mail.subject ?? "").trim() || "(no subject)";
   const receivedAt = entry.receivedAt;
+  // What is known without a transaction, and what the AI steps of intake need: a mail that the
+  // rules keep out, a delivery report and a copy of a mail that is already in are not asked
+  // about, and a reply to a ticket is not asked whether it is junk.
+  const ruleVerdict = entry.classification?.restored ? null : classifyJunk(mail.headers);
+  const report = parseDeliveryReport(
+    mail.headers.get("content-type"),
+    mail.text ?? "",
+    mail.attachments
+      .filter((file) => ["text/rfc822-headers", "message/rfc822"].includes(file.contentType))
+      .map((file) => file.content.toString("utf8")),
+  );
+  const [known] = messageId
+    ? await db()
+        .select({ id: messages.id })
+        .from(messages)
+        .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+        .where(
+          and(eq(tickets.projectId, entry.projectId), eq(messages.receivedMessageId, messageId)),
+        )
+        .limit(1)
+    : [];
+  const ai =
+    ruleVerdict?.junk || report?.originalMessageId || known
+      ? { extract: null, junk: null }
+      : await runIntakeAi(
+          {
+            projectId: entry.projectId,
+            ingressId: entry.id,
+            subject,
+            from: `${sender.name} <${sender.address}>`,
+            body: text,
+            attachments: mail.attachments.length,
+            signals: [
+              // The parser gathers the List-* headers under `list`.
+              ...(mail.headers.has("list") ? ["list-unsubscribe"] : []),
+              ...(/^(bulk|list|junk)$/i.test(headerText(mail.headers.get("precedence")))
+                ? ["precedence-bulk"]
+                : []),
+              ...(mail.headers.has("auto-submitted") ? ["auto-submitted"] : []),
+            ],
+            wantJunk:
+              !entry.classification?.restored &&
+              !(await findTarget(db(), entry.projectId, references, sender.address)),
+            stored: storedAi(entry.classification),
+          },
+          deps,
+        );
+  // The new content: what the model chose, from the lines of the mail, when it chose well;
+  // otherwise what the parser found. The parser result stays with the message either way.
+  const chosen = ai.extract?.state === "ok" ? assemble(textLines(text), ai.extract.keep) : null;
+  const extraction =
+    ai.extract?.state === "ok" && chosen !== null
+      ? { markdown: chosen, trimmed: chosen !== text.trim(), uncertain: ai.extract.uncertain }
+      : parser;
+  const detection = detectLanguage(extraction.markdown);
   // Files are stored before the transaction, like the original, under their
   // checksum; storing the same file again is harmless. Refused files are not
   // stored at all.
@@ -193,8 +292,7 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
     }
     // Junk stays out of the inbox: no ticket, nothing added to an existing
     // ticket, no acknowledgement. A restored mail is not classified again.
-    const verdict = entry.classification?.restored ? null : classifyJunk(mail.headers);
-    if (verdict?.junk) {
+    const keepOut = async (reason: string, by: "rules" | "ai") => {
       // The original in an IMAP mailbox follows into its junk folder.
       if (entry.origin?.kind === "imap")
         await tx.insert(jobs).values({
@@ -203,30 +301,24 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
           dedupKey: `junk-sync:${entry.id}:junk`,
           payload: { ingressId: entry.id },
         });
+      // Merged into what is stored, which holds the results of the AI steps.
       await tx
         .update(ingress)
         .set({
-          classification: {
-            ...entry.classification,
+          classification: sql`coalesce(${ingress.classification}, '{}'::jsonb) || ${JSON.stringify({
             verdict: "junk",
-            reason: verdict.reason,
-            source: "rules",
+            reason,
+            source: by,
             at: new Date().toISOString(),
-          },
+          })}::jsonb`,
         })
         .where(eq(ingress.id, entry.id));
       return finish(null, "junk", "junk");
-    }
+    };
+    if (ruleVerdict?.junk) return keepOut(ruleVerdict.reason ?? "rules", "rules");
     // A delivery report for one of our sent messages belongs to that message,
     // not to a new ticket. It must name our identifier and the recipient we
     // wrote to; anything else is processed like other mail.
-    const report = parseDeliveryReport(
-      mail.headers.get("content-type"),
-      mail.text ?? "",
-      mail.attachments
-        .filter((file) => ["text/rfc822-headers", "message/rfc822"].includes(file.contentType))
-        .map((file) => file.content.toString("utf8")),
-    );
     if (report?.originalMessageId) {
       const [sent] = await tx
         .select({ message: messages, ticket: tickets })
@@ -276,31 +368,35 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
     // A reply continues a ticket only through a reference to one of its
     // messages in this project and only from the ticket's requester. Claimed
     // identifiers alone, or another sender, start a separate ticket.
-    let target: typeof tickets.$inferSelect | undefined;
-    if (references.length) {
-      const [match] = await tx
-        .select({ ticket: tickets })
-        .from(messages)
-        .innerJoin(tickets, eq(tickets.id, messages.ticketId))
-        .where(
-          and(
-            eq(tickets.projectId, entry.projectId),
-            or(
-              inArray(messages.receivedMessageId, references),
-              inArray(sql<string>`${messages.source}->>'messageId'`, references),
-            ),
-          ),
-        )
-        .orderBy(sql`${messages.createdAt} desc`)
-        .limit(1);
-      if (match?.ticket.requesterEmail.toLowerCase() === sender.address) target = match.ticket;
-    }
+    const target = await findTarget(tx, entry.projectId, references, sender.address);
+    // The model's verdict can only add to the rules: a mail that starts a ticket and that it
+    // calls junk stays out of the inbox, where a person can restore it. A reply to a ticket was
+    // not asked about, and what it was not sure about is a ticket like any other, marked.
+    if (!target && ai.junk?.state === "junk") return keepOut(ai.junk.reason, "ai");
+    const usedAi = ai.extract?.state === "ok" && chosen !== null;
     const source = {
       from: sender.address,
       subject,
-      extraction: "parser",
+      extraction: usedAi ? "ai" : "parser",
       trimmed: extraction.trimmed,
       uncertain: extraction.uncertain,
+      // What the AI step did, when it ran: the parser result stays, so a person can compare, and
+      // a failure says why the parser result was kept.
+      ...(ai.extract?.state === "ok" && usedAi
+        ? {
+            parser: {
+              markdown: parser.markdown,
+              trimmed: parser.trimmed,
+              uncertain: parser.uncertain,
+            },
+            aiExtraction: { runId: ai.extract.runId },
+          }
+        : {}),
+      ...(ai.extract && !usedAi
+        ? {
+            extractionFailure: ai.extract.state === "ok" ? "bad_selection" : ai.extract.code,
+          }
+        : {}),
       attachments: mail.attachments.length,
       languageDetection: { language: detection.language, reason: detection.reason },
     };
@@ -412,6 +508,19 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
     // A reply to a ticket resolved long ago starts a linked follow-up.
     await insertMessage(ticket.id, language, target?.id, {
       languageDecision: { source: decision.source, undecided: decision.undecided },
+      // What the model said about junk, when it was asked: a mail it was not sure about, or
+      // that it could not judge, is in the inbox and is not acknowledged.
+      ...(ai.junk
+        ? {
+            junkCheck:
+              ai.junk.state === "failed"
+                ? { result: "failed", code: ai.junk.code }
+                : {
+                    result: ai.junk.state === "support" ? "clean" : "uncertain",
+                    reason: ai.junk.reason,
+                  },
+          }
+        : {}),
     });
     // An enabled project acknowledges a new ticket through its outgoing
     // connection, never to automatic mail and at most once an hour per sender.
@@ -419,7 +528,10 @@ export async function processIngress(ingressId: string): Promise<IngestOutcome |
     if (
       project?.settings.acknowledgements === true &&
       typeof connectionId === "string" &&
-      !isAutomaticMail(mail.headers, sender.address)
+      !isAutomaticMail(mail.headers, sender.address) &&
+      // A mail that the model could not clear is not answered by the product before a person
+      // has looked at it.
+      (ai.junk === null || ai.junk.state === "support")
     ) {
       const [recent] = await tx
         .select({ id: messages.id })

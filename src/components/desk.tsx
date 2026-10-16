@@ -74,6 +74,10 @@ const messageSchema = z.object({
   deliveryError: z.string().nullable(),
   hasOriginal: z.boolean(),
   extractionUncertain: z.boolean(),
+  extraction: z.enum(["parser", "ai"]),
+  extractionFailure: z.string().nullable(),
+  parserMarkdown: z.string().nullable(),
+  junkCheck: z.enum(["clean", "uncertain", "failed"]).nullable(),
   attachments: z.array(
     z.object({
       id: z.uuid(),
@@ -1175,6 +1179,35 @@ export function Desk({
                             className="prose"
                             dangerouslySetInnerHTML={{ __html: message.html }}
                           />
+                          {message.authorType === "customer" &&
+                            (message.extraction === "ai" ||
+                              message.extractionFailure !== null ||
+                              message.junkCheck === "uncertain" ||
+                              message.junkCheck === "failed") && (
+                              <div className="message-checks">
+                                {message.extraction === "ai" && (
+                                  <details>
+                                    <summary className="muted">{t("extractionAi")}</summary>
+                                    <pre className="parser-text">{message.parserMarkdown}</pre>
+                                  </details>
+                                )}
+                                {message.extractionFailure !== null && (
+                                  <small className="attention">
+                                    {t("extractionFailed", { code: message.extractionFailure })}
+                                  </small>
+                                )}
+                                {(message.junkCheck === "uncertain" ||
+                                  message.junkCheck === "failed") && (
+                                  <small className="attention">
+                                    {t(
+                                      message.junkCheck === "uncertain"
+                                        ? "junkCheckUncertain"
+                                        : "junkCheckFailed",
+                                    )}
+                                  </small>
+                                )}
+                              </div>
+                            )}
                           {message.authorType === "customer" && message.hasOriginal && (
                             <p className="message-original">
                               {message.extractionUncertain && (

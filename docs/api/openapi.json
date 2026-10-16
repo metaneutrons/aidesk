@@ -6106,7 +6106,9 @@
                           "reply.draft",
                           "note.draft",
                           "image.read",
-                          "agent.respond"
+                          "agent.respond",
+                          "intake.extract",
+                          "intake.junk"
                         ]
                       },
                       "version": {
@@ -9712,6 +9714,40 @@
           "extractionUncertain": {
             "type": "boolean"
           },
+          "extraction": {
+            "type": "string",
+            "enum": [
+              "parser",
+              "ai"
+            ]
+          },
+          "extractionFailure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parserMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "junkCheck": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "clean",
+                  "uncertain",
+                  "failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "deliveryError": {
             "type": [
               "string",
@@ -9778,6 +9814,10 @@
           "links",
           "hasOriginal",
           "extractionUncertain",
+          "extraction",
+          "extractionFailure",
+          "parserMarkdown",
+          "junkCheck",
           "deliveryError",
           "attachments"
         ],
