@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
-// The connections of one project: status, test and disable. Defining or
-// changing a connection, with its secret, is done through the API (see the
-// published API definition); the page never shows a secret.
+import { ConnectionForm } from "./connection-form";
+// The connections of one project: status, test and disable, and the form that defines or changes
+// one. The form takes the secret; the page never shows one.
 const connectionSchema = z.object({
   id: z.string(),
   kind: z.string(),
@@ -14,6 +14,8 @@ const connectionSchema = z.object({
   lastErrorCode: z.string().nullable(),
   version: z.number(),
   usedForOutgoingMail: z.boolean(),
+  config: z.record(z.string(), z.unknown()),
+  secretSet: z.boolean(),
 });
 type Connection = z.infer<typeof connectionSchema>;
 export function Connections({
@@ -29,6 +31,8 @@ export function Connections({
   const titleId = useId();
   const [rows, setRows] = useState<Connection[] | null>(null);
   const [message, setMessage] = useState<"error" | "connectionProposed" | null>(null);
+  // The form that is open: a new connection, or the connection that is changed.
+  const [editing, setEditing] = useState<Connection | "new" | null>(null);
   const load = useCallback(async () => {
     const response = await fetch(`/api/v1/projects/${projectId}/connections`).catch(() => null);
     const parsed = response?.ok ? z.array(connectionSchema).safeParse(await response.json()) : null;
@@ -89,6 +93,16 @@ export function Connections({
                   className="secondary"
                   disabled={row.status === "disabled"}
                   onClick={() => {
+                    setEditing(row);
+                  }}
+                >
+                  {t("connEdit", { name: row.name })}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={row.status === "disabled"}
+                  onClick={() => {
                     void run(row, "disable");
                   }}
                 >
@@ -98,6 +112,32 @@ export function Connections({
             </li>
           ))}
         </ul>
+      )}
+      {editing === null ? (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            setEditing("new");
+          }}
+        >
+          {t("connNew")}
+        </button>
+      ) : (
+        <ConnectionForm
+          key={editing === "new" ? "new" : editing.id}
+          projectId={projectId}
+          {...(editing === "new" ? {} : { existing: editing })}
+          onDone={(proposed) => {
+            setEditing(null);
+            setMessage(proposed ? "connectionProposed" : null);
+            void load();
+            onChanged();
+          }}
+          onCancel={() => {
+            setEditing(null);
+          }}
+        />
       )}
       {message && (
         <p className={message === "error" ? "error" : "muted"} role="status">

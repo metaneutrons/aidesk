@@ -872,8 +872,12 @@ keeps the secret sealed with the encryption key, like the stored one. The outgoi
 connection is chosen in the project configuration (`outboundConnectionId`), which
 accepts only an outgoing connection of the project that is not disabled.
 
-The settings page lists the connections with their status and offers test and
-disable; it has no form for credentials.
+The settings page lists the connections with their status and offers test, edit and
+disable, and a form to add one (`src/components/connection-form.tsx`): a field for each
+setting of the kind, a password field for each credential, and the errors of the API shown
+with the field they name. A credential is typed there and is never shown again; changing a
+connection keeps the credentials that are left empty, and replaces them all when any is filled.
+An agent under the review policy still proposes a change, which a person approves.
 
 ### Model providers
 
