@@ -228,11 +228,13 @@ test("answers every documented route in the published shape, with real data", as
     data: { acknowledgements: false },
   });
   await call("operator.locale", { data: { locale: null } });
-  // Designs.
-  await call("designs.preview", { params: { projectId: project }, data: {} });
-  const design = await call("designs.create", { params: { projectId: project }, data: {} });
+  // Designs, on a project that no other spec uses for designs: the designs spec counts the versions of
+  // alpha and finds the one that this selects.
+  const designProject = desk.projects.gamma.id;
+  await call("designs.preview", { params: { projectId: designProject }, data: {} });
+  const design = await call("designs.create", { params: { projectId: designProject }, data: {} });
   await call("designs.select", {
-    params: { projectId: project },
+    params: { projectId: designProject },
     data: { version: design.version },
   });
   // Agents.

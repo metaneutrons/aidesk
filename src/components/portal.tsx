@@ -114,7 +114,10 @@ export function Portal({
           <article key={message.id} className={message.from === "you" ? "own" : "team"}>
             <header>
               <strong>{message.from === "you" ? t("portalYou") : message.authorName}</strong>
-              <time dateTime={message.createdAt}>{format.format(new Date(message.createdAt))}</time>
+              {/* The server writes the time in UTC and the browser in its own zone: the browser's wins. */}
+              <time dateTime={message.createdAt} suppressHydrationWarning>
+                {format.format(new Date(message.createdAt))}
+              </time>
             </header>
             <div className="prose" dangerouslySetInnerHTML={{ __html: message.html }} />
             {message.attachments.length > 0 && (
