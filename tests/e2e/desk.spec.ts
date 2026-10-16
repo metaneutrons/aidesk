@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
-import { expect, mailpit, test } from "./fixtures";
+import { expect, mailpit, openPasswordSignIn, remote, test } from "./fixtures";
 import { totp } from "./totp";
 const conversation = (page: Page) => page.getByRole("region", { name: "Ticket" });
 async function openInbox(page: Page) {
@@ -15,6 +15,7 @@ test("rejects a wrong password and opens a deep-linked ticket after sign-in", as
   const ticket = desk.projects.alpha.tickets[0];
   await page.goto(`/?ticket=${ticket}`);
   await expect(page).toHaveURL(/\/login\?next=/);
+  await openPasswordSignIn(page);
   await page.getByLabel("Email address").fill(desk.email);
   await page.getByLabel("Password").fill("wrong-password-for-e2e");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -71,6 +72,10 @@ test("denies access to a project without a grant", async ({ page, desk, signIn }
   expect(projects.map((project) => project.id)).not.toContain(desk.projects.hidden.id);
 });
 test("records an internal note and delivers a reply without it", async ({ page, desk, signIn }) => {
+  test.skip(
+    remote,
+    "A deployment takes mail and jobs only when its schedule calls the worker, and has no test mailbox.",
+  );
   const ticket = desk.projects.alpha.tickets[0];
   const recipient = `${desk.prefix}-alpha-1@example.test`;
   const note = `Internal marker ${randomUUID()}`;
@@ -135,6 +140,10 @@ test("records an internal note and delivers a reply without it", async ({ page, 
   expect(foreign.status()).toBe(403);
 });
 test("threads consecutive replies to the customer message", async ({ page, desk, signIn }) => {
+  test.skip(
+    remote,
+    "A deployment takes mail and jobs only when its schedule calls the worker, and has no test mailbox.",
+  );
   const ticket = desk.projects.alpha.tickets[1];
   const recipient = `${desk.prefix}-alpha-2@example.test`;
   const customer = `<${desk.prefix}-alpha-2@example.test>`;
@@ -284,6 +293,10 @@ test.describe("with a dark system appearance", () => {
 test.describe("before hydration", () => {
   test.use({ javaScriptEnabled: false });
   test("keeps the sign-in form disabled so typed input cannot be lost", async ({ page }) => {
+    test.skip(
+      remote,
+      "A production build has no password field in the page before the script runs.",
+    );
     await page.goto("/login");
     await expect(page.getByLabel("Email address")).toBeDisabled();
     await expect(page.getByLabel("Password")).toBeDisabled();
@@ -291,6 +304,10 @@ test.describe("before hydration", () => {
   });
 });
 test("enables the sign-in form after hydration", async ({ page }) => {
+  test.skip(
+    remote,
+    "A production build shows the password field after a button, see the sign-in test.",
+  );
   await page.goto("/login");
   await expect(page.getByLabel("Email address")).toBeEnabled();
   await expect(page.getByLabel("Password")).toBeEnabled();

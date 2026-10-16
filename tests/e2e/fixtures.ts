@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 import { z } from "zod";
 import { createIdpUser, deleteIdpUser } from "./keycloak";
 import { totp } from "./totp";
@@ -29,25 +29,47 @@ export type Desk = z.infer<typeof deskSchema> & { idpPassword: string };
 // The database is private to the Compose network, so fixture data is created
 // inside the app container. Its output carries a generated password and is
 // never logged.
+// Against a deployed instance the fixture runs on this machine with the environment of that
+// instance (`E2E_FIXTURE_ENV_FILE`): it writes into the same database and storage that the
+// deployment reads. The deployment itself keeps its production settings.
+export const remote = Boolean(process.env.E2E_FIXTURE_ENV_FILE);
 export function fixture(...args: string[]): string {
-  const output = execFileSync(
-    "sh",
-    [
-      "scripts/dev.sh",
-      "exec",
-      "-T",
-      "app",
-      "pnpm",
-      "exec",
-      "tsx",
-      "scripts/e2e-fixture.ts",
-      ...args,
-    ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
-  );
+  const output = remote
+    ? execFileSync(
+        "bash",
+        [
+          "-c",
+          'set -a; . "$E2E_FIXTURE_ENV_FILE"; set +a; DEV_BOOTSTRAP=true NODE_ENV=development exec pnpm exec tsx scripts/e2e-fixture.ts "$@"',
+          "fixture",
+          ...args,
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
+      )
+    : execFileSync(
+        "sh",
+        [
+          "scripts/dev.sh",
+          "exec",
+          "-T",
+          "app",
+          "pnpm",
+          "exec",
+          "tsx",
+          "scripts/e2e-fixture.ts",
+          ...args,
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
+      );
   const line = output.trim().split("\n").at(-1);
   if (!line) throw new Error("The fixture script returned no result.");
   return line;
+}
+// A production build shows the sign-in with a password behind a button; the development stack
+// shows it at once.
+export async function openPasswordSignIn(page: Page): Promise<void> {
+  const toggle = page.getByRole("button", { name: "Owner sign-in with password" });
+  await expect(toggle.or(page.getByLabel("Password"))).toBeVisible();
+  if (await toggle.isVisible()) await toggle.click();
 }
 export const mailpit = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
 export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>({
@@ -55,7 +77,8 @@ export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the destructuring form.
     async ({}, use) => {
       const desk = { ...deskSchema.parse(JSON.parse(fixture("setup"))), idpPassword: "" };
-      const idpUsers = [desk.sso.oidc, desk.sso.saml, desk.sso.stranger];
+      // The identity provider of the development stack is not reachable from a deployment.
+      const idpUsers = remote ? [] : [desk.sso.oidc, desk.sso.saml, desk.sso.stranger];
       try {
         desk.idpPassword = randomBytes(16).toString("hex");
         for (const email of idpUsers) await createIdpUser(email, desk.idpPassword);
@@ -70,14 +93,22 @@ export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>
   signIn: async ({ page, desk, baseURL }, use) => {
     await use(async () => {
       const headers = { origin: baseURL ?? "" };
-      const response = await page.request.post("/api/auth/sign-in/email", {
-        data: { email: desk.email, password: desk.password },
-        headers,
+      // A production build limits sign-ins and codes to a few every ten seconds for each address,
+      // which a run of many tests exceeds; a refused call is made again when the window has passed.
+      const post = async (path: string, data: object) => {
+        for (let attempt = 0; ; attempt += 1) {
+          const answer = await page.request.post(path, { data, headers });
+          if (answer.status() !== 429 || attempt >= 8) return answer;
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+      };
+      const response = await post("/api/auth/sign-in/email", {
+        email: desk.email,
+        password: desk.password,
       });
       expect(await response.json()).toMatchObject({ twoFactorRedirect: true });
-      const verified = await page.request.post("/api/auth/two-factor/verify-totp", {
-        data: { code: totp(desk.totpSecret) },
-        headers,
+      const verified = await post("/api/auth/two-factor/verify-totp", {
+        code: totp(desk.totpSecret),
       });
       expect(verified.ok()).toBe(true);
     });

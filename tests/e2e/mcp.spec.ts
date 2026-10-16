@@ -9,7 +9,10 @@ import { expect, test } from "./fixtures";
 // MCP over real HTTPS through the development proxy, with certificate
 // verification against the proxy's local root CA only.
 const endpoint = new URL(process.env.E2E_MCP_URL ?? "https://localhost:8443/api/mcp");
-const ca = execFileSync("sh", ["scripts/dev.sh", "https-ca"], { encoding: "utf8" });
+// Against a deployed instance the certificate is checked against the roots of the system.
+const ca = process.env.E2E_MCP_URL
+  ? undefined
+  : execFileSync("sh", ["scripts/dev.sh", "https-ca"], { encoding: "utf8" });
 const verifiedFetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> =>
   new Promise((resolve, reject) => {
     const url = new URL(input instanceof Request ? input.url : input);
@@ -157,7 +160,10 @@ test("serves a project-scoped token over HTTPS and stops after revocation", asyn
 });
 test("refuses missing credentials and unverified TLS", async () => {
   await expect(connect("aidesk_not-a-valid-token")).rejects.toThrow();
-  // Without the proxy's root CA the TLS handshake must fail.
-  const response = await fetch(endpoint, { method: "POST" }).catch((error: unknown) => error);
-  expect(response).toBeInstanceOf(Error);
+  // Without the proxy's root CA the TLS handshake must fail. A deployed instance has a certificate
+  // that the system trusts, and the first test has connected to it with verification.
+  if (!process.env.E2E_MCP_URL) {
+    const response = await fetch(endpoint, { method: "POST" }).catch((error: unknown) => error);
+    expect(response).toBeInstanceOf(Error);
+  }
 });

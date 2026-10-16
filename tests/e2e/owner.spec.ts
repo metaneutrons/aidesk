@@ -1,9 +1,10 @@
-import { expect, test } from "./fixtures";
+import { expect, openPasswordSignIn, test } from "./fixtures";
 import { totp } from "./totp";
 // Owner recovery: password plus TOTP. Other operators cannot use a password.
 test.describe.configure({ mode: "serial" });
 test("refuses a password for an operator who is not an owner", async ({ page, desk }) => {
   await page.goto("/login");
+  await openPasswordSignIn(page);
   await page.getByLabel("Email address").fill(desk.plain);
   await page.getByLabel("Password").fill(desk.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -11,8 +12,13 @@ test("refuses a password for an operator who is not an owner", async ({ page, de
   await expect(page.getByLabel("Authentication code")).toHaveCount(0);
   expect((await page.request.get("/api/v1/projects")).status()).toBe(401);
 });
-test("requires a valid authentication code after the owner password", async ({ page, desk }) => {
+test("requires a valid authentication code after the owner password", async ({
+  page,
+  desk,
+  baseURL,
+}) => {
   await page.goto("/login");
+  await openPasswordSignIn(page);
   await page.getByLabel("Email address").fill(desk.email);
   await page.getByLabel("Password").fill(desk.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -25,7 +31,7 @@ test("requires a valid authentication code after the owner password", async ({ p
   await expect(page.getByRole("alert").filter({ hasText: "The code is not valid" })).toBeVisible();
   await field.fill(totp(desk.totpSecret));
   await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page).toHaveURL("http://localhost:3000/");
+  await expect(page).toHaveURL(new URL("/", baseURL).href);
   expect((await page.request.get("/api/v1/projects")).status()).toBe(200);
 });
 test("accepts each backup code once", async ({ page, desk, baseURL }) => {

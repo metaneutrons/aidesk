@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, mailpit, test } from "./fixtures";
+import { expect, mailpit, remote, test } from "./fixtures";
 // The customer's view of a ticket through a portal link that an operator
 // creates: public conversation only, a reply that reaches the desk, and a link
 // that stops working when it is disabled.
@@ -166,6 +166,10 @@ test("sends the customer a link in the reply and opens the conversation from it"
   browser,
   baseURL,
 }) => {
+  test.skip(
+    remote,
+    "A deployment takes mail and jobs only when its schedule calls the worker, and has no test mailbox.",
+  );
   const ticketId = desk.projects.alpha.tickets[1];
   const answer = `Answer with link ${randomUUID()}`;
   const headers = { origin: baseURL ?? "" };
