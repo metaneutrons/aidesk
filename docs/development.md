@@ -1569,9 +1569,11 @@ deployment tool.
   prepared statements. On a platform that starts many short-lived instances behind a pooler,
   ten for each instance exhaust the pooler (a session pool of 15 connections at Supabase gave
   `EMAXCONNSESSION` with a few instances and two test workers). Use the transaction mode of the
-  pooler with `DATABASE_POOL_MAX=1` and `DATABASE_PREPARE=false`, which the pooler needs because it
-  does not keep prepared statements; the product uses no feature that needs a session (no
-  advisory lock, no `LISTEN`, no setting that lasts beyond a transaction).
+  pooler with `DATABASE_PREPARE=false`, which the pooler needs because it does not keep prepared
+  statements, and a few connections for each instance (`DATABASE_POOL_MAX=5` worked). Do not use
+  one: code that queries `db()` inside a transaction then waits for the connection that its own
+  transaction holds, and the function ends at its time limit. The product uses no feature that
+  needs a session (no advisory lock, no `LISTEN`, no setting that lasts beyond a transaction).
 - **Services:** `migrate` applies the migrations and creates the bucket of the storage (nothing
   else did; without the bucket the web server reports itself not ready) and ends; `app`
   (the web server, on `127.0.0.1:3000`, `APP_BIND` and `APP_PORT` change that) and `worker`

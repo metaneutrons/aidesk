@@ -3,8 +3,9 @@ const schema = z.object({
   APP_URL: z.url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
   // A platform that starts many short-lived instances needs few connections for each, and a pooler
-  // in transaction mode does not keep prepared statements: DATABASE_POOL_MAX=1 and
-  // DATABASE_PREPARE=false. An empty value is the default.
+  // in transaction mode does not keep prepared statements: DATABASE_PREPARE=false and a few
+  // connections, DATABASE_POOL_MAX=5 (not 1: a query inside a transaction would wait for its own
+  // connection). An empty value is the default.
   DATABASE_POOL_MAX: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().min(1).max(50).default(10),
