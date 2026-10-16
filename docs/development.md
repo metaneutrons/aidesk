@@ -654,8 +654,17 @@ opens again, the response obligation starts if there was none, and the language
 of the text is detected and recorded like for mail while the ticket keeps its
 language. A key makes a repeated submission harmless, twenty replies per hour and
 link are accepted, and a ticket resolved more than 30 days ago answers
-"closed" instead (the customer then writes a new message). Attachments in
-replies and custom domains for the portal are not implemented.
+"closed" instead (the customer then writes a new message).
+
+A reply can carry files (a form with the fields `token`, `markdown`, `idempotencyKey` and `files`;
+the JSON form without files still works). They are held to the rules of a received mail
+(`attachmentRefusal`: programs and installers, 15 MB a file) and to a stricter limit of ten files and
+30 MB together; a file that breaks a rule refuses the whole reply with 422 and the code
+(`attachment_type_blocked`, `attachment_too_large`, `attachment_count_exceeded`) and nothing is kept.
+Accepted files are stored under their checksum and become attachments of the message, which staff
+see and read like those of a mail (and which agents read behind `ticket.read_files`); the customer's
+page lists their names and offers no download. A body of more than 31 MB is not read (413). Custom
+domains for the portal are not implemented.
 
 ## Translation records
 

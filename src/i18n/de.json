@@ -458,5 +458,12 @@
   "issueDraft_publishing": "wird veröffentlicht",
   "issueDraft_published": "veröffentlicht",
   "issueDraft_failed": "nicht veröffentlicht",
-  "issueDraft_uncertain": "Ausgang unbekannt"
+  "issueDraft_uncertain": "Ausgang unbekannt",
+  "portalAttach": "Dateien anhängen",
+  "portalAttachHint": "Bis zu 10 Dateien und zusammen 30 MB. Programme und Installationsdateien werden nicht angenommen.",
+  "portalAttached": "{count, plural, one {# Datei ausgewählt} other {# Dateien ausgewählt}}",
+  "portalAttachments": "Angehängte Dateien",
+  "portalAttachBlocked": "Eine Datei hat einen Typ, der nicht angenommen wird.",
+  "portalAttachLarge": "Eine Datei oder alle Dateien zusammen sind zu groß.",
+  "portalAttachMany": "Zu viele Dateien."
 }

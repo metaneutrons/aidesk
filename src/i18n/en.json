@@ -458,5 +458,12 @@
   "issueDraft_publishing": "publishing",
   "issueDraft_published": "published",
   "issueDraft_failed": "not published",
-  "issueDraft_uncertain": "outcome unknown"
+  "issueDraft_uncertain": "outcome unknown",
+  "portalAttach": "Attach files",
+  "portalAttachHint": "Up to 10 files and 30 MB together. Programs and installers are not accepted.",
+  "portalAttached": "{count, plural, one {# file selected} other {# files selected}}",
+  "portalAttachments": "Attached files",
+  "portalAttachBlocked": "A file has a type that is not accepted.",
+  "portalAttachLarge": "A file or all files together are too large.",
+  "portalAttachMany": "Too many files."
 }

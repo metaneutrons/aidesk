@@ -63,9 +63,24 @@ test("opens a ticket for its requester, takes a reply and ends with the link", a
     expect(scan.violations).toEqual([]);
     // A reply appears in the conversation as the customer's own message.
     await customer.getByLabel("Your reply").fill(answer);
+    // A file goes with the reply; a program is refused with a reason and the text is kept.
+    await customer.getByLabel("Attach files").setInputFiles({
+      name: "setup.exe",
+      mimeType: "application/octet-stream",
+      buffer: Buffer.from("MZ"),
+    });
+    await customer.getByRole("button", { name: "Send reply" }).click();
+    await expect(customer.getByText("A file has a type that is not accepted.")).toBeVisible();
+    await expect(customer.getByLabel("Your reply")).toHaveValue(answer);
+    await customer.getByLabel("Attach files").setInputFiles({
+      name: "note.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("A note for the team"),
+    });
     await customer.getByRole("button", { name: "Send reply" }).click();
     const own = customer.getByRole("article").filter({ hasText: answer });
     await expect(own).toBeVisible();
+    await expect(own.getByRole("list", { name: "Attached files" })).toContainText("note.txt");
     await expect(own.getByText("You", { exact: true })).toBeVisible();
     // The desk shows it as a message of the requester, and the ticket is open.
     const after = detail.parse(

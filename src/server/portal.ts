@@ -1,9 +1,19 @@
 import { queueAgentRun } from "./agent-runs";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { audit, messages, participants, projects, tickets, translations } from "./db/schema";
+import {
+  attachments,
+  audit,
+  messages,
+  participants,
+  projects,
+  tickets,
+  translations,
+} from "./db/schema";
+import { attachmentRefusal, safeFilename } from "../domain/attachments";
+import { putObject } from "./storage";
 import { detectLanguage } from "../domain/language";
 import { DomainError } from "./errors";
 import { emitEvent } from "./webhooks";
@@ -208,6 +218,24 @@ export async function getPortalTicket(token: unknown, language?: string) {
       ),
     )
     .orderBy(asc(messages.createdAt));
+  const files = new Map<string, { filename: string; size: number }[]>();
+  if (conversation.length > 0)
+    for (const file of await db()
+      .select({
+        messageId: attachments.messageId,
+        filename: attachments.filename,
+        size: attachments.size,
+        refusal: attachments.refusal,
+      })
+      .from(attachments)
+      .where(
+        inArray(
+          attachments.messageId,
+          conversation.map((message) => message.id),
+        ),
+      )
+      .orderBy(attachments.messageId, attachments.position))
+      if (!file.refusal) files.set(file.messageId, [...(files.get(file.messageId) ?? []), file]);
   // The translation of a message into the language of the page, when a person had one made and
   // the message has not changed since: shown as what it is, next to the message.
   const shown = new Map<string, string>();
@@ -249,6 +277,12 @@ export async function getPortalTicket(token: unknown, language?: string) {
       markdown: message.markdown,
       html: markdownHtml(message.markdown),
       translation: shown.get(message.id) ?? null,
+      // The names of the files that came with the message, for the customer's own overview; the
+      // files themselves are not offered on this page.
+      attachments: (files.get(message.id) ?? []).map((file) => ({
+        filename: file.filename,
+        size: file.size,
+      })),
       createdAt: message.createdAt,
     })),
   };
@@ -267,13 +301,53 @@ const replyLimit = 20;
 // of the requester like a mail would, reopens the ticket and starts the
 // response obligation if there is none. The key makes a repeated submission
 // harmless, and the number of replies per hour is limited.
-export async function portalReply(token: unknown, input: unknown) {
+// A file that a customer sends with a reply, as the form gave it.
+export interface PortalFile {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+// What a customer may send with one reply: the types and sizes that a received mail is held to, at
+// most ten files and 30 MB together. A file that is not accepted refuses the reply and says which
+// rule it broke, so that nothing is kept that the customer did not mean to send.
+export const portalFileLimits = { count: 10, bytes: 30 * 1024 * 1024 } as const;
+export async function portalReply(token: unknown, input: unknown, files: PortalFile[] = []) {
   const values = z
     .object({ markdown: z.string().trim().min(1).max(20_000), idempotencyKey: z.uuid() })
     .strict()
     .parse(input);
   const grant = await resolvePortalGrant(token);
   if (!grant) throw new DomainError("not_found", 404);
+  const sent = files.map((file, index) => {
+    const filename = safeFilename(file.filename, index);
+    const contentType = (file.contentType || "application/octet-stream").toLowerCase();
+    return {
+      filename,
+      contentType,
+      size: file.content.length,
+      checksum: createHash("sha256").update(file.content).digest("hex"),
+      content: file.content,
+      refusal: attachmentRefusal({ filename, contentType, size: file.content.length }, index),
+    };
+  });
+  const refused = sent.find((file) => file.refusal)?.refusal;
+  if (refused) throw new DomainError(refused, 422);
+  if (
+    sent.length > portalFileLimits.count ||
+    sent.reduce((sum, file) => sum + file.size, 0) > portalFileLimits.bytes
+  )
+    throw new DomainError(
+      sent.length > portalFileLimits.count ? "attachment_count_exceeded" : "attachment_too_large",
+      422,
+    );
+  // Stored before the transaction, like a received mail's files, under their checksum, and only
+  // for a reply that the transaction may still refuse: storing the same file again is harmless.
+  for (const file of sent)
+    await putObject(
+      `attachments/${grant.projectId}/${file.checksum}`,
+      file.content,
+      "application/octet-stream",
+    );
   return db().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`portal:${grant.ticketId}`}))`);
     const [ticket] = await tx
@@ -326,6 +400,22 @@ export async function portalReply(token: unknown, input: unknown) {
       })
       .returning({ id: messages.id });
     if (!message) throw new DomainError("conflict", 409);
+    if (sent.length)
+      await tx.insert(attachments).values(
+        sent.map((file, position) => ({
+          messageId: message.id,
+          position,
+          projectId: grant.projectId,
+          filename: file.filename,
+          contentType: file.contentType,
+          size: file.size,
+          checksum: file.checksum,
+          objectKey: `attachments/${grant.projectId}/${file.checksum}`,
+          inline: false,
+          contentId: null,
+          refusal: null,
+        })),
+      );
     await tx
       .update(tickets)
       .set({

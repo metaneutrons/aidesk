@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
 import {
+  attachments,
   audit,
   messages,
   participants,
@@ -20,6 +21,8 @@ import {
   revokePortalGrant,
 } from "../src/server/portal";
 import { POST as portalRoute } from "../src/app/api/portal/reply/route";
+import { getAttachment, getTicket } from "../src/server/operations";
+import { initializeStorage } from "../src/server/storage";
 import { env } from "../src/server/env";
 import type { Principal } from "../src/domain/permissions";
 const projectId = randomUUID();
@@ -585,6 +588,134 @@ describe("portal replies", () => {
     expect(
       (await getPortalTicket(second.token)).messages.map((message) => message.markdown),
     ).not.toContain("Mine");
+  });
+});
+describe("files with a portal reply", () => {
+  const text = (value: string, filename = "photo.txt", contentType = "text/plain") => ({
+    filename,
+    contentType,
+    content: Buffer.from(value),
+  });
+  const own = async (messageId: string) =>
+    db().select().from(attachments).where(eq(attachments.messageId, messageId));
+  it("become the attachments of the customer's message, as they would from a mail, and staff read them", async () => {
+    await initializeStorage();
+    const id = await ticket();
+    const { token } = await issuePortalGrant(staff, id);
+    const sent = await portalReply(
+      token,
+      { markdown: "See the photo", idempotencyKey: randomUUID() },
+      [text("first file"), text("second file", "../../notes.md", "text/markdown")],
+    );
+    const stored = await own(sent.id);
+    expect(
+      stored.map((file) => [file.filename, file.contentType, file.size, file.refusal]),
+    ).toEqual([
+      ["photo.txt", "text/plain", 10, null],
+      ["notes.md", "text/markdown", 11, null],
+    ]);
+    expect(stored[0]?.objectKey).toMatch(/^attachments\/[0-9a-f-]{36}\/[0-9a-f]{64}$/);
+    // Staff see them with the message and can read them.
+    const seen = (await getTicket(staff, id)).messages.find((message) => message.id === sent.id);
+    expect(seen?.attachments.map((file) => file.filename)).toEqual(["photo.txt", "notes.md"]);
+    const file = await getAttachment(staff, stored[0]?.id ?? "");
+    expect(file.content.toString()).toBe("first file");
+    // The customer's page lists the names, and nothing to download.
+    const view = await getPortalTicket(token);
+    const mine = view.messages.find((message) => message.id === sent.id);
+    expect(mine?.attachments).toEqual([
+      { filename: "photo.txt", size: 10 },
+      { filename: "notes.md", size: 11 },
+    ]);
+    expect(JSON.stringify(view)).not.toContain("objectKey");
+  });
+  it("refuse the whole reply when a file breaks the rules of a received mail, and keep nothing", async () => {
+    const id = await ticket();
+    const { token } = await issuePortalGrant(staff, id);
+    const reply = (files: ReturnType<typeof text>[]) =>
+      portalReply(token, { markdown: "Files", idempotencyKey: randomUUID() }, files);
+    await expect(
+      reply([text("ok"), text("MZ", "setup.exe", "application/octet-stream")]),
+    ).rejects.toMatchObject({ code: "attachment_type_blocked", status: 422 });
+    await expect(reply([text("x", "a.txt", "application/x-msdownload")])).rejects.toMatchObject({
+      code: "attachment_type_blocked",
+    });
+    await expect(
+      reply([
+        {
+          filename: "big.bin",
+          contentType: "application/pdf",
+          content: Buffer.alloc(15 * 1024 * 1024 + 1),
+        },
+      ]),
+    ).rejects.toMatchObject({ code: "attachment_too_large" });
+    await expect(
+      reply(Array.from({ length: 11 }, (_, index) => text("x", `f${String(index)}.txt`))),
+    ).rejects.toMatchObject({ code: "attachment_count_exceeded", status: 422 });
+    await expect(
+      reply(
+        Array.from({ length: 3 }, (_, index) => ({
+          filename: `p${String(index)}.pdf`,
+          contentType: "application/pdf",
+          content: Buffer.alloc(11 * 1024 * 1024),
+        })),
+      ),
+    ).rejects.toMatchObject({ code: "attachment_too_large" });
+    const view = await getPortalTicket(token);
+    expect(view.messages.some((message) => message.markdown === "Files")).toBe(false);
+  });
+  it("are stored once when the same reply is sent again", async () => {
+    const id = await ticket();
+    const { token } = await issuePortalGrant(staff, id);
+    const key = randomUUID();
+    const first = await portalReply(token, { markdown: "Once", idempotencyKey: key }, [
+      text("same"),
+    ]);
+    const again = await portalReply(token, { markdown: "Once", idempotencyKey: key }, [
+      text("same"),
+    ]);
+    expect(again).toEqual({ id: first.id, duplicate: true });
+    expect(await own(first.id)).toHaveLength(1);
+  });
+  it("go through the route as a form, and the JSON form still works", async () => {
+    const origin = new URL(env().APP_URL).origin;
+    const id = await ticket();
+    const { token } = await issuePortalGrant(staff, id);
+    const post = (body: BodyInit, headers: Record<string, string> = {}) =>
+      portalRoute(
+        new Request(`${origin}/api/portal/reply`, {
+          method: "POST",
+          headers: { origin, ...headers },
+          body,
+        }),
+      );
+    const form = new FormData();
+    form.set("token", token);
+    form.set("markdown", "With a file");
+    form.set("idempotencyKey", randomUUID());
+    form.append("files", new File(["from the form"], "form.txt", { type: "text/plain" }));
+    const answered = await post(form);
+    expect(answered.status).toBe(201);
+    const { id: messageId } = (await answered.json()) as { id: string };
+    expect((await own(messageId)).map((file) => file.filename)).toEqual(["form.txt"]);
+    const blocked = new FormData();
+    blocked.set("token", token);
+    blocked.set("markdown", "Program");
+    blocked.set("idempotencyKey", randomUUID());
+    blocked.append("files", new File(["MZ"], "setup.exe", { type: "application/octet-stream" }));
+    const refused = await post(blocked);
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toEqual({ error: "attachment_type_blocked" });
+    const plain = await post(
+      JSON.stringify({ token, markdown: "No file", idempotencyKey: randomUUID() }),
+      { "content-type": "application/json" },
+    );
+    expect(plain.status).toBe(201);
+    // A form without the fields is not valid, and a body far too large is not read.
+    expect((await post(new FormData())).status).toBe(400);
+    const huge = await post(form, { "content-length": String(60 * 1024 * 1024) });
+    expect(huge.status).toBe(413);
+    expect(await huge.json()).toEqual({ error: "attachment_too_large" });
   });
 });
 describe("portal reply route", () => {
