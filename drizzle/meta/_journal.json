@@ -183,6 +183,13 @@
       "when": 1792106716495,
       "tag": "0025_issues",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792111248586,
+      "tag": "0026_ai_fallback",
+      "breakpoints": true
     }
   ]
 }

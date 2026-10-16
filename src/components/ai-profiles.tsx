@@ -13,6 +13,8 @@ const profileSchema = z.object({
   version: z.number(),
   connectionId: z.string().nullable(),
   model: z.string().nullable(),
+  fallbackConnectionId: z.string().nullable(),
+  fallbackModel: z.string().nullable(),
   timeoutSeconds: z.number(),
   maxOutputTokens: z.number(),
   dailyTokenBudget: z.number(),
@@ -82,6 +84,8 @@ export function AiProfiles({
         expectedVersion: profile.version,
         connectionId: shown.connectionId,
         model: shown.model,
+        fallbackConnectionId: shown.fallbackConnectionId === "" ? null : shown.fallbackConnectionId,
+        fallbackModel: shown.fallbackConnectionId === "" ? null : shown.fallbackModel,
         timeoutSeconds: shown.timeoutSeconds,
         maxOutputTokens: shown.maxOutputTokens,
         dailyTokenBudget: shown.dailyTokenBudget,
@@ -106,6 +110,8 @@ export function AiProfiles({
         const shown = {
           connectionId: draft.connectionId ?? profile.connectionId ?? providers[0]?.id ?? "",
           model: draft.model ?? profile.model ?? "",
+          fallbackConnectionId: draft.fallbackConnectionId ?? profile.fallbackConnectionId ?? "",
+          fallbackModel: draft.fallbackModel ?? profile.fallbackModel ?? "",
           timeoutSeconds: draft.timeoutSeconds ?? profile.timeoutSeconds,
           maxOutputTokens: draft.maxOutputTokens ?? profile.maxOutputTokens,
           dailyTokenBudget: draft.dailyTokenBudget ?? profile.dailyTokenBudget,
@@ -117,6 +123,8 @@ export function AiProfiles({
         const changed =
           shown.connectionId !== (profile.connectionId ?? "") ||
           shown.model !== (profile.model ?? "") ||
+          shown.fallbackConnectionId !== (profile.fallbackConnectionId ?? "") ||
+          shown.fallbackModel !== (profile.fallbackModel ?? "") ||
           shown.timeoutSeconds !== profile.timeoutSeconds ||
           shown.maxOutputTokens !== profile.maxOutputTokens ||
           shown.dailyTokenBudget !== profile.dailyTokenBudget ||
@@ -124,9 +132,18 @@ export function AiProfiles({
         // Switching on, or pointing a task that is on at another provider, needs a
         // person who may approve.
         const needsApproval =
-          shown.enabled && (!profile.enabled || shown.connectionId !== profile.connectionId);
+          shown.enabled &&
+          (!profile.enabled ||
+            shown.connectionId !== profile.connectionId ||
+            (shown.fallbackConnectionId !== "" &&
+              shown.fallbackConnectionId !== (profile.fallbackConnectionId ?? "")));
+        const modelName = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
+        // The fallback is named completely or not at all.
         const ready =
-          shown.connectionId !== "" && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(shown.model);
+          shown.connectionId !== "" &&
+          modelName.test(shown.model) &&
+          (shown.fallbackConnectionId === "") === (shown.fallbackModel === "") &&
+          (shown.fallbackModel === "" || modelName.test(shown.fallbackModel));
         const known = providers.some((row) => row.id === shown.connectionId);
         return (
           <fieldset key={id} className="ai-profile" disabled={!canWrite}>
@@ -163,6 +180,42 @@ export function AiProfiles({
                 }}
               />
             </label>
+            <label>
+              <span>{t("aiFallbackConnection")}</span>
+              <select
+                value={shown.fallbackConnectionId}
+                onChange={(event) => {
+                  change({
+                    fallbackConnectionId: event.target.value,
+                    ...(event.target.value === "" ? { fallbackModel: "" } : {}),
+                  });
+                }}
+              >
+                <option value="">{t("aiFallbackNone")}</option>
+                {shown.fallbackConnectionId !== "" &&
+                  !providers.some((row) => row.id === shown.fallbackConnectionId) && (
+                    <option value={shown.fallbackConnectionId}>{t("aiConnectionCurrent")}</option>
+                  )}
+                {providers.map((row) => (
+                  <option key={row.id} value={row.id} disabled={row.status === "disabled"}>
+                    {`${row.name} (${t(`connectionKind_${row.kind}`)})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>{t("aiFallbackModel")}</span>
+              <input
+                type="text"
+                value={shown.fallbackModel}
+                maxLength={100}
+                disabled={shown.fallbackConnectionId === ""}
+                onChange={(event) => {
+                  change({ fallbackModel: event.target.value });
+                }}
+              />
+            </label>
+            <p className="muted">{t("aiFallbackHint")}</p>
             <label>
               <span>{t("aiTimeout")}</span>
               <input

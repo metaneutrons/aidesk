@@ -1052,8 +1052,9 @@ person with `config.approve` switches it on).
   have been accepted (a timeout, a network error, a 503) is not repeated and not sent to another
   provider: the run needs a person and its job goes to review. Every end is audited without the
   content (`agent.run`).
-- Not built yet: the desk and the settings for the stops (P2-A3), fallback to an approved model
-  after a refusal, knowledge search (P5).
+- Every request of a run goes through `runAiTask`, so the fallback of the profile applies to a
+  step that was refused, and to no other.
+- Not built yet: the desk and the settings for the stops (P2-A3), knowledge search (P5).
 
 In the desk, the ticket shows its assignee and, for a managed agent, the state of the AI work
 (`src/components/assignment.tsx`). A person who may assign chooses another assignee there (the
@@ -1292,7 +1293,7 @@ through one boundary, `runAiTask` (see "Running a task" below).
 - A proposal on a version of the profile that has changed since is superseded and
   never applies. Every change is audited as `ai_profile.set` and kept with its diff.
 - The settings page has a section "AI tasks" per project (`src/components/ai-profiles.tsx`)
-  with the connection, the model, the limits and the switch, which says that it lets ticket
+  with the connection, the model, an optional fallback (connection and model), the limits and the switch, which says that it lets ticket
   content leave the system. It shows the model provider connections of the project, so a
   person without the right to manage connections sees an empty list. The button saves for
   a person who may approve and says "Propose task" for anyone else when the change would
@@ -1350,17 +1351,31 @@ only if the sum stays within the budget, so concurrent runs cannot spend more th
 budget. After the call the hold is replaced by what the provider counted; if it did not
 say, the hold stays charged.
 
-**One call, no repeat, no other provider.** The provider is called once, without the
-retries of the SDK (`maxRetries: 0`), and a run never tries another connection. When the
-outcome is not known (a timeout, a failure of the network or of the provider, a status 408
-or 5xx) the request may have been accepted and may have cost something, so the hold stays
-charged. When the provider refused before it did anything (a status 4xx other than 408) the
-hold is given back. The answer is asked for with the output cap of the profile and ends at
-its timeout.
+**One call, no repeat, one fallback.** The provider is called once, without the retries of
+the SDK (`maxRetries: 0`). When the outcome is not known (a timeout, a failure of the network
+or of the provider, a status 408 or 5xx) the request may have been accepted and may have cost
+something, so the hold stays charged and nothing else is asked. When the provider refused
+before it did anything (a status 4xx other than 408) the hold is given back. The answer is
+asked for with the output cap of the profile and ends at its timeout.
+
+A profile can name a **fallback**: a connection and a model, both or neither (`fallbackConnectionId`,
+`fallbackModel`). It is asked once, with the same request and the same hold, only after a refusal
+that did nothing and only for the codes `ai_model_unavailable` (status 404) and `ai_provider_error`
+of a refused request (4xx, for example a key the provider no longer accepts). It is not asked after
+a limit, a quota, a budget, a timeout or a failure whose outcome is unknown, because the same request
+would meet the same limit or may have been accepted. The fallback connection passes the same checks as
+the first (of the project, a model provider, `ready`, a key, the host guard again), and when it does
+not, the first failure is the answer. Both attempts are rows in `ai_run`: the first with its own
+outcome, the second with the connection and the model that answered and `fallback_of` naming the
+code that led to it. When the fallback fails too, the failure of the second request is the answer, and
+the hold is given back only if that request was refused. The fallback decides where ticket content
+goes as well as the first connection does: naming one on a profile that is on is applied only by a
+person with `config.approve` when it is another connection than before, and anyone else proposes it.
+Another model at the same connection, or taking the fallback away, follows the approval policy.
 
 **Records.** Every run, also one that did not start, is a row in `ai_run`: task, version of
-the profile, connection, model, the outcome (`ok` or the code), tokens, duration and who
-asked. It holds no prompt, no ticket content and no answer. The provider is reached through
+the profile, connection, model, the outcome (`ok` or the code), tokens, duration, who
+asked and, for a run that was answered by the fallback, the code that led to it. It holds no prompt, no ticket content and no answer. The provider is reached through
 `@ai-sdk/anthropic`, `@ai-sdk/openai` (chat completions, which gateways speak) and
 `@ai-sdk/google`; the address of a connection that names its own gets the version path of
 the provider added (`/v1` or `/v1beta`).

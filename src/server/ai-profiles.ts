@@ -32,6 +32,8 @@ export async function listAiProfiles(principal: Principal, projectId: string) {
       version: row?.version ?? 0,
       connectionId: row?.connectionId ?? null,
       model: row?.model ?? null,
+      fallbackConnectionId: row?.fallbackConnectionId ?? null,
+      fallbackModel: row?.fallbackModel ?? null,
       timeoutSeconds: row?.timeoutSeconds ?? aiDefaults.timeoutSeconds,
       maxOutputTokens: row?.maxOutputTokens ?? aiDefaults.maxOutputTokens,
       dailyTokenBudget: row?.dailyTokenBudget ?? aiDefaults.dailyTokenBudget,
@@ -42,18 +44,25 @@ export async function listAiProfiles(principal: Principal, projectId: string) {
 // A profile may name only a connection to a model provider of its own project that
 // is not disabled. Checked when the change is made and again when a proposal is
 // decided, since the connection can have changed in between.
-async function checkConnection(tx: Tx, project: string, connectionId: string): Promise<void> {
+async function checkConnection(
+  tx: Tx,
+  project: string,
+  connectionId: string,
+  path: string[] = ["connectionId"],
+): Promise<void> {
   const [connection] = await tx
     .select({ direction: connections.direction, status: connections.status })
     .from(connections)
     .where(and(eq(connections.id, connectionId), eq(connections.projectId, project)));
   if (connection?.direction !== "ai")
-    invalid(["connectionId"], "Not a connection to a model provider of this project");
-  if (connection.status === "disabled") invalid(["connectionId"], "This connection is disabled");
+    invalid(path, "Not a connection to a model provider of this project");
+  if (connection.status === "disabled") invalid(path, "This connection is disabled");
 }
 const fields = [
   "connectionId",
   "model",
+  "fallbackConnectionId",
+  "fallbackModel",
   "timeoutSeconds",
   "maxOutputTokens",
   "dailyTokenBudget",
@@ -86,10 +95,16 @@ export async function setAiProfile(
         if (request.expectedVersion !== (row?.version ?? 0))
           throw new DomainError("stale_version", 409);
         await checkConnection(tx, project, request.connectionId);
+        if (request.fallbackConnectionId)
+          await checkConnection(tx, project, request.fallbackConnectionId, [
+            "fallbackConnectionId",
+          ]);
         const payload = {
           task,
           connectionId: request.connectionId,
           model: request.model,
+          fallbackConnectionId: request.fallbackConnectionId,
+          fallbackModel: request.fallbackModel,
           timeoutSeconds: request.timeoutSeconds,
           maxOutputTokens: request.maxOutputTokens,
           dailyTokenBudget: request.dailyTokenBudget,
@@ -105,8 +120,13 @@ export async function setAiProfile(
         // Switching a profile on, or pointing a profile that is on at another
         // provider, decides where ticket content goes. Only a person who may
         // approve applies that; everyone else proposes it, also under `direct`.
+        // A fallback at another provider decides where content goes as well.
         const approval =
-          request.enabled && (!row?.enabled || row.connectionId !== request.connectionId);
+          request.enabled &&
+          (!row?.enabled ||
+            row.connectionId !== request.connectionId ||
+            (request.fallbackConnectionId !== null &&
+              row.fallbackConnectionId !== request.fallbackConnectionId));
         return {
           target: task,
           version: row?.version ?? 0,
@@ -146,12 +166,17 @@ export async function applyAiProfilePayload(
   const values = {
     connectionId: String(payload.connectionId),
     model: String(payload.model),
+    fallbackConnectionId:
+      typeof payload.fallbackConnectionId === "string" ? payload.fallbackConnectionId : null,
+    fallbackModel: typeof payload.fallbackModel === "string" ? payload.fallbackModel : null,
     timeoutSeconds: Number(payload.timeoutSeconds),
     maxOutputTokens: Number(payload.maxOutputTokens),
     dailyTokenBudget: Number(payload.dailyTokenBudget),
     enabled: payload.enabled === true,
   };
   await checkConnection(tx, project, values.connectionId);
+  if (values.fallbackConnectionId)
+    await checkConnection(tx, project, values.fallbackConnectionId, ["fallbackConnectionId"]);
   const [current]: (Row | undefined)[] = await tx
     .select()
     .from(aiProfiles)

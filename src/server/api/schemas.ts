@@ -424,6 +424,13 @@ export const aiProfileEntry = z.object({
   version: z.number().describe("0 when the task has no profile yet; a write names this version"),
   connectionId: z.uuid().nullable(),
   model: z.string().nullable(),
+  fallbackConnectionId: z
+    .uuid()
+    .nullable()
+    .describe(
+      "A second connection, approved with the profile, tried once after a refusal that did nothing",
+    ),
+  fallbackModel: z.string().nullable(),
   timeoutSeconds: z.number(),
   maxOutputTokens: z.number(),
   dailyTokenBudget: z.number().describe("Tokens per day, over input and output"),
