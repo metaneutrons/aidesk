@@ -17,7 +17,12 @@ const deskSchema = z.object({
   totpSecret: z.string().min(16),
   backupCodes: z.array(z.string()),
   plain: z.email(),
-  projects: z.object({ alpha: projectSchema, beta: projectSchema, hidden: projectSchema }),
+  projects: z.object({
+    alpha: projectSchema,
+    beta: projectSchema,
+    hidden: projectSchema,
+    gamma: projectSchema,
+  }),
   sso: z.object({ oidc: z.email(), saml: z.email(), stranger: z.email() }),
 });
 export type Desk = z.infer<typeof deskSchema> & { idpPassword: string };

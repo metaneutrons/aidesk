@@ -514,3 +514,53 @@ export const knowledgeOut = z.object({
     }),
   ),
 });
+export const issuesOut = z.object({
+  repositories: z.array(z.object({ connectionId: z.uuid(), repository: z.string() })),
+  links: z.array(
+    z.object({
+      id: z.uuid(),
+      repository: z.string(),
+      number: z.number().int(),
+      url: z.string(),
+      title: z.string(),
+      state: z.string().nullable(),
+      origin: z.enum(["linked", "created"]),
+      refreshedAt: isoDate.nullable(),
+      refreshError: z.string().nullable(),
+    }),
+  ),
+  drafts: z.array(
+    z.object({
+      id: z.uuid(),
+      repository: z.string(),
+      title: z.string(),
+      body: z.string(),
+      state: z.enum(["draft", "publishing", "published", "failed", "uncertain"]),
+      version: z.number().int(),
+      errorCode: z.string().nullable(),
+      publishedNumber: z.number().int().nullable(),
+      publishedUrl: z.string().nullable(),
+    }),
+  ),
+});
+export const issueSearchOut = z.object({
+  issues: z.array(
+    z.object({
+      repository: z.string(),
+      number: z.number().int(),
+      title: z.string(),
+      state: z.string(),
+      url: z.string(),
+      pullRequest: z.boolean(),
+    }),
+  ),
+  problems: z.array(z.object({ repository: z.string(), error: z.string() })),
+});
+export const issuePublishOut = z.object({
+  id: z.uuid(),
+  state: z.string(),
+  version: z.number().int(),
+  number: z.number().int().nullable(),
+  url: z.string().nullable(),
+  errorCode: z.string().nullable(),
+});

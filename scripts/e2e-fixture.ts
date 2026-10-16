@@ -6,6 +6,7 @@
 //   user-count <email>        number of aidesk users with that email
 //   disable <email>           deactivates a fixture user
 //   revoke-sessions <email>   deletes a fixture user's sessions
+//   github-source <projectId> gives a fixture project a repository that refuses every request
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
 import { eq, inArray, like, or } from "drizzle-orm";
@@ -35,6 +36,9 @@ const fixtureProjects: { key: string; label: string; grant: Action[] | null; lan
     { key: "alpha", label: "Alpha", grant: [...actions], language: "en" },
     { key: "beta", label: "Beta", grant: ["project.read", "ticket.read"], language: "de" },
     { key: "hidden", label: "Hidden", grant: null, language: "en" },
+    // A project for a test that changes what a project has, such as a repository, so that no other
+    // test finds the project different.
+    { key: "gamma", label: "Gamma", grant: [...actions], language: "en" },
   ];
 async function setup() {
   const run = randomBytes(4).toString("hex");
@@ -241,6 +245,29 @@ async function revokeSessions(email: string) {
   if (target) await db().delete(session).where(eq(session.userId, target.id));
   return { revoked: email };
 }
+// A repository for a fixture project, as a ready connection whose address is the app itself: it
+// answers every request of the API of GitHub with an error, so a test sees how a refusal looks.
+async function githubSource(projectId: string) {
+  const [project] = await db().select().from(projects).where(eq(projects.id, projectId));
+  if (!project?.slug.startsWith("e2e-")) throw new Error("Only fixture projects can be changed.");
+  const [row] = await db()
+    .insert(connections)
+    .values({
+      projectId,
+      kind: "github",
+      direction: "knowledge",
+      name: "Fixture repositories",
+      status: "ready",
+      config: {
+        repositories: ["acme/app"],
+        endpoint: "http://localhost:3000/api/health/none",
+        developmentOnly: true,
+      },
+      secretCiphertext: seal(JSON.stringify({ token: "ghp-fixture" }), env().ENCRYPTION_KEY),
+    })
+    .returning({ id: connections.id });
+  return { connectionId: row?.id };
+}
 const [command, argument] = process.argv.slice(2);
 const write = (value: unknown) => process.stdout.write(JSON.stringify(value) + "\n");
 try {
@@ -249,6 +276,7 @@ try {
   else if (command === "user-count") write(await userCount(fixtureEmail(argument)));
   else if (command === "disable") write(await disable(fixtureEmail(argument)));
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
+  else if (command === "github-source" && argument) write(await githubSource(argument));
   else
     throw new Error(
       "Usage: e2e-fixture.ts setup | teardown <run> | user-count|disable|revoke-sessions <email>",

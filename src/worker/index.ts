@@ -7,6 +7,7 @@ import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
 import { runTranslations } from "./translate";
 import { scanResponseClock } from "../server/response-clock";
+import { reconcileIssues } from "../server/issues";
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
   lifecycle.stopped = true;
@@ -16,12 +17,17 @@ process.on("SIGINT", () => {
 });
 // The response clock is looked at about every half minute; the limits are counted in hours.
 let nextClockScan = 0;
+let nextIssueRefresh = 0;
 console.log(JSON.stringify({ event: "worker.ready" }));
 while (!lifecycle.stopped) {
   try {
     if (Date.now() >= nextClockScan) {
       nextClockScan = Date.now() + 30_000;
       await scanResponseClock();
+    }
+    if (Date.now() >= nextIssueRefresh) {
+      nextIssueRefresh = Date.now() + 5 * 60_000;
+      await reconcileIssues();
     }
     await pollMailboxes();
     const ingested = await runIngest();

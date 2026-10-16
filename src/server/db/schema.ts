@@ -649,3 +649,62 @@ export const workspaceSettings = pgTable("workspace_setting", {
   updatedBy: text("updated_by"),
   updatedAt: updated(),
 });
+// Issues of a project's repositories that a ticket is linked to. Status is read from the
+// repository; closing an issue changes nothing about the ticket.
+export const ticketIssues = pgTable(
+  "ticket_issue",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => connections.id),
+    repository: text("repository").notNull(),
+    number: integer("number").notNull(),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    // open or closed, as the repository last said; null until it was read.
+    state: text("state"),
+    // linked by a person, or created from a draft of this ticket.
+    origin: text("origin").notNull().default("linked"),
+    linkedBy: text("linked_by").notNull(),
+    linkedAt: created(),
+    refreshedAt: timestamp("refreshed_at", { withTimezone: true }),
+    // Why the last refresh failed, when it did; the state shown is then the last known.
+    refreshError: text("refresh_error"),
+  },
+  (t) => [uniqueIndex("ticket_issue_unique_idx").on(t.ticketId, t.repository, t.number)],
+);
+// What a person writes to be published as an issue: nothing is taken from the ticket, so no
+// private note and no customer data gets in by itself. A draft is published once. A publication
+// whose outcome is unknown is `uncertain` and is not repeated until it was looked up by its marker.
+export const issueDrafts = pgTable("issue_draft", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ticketId: uuid("ticket_id")
+    .notNull()
+    .references(() => tickets.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id),
+  connectionId: uuid("connection_id")
+    .notNull()
+    .references(() => connections.id),
+  repository: text("repository").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  // draft, publishing, published, failed, uncertain or discarded
+  state: text("state").notNull().default("draft"),
+  version: integer("version").notNull().default(1),
+  errorCode: text("error_code"),
+  publishedNumber: integer("published_number"),
+  publishedUrl: text("published_url"),
+  createdBy: text("created_by").notNull(),
+  publishedBy: text("published_by"),
+  createdAt: created(),
+  updatedAt: updated(),
+});

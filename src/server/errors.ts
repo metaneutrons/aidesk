@@ -12,6 +12,8 @@ export class DomainError extends Error {
       | "rate_limited"
       // A model answered, but not with a translation that can be shown.
       | "translation_unusable"
+      // A source outside the product that was asked did not answer as needed.
+      | "source_unavailable"
       // A task that asks a model ended without an answer.
       | AiFailure,
     readonly status: number,
