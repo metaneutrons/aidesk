@@ -974,7 +974,10 @@ that the product runs itself (`agent.managed`): it has a name and grants, which 
 model working for it may do, and no token that anyone knows (the stored hash is of a secret
 that was thrown away). A person with `agent.manage` creates one with
 `POST /projects/{id}/agents/managed`, with grants that do not exceed their own and never
-`agent.manage` or `config.approve`; an agent cannot create agents. External agents with a
+`agent.manage` or `config.approve`; an agent cannot create agents, so MCP has no tool for it. The
+settings page creates one from the form that issues tokens: the box "Run by aidesk" hides the
+validity, posts to this route and shows the agent as "Managed agent" in the list, where it is
+revoked like a token. External agents with a
 token work as before and their model settings are not controlled by aidesk.
 
 A **run** (`agent_run`) is the work of a managed agent on one revision of a ticket. It is
