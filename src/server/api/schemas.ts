@@ -33,6 +33,7 @@ export const projectSummary = z
     defaultLanguage: z.string(),
     acknowledgements: z.boolean(),
     portalLinks: z.boolean(),
+    warnHours: z.number(),
     overdueHours: z.number(),
   })
   .meta({ id: "ProjectSummary" });

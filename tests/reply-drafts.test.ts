@@ -194,7 +194,7 @@ describe("a reply by an agent under the review policy", () => {
   it("is a draft that is not sent, leaves the conversation as it is and names the draft", async () => {
     await setPolicy("review");
     const id = await ticket();
-    const revision = (await getTicket(manager, id)).ticket.revision;
+    const { revision, pendingSince } = (await getTicket(manager, id)).ticket;
     const result = await reply(agent(), id, draftBody(revision));
     expect(result).toMatchObject({ duplicate: false, draft: true });
     const [message] = await db().select().from(messages).where(eq(messages.id, result.id));
@@ -203,6 +203,9 @@ describe("a reply by an agent under the review policy", () => {
     // No mail job exists, and the ticket is as it was.
     expect((await jobsOf(id)).map((job) => job.type)).toEqual(["draft.recorded"]);
     expect((await getTicket(manager, id)).ticket).toMatchObject({ revision, status: "open" });
+    // A draft does not answer the customer: the cycle of the response clock goes on.
+    expect((await getTicket(manager, id)).ticket.pendingSince).toEqual(pendingSince);
+    expect(pendingSince).not.toBeNull();
     expect(smtp.messages).toHaveLength(0);
   });
   it("shows the person who sends it where its links lead, and only for a draft", async () => {

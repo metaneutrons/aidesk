@@ -27,6 +27,8 @@ test("edits the configuration, checks it first, and approves what an agent propo
     // The check reports the difference and writes nothing.
     const renamed = `${String(original.name)} renamed`;
     await section.getByLabel("Name").fill(renamed);
+    // The warning limit is its own field; it is saved with the name.
+    await section.getByLabel("Warn after (hours)").fill("3");
     await section.getByRole("button", { name: "Check" }).click();
     await expect(section.getByRole("list", { name: "Changes" })).toContainText(
       `name: ${String(original.name)} → ${renamed}`,
@@ -35,6 +37,7 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await section.getByRole("button", { name: "Save", exact: true }).click();
     await expect(section.getByText("Saved.")).toBeVisible();
     expect((await read()).config.name).toBe(renamed);
+    expect((await read()).config.warnHours).toBe(3);
     const scan = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .exclude("[data-base-ui-focus-guard]")

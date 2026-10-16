@@ -5,6 +5,7 @@ import { runExtractions } from "./extract";
 import { runAgents } from "./agent-runs";
 import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
+import { scanResponseClock } from "../server/response-clock";
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
   lifecycle.stopped = true;
@@ -12,9 +13,15 @@ process.on("SIGTERM", () => {
 process.on("SIGINT", () => {
   lifecycle.stopped = true;
 });
+// The response clock is looked at about every half minute; the limits are counted in hours.
+let nextClockScan = 0;
 console.log(JSON.stringify({ event: "worker.ready" }));
 while (!lifecycle.stopped) {
   try {
+    if (Date.now() >= nextClockScan) {
+      nextClockScan = Date.now() + 30_000;
+      await scanResponseClock();
+    }
     await pollMailboxes();
     const ingested = await runIngest();
     const sent = await runNext();

@@ -90,6 +90,16 @@ describe("receipt clock", () => {
       expect(result.ticket?.pendingSince?.getTime()).toBe(received);
     }
   });
+  it("keeps the start of the cycle when the customer writes again before an answer", async () => {
+    const first = await ingest(mail({}), { at: new Date(Date.now() - 5 * 3_600_000) });
+    const second = await ingest(
+      mail({ inReplyTo: first.conversation[0]?.receivedMessageId ?? "" }),
+      { at: new Date(Date.now() - 1 * 3_600_000) },
+    );
+    expect(second.ticket?.id).toBe(first.ticket?.id);
+    expect(second.conversation).toHaveLength(2);
+    expect(second.ticket?.pendingSince?.getTime()).toBe(first.ticket?.pendingSince?.getTime());
+  });
   it("counter-probe: the stored receipt time is what the ticket follows", async () => {
     const at = new Date(Date.now() - 3 * day);
     const result = await ingest(mail({ date: "Fri, 01 Jan 2100 00:00:00 +0000" }), { at });

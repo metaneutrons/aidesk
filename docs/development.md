@@ -755,7 +755,8 @@ stack and only on Chromium, since it tests the protocol and not a browser.
 The editable configuration of a project is one document: name, colour, default
 language, acknowledgements, portal links, approval policy, the outgoing
 connection, a pause for outgoing mail and the hours after which an unanswered
-ticket is overdue (24 by default, 1 to 720). Connections themselves, secrets and texts
+ticket is flagged as late (`warnHours`, 4 by default) and is overdue (`overdueHours`, 24 by
+default; both 1 to 720, the first never later than the second). Connections themselves, secrets and texts
 are not part of it. It is read with `GET
 /api/v1/projects/{id}/config`, which also returns its `version`, and replaced with
 `PUT` on the same path. A write names the version it read (`expectedVersion`); a
@@ -1258,6 +1259,22 @@ for 24 hours unless the project set another limit), the open ones nobody handles
 for the customer, plus the eight oldest unanswered tickets of each project.
 Junk is not counted. The desk sums the projects that the project filter
 selects.
+
+### The response cycle and its events
+
+A ticket that waits for an answer has a cycle that starts with the first unanswered message of the
+customer (`pending_since`). A note, an acknowledgement, a draft and a further message of the
+customer do not move the start; a reply that was sent ends the cycle (`pending_since` is empty),
+and a delivery that failed or waits for a person keeps it. The worker looks at the clock about
+every half minute (`scanResponseClock`) and queues the webhook events `ticket.warning` (the
+ticket has waited for the warning limit of its project) and `ticket.overdue` (for the overdue
+limit), each once per cycle: the start of the cycle is stored as the marker (`warned_for`,
+`overdue_for`) in the transaction that queues the event, so a restart or a repeated scan sends
+nothing twice, a new cycle sends again, and a ticket is locked and read again before an event is
+sent, so that no event follows the reply that ended the cycle. A ticket found past both limits gets
+both events. An event carries the ticket id and number, the start of the cycle and the limit in
+hours. The marker is set also when no webhook is subscribed: an event that nobody listened to is
+not sent later when someone subscribes.
 
 The ticket list is loaded in steps of 250, oldest unanswered first, and up to
 2000 (`?limit=` on the page and on `GET /api/v1/tickets`). When fewer tickets

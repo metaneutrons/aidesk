@@ -386,5 +386,6 @@
   "workspaceControlsTitle": "Gesamter Arbeitsbereich",
   "workspaceControlsHint": "Gilt für jedes Projekt. Nur ein Owner kann das ändern.",
   "workspaceStopAgents": "Alle KI-Agenten stoppen",
-  "workspacePauseOutgoing": "Alle ausgehenden Mails pausieren"
+  "workspacePauseOutgoing": "Alle ausgehenden Mails pausieren",
+  "configWarn": "Warnung nach (Stunden)"
 }

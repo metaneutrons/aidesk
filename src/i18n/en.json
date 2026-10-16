@@ -386,5 +386,6 @@
   "workspaceControlsTitle": "Whole workspace",
   "workspaceControlsHint": "Applies to every project. Only an owner can change it.",
   "workspaceStopAgents": "Stop all AI agents",
-  "workspacePauseOutgoing": "Pause all outgoing mail"
+  "workspacePauseOutgoing": "Pause all outgoing mail",
+  "configWarn": "Warn after (hours)"
 }

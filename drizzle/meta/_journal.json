@@ -169,6 +169,13 @@
       "when": 1792100436473,
       "tag": "0023_workspace_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792102393145,
+      "tag": "0024_response_cycle_events",
+      "breakpoints": true
     }
   ]
 }

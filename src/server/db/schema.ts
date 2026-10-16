@@ -193,6 +193,10 @@ export const tickets = pgTable(
     // for it until a person resumes it.
     agentPausedAt: timestamp("agent_paused_at", { withTimezone: true }),
     pendingSince: timestamp("pending_since", { withTimezone: true }),
+    // The cycle (its `pending_since`) for which the warning and the overdue event were sent:
+    // an event is sent once per cycle, and a new cycle has a new start.
+    warnedFor: timestamp("warned_for", { withTimezone: true }),
+    overdueFor: timestamp("overdue_for", { withTimezone: true }),
     // When the team wants to look at the ticket again; private to the team.
     remindAt: timestamp("remind_at", { withTimezone: true }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
