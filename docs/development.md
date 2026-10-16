@@ -1152,6 +1152,25 @@ empty list of repositories).
   check the host again (`src/server/github.ts`). The customer page and its API hold nothing about
   issues.
 
+### The worker on a platform with schedules
+
+The worker of the Docker stack repeats one pass (`src/worker/pass.ts`) without end. A platform that
+runs a function for a limited time and calls it from a schedule gets the same pass through
+`GET|POST /api/worker/tick`: it works the queue until a pass finds nothing or the time is up (45
+seconds, or `?budget=` milliseconds up to 50 seconds), the time being checked between passes. It needs
+`CRON_SECRET` (at least 32 characters) in the environment and the header `Authorization: Bearer
+<secret>`, which Vercel sends for a cron job when the variable is set; without the variable the route
+answers 404, with a wrong or missing header 401. A job is claimed under a lease, so a call that is
+cut off leaves its job to the next one. `vercel.json` has the daily call that the free plan allows;
+a plan with shorter intervals, or any scheduler that can send the header, calls it more often.
+
+What this does not make equal to Docker: mail is polled and jobs are taken only when the route is
+called, so a reply or an acknowledgement waits for the next call (with the daily schedule, up to a
+day); the reading of PDF and Office files runs in a closed process that is built from the sources at
+run time and does not exist in a function bundle, so those files are reported as not readable there;
+the response clock and the refresh of issues run on every call. The Node version of the platform is
+at most 24, while the repository asks for 26: a deployment sets its own version. A deployment on such a platform has not been made or qualified yet.
+
 ### Stopping agents and outgoing mail
 
 The stops of the plan are at three levels, and only people set them (a token never does, and no
