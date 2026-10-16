@@ -80,6 +80,10 @@ const notCalled: Record<string, string> = {
   "tickets.restore": "needs a ticket in the junk folder",
   "workspace.controls_set":
     "sets a switch of the whole installation, which would stop the agents or the mail of the tests that run beside; covered by the controls tests",
+  "tickets.translate_draft":
+    "needs an AI task that is set up and a model provider; covered by the translation tests",
+  "texts.translate":
+    "needs an AI task that is set up and a model provider; covered by the translation tests",
   "messages.send_draft": "needs a draft by an agent; covered by the drafts test",
   "messages.discard_draft": "needs a draft by an agent; covered by the drafts test",
 };
@@ -254,6 +258,17 @@ test("answers every documented route in the published shape, with real data", as
     params: hookParams,
     data: { expectedVersion: renamed.version },
   });
+  // Translations of a message: asked for, listed (the worker answers that none can be made, as no
+  // model is set up), removed; and a correction of the text, which gives it a new revision.
+  const first = (detail.messages as { id: string; language: string; markdown: string }[])[0];
+  const messageId = first?.id ?? "";
+  await call("translations.request", {
+    params: { messageId },
+    data: { language: first?.language === "de" ? "en" : "de" },
+  });
+  await call("translations.list", { params: { messageId } });
+  await call("translations.delete", { params: { messageId }, data: {} });
+  await call("messages.correct", { params: { messageId }, data: { markdown: first?.markdown } });
   // Managed agents: assigned, listed with their runs, stopped and let go on a ticket and in the
   // project. The ticket is given back at the end.
   const managedAgent = await call("agents.create_managed", {

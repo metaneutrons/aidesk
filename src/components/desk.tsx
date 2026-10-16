@@ -17,6 +17,7 @@ import {
   Plus,
   Search,
   Send,
+  Languages,
   Sparkles,
   Undo2,
   Settings as SettingsIcon,
@@ -34,6 +35,7 @@ import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
 import { Assignment } from "./assignment";
+import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
 import { Junk } from "./junk";
@@ -73,6 +75,7 @@ const messageSchema = z.object({
   deliveryState: z.string(),
   deliveryError: z.string().nullable(),
   hasOriginal: z.boolean(),
+  language: z.string(),
   extractionUncertain: z.boolean(),
   extraction: z.enum(["parser", "ai"]),
   extractionFailure: z.string().nullable(),
@@ -110,6 +113,8 @@ const assistErrors: Record<
   | "assistModel"
   | "assistRateLimited"
   | "assistFailed"
+  | "translateUnusable"
+  | "translateSame"
 > = {
   ai_not_configured: "assistNotConfigured",
   ai_disabled: "assistNotConfigured",
@@ -119,6 +124,8 @@ const assistErrors: Record<
   ai_model_unavailable: "assistModel",
   ai_rate_limited: "assistRateLimited",
   ai_provider_error: "assistFailed",
+  translation_unusable: "translateUnusable",
+  conflict: "translateSame",
 };
 // The messages that name how long to wait, for the failures that can come with a wait.
 const assistWaits: Record<string, "assistRateLimitedWait" | "assistQuotaWait"> = {
@@ -271,7 +278,10 @@ export function Desk({
   const [assisting, setAssisting] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [undo, setUndo] = useState<string | null>(null);
-  const [assistNote, setAssistNote] = useState<"assistDone" | "assistTruncated" | null>(null);
+  const [assistNote, setAssistNote] = useState<
+    "assistDone" | "assistTruncated" | "translateDone" | null
+  >(null);
+  const [translating, setTranslating] = useState(false);
   const [theme, setTheme] = useState<Theme>("system");
   const [now, setNow] = useState(serverTime);
   const [creating, setCreating] = useState(false);
@@ -592,6 +602,46 @@ export function Desk({
       setError("assistFailed");
     } finally {
       setAssisting(false);
+    }
+  }
+  // The text in the field in the language of the customer, to read and edit; nothing is sent.
+  async function translateDraft(): Promise<void> {
+    if (!conversation || !selected || !draft.trim()) return;
+    const asked = { selected, internal };
+    const before = draft;
+    setTranslating(true);
+    setError(null);
+    setUndo(null);
+    setAssistNote(null);
+    try {
+      const response = await fetch(`/api/v1/tickets/${selected}/translate-draft`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          markdown: draft.slice(0, 20_000),
+          language: conversation.ticket.language,
+        }),
+      });
+      if (!response.ok) {
+        const code = z
+          .object({ error: z.string() })
+          .safeParse(await response.json().catch(() => null));
+        const key = (code.success ? assistErrors[code.data.error] : undefined) ?? "assistFailed";
+        const seconds = Number(response.headers.get("retry-after"));
+        setErrorWait(Number.isFinite(seconds) && seconds > 0 ? { key, seconds } : null);
+        setError(key);
+        return;
+      }
+      const result = z.object({ text: z.string() }).parse(await response.json());
+      if (place.current.selected !== asked.selected || place.current.internal !== asked.internal)
+        return;
+      setUndo(before);
+      editDraft(result.text);
+      setAssistNote("translateDone");
+    } catch {
+      setError("assistFailed");
+    } finally {
+      setTranslating(false);
     }
   }
   async function send(): Promise<void> {
@@ -1179,6 +1229,17 @@ export function Desk({
                             className="prose"
                             dangerouslySetInnerHTML={{ __html: message.html }}
                           />
+                          {message.authorType !== "system" && (
+                            <details className="message-translate">
+                              <summary>{t("translationsToggle")}</summary>
+                              <Translations
+                                messageId={message.id}
+                                messageLanguage={message.language}
+                                canRemove={conversation.actions.includes("ticket.reply")}
+                                locale={initialLocale}
+                              />
+                            </details>
+                          )}
                           {message.authorType === "customer" &&
                             (message.extraction === "ai" ||
                               message.extractionFailure !== null ||
@@ -1354,7 +1415,7 @@ export function Desk({
                             editDraft(event.target.value);
                           }}
                           rows={4}
-                          readOnly={assisting}
+                          readOnly={assisting || translating}
                         />
                         <div className="assist-row">
                           <input
@@ -1382,6 +1443,31 @@ export function Desk({
                           >
                             <Sparkles size={14} />
                             {t(assisting ? "assistWorking" : "assistButton")}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              translating ||
+                              assisting ||
+                              sending ||
+                              !draft.trim() ||
+                              !conversation.actions.includes(
+                                internal ? "ticket.note" : "ticket.reply",
+                              )
+                            }
+                            onClick={() => {
+                              void translateDraft();
+                            }}
+                          >
+                            <Languages size={14} />
+                            {translating
+                              ? t("translateDraftWorking")
+                              : t("translateDraftButton", {
+                                  language:
+                                    new Intl.DisplayNames(initialLocale, { type: "language" }).of(
+                                      conversation.ticket.language,
+                                    ) ?? conversation.ticket.language,
+                                })}
                           </button>
                           {undo !== null && (
                             <button

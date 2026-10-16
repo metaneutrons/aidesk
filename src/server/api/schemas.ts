@@ -5,6 +5,7 @@ import { connectionDirections, connectionKinds } from "../../domain/connections"
 import { emailDesignConfig } from "../../domain/email-design";
 import { aiWorkStates, stopLevels } from "../../domain/agent-work";
 import { actions } from "../../domain/permissions";
+import { translationStatuses } from "../../domain/translation";
 import { agentRuns, agents, ingress, messages, projects, tickets } from "../db/schema";
 import { isoDate, rowSchema } from "./rows";
 // What the REST API answers, as JSON. The schemas describe the response after
@@ -475,3 +476,16 @@ export const webhookDelivery = z.object({
 });
 export const webhookResult = textResult;
 export const webhookPing = z.object({ eventId: z.uuid() });
+export const translationOut = z.object({
+  id: z.uuid(),
+  language: z.string(),
+  sourceRevision: z.number().int(),
+  current: z.boolean(),
+  status: z.enum(translationStatuses),
+  machine: z.literal(true),
+  model: z.string().nullable(),
+  profileRevision: z.number().int().nullable(),
+  error: z.string().nullable(),
+  markdown: z.string().nullable(),
+  html: z.string().nullable(),
+});

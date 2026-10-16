@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { audit, messages, participants, projects, tickets } from "./db/schema";
+import { audit, messages, participants, projects, tickets, translations } from "./db/schema";
 import { detectLanguage } from "../domain/language";
 import { DomainError } from "./errors";
 import { emitEvent } from "./webhooks";
@@ -179,7 +179,7 @@ export async function resolvePortalGrant(token: unknown) {
 // What the holder of a token may see: the public conversation of that one
 // ticket. Private notes, messages that were not delivered, staff addresses and
 // everything else of the ticket stay out.
-export async function getPortalTicket(token: unknown) {
+export async function getPortalTicket(token: unknown, language?: string) {
   const grant = await resolvePortalGrant(token);
   if (!grant) throw new DomainError("not_found", 404);
   const [row] = await db()
@@ -208,6 +208,30 @@ export async function getPortalTicket(token: unknown) {
       ),
     )
     .orderBy(asc(messages.createdAt));
+  // The translation of a message into the language of the page, when a person had one made and
+  // the message has not changed since: shown as what it is, next to the message.
+  const shown = new Map<string, string>();
+  const target = language?.toLowerCase().split("-")[0];
+  if (target && conversation.length > 0) {
+    const ready = await db()
+      .select()
+      .from(translations)
+      .where(
+        and(
+          inArray(
+            translations.messageId,
+            conversation.map((message) => message.id),
+          ),
+          eq(translations.language, target),
+          eq(translations.status, "ready"),
+        ),
+      );
+    for (const record of ready) {
+      const message = conversation.find((entry) => entry.id === record.messageId);
+      if (message?.revision === record.sourceRevision && record.markdown)
+        shown.set(record.messageId, markdownHtml(record.markdown));
+    }
+  }
   return {
     projectId: row.projectId,
     ticket: {
@@ -224,6 +248,7 @@ export async function getPortalTicket(token: unknown) {
       authorName: message.authorType === "customer" ? message.authorName : row.project,
       markdown: message.markdown,
       html: markdownHtml(message.markdown),
+      translation: shown.get(message.id) ?? null,
       createdAt: message.createdAt,
     })),
   };

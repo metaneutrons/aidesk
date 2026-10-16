@@ -10,6 +10,8 @@ interface PortalView {
     from: "you" | "team";
     authorName: string;
     html: string;
+    // A machine translation into the language of the page, when there is one.
+    translation: string | null;
     createdAt: string;
   }[];
 }
@@ -80,6 +82,12 @@ export function Portal({
               <time dateTime={message.createdAt}>{format.format(new Date(message.createdAt))}</time>
             </header>
             <div className="prose" dangerouslySetInnerHTML={{ __html: message.html }} />
+            {message.translation !== null && (
+              <section className="translation" aria-label={t("portalTranslation")}>
+                <small className="muted">{t("portalTranslation")}</small>
+                <div className="prose" dangerouslySetInnerHTML={{ __html: message.translation }} />
+              </section>
+            )}
           </article>
         ))}
       </section>

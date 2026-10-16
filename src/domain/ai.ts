@@ -10,6 +10,8 @@ export const aiTasks = [
   "agent.respond",
   "intake.extract",
   "intake.junk",
+  "message.translate",
+  "template.translate",
 ] as const;
 export type AiTask = (typeof aiTasks)[number];
 export const isAiTask = (value: string): value is AiTask => aiTasks.some((task) => task === value);

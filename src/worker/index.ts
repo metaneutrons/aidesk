@@ -5,6 +5,7 @@ import { runExtractions } from "./extract";
 import { runAgents } from "./agent-runs";
 import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
+import { runTranslations } from "./translate";
 import { scanResponseClock } from "../server/response-clock";
 const lifecycle = { stopped: false };
 process.on("SIGTERM", () => {
@@ -30,7 +31,9 @@ while (!lifecycle.stopped) {
     const read = await runExtractions();
     const seen = await runImageReadings();
     const worked = await runAgents();
-    if (!ingested && !sent && !tested && !notified && !read && !seen && !worked) await delay(1000);
+    const translated = await runTranslations();
+    if (!ingested && !sent && !tested && !notified && !read && !seen && !worked && !translated)
+      await delay(1000);
   } catch {
     console.log(JSON.stringify({ event: "worker.database_unavailable" }));
     await delay(3000);

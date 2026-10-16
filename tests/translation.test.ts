@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
-import { audit, messages, projects, tickets, translations } from "../src/server/db/schema";
+import { audit, jobs, messages, projects, tickets, translations } from "../src/server/db/schema";
 import {
   completeTranslation,
   correctMessage,
@@ -75,6 +75,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   const ids = [projectId, otherProject];
+  await db().delete(jobs).where(inArray(jobs.projectId, ids));
   await db().delete(tickets).where(inArray(tickets.projectId, ids));
   await db().delete(audit).where(inArray(audit.projectId, ids));
   await db().delete(projects).where(inArray(projects.id, ids));
@@ -105,7 +106,13 @@ describe("protected content", () => {
     expect(protectedSegments("Plain text only.")).toEqual([]);
   });
   it("accepts a result that keeps them and refuses one that changes them", () => {
-    expect(checkProtected(source, translated)).toEqual({ ok: true, missing: [], added: [] });
+    expect(checkProtected(source, translated)).toEqual({
+      ok: true,
+      missing: [],
+      added: [],
+      numbersMissing: [],
+      numbersAdded: [],
+    });
     const bad: [string, string][] = [
       ["code changed", translated.replace("--prod", "--production")],
       ["link dropped", translated.replace("https://example.test/log?id=7", "the log")],
@@ -125,6 +132,19 @@ describe("protected content", () => {
     // Text without protected content accepts any plain translation but no injected link.
     expect(checkProtected("Hallo Welt", "Hello world").ok).toBe(true);
     expect(checkProtected("Hallo Welt", "Hello https://evil.test").ok).toBe(false);
+    // Numbers are compared as digits: none may be added or lost, and the way of writing is free.
+    expect(checkProtected("Hallo Welt", "Hello world 42")).toMatchObject({
+      ok: false,
+      numbersAdded: ["42"],
+    });
+    expect(checkProtected("Rechnung 4711", "Invoice")).toMatchObject({
+      ok: false,
+      numbersMissing: ["4711"],
+    });
+    expect(
+      checkProtected("Betrag 1.250,50 EUR am 03.02.2026", "Amount 1,250.50 EUR on 3 February 2026")
+        .ok,
+    ).toBe(true);
   });
 });
 describe("translation records", () => {
