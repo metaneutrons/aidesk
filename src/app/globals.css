@@ -536,6 +536,7 @@ label {
 }
 .conversation-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 18px;
@@ -1695,4 +1696,52 @@ li.tag-chip button {
     border: 1px solid var(--line);
     white-space: pre-wrap;
     font: inherit;
+}
+
+/* The tools of a ticket (assignee, knowledge, issues, portal link, tags, reminder) take a row of
+   their own under the title; a panel that is opened takes the whole row. */
+.ticket-tools {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px 18px;
+}
+
+.ticket-tools details[open] {
+    flex: 1 1 100%;
+}
+
+.assist-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+}
+
+.assist-knowledge {
+    display: inline-flex;
+    flex-direction: row;
+    gap: 6px;
+    align-items: center;
+    font-size: 11px;
+}
+
+/* The tools are small: they share rows, so that the conversation keeps the room it needs. */
+.ticket-tools {
+    font-size: 12px;
+    gap: 8px 14px;
+}
+
+.ticket-tools button,
+.ticket-tools input,
+.ticket-tools select {
+    padding: 5px 9px;
+    font-size: 12px;
+}
+
+.ticket-tools .assignment,
+.ticket-tools .reminder,
+.ticket-tools .tags {
+    gap: 6px;
 }

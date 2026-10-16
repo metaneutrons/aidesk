@@ -1136,94 +1136,98 @@ export function Desk({
                       <span className="status-badge">
                         {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
                       </span>
-                      {!conversation.ticket.junkAt && (
-                        <details className="ticket-knowledge">
-                          <summary>{t("knowledgeToggle")}</summary>
-                          <Knowledge
-                            key={conversation.ticket.id}
+                      <div className="ticket-tools">
+                        {!conversation.ticket.junkAt && (
+                          <details className="ticket-knowledge">
+                            <summary>{t("knowledgeToggle")}</summary>
+                            <Knowledge
+                              key={conversation.ticket.id}
+                              ticketId={conversation.ticket.id}
+                              locale={initialLocale}
+                            />
+                          </details>
+                        )}
+                        {!conversation.ticket.junkAt && (
+                          <Issues
+                            key={`${conversation.ticket.id}:issues`}
                             ticketId={conversation.ticket.id}
-                            locale={initialLocale}
-                          />
-                        </details>
-                      )}
-                      {!conversation.ticket.junkAt && (
-                        <Issues
-                          key={conversation.ticket.id}
-                          ticketId={conversation.ticket.id}
-                          canNote={conversation.actions.includes("ticket.note")}
-                          canPublish={conversation.actions.includes("github.publish")}
-                        />
-                      )}
-                      {!conversation.ticket.junkAt && (
-                        <Assignment
-                          key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
-                          ticketId={conversation.ticket.id}
-                          revision={conversation.ticket.revision}
-                          assignee={conversation.assignee}
-                          aiWork={conversation.aiWork}
-                          canAssign={conversation.actions.includes("ticket.assign")}
-                          onChanged={() => {
-                            void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
-                              .then(async (response) => {
-                                if (response.ok)
-                                  setConversation(conversationSchema.parse(await response.json()));
-                              })
-                              .catch(() => undefined);
-                            transition(() => {
-                              router.refresh();
-                            });
-                          }}
-                        />
-                      )}
-                      {conversation.actions.includes("ticket.reply") &&
-                        !conversation.ticket.junkAt && (
-                          <PortalLink
-                            key={conversation.ticket.id}
-                            ticketId={conversation.ticket.id}
-                            locale={initialLocale}
+                            canNote={conversation.actions.includes("ticket.note")}
+                            canPublish={conversation.actions.includes("github.publish")}
                           />
                         )}
-                      {conversation.actions.includes("ticket.note") &&
-                        !conversation.ticket.junkAt && (
-                          <Tags
-                            key={conversation.ticket.id}
+                        {!conversation.ticket.junkAt && (
+                          <Assignment
+                            key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
                             ticketId={conversation.ticket.id}
-                            projectId={conversation.ticket.projectId}
-                            tags={tagsOf(conversation.ticket)}
+                            revision={conversation.ticket.revision}
+                            assignee={conversation.assignee}
+                            aiWork={conversation.aiWork}
+                            canAssign={conversation.actions.includes("ticket.assign")}
                             onChanged={() => {
+                              void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
+                                .then(async (response) => {
+                                  if (response.ok)
+                                    setConversation(
+                                      conversationSchema.parse(await response.json()),
+                                    );
+                                })
+                                .catch(() => undefined);
                               transition(() => {
                                 router.refresh();
                               });
                             }}
                           />
                         )}
-                      {conversation.actions.includes("ticket.note") &&
-                        !conversation.ticket.junkAt && (
-                          <Reminder
-                            key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
-                            ticketId={conversation.ticket.id}
-                            remindAt={reminderOf(conversation.ticket)}
-                            now={now}
-                            locale={initialLocale}
-                            onChanged={() => {
-                              transition(() => {
-                                router.refresh();
-                              });
-                            }}
-                          />
-                        )}
-                      {conversation.actions.includes("ticket.junk") &&
-                        !conversation.ticket.junkAt && (
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => {
-                              void moveToJunk();
-                            }}
-                          >
-                            {t("moveToJunk")}
-                          </button>
-                        )}
+                        {conversation.actions.includes("ticket.reply") &&
+                          !conversation.ticket.junkAt && (
+                            <PortalLink
+                              key={`${conversation.ticket.id}:portal`}
+                              ticketId={conversation.ticket.id}
+                              locale={initialLocale}
+                            />
+                          )}
+                        {conversation.actions.includes("ticket.note") &&
+                          !conversation.ticket.junkAt && (
+                            <Tags
+                              key={`${conversation.ticket.id}:tags`}
+                              ticketId={conversation.ticket.id}
+                              projectId={conversation.ticket.projectId}
+                              tags={tagsOf(conversation.ticket)}
+                              onChanged={() => {
+                                transition(() => {
+                                  router.refresh();
+                                });
+                              }}
+                            />
+                          )}
+                        {conversation.actions.includes("ticket.note") &&
+                          !conversation.ticket.junkAt && (
+                            <Reminder
+                              key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
+                              ticketId={conversation.ticket.id}
+                              remindAt={reminderOf(conversation.ticket)}
+                              now={now}
+                              locale={initialLocale}
+                              onChanged={() => {
+                                transition(() => {
+                                  router.refresh();
+                                });
+                              }}
+                            />
+                          )}
+                        {conversation.actions.includes("ticket.junk") &&
+                          !conversation.ticket.junkAt && (
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => {
+                                void moveToJunk();
+                              }}
+                            >
+                              {t("moveToJunk")}
+                            </button>
+                          )}
+                      </div>
                     </header>
                     <div
                       className="message-list"
