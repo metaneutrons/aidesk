@@ -101,6 +101,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -109,6 +111,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -117,6 +121,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -125,6 +131,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -133,6 +141,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -141,6 +151,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -149,6 +161,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -157,6 +171,8 @@ describe("reading the profiles", () => {
         version: 0,
         connectionId: null,
         model: null,
+        fallbackConnectionId: null,
+        fallbackModel: null,
         enabled: false,
         ...aiDefaults,
       },
@@ -183,6 +199,8 @@ describe("setting a profile that is off", () => {
         "connectionId",
         "dailyTokenBudget",
         "enabled",
+        "fallbackConnectionId",
+        "fallbackModel",
         "maxOutputTokens",
         "model",
         "timeoutSeconds",
@@ -428,6 +446,157 @@ describe("a profile that is on", () => {
         body({ expectedVersion: 1, enabled: false }),
       ).catch((e: unknown) => e),
     ).toMatchObject({ code: "stale_version" });
+  });
+});
+describe("the fallback model", () => {
+  const withFallback = (overrides: Record<string, unknown> = {}) =>
+    body({ fallbackConnectionId: ids.second, fallbackModel: "model-two", ...overrides });
+  it("is named with its connection and its model together, or not at all", async () => {
+    for (const overrides of [{ fallbackConnectionId: ids.second }, { fallbackModel: "model-two" }])
+      expect(
+        await refusal(setAiProfile(writer, projectId, "reply.draft", body(overrides))),
+        JSON.stringify(overrides),
+      ).toEqual([
+        "fallbackModel: Name the connection and the model of the fallback together, or neither",
+      ]);
+    expect(
+      await refusal(
+        setAiProfile(
+          writer,
+          projectId,
+          "reply.draft",
+          withFallback({ fallbackModel: "bad model!" }),
+        ),
+      ),
+    ).toEqual(["fallbackModel: A model name has letters, digits and . _ : / -"]);
+  });
+  it("accepts only an enabled connection to a model provider of the project, and says which field", async () => {
+    for (const [fallbackConnectionId, message] of [
+      [ids.foreign, "Not a connection to a model provider of this project"],
+      [ids.mail, "Not a connection to a model provider of this project"],
+      [randomUUID(), "Not a connection to a model provider of this project"],
+      [ids.disabled, "This connection is disabled"],
+    ] as const)
+      expect(
+        await refusal(
+          setAiProfile(writer, projectId, "reply.draft", withFallback({ fallbackConnectionId })),
+        ),
+        fallbackConnectionId,
+      ).toEqual([`fallbackConnectionId: ${message}`]);
+    expect(await profile()).toMatchObject({ version: 0, fallbackConnectionId: null });
+  });
+  it("is refused at once for a proposal as well, not only when it is decided", async () => {
+    await setAiProfile(manager, projectId, "reply.draft", body({ enabled: true }));
+    for (const fallbackConnectionId of [ids.disabled, ids.foreign, ids.mail])
+      expect(
+        await refusal(
+          setAiProfile(
+            agent,
+            projectId,
+            "reply.draft",
+            withFallback({ expectedVersion: 1, enabled: true, fallbackConnectionId }),
+          ),
+        ),
+        fallbackConnectionId,
+      ).toHaveLength(1);
+    expect(await listConfigChanges(manager, projectId, "pending")).toHaveLength(0);
+  });
+  it("is set on a profile that is off by a person who may write, and shown in the diff and the list", async () => {
+    const created = await setAiProfile(writer, projectId, "reply.draft", withFallback());
+    expect(created).toMatchObject({ outcome: "applied", version: 1 });
+    expect(await profile()).toMatchObject({
+      fallbackConnectionId: ids.second,
+      fallbackModel: "model-two",
+    });
+    const cleared = await setAiProfile(
+      writer,
+      projectId,
+      "reply.draft",
+      body({ expectedVersion: 1, fallbackConnectionId: null, fallbackModel: null }),
+    );
+    expect(cleared.diff.map((entry) => entry.pointer)).toEqual([
+      "/aiProfiles/reply.draft/fallbackConnectionId",
+      "/aiProfiles/reply.draft/fallbackModel",
+    ]);
+    expect(await profile()).toMatchObject({ fallbackConnectionId: null, fallbackModel: null });
+  });
+  it("needs approval on a profile that is on when it names another connection, and not when it only names another model or is removed", async () => {
+    await setPolicy("direct");
+    await setAiProfile(manager, projectId, "reply.draft", body({ enabled: true }));
+    const named = withFallback({ expectedVersion: 1, enabled: true });
+    expect(await setAiProfile(agent, projectId, "reply.draft", named)).toMatchObject({
+      outcome: "proposed",
+    });
+    expect(await setAiProfile(writer, projectId, "reply.draft", named)).toMatchObject({
+      outcome: "proposed",
+    });
+    expect(await profile()).toMatchObject({ fallbackConnectionId: null });
+    expect(await setAiProfile(manager, projectId, "reply.draft", named)).toMatchObject({
+      outcome: "applied",
+      version: 2,
+    });
+    // The same connection with another model sends content to the same place.
+    expect(
+      await setAiProfile(
+        agent,
+        projectId,
+        "reply.draft",
+        withFallback({ expectedVersion: 2, enabled: true, fallbackModel: "model-three" }),
+      ),
+    ).toMatchObject({ outcome: "applied", version: 3 });
+    // Another connection is another place.
+    const third = await connection(projectId, "google", "ai");
+    expect(
+      await setAiProfile(
+        agent,
+        projectId,
+        "reply.draft",
+        withFallback({ expectedVersion: 3, enabled: true, fallbackConnectionId: third }),
+      ),
+    ).toMatchObject({ outcome: "proposed" });
+    // Taking it away sends nothing anywhere.
+    expect(
+      await setAiProfile(
+        agent,
+        projectId,
+        "reply.draft",
+        body({
+          expectedVersion: 3,
+          enabled: true,
+          fallbackConnectionId: null,
+          fallbackModel: null,
+        }),
+      ),
+    ).toMatchObject({ outcome: "applied", version: 4 });
+    expect(await profile()).toMatchObject({ fallbackConnectionId: null, fallbackModel: null });
+  });
+  it("is checked again when a proposal is decided", async () => {
+    const lost = await connection(projectId, "openai", "ai");
+    await setAiProfile(manager, projectId, "reply.draft", body({ enabled: true }));
+    const proposal = await setAiProfile(
+      agent,
+      projectId,
+      "reply.draft",
+      withFallback({ expectedVersion: 1, enabled: true, fallbackConnectionId: lost }),
+    );
+    expect(proposal).toMatchObject({ outcome: "proposed" });
+    await db().update(connections).set({ status: "disabled" }).where(eq(connections.id, lost));
+    expect(
+      await refusal(decideConfigChange(manager, proposal.changeId ?? "", { decision: "approve" })),
+    ).toEqual(["fallbackConnectionId: This connection is disabled"]);
+    expect(await profile()).toMatchObject({ fallbackConnectionId: null });
+    // A proposal that is approved carries the fallback with it.
+    const good = await setAiProfile(
+      agent,
+      projectId,
+      "reply.draft",
+      withFallback({ expectedVersion: 1, enabled: true }),
+    );
+    await decideConfigChange(manager, good.changeId ?? "", { decision: "approve" });
+    expect(await profile()).toMatchObject({
+      fallbackConnectionId: ids.second,
+      fallbackModel: "model-two",
+    });
   });
 });
 describe("records of a change", () => {

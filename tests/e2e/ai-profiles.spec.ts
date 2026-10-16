@@ -10,6 +10,9 @@ const profileList = z.array(
     task: z.string(),
     version: z.number(),
     model: z.string().nullable(),
+    connectionId: z.string().nullable(),
+    fallbackConnectionId: z.string().nullable(),
+    fallbackModel: z.string().nullable(),
     enabled: z.boolean(),
     timeoutSeconds: z.number(),
   }),
@@ -60,14 +63,23 @@ test("sets the profile of a task on the settings page and switches it on and off
   await expect(task.getByRole("button", { name: "Save task" })).toBeDisabled();
   await task.getByLabel("Model", { exact: true }).fill("model-e2e");
   await task.getByLabel("Timeout in seconds").fill("45");
+  // A fallback is named with its connection and its model together.
+  await expect(task.getByLabel("Fallback model", { exact: true })).toBeDisabled();
+  await task
+    .getByLabel("Connection of the fallback model")
+    .selectOption({ label: `${connection} (Anthropic)` });
+  await expect(task.getByRole("button", { name: "Save task" })).toBeDisabled();
+  await task.getByLabel("Fallback model", { exact: true }).fill("model-e2e-backup");
   await task.getByRole("button", { name: "Save task" }).click();
   await expect(section.getByText("The task was saved.")).toBeVisible();
   expect(await read()).toMatchObject({
     version: 1,
     enabled: false,
     model: "model-e2e",
+    fallbackModel: "model-e2e-backup",
     timeoutSeconds: 45,
   });
+  expect((await read())?.fallbackConnectionId).toEqual((await read())?.connectionId);
   const scan = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .exclude("[data-base-ui-focus-guard]")
@@ -86,6 +98,18 @@ test("sets the profile of a task on the settings page and switches it on and off
   await task.getByRole("button", { name: "Save task" }).click();
   await expect(section.getByText("The task was saved.")).toBeVisible();
   expect(await read()).toMatchObject({ version: 3, enabled: false });
+  // Taking the fallback away clears its model too.
+  await task
+    .getByLabel("Connection of the fallback model")
+    .selectOption({ label: "No fallback model" });
+  await expect(task.getByLabel("Fallback model", { exact: true })).toBeDisabled();
+  await task.getByRole("button", { name: "Save task" }).click();
+  await expect(section.getByText("The task was saved.")).toBeVisible();
+  expect(await read()).toMatchObject({
+    version: 4,
+    fallbackConnectionId: null,
+    fallbackModel: null,
+  });
   // The key was never on the page or in the answers.
   await expect(page.getByText("sk-e2e-never-shown-key")).toHaveCount(0);
   expect(

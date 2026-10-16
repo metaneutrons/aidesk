@@ -6354,6 +6354,25 @@
                           "null"
                         ]
                       },
+                      "fallbackConnectionId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "A second connection, approved with the profile, tried once after a refusal that did nothing"
+                      },
+                      "fallbackModel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "timeoutSeconds": {
                         "type": "number"
                       },
@@ -6374,6 +6393,8 @@
                       "version",
                       "connectionId",
                       "model",
+                      "fallbackConnectionId",
+                      "fallbackModel",
                       "timeoutSeconds",
                       "maxOutputTokens",
                       "dailyTokenBudget",
@@ -6487,6 +6508,33 @@
                   "enabled": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "fallbackConnectionId": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fallbackModel": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "idempotencyKey": {
                     "type": "string",

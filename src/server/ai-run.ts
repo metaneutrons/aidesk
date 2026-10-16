@@ -1,7 +1,13 @@
 import { APICallError, type ModelMessage } from "ai";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
-import { estimateFileTokens, estimateTokens, type AiFailure, type AiTask } from "../domain/ai";
+import {
+  estimateFileTokens,
+  estimateTokens,
+  fallbackCodes,
+  type AiFailure,
+  type AiTask,
+} from "../domain/ai";
 import { aiSecret } from "../domain/connections";
 import { unseal } from "./crypto";
 import { db } from "./db";
@@ -191,6 +197,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       model?: string;
       inputTokens?: number | null;
       outputTokens?: number | null;
+      fallbackOf?: string;
     } = {},
   ): Promise<string> => {
     const [row] = await db()
@@ -207,6 +214,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
         model: extra.model ?? null,
         inputTokens: extra.inputTokens ?? null,
         outputTokens: extra.outputTokens ?? null,
+        fallbackOf: extra.fallbackOf ?? null,
       })
       .returning({ id: aiRuns.id });
     return row?.id ?? "";
@@ -231,32 +239,48 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
   if (!profile) return fail("ai_not_configured");
   const known = { profileVersion: profile.version, model: profile.model };
   if (!profile.enabled) return fail("ai_disabled", known);
-  const [connection] = await db()
-    .select()
-    .from(connections)
-    .where(
-      and(eq(connections.id, profile.connectionId), eq(connections.projectId, request.projectId)),
+  // The connection that a model is asked through: of this project, to a model provider, ready, with
+  // a host that is still allowed and a secret that can be read; or none.
+  const prepare = async (connectionId: string) => {
+    const [connection] = await db()
+      .select()
+      .from(connections)
+      .where(and(eq(connections.id, connectionId), eq(connections.projectId, request.projectId)));
+    if (
+      connection?.direction !== "ai" ||
+      connection.status !== "ready" ||
+      !isKind(connection.kind) ||
+      !connection.secretCiphertext
+    )
+      return null;
+    const endpoint =
+      typeof connection.config.endpoint === "string" ? connection.config.endpoint : undefined;
+    // An address of its own is checked again, so a name that has come to point somewhere
+    // refused is not called.
+    if (
+      endpoint !== undefined &&
+      connection.config.developmentOnly !== true &&
+      (await checkHost(new URL(endpoint).hostname)) !== "allowed"
+    )
+      return null;
+    const secret = aiSecret.safeParse(
+      JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
     );
+    if (!secret.success) return null;
+    return {
+      id: connection.id,
+      kind: connection.kind,
+      endpoint,
+      workspaceId:
+        typeof connection.config.workspaceId === "string"
+          ? connection.config.workspaceId
+          : undefined,
+      apiKey: secret.data.apiKey,
+    };
+  };
+  const target = await prepare(profile.connectionId);
   const withConnection = { ...known, connectionId: profile.connectionId };
-  if (
-    connection?.direction !== "ai" ||
-    connection.status !== "ready" ||
-    !isKind(connection.kind) ||
-    !connection.secretCiphertext
-  )
-    return fail("ai_not_configured", withConnection);
-  const endpoint =
-    typeof connection.config.endpoint === "string" ? connection.config.endpoint : undefined;
-  // An address of its own is checked again, so a name that has come to point
-  // somewhere refused is not called.
-  if (endpoint !== undefined && connection.config.developmentOnly !== true) {
-    if ((await checkHost(new URL(endpoint).hostname)) !== "allowed")
-      return fail("ai_not_configured", withConnection);
-  }
-  const secret = aiSecret.safeParse(
-    JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
-  );
-  if (!secret.success) return fail("ai_not_configured", withConnection);
+  if (!target) return fail("ai_not_configured", withConnection);
   // The share of the budget this run holds while it runs: the input as estimated and
   // the longest answer the profile allows.
   const held =
@@ -302,47 +326,104 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
           eq(aiBudgets.day, day),
         ),
       );
-  try {
-    const answer = await generate({
-      kind: connection.kind,
-      endpoint,
-      workspaceId:
-        typeof connection.config.workspaceId === "string"
-          ? connection.config.workspaceId
-          : undefined,
-      apiKey: secret.data.apiKey,
-      model: profile.model,
-      system: request.system,
-      prompt: request.prompt,
-      files: request.files,
-      messages: request.messages,
-      tools: request.tools,
-      maxOutputTokens: profile.maxOutputTokens,
-      timeoutMs: Math.min(profile.timeoutSeconds, request.maxWaitSeconds ?? Infinity) * 1000,
-    });
-    const inputTokens = answer.usage.inputTokens ?? null;
-    const outputTokens = answer.usage.outputTokens ?? null;
-    // What the provider counted settles the share; when it did not say, the share
-    // that was held stays charged.
-    const used = answer.usage.totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
-    if (used > 0) await adjust(used - held);
-    return {
-      ok: true,
-      text: answer.text,
-      model: profile.model,
-      truncated: answer.finishReason === "length",
-      usage: { inputTokens, outputTokens },
-      toolCalls: answer.toolCalls ?? [],
-      runId: await record("ok", { ...withConnection, inputTokens, outputTokens }),
-    };
-  } catch (error) {
-    if (refused(error)) {
-      await adjust(-held);
+  // One request to one model: the answer, or how it failed and whether the provider did nothing.
+  type Attempt =
+    | { ok: true; answer: Awaited<ReturnType<typeof generate>> }
+    | { ok: false; code: AiFailure; refused: boolean; retryAfterSeconds?: number };
+  const ask = async (via: NonNullable<typeof target>, modelName: string): Promise<Attempt> => {
+    try {
+      return {
+        ok: true,
+        answer: await generate({
+          kind: via.kind,
+          endpoint: via.endpoint,
+          workspaceId: via.workspaceId,
+          apiKey: via.apiKey,
+          model: modelName,
+          system: request.system,
+          prompt: request.prompt,
+          files: request.files,
+          messages: request.messages,
+          tools: request.tools,
+          maxOutputTokens: profile.maxOutputTokens,
+          timeoutMs: Math.min(profile.timeoutSeconds, request.maxWaitSeconds ?? Infinity) * 1000,
+        }),
+      };
+    } catch (error) {
+      if (refused(error)) {
+        const failed = failureOf(error);
+        return {
+          ok: false,
+          code: failed.code,
+          refused: true,
+          ...(failed.retryAfterSeconds === undefined
+            ? {}
+            : { retryAfterSeconds: failed.retryAfterSeconds }),
+        };
+      }
+      if (timedOut(error)) return { ok: false, code: "ai_timeout", refused: false };
       const failed = failureOf(error);
-      return fail(failed.code, withConnection, failed.retryAfterSeconds);
+      return {
+        ok: false,
+        code: failed.code,
+        refused: false,
+        ...(failed.retryAfterSeconds === undefined
+          ? {}
+          : { retryAfterSeconds: failed.retryAfterSeconds }),
+      };
     }
-    if (timedOut(error)) return fail("ai_timeout", withConnection, undefined, false);
-    const failed = failureOf(error);
-    return fail(failed.code, withConnection, failed.retryAfterSeconds, false);
+  };
+  let attempt = await ask(target, profile.model);
+  let used = {
+    connectionId: profile.connectionId,
+    model: profile.model,
+    fallbackOf: null as string | null,
+  };
+  // The model of the profile did nothing (it is not there, or the provider refused the request):
+  // the fallback that was approved with the profile is tried once. A limit, a quota, a timeout and
+  // a request that may have been accepted are not retried anywhere.
+  if (
+    !attempt.ok &&
+    attempt.refused &&
+    fallbackCodes.includes(attempt.code) &&
+    profile.fallbackConnectionId &&
+    profile.fallbackModel
+  ) {
+    const second = await prepare(profile.fallbackConnectionId);
+    if (second) {
+      await record(attempt.code, withConnection);
+      used = {
+        connectionId: profile.fallbackConnectionId,
+        model: profile.fallbackModel,
+        fallbackOf: attempt.code,
+      };
+      attempt = await ask(second, profile.fallbackModel);
+    }
   }
+  const final = {
+    profileVersion: profile.version,
+    connectionId: used.connectionId,
+    model: used.model,
+    ...(used.fallbackOf ? { fallbackOf: used.fallbackOf } : {}),
+  };
+  if (!attempt.ok) {
+    if (attempt.refused) await adjust(-held);
+    return fail(attempt.code, final, attempt.retryAfterSeconds, attempt.refused);
+  }
+  const { answer } = attempt;
+  const inputTokens = answer.usage.inputTokens ?? null;
+  const outputTokens = answer.usage.outputTokens ?? null;
+  // What the provider counted settles the share; when it did not say, the share that was held
+  // stays charged.
+  const settled = answer.usage.totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
+  if (settled > 0) await adjust(settled - held);
+  return {
+    ok: true,
+    text: answer.text,
+    model: used.model,
+    truncated: answer.finishReason === "length",
+    usage: { inputTokens, outputTokens },
+    toolCalls: answer.toolCalls ?? [],
+    runId: await record("ok", { ...final, inputTokens, outputTokens }),
+  };
 }
