@@ -112,11 +112,13 @@ test("turns a customer mail into a ticket and threads the reply to our answer", 
     await (await page.request.get(`/api/v1/tickets/${ticketId}`)).json(),
   );
   expect(thread.ticket.status).toBe("open");
-  expect(thread.messages.map((message) => message.authorType)).toEqual([
-    "customer",
-    "human",
-    "customer",
-  ]);
+  // An acknowledgement of the product is not part of the thread under test; other specs of the run
+  // switch it on for the shared project for a while.
+  expect(
+    thread.messages
+      .map((message) => message.authorType)
+      .filter((authorType) => authorType !== "system"),
+  ).toEqual(["customer", "human", "customer"]);
 });
 test("keeps spam out of the inbox and moves tickets to and from junk", async ({
   page,
