@@ -36,6 +36,9 @@ const fixtureProjects: { key: string; label: string; grant: Action[] | null; lan
     { key: "alpha", label: "Alpha", grant: [...actions], language: "en" },
     { key: "beta", label: "Beta", grant: ["project.read", "ticket.read"], language: "de" },
     { key: "hidden", label: "Hidden", grant: null, language: "en" },
+    // A project for a test that changes what a project has, such as a repository, so that no other
+    // test finds the project different.
+    { key: "gamma", label: "Gamma", grant: [...actions], language: "en" },
   ];
 async function setup() {
   const run = randomBytes(4).toString("hex");

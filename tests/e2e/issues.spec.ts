@@ -3,21 +3,23 @@ import { expect, fixture, test } from "./fixtures";
 // Issues from a ticket: the panel appears when the project has a repository, a draft is written and
 // read as it will go out, and a publication that GitHub refuses leaves the draft where it was. The
 // "GitHub" of this test is the address of the app itself, which refuses everything it is asked.
+// The project is gamma: the knowledge spec expects alpha to have no sources, and the repository of this
+// test is a source.
 test.describe.configure({ mode: "serial" });
 test("writes a draft of an issue, reviews it and keeps it when the repository refuses", async ({
   page,
   desk,
   signIn,
 }) => {
-  const { alpha } = desk.projects;
+  const { gamma } = desk.projects;
   await signIn();
-  await page.goto(`/?ticket=${alpha.tickets[0]}`);
+  await page.goto(`/?ticket=${gamma.tickets[0]}`);
   const panel = page.getByRole("region", { name: "Ticket" });
   // No repository, no controls.
   await expect(panel.getByText("Issues", { exact: true })).toHaveCount(0);
   // A repository that refuses every request, as a ready connection of the project.
-  fixture("github-source", alpha.id);
-  await page.goto(`/?ticket=${alpha.tickets[0]}`);
+  fixture("github-source", gamma.id);
+  await page.goto(`/?ticket=${gamma.tickets[0]}`);
   await panel.getByText("Issues", { exact: true }).click();
   await expect(panel.getByText(/nothing of the ticket is added/)).toBeVisible();
   await panel.getByLabel("Title").fill("Printer prints grey pages");
