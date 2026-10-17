@@ -207,6 +207,11 @@ export function Login({
                   {t("ownerPassword")}
                 </button>
               )}
+              {withPassword && (
+                <a className="text-button" href="/recover">
+                  {t("forgotPassword")}
+                </a>
+              )}
             </fieldset>
           </form>
         )}

@@ -26,6 +26,12 @@ const schema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  // Lets an owner who lost the password set a new one at /recover, together with a code of the
+  // authenticator or a backup code. It can stay set; without it the recovery does not exist.
+  OWNER_RECOVERY_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
 });
 let cached: z.infer<typeof schema> | undefined;
 export function env(): z.infer<typeof schema> {

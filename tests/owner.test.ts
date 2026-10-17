@@ -1,20 +1,29 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { symmetricDecrypt } from "better-auth/crypto";
+import {
+  hashPassword,
+  symmetricDecrypt,
+  symmetricEncrypt,
+  verifyPassword,
+} from "better-auth/crypto";
 import { db, sqlClient } from "../src/server/db";
-import { account, audit, twoFactor, user } from "../src/server/db/schema";
+import { account, audit, session, twoFactor, user, verification } from "../src/server/db/schema";
 import {
   confirmOwnerClaim,
+  confirmOwnerRecovery,
   isDevelopmentOwner,
   passwordSignInAllowed,
   startOwnerClaim,
+  startOwnerRecovery,
   totp,
 } from "../src/server/owner";
 import { env } from "../src/server/env";
 import { auth } from "../src/server/auth";
 const token = "test-owner-claim-token-not-a-real-credential";
+// The token of the environment that the tests run in (the container of the stack has its own).
+const recoveryToken = env().OWNER_RECOVERY_TOKEN ?? "";
 const created: string[] = [];
 function base32Decode(value: string): string {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -202,5 +211,205 @@ describe("first owner claim", () => {
     expect(denied.status).toBe(401);
     expect(wrong.status).toBe(401);
     expect(await denied.json()).toEqual(await wrong.json());
+  });
+});
+
+describe("recovery of the owner password", () => {
+  const email = `recovery-${randomUUID()}@example.test`;
+  const oldPassword = "the old password of the owner";
+  const newPassword = "a new password for the owner";
+  const secret = "raw-secret-of-the-recovery-test";
+  const backup = ["aaaaa-11111", "bbbbb-22222", "ccccc-33333"];
+  let ownerId = "";
+  const code = (value: string) => String((Number(value) + 500_000) % 1_000_000).padStart(6, "0");
+  const start = (overrides: Record<string, string> = {}) =>
+    startOwnerRecovery({ token: recoveryToken, email, password: newPassword, ...overrides });
+  const confirm = (recoveryId: string, given: string, tokenGiven = recoveryToken) =>
+    confirmOwnerRecovery({ recoveryId, token: tokenGiven, code: given });
+  const passwordOf = async () => {
+    const [row] = await db().select().from(account).where(eq(account.userId, ownerId));
+    return row?.password ?? "";
+  };
+  const backupsOf = async (): Promise<string[]> => {
+    const [row] = await db().select().from(twoFactor).where(eq(twoFactor.userId, ownerId));
+    const plain = await symmetricDecrypt({
+      key: env().BETTER_AUTH_SECRET,
+      data: row?.backupCodes ?? "",
+    });
+    return JSON.parse(plain) as string[];
+  };
+  beforeAll(async () => {
+    await removeOwners();
+  });
+  beforeEach(async () => {
+    await removeOwners();
+    await db().delete(verification).where(like(verification.identifier, "owner-recovery-%"));
+    ownerId = randomUUID();
+    created.push(ownerId);
+    await db().insert(user).values({
+      id: ownerId,
+      name: "Owner",
+      email,
+      emailVerified: true,
+      owner: true,
+      twoFactorEnabled: true,
+    });
+    await db()
+      .insert(account)
+      .values({
+        id: randomUUID(),
+        accountId: ownerId,
+        providerId: "credential",
+        userId: ownerId,
+        password: await hashPassword(oldPassword),
+      });
+    await db()
+      .insert(twoFactor)
+      .values({
+        id: randomUUID(),
+        userId: ownerId,
+        secret: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: secret }),
+        backupCodes: await symmetricEncrypt({
+          key: env().BETTER_AUTH_SECRET,
+          data: JSON.stringify(backup),
+        }),
+        verified: true,
+      });
+  });
+  it("sets a new password with a code of the authenticator, ends the sessions, writes the audit and is used up", async () => {
+    await db()
+      .insert(session)
+      .values({
+        id: randomUUID(),
+        token: randomUUID(),
+        userId: ownerId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+    const { recoveryId } = await start();
+    expect(await confirm(recoveryId, totp(secret))).toEqual({ recovered: true });
+    expect(await verifyPassword({ hash: await passwordOf(), password: newPassword })).toBe(true);
+    expect(await verifyPassword({ hash: await passwordOf(), password: oldPassword })).toBe(false);
+    expect(await db().select().from(session).where(eq(session.userId, ownerId))).toHaveLength(0);
+    const [entry] = await db()
+      .select()
+      .from(audit)
+      .where(and(eq(audit.actorId, ownerId), eq(audit.action, "owner.password_recovered")));
+    expect(entry?.detail).toEqual({ method: "totp" });
+    await expect(confirm(recoveryId, totp(secret))).rejects.toMatchObject({ code: "not_found" });
+    // The sign-in with the new password reaches the second factor, the old one is refused.
+    const signIn = (password: string) =>
+      auth().api.signInEmail({ body: { email, password }, asResponse: true });
+    expect(await (await signIn(newPassword)).json()).toMatchObject({ twoFactorRedirect: true });
+    expect((await signIn(oldPassword)).status).toBe(401);
+  });
+  it("takes a backup code once and spends it", async () => {
+    const first = await start();
+    expect(await confirm(first.recoveryId, "bbbbb-22222")).toEqual({ recovered: true });
+    expect(await backupsOf()).toEqual(["aaaaa-11111", "ccccc-33333"]);
+    const second = await start();
+    await expect(confirm(second.recoveryId, "bbbbb-22222")).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    const [entry] = await db()
+      .select()
+      .from(audit)
+      .where(and(eq(audit.actorId, ownerId), eq(audit.action, "owner.password_recovered")));
+    expect(entry?.detail).toEqual({ method: "backup_code" });
+  });
+  it("needs the recovery token in both steps, and not the claim token", async () => {
+    await expect(start({ token: "wrong" })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(start({ token })).rejects.toMatchObject({ code: "forbidden" });
+    const { recoveryId } = await start();
+    await expect(confirm(recoveryId, totp(secret), "wrong")).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(confirm(recoveryId, totp(secret), token)).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    expect(await verifyPassword({ hash: await passwordOf(), password: oldPassword })).toBe(true);
+  });
+  it("refuses a wrong code, and ends the recovery after five", async () => {
+    const { recoveryId } = await start();
+    for (let attempt = 0; attempt < 5; attempt += 1)
+      await expect(confirm(recoveryId, code(totp(secret)))).rejects.toMatchObject({
+        code: "invalid_input",
+      });
+    await expect(confirm(recoveryId, totp(secret))).rejects.toMatchObject({ code: "not_found" });
+    expect(await verifyPassword({ hash: await passwordOf(), password: oldPassword })).toBe(true);
+  });
+  it("answers an address that is no owner like a wrong code, and changes nothing", async () => {
+    const other = randomUUID();
+    created.push(other);
+    await db()
+      .insert(user)
+      .values({ id: other, name: "Operator", email: `${other}@example.test`, emailVerified: true });
+    for (const address of [`${other}@example.test`, `nobody-${other}@example.test`]) {
+      const started = await start({ email: address });
+      expect(Object.keys(started)).toEqual(["recoveryId"]);
+      await expect(confirm(started.recoveryId, totp(secret))).rejects.toMatchObject({
+        code: "invalid_input",
+      });
+    }
+    expect(await verifyPassword({ hash: await passwordOf(), password: oldPassword })).toBe(true);
+  });
+  it("does not recover an operator who has a second factor but is no owner, nor an owner whose second factor is off", async () => {
+    const other = randomUUID();
+    created.push(other);
+    const otherEmail = `${other}@example.test`;
+    await db().insert(user).values({
+      id: other,
+      name: "Operator",
+      email: otherEmail,
+      emailVerified: true,
+      twoFactorEnabled: true,
+    });
+    await db()
+      .insert(account)
+      .values({
+        id: randomUUID(),
+        accountId: other,
+        providerId: "credential",
+        userId: other,
+        password: await hashPassword(oldPassword),
+      });
+    await db()
+      .insert(twoFactor)
+      .values({
+        id: randomUUID(),
+        userId: other,
+        secret: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: secret }),
+        backupCodes: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: "[]" }),
+      });
+    const started = await start({ email: otherEmail });
+    await expect(confirm(started.recoveryId, totp(secret))).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    await db().update(user).set({ twoFactorEnabled: false }).where(eq(user.id, ownerId));
+    const own = await start();
+    await expect(confirm(own.recoveryId, totp(secret))).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    expect(await verifyPassword({ hash: await passwordOf(), password: oldPassword })).toBe(true);
+  });
+  it("needs a password of twelve characters, a valid address and a well-formed code", async () => {
+    await expect(start({ password: "short" })).rejects.toThrow();
+    await expect(start({ email: "not an address" })).rejects.toThrow();
+    const { recoveryId } = await start();
+    await expect(confirm(recoveryId, "12345")).rejects.toThrow();
+    await expect(confirm("not-an-id", totp(secret))).rejects.toThrow();
+  });
+  it("lets only a few recoveries start in an hour", async () => {
+    for (let count = 0; count < 10; count += 1) await start();
+    await expect(start()).rejects.toMatchObject({ code: "rate_limited" });
+  });
+  it("is not there without a recovery token in the environment", async () => {
+    vi.stubEnv("OWNER_RECOVERY_TOKEN", "");
+    vi.resetModules();
+    const fresh = await import("../src/server/owner");
+    await expect(
+      fresh.startOwnerRecovery({ token: recoveryToken, email, password: newPassword }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });

@@ -8,6 +8,7 @@ process.env.S3_BUCKET ??= "aidesk";
 process.env.S3_ACCESS_KEY ??= "test-access";
 process.env.S3_SECRET_KEY ??= "test-secret";
 process.env.OWNER_CLAIM_TOKEN ??= "test-owner-claim-token-not-a-real-credential";
+process.env.OWNER_RECOVERY_TOKEN ??= "test-owner-recovery-token-not-a-real-credential";
 // The development database is private to the Compose network. Never guess a
 // host database: an unrelated local PostgreSQL may listen on the default port.
 const configured = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
