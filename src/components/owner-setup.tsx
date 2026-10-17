@@ -17,6 +17,7 @@ export function OwnerSetup({ claimed }: { claimed: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
   const [code, setCode] = useState("");
   const [claim, setClaim] = useState<Claim | null>(null);
   const [done, setDone] = useState(claimed);
@@ -40,6 +41,7 @@ export function OwnerSetup({ claimed }: { claimed: boolean }) {
     const parsed = response?.ok ? claimSchema.safeParse(await response.json()) : null;
     if (parsed?.success) {
       setPassword("");
+      setRepeat("");
       setClaim(parsed.data);
     } else setFailed(true);
     setBusy(false);
@@ -183,13 +185,31 @@ export function OwnerSetup({ claimed }: { claimed: boolean }) {
                   required
                 />
               </label>
+              <label>
+                {t("passwordRepeat")}
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={repeat}
+                  aria-invalid={repeat !== "" && repeat !== password}
+                  onChange={(event) => {
+                    setRepeat(event.target.value);
+                  }}
+                  required
+                />
+              </label>
               <p className="muted">{t("passwordHint")}</p>
+              {repeat !== "" && repeat !== password && (
+                <p className="error" role="alert">
+                  {t("passwordMismatch")}
+                </p>
+              )}
               {failed && (
                 <p className="error" role="alert">
                   {t("setupError")}
                 </p>
               )}
-              <button className="primary" type="submit" disabled={busy}>
+              <button className="primary" type="submit" disabled={busy || repeat !== password}>
                 {busy ? <LoaderCircle className="spin" size={17} /> : <ArrowRight size={17} />}
                 {t("continue")}
               </button>

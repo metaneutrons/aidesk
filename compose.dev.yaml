@@ -100,6 +100,7 @@ services:
       DEV_BOOTSTRAP: "true"
       DEV_OWNER_EMAIL: owner@aidesk.local
       DEV_OWNER_PASSWORD: ${DEV_OWNER_PASSWORD}
+      OWNER_RECOVERY_TOKEN: ${OWNER_RECOVERY_TOKEN}
       DEV_SMTP_HOST: mailpit
       DEV_SMTP_PORT: "1025"
       DEV_IMAP_HOST: greenmail
