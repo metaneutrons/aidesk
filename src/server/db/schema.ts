@@ -103,6 +103,30 @@ export const twoFactor = pgTable(
   },
   (t) => [index("two_factor_user_idx").on(t.userId), index("two_factor_secret_idx").on(t.secret)],
 );
+// Passkeys of owners, from the passkey plugin of Better Auth. A passkey is the second factor after the
+// password; it is never a way in on its own.
+export const passkey = pgTable(
+  "auth_passkey",
+  {
+    id: text("id").primaryKey(),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    credentialID: text("credential_id").notNull(),
+    counter: integer("counter").notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    aaguid: text("aaguid"),
+  },
+  (t) => [
+    index("passkey_user_idx").on(t.userId),
+    uniqueIndex("passkey_credential_idx").on(t.credentialID),
+  ],
+);
 export const ssoProvider = pgTable("sso_provider", {
   id: text("id").primaryKey(),
   issuer: text("issuer").notNull(),
