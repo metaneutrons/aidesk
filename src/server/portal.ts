@@ -20,6 +20,8 @@ import { emitEvent } from "./webhooks";
 import { markdownHtml } from "./markdown";
 import { getTicket } from "./operations";
 import { env } from "./env";
+import { fileRules, portalRules } from "../domain/limits";
+import { getLimits } from "./limits";
 import { permits, type Principal } from "../domain/permissions";
 // Portal grants give the requester of one ticket read access to that ticket's
 // public conversation. A link is derived, not stored: the identifier of the
@@ -28,7 +30,6 @@ import { permits, type Principal } from "../domain/permissions";
 // can carry the same link, a database copy does not contain any link, and a
 // new link (a higher epoch) replaces the earlier one. A grant also expires and
 // can be revoked. Changing the encryption key ends all links.
-const defaultDays = 30;
 const subkey = () =>
   createHmac("sha256", Buffer.from(env().ENCRYPTION_KEY, "hex"))
     .update("aidesk portal links v1")
@@ -66,9 +67,8 @@ async function manageable(principal: Principal, ticketId: string) {
     throw new DomainError("forbidden", 403);
   return ticket;
 }
-export const portalLinkInput = z.object({
-  days: z.number().int().min(1).max(90).default(defaultDays),
-});
+// Without `days` the link lasts what the owner set as the default (30 days until they change it).
+export const portalLinkInput = z.object({ days: z.number().int().min(1).max(90).optional() });
 // Issues a new link for the ticket's requester and invalidates an earlier one.
 // The link is returned once and can be derived again by the server for mail.
 export async function issuePortalGrant(
@@ -76,8 +76,9 @@ export async function issuePortalGrant(
   ticketId: string,
   input: unknown = {},
 ) {
-  const { days } = portalLinkInput.parse(input);
+  const asked = portalLinkInput.parse(input);
   const ticket = await manageable(principal, ticketId);
+  const days = asked.days ?? (await getLimits()).portalLinkDays;
   if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
   const expiresAt = new Date(Date.now() + days * 86_400_000);
   const email = ticket.requesterEmail.toLowerCase();
@@ -120,7 +121,7 @@ export async function portalLinkForMail(ticketId: string): Promise<string | null
   const [ticket] = await db().select().from(tickets).where(eq(tickets.id, ticketId));
   if (ticket?.junkAt !== null) return null;
   const email = ticket.requesterEmail.toLowerCase();
-  const expiresAt = new Date(Date.now() + defaultDays * 86_400_000);
+  const expiresAt = new Date(Date.now() + (await getLimits()).portalLinkDays * 86_400_000);
   const [row] = await db()
     .insert(participants)
     .values({ ticketId: ticket.id, email, verified: true, grantExpiresAt: expiresAt })
@@ -307,10 +308,10 @@ export interface PortalFile {
   contentType: string;
   content: Buffer;
 }
-// What a customer may send with one reply: the types and sizes that a received mail is held to, at
-// most ten files and 30 MB together. A file that is not accepted refuses the reply and says which
-// rule it broke, so that nothing is kept that the customer did not mean to send.
-export const portalFileLimits = { count: 10, bytes: 30 * 1024 * 1024 } as const;
+// What a customer may send with one reply: the types and the size of one file that a received mail is
+// held to, and a number of files and a total that are set for the portal (10 files and 30 MB together
+// until an owner changes them). A file that is not accepted refuses the reply and says which rule it
+// broke, so that nothing is kept that the customer did not mean to send.
 export async function portalReply(token: unknown, input: unknown, files: PortalFile[] = []) {
   const values = z
     .object({ markdown: z.string().trim().min(1).max(20_000), idempotencyKey: z.uuid() })
@@ -318,6 +319,9 @@ export async function portalReply(token: unknown, input: unknown, files: PortalF
     .parse(input);
   const grant = await resolvePortalGrant(token);
   if (!grant) throw new DomainError("not_found", 404);
+  const limits = await getLimits();
+  const portal = portalRules(limits);
+  const rules = { maxCount: portal.count, maxBytes: fileRules(limits).maxBytes };
   const sent = files.map((file, index) => {
     const filename = safeFilename(file.filename, index);
     const contentType = (file.contentType || "application/octet-stream").toLowerCase();
@@ -327,19 +331,17 @@ export async function portalReply(token: unknown, input: unknown, files: PortalF
       size: file.content.length,
       checksum: createHash("sha256").update(file.content).digest("hex"),
       content: file.content,
-      refusal: attachmentRefusal({ filename, contentType, size: file.content.length }, index),
+      refusal: attachmentRefusal(
+        { filename, contentType, size: file.content.length },
+        index,
+        rules,
+      ),
     };
   });
   const refused = sent.find((file) => file.refusal)?.refusal;
   if (refused) throw new DomainError(refused, 422);
-  if (
-    sent.length > portalFileLimits.count ||
-    sent.reduce((sum, file) => sum + file.size, 0) > portalFileLimits.bytes
-  )
-    throw new DomainError(
-      sent.length > portalFileLimits.count ? "attachment_count_exceeded" : "attachment_too_large",
-      422,
-    );
+  if (sent.reduce((sum, file) => sum + file.size, 0) > portal.bytes)
+    throw new DomainError("attachment_too_large", 422);
   // Stored before the transaction, like a received mail's files, under their checksum, and only
   // for a reply that the transaction may still refuse: storing the same file again is harmless.
   for (const file of sent)

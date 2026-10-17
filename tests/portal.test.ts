@@ -11,6 +11,7 @@ import {
   projects,
   tickets,
   translations,
+  workspaceSettings,
 } from "../src/server/db/schema";
 import {
   getPortalTicket,
@@ -24,6 +25,7 @@ import { POST as portalRoute } from "../src/app/api/portal/reply/route";
 import { getAttachment, getTicket } from "../src/server/operations";
 import { initializeStorage } from "../src/server/storage";
 import { env } from "../src/server/env";
+import { setLimits, useLimitsKey } from "../src/server/limits";
 import type { Principal } from "../src/domain/permissions";
 const projectId = randomUUID();
 const otherProject = randomUUID();
@@ -775,5 +777,110 @@ describe("portal reply route", () => {
         )
       ).status,
     ).toBe(409);
+  });
+});
+describe("the limits of the workspace on the customer page", () => {
+  const owner: Principal = {
+    id: "portal-limits-owner",
+    kind: "human",
+    active: true,
+    owner: true,
+    grants: [],
+  };
+  const text = (filename: string, size = 10) => ({
+    filename,
+    contentType: "application/pdf",
+    content: Buffer.alloc(size),
+  });
+  const MiB = 1024 * 1024;
+  async function withLimits(values: Parameters<typeof setLimits>[1], body: () => Promise<void>) {
+    const settingsKey = `limits-portal-${randomUUID().slice(0, 8)}`;
+    useLimitsKey(settingsKey);
+    try {
+      await setLimits(owner, values);
+      await body();
+    } finally {
+      await db().delete(workspaceSettings).where(eq(workspaceSettings.key, settingsKey));
+      useLimitsKey("limits");
+    }
+  }
+  it("hold a reply to the number of files, to the size of a file and to the total that were set", async () => {
+    await withLimits({ portalFiles: 2, portalTotalMiB: 2, intakeFileMiB: 1 }, async () => {
+      const id = await ticket();
+      const { token } = await issuePortalGrant(staff, id);
+      const reply = (files: ReturnType<typeof text>[]) =>
+        portalReply(token, { markdown: "Limits", idempotencyKey: randomUUID() }, files);
+      await expect(reply([text("a.pdf"), text("b.pdf"), text("c.pdf")])).rejects.toMatchObject({
+        code: "attachment_count_exceeded",
+        status: 422,
+      });
+      await expect(reply([text("big.pdf", MiB + 1)])).rejects.toMatchObject({
+        code: "attachment_too_large",
+      });
+      // Two files of 1 MiB are 2 MiB together and fit; the total is the limit for all of them.
+      expect((await reply([text("a.pdf", MiB), text("b.pdf", MiB)])).duplicate).toBe(false);
+    });
+    await withLimits({ portalTotalMiB: 1 }, async () => {
+      const id = await ticket();
+      const { token } = await issuePortalGrant(staff, id);
+      await expect(
+        portalReply(token, { markdown: "Total", idempotencyKey: randomUUID() }, [
+          text("a.pdf", MiB),
+          text("b.pdf", MiB),
+        ]),
+      ).rejects.toMatchObject({ code: "attachment_too_large" });
+    });
+  });
+  it("allow more than the old limit when an owner raises it", async () => {
+    await withLimits({ portalFiles: 12 }, async () => {
+      const id = await ticket();
+      const { token } = await issuePortalGrant(staff, id);
+      const sent = await portalReply(
+        token,
+        { markdown: "Eleven", idempotencyKey: randomUUID() },
+        Array.from({ length: 11 }, (_, index) => text(`f${String(index)}.pdf`)),
+      );
+      expect(sent.duplicate).toBe(false);
+    });
+  });
+  it("move the size that the route reads, and tell the customer the numbers", async () => {
+    const origin = new URL(env().APP_URL).origin;
+    await withLimits({ portalTotalMiB: 1 }, async () => {
+      const id = await ticket();
+      const { token } = await issuePortalGrant(staff, id);
+      const form = new FormData();
+      form.set("token", token);
+      form.set("markdown", "Size");
+      form.set("idempotencyKey", randomUUID());
+      const post = (length: number) =>
+        portalRoute(
+          new Request(`${origin}/api/portal/reply`, {
+            method: "POST",
+            headers: { origin, "content-length": String(length) },
+            body: form,
+          }),
+        );
+      // 1 MiB of files and 1 MiB for the rest of the form is what the route reads; more is not read.
+      expect((await post(3 * MiB)).status).toBe(413);
+      expect((await post(MiB + 1000)).status).toBe(201);
+    });
+  });
+  it("give a link the length that was set when none is asked for, and the asked length otherwise", async () => {
+    await withLimits({ portalLinkDays: 7 }, async () => {
+      const days = (date: Date) => (date.getTime() - Date.now()) / 86_400_000;
+      const first = await ticket();
+      const standard = await issuePortalGrant(staff, first);
+      expect(days(standard.expiresAt)).toBeGreaterThan(6.9);
+      expect(days(standard.expiresAt)).toBeLessThan(7.1);
+      const asked = await issuePortalGrant(staff, first, { days: 20 });
+      expect(days(asked.expiresAt)).toBeGreaterThan(19.9);
+      expect(days(asked.expiresAt)).toBeLessThan(20.1);
+      // The link in mail is made by the worker with the same standard.
+      const second = await ticket();
+      expect(await portalLinkForMail(second)).not.toBeNull();
+      const [row] = await db().select().from(participants).where(eq(participants.ticketId, second));
+      expect(days(row?.grantExpiresAt ?? new Date(0))).toBeGreaterThan(6.9);
+      expect(days(row?.grantExpiresAt ?? new Date(0))).toBeLessThan(7.1);
+    });
   });
 });

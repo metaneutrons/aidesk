@@ -13,8 +13,10 @@ import {
   messages,
   projects,
   tickets,
+  workspaceSettings,
 } from "../src/server/db/schema";
 import { acceptInbound, processIngress } from "../src/server/inbound";
+import { setLimits, useLimitsKey } from "../src/server/limits";
 import { getAttachment, getTicket, readAttachment, readOriginal } from "../src/server/operations";
 import { getObject, initializeStorage } from "../src/server/storage";
 import { tokenHash } from "../src/server/principal";
@@ -259,6 +261,49 @@ describe("inbound attachments", () => {
     expect(response.headers.get("content-disposition")).toBe(
       `attachment; filename="Bericht _M_rz_.pdf"; filename*=UTF-8''Bericht%20%22M%C3%A4rz%22.pdf`,
     );
+  });
+  it("holds a received mail to the limits that an owner set, and back to the old ones after", async () => {
+    const owner = {
+      id: "limits-owner",
+      kind: "human",
+      active: true,
+      owner: true,
+      grants: [],
+    } as const;
+    const settingsKey = `limits-attachments-${randomUUID().slice(0, 8)}`;
+    useLimitsKey(settingsKey);
+    try {
+      await setLimits(owner, { intakeFiles: 2, intakeFileMiB: 1 });
+      const conversation = await ingest(
+        await compose({
+          text: "Tight limits",
+          attachments: [
+            { filename: "a.txt", content: Buffer.from("a") },
+            { filename: "big.bin", content: Buffer.alloc(1024 * 1024 + 1) },
+            { filename: "c.txt", content: Buffer.from("c") },
+          ],
+        }),
+      );
+      const files = conversation.messages[0]?.attachments ?? [];
+      expect(files.map((file) => file.refusal)).toEqual([
+        null,
+        "attachment_too_large",
+        "attachment_count_exceeded",
+      ]);
+      // A mail that fits the old limits and not the new ones is refused for what it is; the same mail
+      // is accepted again when the limits are back at the standard.
+      await setLimits(owner, { intakeFiles: 25, intakeFileMiB: 15 });
+      const again = await ingest(
+        await compose({
+          text: "Old limits",
+          attachments: [{ filename: "big.bin", content: Buffer.alloc(1024 * 1024 + 1) }],
+        }),
+      );
+      expect(again.messages[0]?.attachments[0]?.refusal).toBeNull();
+    } finally {
+      await db().delete(workspaceSettings).where(eq(workspaceSettings.key, settingsKey));
+      useLimitsKey("limits");
+    }
   });
   it("refuses an oversized file and files beyond the limit but keeps the message", async () => {
     const conversation = await ingest(

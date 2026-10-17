@@ -1,6 +1,12 @@
+import { limitDefaults, MiB } from "./limits";
 // Rules for files received with a message. A refused file is not stored; its
 // metadata and the reason stay visible so nothing disappears silently.
-export const attachmentLimits = { maxCount: 25, maxBytes: 15 * 1024 * 1024 };
+// The values here are the defaults; an owner sets the limits of the installation (`domain/limits`), and
+// the callers pass them.
+export const attachmentLimits = {
+  maxCount: limitDefaults.intakeFiles,
+  maxBytes: limitDefaults.intakeFileMiB * MiB,
+};
 // Types that run code when opened on common desktop systems, including disk
 // images that are used to carry them past filters.
 const blockedExtensions = new Set([
@@ -62,14 +68,15 @@ export function safeFilename(name: string | undefined, index: number): string {
 export function attachmentRefusal(
   file: { filename: string; contentType: string; size: number },
   index: number,
+  rules: { maxCount: number; maxBytes: number } = attachmentLimits,
 ): AttachmentRefusal | null {
-  if (index >= attachmentLimits.maxCount) return "attachment_count_exceeded";
+  if (index >= rules.maxCount) return "attachment_count_exceeded";
   const extension = file.filename.includes(".")
     ? (file.filename.split(".").pop() ?? "").toLowerCase()
     : "";
   if (blockedExtensions.has(extension) || blockedTypes.has(file.contentType.toLowerCase()))
     return "attachment_type_blocked";
-  if (file.size > attachmentLimits.maxBytes) return "attachment_too_large";
+  if (file.size > rules.maxBytes) return "attachment_too_large";
   return null;
 }
 // What an agent may read of a file. The bytes an agent receives are capped, and

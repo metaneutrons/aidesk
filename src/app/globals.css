@@ -1814,3 +1814,23 @@ li.tag-chip button {
 .audit-log .settings-table code {
     overflow-wrap: anywhere;
 }
+
+/* The limits of the workspace: a grid of fields that wraps, each with its range and note below. */
+.limits-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+.limits-form label {
+    display: grid;
+    gap: 4px;
+}
+
+.limits-form .configuration-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
