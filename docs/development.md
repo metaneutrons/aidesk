@@ -104,6 +104,19 @@ code), a pending recovery allows five wrong codes, and ten recoveries can start 
 who has lost the password and the second factor has no way back in the product: the person who runs
 the deployment has to set a password in the database.
 
+An owner can register **passkeys** in the settings (the section "Passkeys", for owners only). After the
+password, the sign-in page offers the passkey first; the code of the authenticator app and the backup
+codes stay as the way back ("Use a code instead"). A passkey is a discoverable credential with user
+verification required, and it is the second factor only: the verification of an assertion needs the pending
+step that the password leaves (a signed cookie), the passkey has to belong to the user of that step, the
+device has to have verified the user, and the step is used up by it. Without the password step there is
+no passkey sign-in (the routes of the plugin answer 401), and registering needs a fresh session of an owner.
+A successful sign-in writes `owner.recovery_sign_in` with the method `passkey` to the audit. The relying
+party is the host name of `APP_URL`: a change of `APP_URL` to another host makes the registered passkeys
+unusable until they are added again. The routes are those of the passkey plugin of Better Auth under
+`/api/auth/passkey/*` and the status route `/api/auth/owner-passkey/status`; they are not part of the REST
+definition.
+
 TOTP comes from Better Auth's two-factor plugin. aidesk refuses `trustDevice`,
 which would skip TOTP for 30 days, and blocks enabling or disabling TOTP over the
 API. Backup codes work once. Known limitation: the plugin does not remember used
