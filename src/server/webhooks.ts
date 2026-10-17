@@ -1,3 +1,4 @@
+import { redactRecord } from "../domain/audit";
 import { isDeepStrictEqual } from "node:util";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
@@ -149,7 +150,7 @@ export async function applyWebhookPayload(
       actorId: actor,
       action: "webhook.create",
       targetId: created.id,
-      detail: { diff },
+      detail: redactRecord({ diff }),
     });
     return { target: created.id, version: created.version };
   }
@@ -179,7 +180,7 @@ export async function applyWebhookPayload(
     actorId: actor,
     action: kind,
     targetId: target,
-    detail: { diff },
+    detail: redactRecord({ diff }),
   });
   return { target: changed.id, version: changed.version };
 }

@@ -1,3 +1,4 @@
+import { redactRecord } from "../domain/audit";
 import { isDeepStrictEqual } from "node:util";
 import { ImapFlow } from "imapflow";
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
@@ -236,7 +237,7 @@ export async function applyConnectionPayload(
       actorId: actor,
       action: "connection.create",
       targetId: created.id,
-      detail: { diff },
+      detail: redactRecord({ diff }),
     });
     return { connectionId: created.id, version: created.version };
   }
@@ -265,7 +266,7 @@ export async function applyConnectionPayload(
     actorId: actor,
     action: kind,
     targetId: target,
-    detail: { diff },
+    detail: redactRecord({ diff }),
   });
   return { connectionId: changed.id, version: changed.version };
 }

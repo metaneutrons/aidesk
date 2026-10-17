@@ -125,6 +125,13 @@ import {
   updateConnection,
 } from "../connections";
 import { aiProfileWrite } from "../../domain/ai";
+import { auditFilter } from "../../domain/audit";
+import {
+  exportProjectAudit,
+  exportWorkspaceAudit,
+  listProjectAudit,
+  listWorkspaceAudit,
+} from "../audit-log";
 import { listAiProfiles, setAiProfile } from "../ai-profiles";
 import { listTextVersions, listTexts, setText, textWrite } from "../texts";
 import {
@@ -199,6 +206,19 @@ function changeReply(
 ) {
   if (result.validated || result.outcome === "unchanged") return new Reply(result, 200);
   return result.outcome === "proposed" ? new Reply(result, 202) : new Reply(result, applied);
+}
+// The audit as a table file; a cut export (more entries than the limit) says so in a header.
+function csv(file: { filename: string; content: Buffer; cut: boolean }): Response {
+  return new Response(new Uint8Array(file.content), {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Length": String(file.content.length),
+      "Content-Disposition": `attachment; filename="${file.filename}"`,
+      "X-Audit-Cut": String(file.cut),
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store",
+    },
+  });
 }
 function download(file: { filename: string; content: Buffer }): Response {
   const ascii = file.filename.replace(/[^\x20-\x7e]|["\\]/g, "_");
@@ -1480,5 +1500,59 @@ export const routes: Route[] = [
     response: list(out.webhookDelivery),
     run: ({ principal, params }) =>
       listWebhookDeliveries(principal, params.projectId ?? "", params.webhookId ?? ""),
+  },
+  {
+    id: "audit.list",
+    mcp: { tool: "audit_list" },
+    method: "GET",
+    path: "/projects/{projectId}/audit",
+    tag: "Audit",
+    summary:
+      "The audit of a project, newest first, filtered by actor, action (or a family such as ticket.), target and time; entries hold no ticket content, secrets or customer addresses",
+    access: "audit.read",
+    query: auditFilter,
+    response: out.auditPage,
+    run: ({ principal, params, query }) =>
+      listProjectAudit(principal, params.projectId ?? "", Object.fromEntries(query)),
+  },
+  {
+    id: "audit.export",
+    mcp: { not: "A file is not a tool result; audit_list reads the entries as data" },
+    method: "GET",
+    path: "/projects/{projectId}/audit/export",
+    tag: "Audit",
+    summary:
+      "The audit of a project as a CSV file with the same filters (the newest 10 000 entries); the export is an entry of the audit itself",
+    access: "audit.read",
+    query: auditFilter.omit({ limit: true, before: true }),
+    binary: true,
+    run: async ({ principal, params, query }) =>
+      csv(await exportProjectAudit(principal, params.projectId ?? "", Object.fromEntries(query))),
+  },
+  {
+    id: "audit.workspace",
+    mcp: { not: "The owner's own entries are read by a person" },
+    method: "GET",
+    path: "/audit",
+    tag: "Audit",
+    summary:
+      "The audit of the workspace (entries without a project: sign-ins and recoveries of the owner, operators, workspace switches); only the owner",
+    access: "owner",
+    query: auditFilter,
+    response: out.auditPage,
+    run: ({ principal, query }) => listWorkspaceAudit(principal, Object.fromEntries(query)),
+  },
+  {
+    id: "audit.workspace_export",
+    mcp: { not: "A file for the owner" },
+    method: "GET",
+    path: "/audit/export",
+    tag: "Audit",
+    summary: "The audit of the workspace as a CSV file with the same filters; only the owner",
+    access: "owner",
+    query: auditFilter.omit({ limit: true, before: true }),
+    binary: true,
+    run: async ({ principal, query }) =>
+      csv(await exportWorkspaceAudit(principal, Object.fromEntries(query))),
   },
 ];
