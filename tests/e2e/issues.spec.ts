@@ -44,13 +44,14 @@ test("writes a draft of an issue, reviews it and keeps it when the repository re
     "Printer prints grey pages\n\nSteps to reproduce: print a test page.",
   );
   await review.getByRole("button", { name: "Publish issue" }).click();
-  // The repository refuses; the draft stays and says so.
-  await expect(card).toContainText("not published (http_404)");
+  // The repository refuses; the draft stays and says so. The refusal is the first request to an address
+  // that the development server has not built yet, which takes longer than the default wait in CI.
+  await expect(card).toContainText("not published (http_404)", { timeout: 30_000 });
   await expect(card.getByLabel("Title")).toHaveValue("Printer prints grey pages");
   // Searching a repository that does not answer names it.
   await panel.getByRole("searchbox", { name: "Search issues" }).fill("printer");
   await panel.getByRole("button", { name: "Search", exact: true }).last().click();
-  await expect(panel.getByText(/acme\/app could not be read/)).toBeVisible();
+  await expect(panel.getByText(/acme\/app could not be read/)).toBeVisible({ timeout: 30_000 });
   await card.getByRole("button", { name: "Discard draft" }).click();
   await expect(panel.locator(".issue-draft")).toHaveCount(0);
 });
