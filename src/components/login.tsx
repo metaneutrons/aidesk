@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRight, Layers3, LoaderCircle } from "lucide-react";
+import { ArrowRight, KeyRound, Layers3, LoaderCircle } from "lucide-react";
+import { startAuthentication } from "@simplewebauthn/browser";
 type Step = "credentials" | "code";
 export function Login({
   returnTo,
@@ -21,7 +22,10 @@ export function Login({
   const [withPassword, setWithPassword] = useState(development);
   const [backup, setBackup] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<"login" | "code" | null>(null);
+  const [failed, setFailed] = useState<"login" | "code" | "passkey" | null>(null);
+  // After the password, an owner with a passkey is asked for it first; the code stays as the way back.
+  const [passkeyOffered, setPasskeyOffered] = useState(false);
+  const [withCode, setWithCode] = useState(false);
   // Until hydration the inputs are server HTML without handlers; React would
   // replace anything typed then with the initial state. Keep them disabled.
   const [hydrated, setHydrated] = useState(false);
@@ -58,6 +62,16 @@ export function Login({
       const data: unknown = await response.json();
       if (typeof data === "object" && data !== null && "twoFactorRedirect" in data) {
         setPassword("");
+        const status = await fetch("/api/auth/owner-passkey/status")
+          .then(async (answer) => (answer.ok ? ((await answer.json()) as unknown) : null))
+          .catch(() => null);
+        setPasskeyOffered(
+          typeof status === "object" &&
+            status !== null &&
+            "passkey" in status &&
+            status.passkey === true,
+        );
+        setWithCode(false);
         setStep("code");
         setBusy(false);
         return;
@@ -65,6 +79,24 @@ export function Login({
       window.location.assign(returnTo);
     } catch {
       setFailed("login");
+      setBusy(false);
+    }
+  }
+  async function verifyPasskey(): Promise<void> {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const options = await fetch("/api/auth/passkey/generate-authenticate-options");
+      if (!options.ok) throw new Error("passkey_options");
+      const optionsJSON = (await options.json()) as Parameters<
+        typeof startAuthentication
+      >[0]["optionsJSON"];
+      const assertion = await startAuthentication({ optionsJSON });
+      const response = await post("/passkey/verify-authentication", { response: assertion });
+      if (!response.ok) throw new Error("passkey_refused");
+      window.location.assign(returnTo);
+    } catch {
+      setFailed("passkey");
       setBusy(false);
     }
   }
@@ -98,7 +130,37 @@ export function Login({
       <section className="login-card">
         <div className="eyebrow">{development ? t("development") : "aidesk"}</div>
         <h1>{t("loginTitle")}</h1>
-        {step === "code" ? (
+        {step === "code" && passkeyOffered && !withCode ? (
+          <div>
+            <p>{t("passkeyPrompt")}</p>
+            {failed === "passkey" && (
+              <p className="error" role="alert">
+                {t("passkeyError")}
+              </p>
+            )}
+            <button
+              className="primary"
+              type="button"
+              disabled={busy || !hydrated}
+              onClick={() => {
+                void verifyPasskey();
+              }}
+            >
+              {busy ? <LoaderCircle className="spin" size={17} /> : <KeyRound size={17} />}
+              {t("passkeyUse")}
+            </button>
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => {
+                setWithCode(true);
+                setFailed(null);
+              }}
+            >
+              {t("passkeyCode")}
+            </button>
+          </div>
+        ) : step === "code" ? (
           <form
             onSubmit={(event) => {
               event.preventDefault();

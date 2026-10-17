@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { OwnerPasskeys } from "./owner-passkeys";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { ProjectAgentControls, WorkspaceControls } from "./agent-controls";
 import { Configuration } from "./configuration";
@@ -488,6 +489,7 @@ export function Settings({
             connectionsStamp={connectionsStamp}
           />
         ))}
+      {owner && <OwnerPasskeys locale={locale} />}
       {owner && <WorkspaceControls />}
       {managed
         .filter((grant) => grant.actions.includes("ticket.assign"))
