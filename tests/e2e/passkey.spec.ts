@@ -40,7 +40,10 @@ test("an owner adds a passkey in the settings, signs in with it after the passwo
   await section.getByRole("button", { name: "Add passkey" }).click();
   await expect(section.getByText("The passkey was added.")).toBeVisible();
   await expect(section.getByRole("listitem").filter({ hasText: "E2E key" })).toBeVisible();
+  // The legacy mode scans in this page: the default opens a second page in the context, which was seen not to
+  // come back while the context has a session of the virtual authenticator (the test ran into its timeout).
   const scan = await new AxeBuilder({ page })
+    .setLegacyMode(true)
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .exclude("[data-base-ui-focus-guard]")
     .analyze();
