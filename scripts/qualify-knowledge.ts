@@ -121,14 +121,12 @@ async function main() {
   await db()
     .insert(projects)
     .values({ id: projectId, name: "Qualification of knowledge", slug: `qualify-${projectId}` });
-  await db()
-    .insert(user)
-    .values({
-      id: me.id,
-      name: "Qualification",
-      email: "qualify-knowledge@example.test",
-      emailVerified: true,
-    });
+  await db().insert(user).values({
+    id: me.id,
+    name: "Qualification",
+    email: "qualify-knowledge@example.test",
+    emailVerified: true,
+  });
   await db()
     .insert(memberships)
     .values({ userId: me.id, projectId, actions: [...actions] });
