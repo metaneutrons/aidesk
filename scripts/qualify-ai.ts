@@ -3,7 +3,11 @@
 // boundary as the product, with the result of each, the usage and the profile revision.
 //
 //   QUALIFY_KIND=anthropic|openai|google QUALIFY_MODEL=<model> QUALIFY_KEY=<key> \
+//     [QUALIFY_ENDPOINT=<address of a gateway>] [QUALIFY_PAUSE_MS=<wait after each fixture>] \
 //     pnpm exec tsx scripts/qualify-ai.ts [out.md]
+//
+// An endpoint is for a provider that speaks the protocol of one of the three, such as a gateway of
+// a university (`QUALIFY_KIND=openai`); a provider that limits requests per minute needs a longer wait.
 //
 // It needs the private development stack (database and storage), makes its own project under
 // `qualify-` and removes it at the end. The key is read from the environment, is not printed and is
@@ -46,6 +50,7 @@ const kind = process.env.QUALIFY_KIND ?? "";
 const model = process.env.QUALIFY_MODEL ?? "";
 const key = process.env.QUALIFY_KEY ?? "";
 const pause = Number(process.env.QUALIFY_PAUSE_MS ?? "500");
+const endpoint = process.env.QUALIFY_ENDPOINT ?? "";
 if (!["anthropic", "openai", "google"].includes(kind) || !model || !key)
   throw new Error("Set QUALIFY_KIND, QUALIFY_MODEL and QUALIFY_KEY.");
 if (process.env.DEV_BOOTSTRAP !== "true" || process.env.NODE_ENV !== "development")
@@ -216,7 +221,7 @@ async function main() {
       direction: "ai",
       name: `${kind} qualification`,
       status: "ready",
-      config: {},
+      config: endpoint ? { endpoint } : {},
       secretCiphertext: seal(JSON.stringify({ apiKey: key }), env().ENCRYPTION_KEY),
     })
     .returning({ id: connections.id });
