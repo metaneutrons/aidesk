@@ -32,6 +32,7 @@ x-environment: &environment
   S3_SECRET_KEY: ${S3_SECRET_KEY:?}
   # Taken from the environment when it is set there, and not passed on otherwise.
   OWNER_CLAIM_TOKEN:
+  OWNER_RECOVERY_TOKEN:
 services:
   postgres:
     profiles: [bundled]

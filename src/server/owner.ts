@@ -3,7 +3,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { hashPassword, symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { z } from "zod";
 import { db } from "./db";
-import { account, audit, twoFactor, user, verification } from "./db/schema";
+import { account, audit, session, twoFactor, user, verification } from "./db/schema";
 import { DomainError } from "./errors";
 import { env } from "./env";
 // Owners are the only operators with a local credential: password plus TOTP.
@@ -183,4 +183,173 @@ export async function confirmOwnerClaim(input: unknown) {
     await tx.insert(audit).values({ actorId: id, action: "owner.claim", targetId: id });
   });
   return { id, email: pending.email };
+}
+
+// Recovery of the password of an owner. It works like the claim of the first owner: step one takes
+// the secret of the deployment, the address and a new password and prepares a pending recovery;
+// step two needs a code of the authenticator or a backup code and sets the password. Nothing in the
+// answers tells whether an address belongs to an owner, and a pending recovery allows a few wrong
+// codes only.
+function recoveryTokenMatches(given: string): boolean {
+  const configured = env().OWNER_RECOVERY_TOKEN;
+  if (!configured) return false;
+  const expected = createHash("sha256").update(configured).digest();
+  return timingSafeEqual(expected, createHash("sha256").update(given).digest());
+}
+const recoveryPendingSchema = z.object({
+  userId: z.string().nullable(),
+  passwordHash: z.string(),
+  failed: z.number().int().min(0),
+});
+const recoveryAttempts = 5;
+const recoveryStartsPerHour = 10;
+const recoveryStartInput = z.object({
+  token: z.string().min(1).max(512),
+  email: z.email().max(254),
+  password: z.string().min(12).max(128),
+});
+export async function startOwnerRecovery(input: unknown) {
+  const values = recoveryStartInput.parse(input);
+  if (!recoveryTokenMatches(values.token)) throw new DomainError("forbidden", 403);
+  const since = new Date(Date.now() - 60 * 60_000);
+  const [started] = await db()
+    .select({ count: sql<number>`count(*)::int` })
+    .from(verification)
+    .where(
+      and(
+        sql`${verification.identifier} like 'owner-recovery-%'`,
+        gt(verification.createdAt, since),
+      ),
+    );
+  if ((started?.count ?? 0) >= recoveryStartsPerHour) throw new DomainError("rate_limited", 429);
+  const email = values.email.trim().toLowerCase();
+  const [candidate] = await db()
+    .select({
+      id: user.id,
+      active: user.active,
+      owner: user.owner,
+      twoFactor: user.twoFactorEnabled,
+    })
+    .from(user)
+    .where(eq(user.email, email))
+    .limit(1);
+  const known = candidate?.active === true && candidate.owner && candidate.twoFactor;
+  // The hash is made in every case, so the work is the same for any address.
+  const pending = {
+    userId: known ? candidate.id : null,
+    passwordHash: await hashPassword(values.password),
+    failed: 0,
+  };
+  const recoveryId = randomUUID();
+  await db()
+    .insert(verification)
+    .values({
+      id: randomUUID(),
+      identifier: `owner-recovery-${recoveryId}`,
+      value: await symmetricEncrypt({
+        key: env().BETTER_AUTH_SECRET,
+        data: JSON.stringify(pending),
+      }),
+      expiresAt: new Date(Date.now() + 10 * 60_000),
+    });
+  return { recoveryId };
+}
+const recoveryConfirmInput = z.object({
+  recoveryId: z.uuid(),
+  token: z.string().min(1).max(512),
+  code: z
+    .string()
+    .trim()
+    .regex(/^(\d{6}|[0-9a-f]{5}-[0-9a-f]{5})$/),
+});
+const sameText = (left: string, right: string): boolean => {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+export async function confirmOwnerRecovery(input: unknown) {
+  const values = recoveryConfirmInput.parse(input);
+  if (!recoveryTokenMatches(values.token)) throw new DomainError("forbidden", 403);
+  const identifier = `owner-recovery-${values.recoveryId}`;
+  const [row] = await db()
+    .select()
+    .from(verification)
+    .where(and(eq(verification.identifier, identifier), gt(verification.expiresAt, new Date())))
+    .limit(1);
+  if (!row) throw new DomainError("not_found", 404);
+  const pending = recoveryPendingSchema.parse(
+    JSON.parse(await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: row.value })),
+  );
+  const refuse = async (): Promise<never> => {
+    const failed = pending.failed + 1;
+    if (failed >= recoveryAttempts)
+      await db().delete(verification).where(eq(verification.id, row.id));
+    else
+      await db()
+        .update(verification)
+        .set({
+          value: await symmetricEncrypt({
+            key: env().BETTER_AUTH_SECRET,
+            data: JSON.stringify({ ...pending, failed }),
+          }),
+        })
+        .where(eq(verification.id, row.id));
+    throw new DomainError("invalid_input", 400);
+  };
+  if (!pending.userId) return refuse();
+  const ownerId = pending.userId;
+  const [factor] = await db()
+    .select()
+    .from(twoFactor)
+    .where(eq(twoFactor.userId, ownerId))
+    .limit(1);
+  if (!factor) return refuse();
+  const secret = await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: factor.secret });
+  const spare = z
+    .array(z.string())
+    .parse(
+      JSON.parse(
+        await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: factor.backupCodes }),
+      ),
+    );
+  const byBackup = values.code.includes("-");
+  const matched = byBackup ? spare.find((code) => sameText(code, values.code)) : undefined;
+  if (byBackup ? matched === undefined : !totpMatches(secret, values.code)) return refuse();
+  await db().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('aidesk-owner-recovery'))`);
+    const consumed = await tx
+      .delete(verification)
+      .where(eq(verification.id, row.id))
+      .returning({ id: verification.id });
+    if (consumed.length === 0) throw new DomainError("not_found", 404);
+    const changed = await tx
+      .update(account)
+      .set({ password: pending.passwordHash, updatedAt: new Date() })
+      .where(and(eq(account.userId, ownerId), eq(account.providerId, "credential")))
+      .returning({ id: account.id });
+    if (changed.length === 0) throw new DomainError("not_found", 404);
+    await tx.delete(session).where(eq(session.userId, ownerId));
+    await tx
+      .update(twoFactor)
+      .set({
+        failedVerificationCount: 0,
+        lockedUntil: null,
+        ...(matched === undefined
+          ? {}
+          : {
+              backupCodes: await symmetricEncrypt({
+                key: env().BETTER_AUTH_SECRET,
+                data: JSON.stringify(spare.filter((code) => code !== matched)),
+              }),
+            }),
+      })
+      .where(eq(twoFactor.id, factor.id));
+    await tx.insert(audit).values({
+      actorId: ownerId,
+      action: "owner.password_recovered",
+      targetId: ownerId,
+      detail: { method: byBackup ? "backup_code" : "totp" },
+    });
+  });
+  return { recovered: true };
 }

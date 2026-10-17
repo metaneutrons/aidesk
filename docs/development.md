@@ -90,7 +90,19 @@ claim. Step two creates the owner only with a valid TOTP code, so an owner never
 exists without a second factor. An advisory lock serialises concurrent claims;
 once an owner exists, the setup endpoints refuse every request. The claim and
 every recovery sign-in (TOTP or backup code) are written to the audit log. Remove
-`OWNER_CLAIM_TOKEN` after the claim.
+`OWNER_CLAIM_TOKEN` after the claim. The setup asks for the password twice.
+
+An owner who lost the password sets a new one at `/recover` (a link on the sign-in with a password).
+The page needs `OWNER_RECOVERY_TOKEN` (32 characters or more, a secret of the deployment that can stay
+set; without it the recovery does not exist, and the claim token does not work for it). Step one takes
+the token, the address and the new password (twice) and prepares a pending recovery, kept encrypted for ten
+minutes; step two needs a code of the authenticator or an unused backup code and sets the password.
+The sessions of the owner end, a used backup code is spent, a lock of the second factor is lifted, and
+`owner.password_recovered` is written to the audit log. The answers do not tell whether an address belongs
+to an owner (a wrong address, an operator and an owner whose second factor is off are refused like a wrong
+code), a pending recovery allows five wrong codes, and ten recoveries can start in an hour. An owner
+who has lost the password and the second factor has no way back in the product: the person who runs
+the deployment has to set a password in the database.
 
 TOTP comes from Better Auth's two-factor plugin. aidesk refuses `trustDevice`,
 which would skip TOTP for 30 days, and blocks enabling or disabling TOTP over the
