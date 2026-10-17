@@ -5,9 +5,11 @@ import { sso } from "@better-auth/sso";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { hashPassword } from "better-auth/crypto";
 import { twoFactor } from "better-auth/plugins";
+import { limitBounds } from "../domain/limits";
 import { db } from "./db";
 import * as schema from "./db/schema";
 import { env } from "./env";
+import { getLimits } from "./limits";
 import { passwordSignInAllowed } from "./owner";
 import { auditPasskeySignIn, guardPasskeyRoutes, passkeys2FA, passkeyStatus } from "./passkey";
 function createAuth() {
@@ -20,7 +22,26 @@ function createAuth() {
     // Only owners with TOTP may use a password (see hooks.before); it is their
     // recovery path when the identity provider is unavailable.
     emailAndPassword: { enabled: true, disableSignUp: true },
-    session: { expiresIn: 60 * 60 * 12, cookieCache: { enabled: false } },
+    // How long a session lasts is a limit that an owner sets (`sessionHours`, 12 by default), read when a
+    // session starts and written as its `expiresAt`, which is what every request checks. The values
+    // here are the ceiling: the cookie lives as long as the longest allowed session, and the session never
+    // renews itself (`updateAge` is longer than anything), so the end that was set at the start stands.
+    session: {
+      expiresIn: limitBounds.sessionHours[1] * 3600,
+      updateAge: 60 * 60 * 24 * 365 * 10,
+      cookieCache: { enabled: false },
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          before: async () => ({
+            data: {
+              expiresAt: new Date(Date.now() + (await getLimits()).sessionHours * 3_600_000),
+            },
+          }),
+        },
+      },
+    },
     // Provider tokens are not needed after sign-in but are kept by the
     // account model; store them encrypted.
     account: { encryptOAuthTokens: true },

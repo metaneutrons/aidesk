@@ -651,6 +651,22 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "workspace.limits_get": {
+    operation: "readLimits",
+    action: "workspace.limits.manage",
+    ui: "src/components/limits.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "workspace.limits_set": {
+    operation: "setLimits",
+    action: "workspace.limits.manage",
+    ui: "src/components/limits.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "agents.revoke": {
     operation: "revokeAgentToken",
     action: "agent.manage",

@@ -1286,6 +1286,46 @@ a customer's name as the reason of a rejection or into a tag has put it there (t
 content is not judged); entries are never deleted or changed by the product, and there is no retention
 period yet (M8).
 
+## Limits of the workspace
+
+Six numbers that were constants of the code are limits that the owner sets in the settings ("Limits of the
+workspace") and over REST (`GET` and `PUT /api/v1/workspace/limits`, owner only; naming one limit leaves
+the others; MCP does not offer them). They are stored in one row of the workspace settings; a missing row,
+a missing field or a stored value that is not an integer inside its bounds means the default, so a damaged
+row cannot open a limit. A change that alters a value is an audit entry `workspace.limits` with the old and
+the new value of each limit; one that alters nothing writes nothing. Defaults keep the old behaviour.
+
+| Limit            | Default | Range   | What it holds                                                              |
+| ---------------- | ------- | ------- | -------------------------------------------------------------------------- |
+| `intakeFiles`    | 25      | 1 - 50  | Files of one received mail; further files are kept as a refusal            |
+| `intakeFileMiB`  | 15      | 1 - 18  | Largest file of a received mail and of a reply of a customer, in MiB       |
+| `portalFiles`    | 10      | 1 - 25  | Files with one reply of a customer; the reply is refused as a whole        |
+| `portalTotalMiB` | 30      | 1 - 30  | The files of one reply of a customer together, in MiB                      |
+| `sessionHours`   | 12      | 1 - 720 | How long a sign-in lasts                                                   |
+| `portalLinkDays` | 30      | 1 - 90  | Length of a link to the customer page when none is asked for, also in mail |
+
+The ranges follow what carries the value. A file of a received mail has to fit into the raw mail that is
+accepted (25 MiB, and base64 makes a file a third larger), so 18 MiB is the highest file size. The reply of a
+customer has to pass the proxy in front of the product (40 MB in `Caddyfile.production`) and the route reads
+at most `portalTotalMiB` plus 1 MiB of a form, so 30 MiB is the highest total; whoever puts another proxy in
+front has to let that much through. A session cannot last longer than the cookie that carries it.
+
+A change applies to what comes after it. Files that were refused stay refused (the refusal and its reason
+are kept with the message), links that were issued keep their end, and a session that is running keeps
+its end. The length of a session is written as the `expiresAt` of a session when it starts (a database
+hook of the sign-in); the cookie lives as long as the longest allowed session (30 days) and the session
+never renews itself, so the end that was set at the start stands. "Back to the standard" in the settings
+saves the default values, which are then the chosen values of the owner like any other.
+
+The portal tells the customer the numbers that apply ("Up to 10 files and 30 MB together"), and the
+refusal of a file at intake no longer names a size ("not stored, larger than the limit for files"), since
+the limit may have been another one when the mail came in.
+
+Not covered: the other size limits stay constants (a raw mail of 25 MiB, a reply of an operator of 100 000
+characters, the sizes of what a model reads, the body of MCP); an owner who raises `portalTotalMiB` after
+raising the limit of the proxy only has to change the one; the limit of a mail of Cloudflare Email Routing
+itself is not known here.
+
 ## Webhooks
 
 A project can have events delivered to HTTPS endpoints of its own, so that an

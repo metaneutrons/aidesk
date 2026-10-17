@@ -82,6 +82,8 @@ const notCalled: Record<string, string> = {
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "audit.workspace_export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
+  "workspace.limits_set":
+    "sets a limit of the whole installation, which would change what the tests that run beside check; covered by the limits tests",
   "workspace.controls_set":
     "sets a switch of the whole installation, which would stop the agents or the mail of the tests that run beside; covered by the controls tests",
   "tickets.translate_draft":
@@ -314,6 +316,7 @@ test("answers every documented route in the published shape, with real data", as
   await call("projects.agent_stop", { params: { projectId: project }, data: { stopped: false } });
   await call("projects.resume_agents", { params: { projectId: project }, data: {} });
   await call("workspace.controls_get");
+  await call("workspace.limits_get");
   await call("audit.list", { params: { projectId: project }, query: { limit: "5" } });
   await call("audit.workspace", { query: { limit: "5" } });
   await call("tickets.assign", {

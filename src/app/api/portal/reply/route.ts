@@ -1,7 +1,9 @@
 import { ZodError } from "zod";
 import { DomainError } from "../../../../server/errors";
 import { env } from "../../../../server/env";
-import { portalFileLimits, portalReply, type PortalFile } from "../../../../server/portal";
+import { getLimits } from "../../../../server/limits";
+import { portalRules } from "../../../../domain/limits";
+import { portalReply, type PortalFile } from "../../../../server/portal";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 // The portal's only write: a customer's reply, as JSON or, with files, as a form. It belongs to no
@@ -16,7 +18,7 @@ async function parts(
   }
   // A body far over what a reply may hold is not read.
   const length = Number(request.headers.get("content-length"));
-  if (Number.isFinite(length) && length > portalFileLimits.bytes + 1024 * 1024)
+  if (Number.isFinite(length) && length > portalRules(await getLimits()).bytes + 1024 * 1024)
     throw new DomainError("attachment_too_large", 413);
   const form = await request.formData();
   const files: PortalFile[] = [];
