@@ -10,6 +10,9 @@ test("shows a webhook with its last delivery, sends a test event and disables it
   signIn,
   baseURL,
 }) => {
+  // The worker delivers between its other jobs, and in CI three browsers queue theirs; the delivery took
+  // between 12 and 38 seconds in one run, so the test and the wait for it get more than the default.
+  test.setTimeout(150_000);
   const { alpha } = desk.projects;
   const headers = { origin: baseURL ?? "" };
   const name = `Hook ${desk.run}`;
@@ -48,7 +51,7 @@ test("shows a webhook with its last delivery, sends a test event and disables it
         .filter({ hasText: name })
         .getByText(/Failed .* \(\w+\), trying again/),
     ).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 30_000 });
+  }).toPass({ timeout: 100_000 });
   const scan = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .exclude("[data-base-ui-focus-guard]")
