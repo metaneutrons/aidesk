@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Layers3, LoaderCircle } from "lucide-react";
 import { z } from "zod";
+import { QrCode } from "./qr-code";
 const claimSchema = z.object({
   claimId: z.uuid(),
   totpURI: z.string(),
@@ -84,9 +85,16 @@ export function OwnerSetup({ claimed }: { claimed: boolean }) {
             }}
           >
             <fieldset disabled={!hydrated}>
-              <p>{t("setupSecret")}</p>
-              <code className="setup-secret">{claim.secret.replace(/(.{4})/g, "$1 ").trim()}</code>
-              <a href={claim.totpURI}>{claim.totpURI.split("?")[0]}</a>
+              <p>{t("setupScan")}</p>
+              <QrCode value={claim.totpURI} label={t("setupQrLabel")} />
+              <details className="setup-fallback">
+                <summary>{t("setupNoScan")}</summary>
+                <p>{t("setupSecret")}</p>
+                <code className="setup-secret">
+                  {claim.secret.replace(/(.{4})/g, "$1 ").trim()}
+                </code>
+                <a href={claim.totpURI}>{claim.totpURI.split("?")[0]}</a>
+              </details>
               <p>{t("setupBackupCodes")}</p>
               <ul className="backup-codes">
                 {claim.backupCodes.map((backupCode) => (
