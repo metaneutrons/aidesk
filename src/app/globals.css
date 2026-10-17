@@ -1035,6 +1035,22 @@ label {
     left: 50%;
     transform: translate(-50%, -50%);
 }
+.setup-qr {
+    width: 200px;
+    max-width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    background: #fff;
+}
+.setup-qr svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.setup-fallback summary {
+    cursor: pointer;
+    margin-bottom: 8px;
+}
 .setup-secret {
     display: block;
     padding: 10px 12px;
