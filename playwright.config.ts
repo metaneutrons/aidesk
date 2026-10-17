@@ -7,6 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
 const deployed = Boolean(process.env.E2E_FIXTURE_ENV_FILE);
 export default defineConfig({
   testDir: "tests/e2e",
+  globalSetup: "./tests/e2e/warm-up.ts",
   testIgnore: deployed
     ? ["inbound.spec.ts", "sso.spec.ts", "designs.spec.ts", "webhooks.spec.ts"]
     : [],
