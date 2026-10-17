@@ -1,3 +1,4 @@
+import { getLimits } from "../../../server/limits";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
@@ -27,6 +28,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   }
   // The project's own wording replaces the built-in text of the page.
   const own = view ? await activeTexts(view.projectId, locale) : {};
+  const limits = await getLimits();
   // The page needs the ticket and its messages, not which project they belong to.
   const shown = view
     ? (Object.fromEntries(Object.entries(view).filter(([name]) => name !== "projectId")) as Omit<
@@ -44,6 +46,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       <Portal
         token={token}
         locale={locale}
+        fileLimits={{ count: limits.portalFiles, mib: limits.portalTotalMiB }}
         view={
           shown
             ? {
