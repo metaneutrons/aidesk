@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db } from "../src/server/db";
@@ -94,6 +94,7 @@ beforeAll(async () => {
     });
 });
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await wipe();
   await db().delete(agents).where(eq(agents.id, agentId));
   await db().delete(user).where(eq(user.id, userId));
@@ -279,6 +280,9 @@ describe("what an entry may show", () => {
   });
   it("is not given a query or credentials of a webhook address to store in the first place", async () => {
     await wipe();
+    // A development address needs the development stack; CI is not one, the development container is.
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("DEV_BOOTSTRAP", "true");
     const manager = person("manager", "human", projectA, [
       "project.read",
       "integration.manage",
