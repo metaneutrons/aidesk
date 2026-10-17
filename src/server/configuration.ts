@@ -1,3 +1,4 @@
+import { redactRecord } from "../domain/audit";
 import { isDeepStrictEqual } from "node:util";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
@@ -210,7 +211,7 @@ export async function putConfig(
         actorId: principal.id,
         action: "config.propose",
         targetId: change.id,
-        detail: { baseVersion: row.configVersion, diff },
+        detail: redactRecord({ baseVersion: row.configVersion, diff }),
       });
       await emitEvent(tx, project, "change.proposed", {
         changeId: change.id,
@@ -236,7 +237,7 @@ export async function putConfig(
       actorId: principal.id,
       action: "config.apply",
       targetId: change.id,
-      detail: { version, diff },
+      detail: redactRecord({ version, diff }),
     });
     return { outcome: "applied", version, changeId: change.id, diff, validated: false };
   };
@@ -371,7 +372,7 @@ export async function decideConfigChange(principal: Principal, changeId: string,
         actorId: principal.id,
         action: "config.reject",
         targetId: change,
-        detail: { reason: decided.reason },
+        detail: redactRecord({ reason: decided.reason }),
       });
       return { value: { id: change, status: "rejected" as const, version: row.configVersion } };
     }
@@ -399,7 +400,7 @@ export async function decideConfigChange(principal: Principal, changeId: string,
         actorId: principal.id,
         action: "config.approve",
         targetId: change,
-        detail: { kind: proposal.kind, diff: proposal.diff },
+        detail: redactRecord({ kind: proposal.kind, diff: proposal.diff }),
       });
       return { value: { id: change, status: "applied" as const, version: applied.version } };
     }
@@ -421,7 +422,7 @@ export async function decideConfigChange(principal: Principal, changeId: string,
       actorId: principal.id,
       action: "config.approve",
       targetId: change,
-      detail: { version, diff: proposal.diff },
+      detail: redactRecord({ version, diff: proposal.diff }),
     });
     return { value: { id: change, status: "applied" as const, version } };
   });

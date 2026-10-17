@@ -20,6 +20,7 @@ describe("capability source registry", () => {
       ...(await import("../src/server/operations")),
       ...(await import("../src/server/email-design")),
       ...(await import("../src/server/assist")),
+      ...(await import("../src/server/audit-log")),
     } as Record<string, unknown>;
     const registered = new Set(
       Object.values(capabilities).map((declaration) => declaration.operation),

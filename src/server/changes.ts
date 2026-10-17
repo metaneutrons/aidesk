@@ -1,3 +1,4 @@
+import { redactRecord } from "../domain/audit";
 import { and, eq } from "drizzle-orm";
 import type { ConfigDiffEntry } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
@@ -123,7 +124,7 @@ export async function submitChange(
         actorId: principal.id,
         action: "change.propose",
         targetId: change.id,
-        detail: { kind: spec.kind, target: prepared.target, diff },
+        detail: redactRecord({ kind: spec.kind, target: prepared.target, diff }),
       });
       await emitEvent(tx, project, "change.proposed", {
         changeId: change.id,

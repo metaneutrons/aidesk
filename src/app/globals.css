@@ -1771,3 +1771,46 @@ li.tag-chip button {
 .ticket-tools .tags {
     gap: 6px;
 }
+
+/* The audit: a closed block until it is opened, filters in a grid that wraps, and the detail of an entry
+   as code that wraps instead of widening the table. */
+.audit-log summary {
+    cursor: pointer;
+}
+
+.audit-log summary h3 {
+    display: inline;
+}
+
+.audit-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    align-items: start;
+    margin: 12px 0;
+}
+
+.audit-filters label {
+    display: grid;
+    gap: 4px;
+}
+
+.audit-filters .configuration-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.audit-detail {
+    max-width: 480px;
+    margin: 4px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+}
+
+.audit-log .settings-table code {
+    overflow-wrap: anywhere;
+}
