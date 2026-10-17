@@ -9,6 +9,7 @@ import { db } from "./db";
 import * as schema from "./db/schema";
 import { env } from "./env";
 import { passwordSignInAllowed } from "./owner";
+import { auditPasskeySignIn, guardPasskeyRoutes, passkeys2FA, passkeyStatus } from "./passkey";
 function createAuth() {
   return betterAuth({
     appName: "aidesk",
@@ -28,9 +29,15 @@ function createAuth() {
     plugins: [
       sso({ domainVerification: { enabled: true }, disableImplicitSignUp: true }),
       twoFactor({ issuer: "aidesk" }),
+      passkeys2FA(),
+      passkeyStatus(),
     ],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path.startsWith("/passkey/")) {
+          await guardPasskeyRoutes(ctx.path, ctx as Parameters<typeof guardPasskeyRoutes>[1]);
+          return;
+        }
         if (ctx.path !== "/sign-in/email") return;
         const body: unknown = ctx.body;
         const email =
@@ -51,6 +58,8 @@ function createAuth() {
       }),
       after: createAuthMiddleware(async (ctx) => {
         const newSession = ctx.context.newSession;
+        if (newSession && ctx.path === "/passkey/verify-authentication")
+          await auditPasskeySignIn(newSession.user.id);
         if (
           newSession &&
           (ctx.path === "/two-factor/verify-totp" || ctx.path === "/two-factor/verify-backup-code")
