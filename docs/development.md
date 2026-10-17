@@ -1611,6 +1611,21 @@ deployment tool.
   nothing but the web server is published. TLS is for a proxy in front; the standalone
   server's `KEEP_ALIVE_TIMEOUT` is 65 000 ms here, longer than the idle time of common
   proxies.
+- **Proxy and TLS:** the profile `proxy` (`COMPOSE_PROFILES=bundled,proxy`) adds Caddy in front of the web
+  server, with the configuration in `config/caddy/Caddyfile.production`. `SITE_ADDRESS` is the host name that the
+  product is reached at; for a public name Caddy gets and renews a certificate from Let's Encrypt by itself, and
+  ports 80 and 443 (TCP, and 443 for HTTP/3) have to reach it. It redirects HTTP to HTTPS, sends
+  `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` and `X-Frame-Options`, sends no
+  `Server` header, refuses a body of more than 40 MB (the largest that a route reads is the reply of a customer
+  with files, 31 MB) and does not buffer the streaming of MCP. A client address in `X-Forwarded-For` is replaced
+  by the address of the connection (the default of Caddy for a client that is not a declared proxy; the
+  check does not test it), because the limits of sign-ins count by it and no proxy in front of this
+  one is declared; behind a load balancer of your own that has to be changed. For a check on one machine,
+  `SITE_ADDRESS=localhost` with `TLS_DIRECTIVE="tls internal"` gets a certificate from Caddy's own CA.
+  `PROXY_HTTP_PORT` and `PROXY_HTTPS_PORT` change the ports, `CADDY_GLOBAL_OPTIONS` takes lines such as
+  `email ops@example.org`. The image is pinned by digest; the certificates are in the volume `caddy-data`,
+  which a backup of the database and the objects does not contain (a lost volume means new certificates, and
+  Let's Encrypt limits those per name and week).
 
 Checked on 2026-10-15 from a clean state with generated throwaway values: the project came up
 with `migrate` ending successfully, `app` healthy and `worker` running; `/api/health/ready`
@@ -1619,7 +1634,6 @@ refused, a wrong owner token was refused and the right one started a claim; the 
 passed inside the worker with its read-only root; data in the database survived stopping and
 starting the stack. The first run showed that a clean installation could not become ready,
 because only the development seed created the bucket; `scripts/migrate.ts` does it now.
-Not done: TLS and a proxy.
 
 #### Backup and restore
 
@@ -1646,7 +1660,15 @@ silicon laptop with the image built, bundled PostgreSQL and storage and almost n
 after 7 s from a clean state, 1 s after a restart of the web server and the worker, 4 s from
 the start of a restore to ready, a backup in under a second. These are measurements of the
 mechanics on this machine and not recovery targets: the time of a restore grows with the
-data. A container that is killed by hand (`docker kill`) stays down under the policy
+data. With the proxy on and `BULK_TICKETS=20000 BULK_OBJECTS=3000` (20 001 tickets, 60 001 messages,
+70 MB in the database, 3 003 objects of 50 KB) the same run on 2026-10-17 took 12 s from a clean state to
+ready, a backup of 10 s, and 14 s from the start of a restore to ready; the counts after the restore were the
+counts before it. That is 150 MB of objects and a database that is small for a real deployment, so it shows
+that the time grows with the data and by how much in this case, and it is not a target for a deployment of
+real size. The check of the proxy in the same run: TLS with the certificate of its own CA (a client without
+that CA is refused), HTTP answers 308, the four headers and no `Server`, 401 for an unauthenticated call
+through the proxy, and a body of 45 MB refused with 413 where one of 30 MB reaches the application (the limit
+works while the body is read, so it is tested on the sign-in, which reads it before it answers). A container that is killed by hand (`docker kill`) stays down under the policy
 `unless-stopped`, as it does for any manual stop; one that crashes is started again.
 
 ## Reproduce the local check
@@ -1703,42 +1725,4 @@ linked milestone issues before acceptance.
 
 ## Remaining product work
 
-Done in code for M2 (see the sections above and the evidence in issue #3): inbound
-core with IMAP and Cloudflare, threading and reopen rules, private attachments,
-extraction, acknowledgements, junk with IMAP follow-up, late bounces, language
-decision, translation records, versioned mail designs with preview and test mail,
-sent mail snapshots, channel review.
-
-Done for the first slices of M3 (evidence in issue #4): the customer portal with
-derived links and an optional link in outgoing mail, the original mail as a safe
-view, design settings, server-side search across all authorized tickets,
-reminders, tags and an overview counted on the server. Two
-server operations have no surface yet: translation records
-(`src/server/translation.ts`, for the M4 provider and the M3 translation
-display) and the sent snapshot (`getSentSnapshot`). They are not listed in
-`docs/capabilities.md` until a surface exists.
-
-Still open for M2: real IMAP/SMTP qualification with a provider mailbox (M2-A9), a
-check of the rendered mail in Gmail, Apple Mail and Outlook (M2-A5; the test mail
-exists), and a provider webhook for bounces under SMTP2GO.
-
-Still open for M3: views over the complete dataset beyond the first list step
-(the counts of the overview are complete; the Waiting, Resolved and Reminders
-views filter what is loaded), custom portal domains, attachments in portal
-replies, display of translations in the ticket, assignment and AI states, the
-configuration of connections in the interface, and the observed walkthrough and
-manual accessibility checks (M3-A3, M3-A7).
-
-Real OIDC/SAML provider qualification, provisioning/recovery/MFA, translation jobs
-with a real provider, named AI assignment/runners, knowledge/GitHub, escalations
-and operational health are still milestone work. The inbox list loads in steps up to
-2000 conversations; the search does not have that limit but has no index yet, so
-neither qualifies the planned production scale. Messenger adapters are reserved in
-the plan and in `src/domain/channels.ts` and are not presented as working
-connections.
-
-Vercel HTTPS, TLS and a proxy for the production Compose setup, recovery targets for real data sizes, real remote MCP, browser and
-usability/accessibility runs, repository-settings audit, a backup schedule and its
-monitoring, export and the deletion of tickets, and recovery targets at the data sizes of a
-real deployment also remain open.
-Do not equate a passing development build with these qualifications.
+Done in code for
