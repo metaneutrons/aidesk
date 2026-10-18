@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { attachments, ingress, messages } from "./db/schema";
+import { attachments, ingress, messages, projectExports } from "./db/schema";
 import { deleteObjects, listObjects } from "./storage";
 // Objects are named by what they hold (`inbound/<project>/<checksum>.eml`,
 // `attachments/<project>/<checksum>`), so one object can be the file of several
@@ -35,6 +35,8 @@ export async function sweepObjects(
     await db().select({ key: attachments.objectKey }).from(attachments),
     await db().select({ key: messages.rawObjectKey }).from(messages),
     await db().select({ key: ingress.rawObjectKey }).from(ingress),
+    // The file of an export of a project is named by the row of the export, not by a ticket.
+    await db().select({ key: projectExports.objectKey }).from(projectExports),
   ])
     for (const { key } of rows) if (key) named.add(key);
   const result: Sweep = {
