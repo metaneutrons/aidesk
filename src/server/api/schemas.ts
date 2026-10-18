@@ -482,6 +482,28 @@ export const webhookDelivery = z.object({
   durationMs: z.number(),
   createdAt: isoDate,
 });
+export const usageOut = z.object({
+  days: z.number().int(),
+  from: z.string(),
+  to: z.string(),
+  ai: z.array(
+    z.object({
+      day: z.string(),
+      task: z.string(),
+      calls: z.number().int(),
+      outcomes: z
+        .record(z.string(), z.number())
+        .describe("How the calls ended: ok, or the code of the failure"),
+      inputTokens: z.number(),
+      outputTokens: z.number(),
+      charged: z.number().describe("What was charged to the daily budget of the task"),
+      budget: z.number().nullable().describe("The daily budget that the profile has now"),
+      left: z.number().nullable(),
+    }),
+  ),
+  mail: z.array(z.object({ day: z.string(), received: z.number(), sent: z.number() })),
+  storage: z.object({ files: z.number(), bytes: z.number(), rawMails: z.number() }),
+});
 export const ssoProviderOut = z.object({
   providerId: z.string(),
   type: z.enum(["oidc", "saml"]),

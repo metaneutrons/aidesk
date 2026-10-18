@@ -127,6 +127,8 @@ import {
 import { aiProfileWrite } from "../../domain/ai";
 import { auditFilter } from "../../domain/audit";
 import { archiveProject, restoreProject } from "../archive";
+import { usageQuery } from "../../domain/usage";
+import { getUsage } from "../usage";
 import { ssoDeleteInput, ssoRegisterInput, ssoUpdateInput } from "../../domain/sso";
 import {
   deleteSsoProvider,
@@ -287,6 +289,20 @@ export const routes: Route[] = [
         .parse(query.get("archived") ?? "hide");
       return listProjects(principal, asked);
     },
+  },
+  {
+    id: "usage.get",
+    mcp: { not: "The usage of a project is shown to people in the settings" },
+    method: "GET",
+    path: "/projects/{projectId}/usage",
+    tag: "Projects",
+    summary:
+      "The usage of a project over the last days: the calls of the AI by task and day (how they ended, tokens, the share of the daily budget used and what is left), the mail by day and what is stored. Needs config.read",
+    access: "config.read",
+    query: usageQuery,
+    response: out.usageOut,
+    run: ({ principal, params, query }) =>
+      getUsage(principal, params.projectId ?? "", Object.fromEntries(query)),
   },
   {
     id: "projects.archive",
