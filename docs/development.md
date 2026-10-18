@@ -1326,6 +1326,47 @@ characters, the sizes of what a model reads, the body of MCP); an owner who rais
 raising the limit of the proxy only has to change the one; the limit of a mail of Cloudflare Email Routing
 itself is not known here.
 
+## Names of the customer page
+
+A project can have its own names for the customer page next to the shared address (`APP_URL`), for
+example `help.example.org`. Both open the same ticket. The names belong to the configuration of an
+installation: they are kept in its database (table `portal_domain`), set in the settings ("Customer page
+names of ...") or over REST, and appear in no file of the code, in no test and in no document.
+
+A person who manages the project (`project.manage`, not a token) claims a name with
+`POST /api/v1/projects/{id}/portal-domains`, `{ "host": "help.example.org" }`. The answer names the record
+that proves the name: a text record `_aidesk-challenge.<name>` with the value `aidesk-verify=<token>`. The token
+is made for this claim, so that someone who claims a name that is not theirs can never prove it. After the
+record is in the DNS, `POST .../portal-domains/{domainId}/verify` looks for it (it can be asked again as often
+as needed; `result` is `verified`, `record_missing` or `dns_error`) and from then on the name is valid. A
+name has one verified owner: when another project proved it first, a second proof is refused (409). The
+claim, the proof and the removal are audit entries (`portal_domain.add`, `.verify`, `.remove`).
+
+The name also has to lead to the installation: a CNAME record to the target that the platform names for a
+custom domain (on Vercel, the name is added to the project and the platform names the record). The text
+record is the proof of the owner; the CNAME is the route.
+
+A verified name is used in three places:
+
+- **Links.** A link that the operator issues, and the link in mail about a ticket, start with the oldest
+  verified name of the project (`https://<name>/portal/<token>`); a project without one keeps the shared
+  address. Links that were sent before keep working on the shared address.
+- **The request.** `src/proxy.ts` looks at the host of every request. A verified name serves the customer
+  page (`/portal/...`, `/api/portal/...` and the files of the page) and nothing else: the desk, the API, the
+  sign-in and the setup answer 404 there. The address of the application and every name that is no customer
+  page (the addresses of the platform) are left as they were; when the lookup of names fails, a request on
+  another name than the application's is answered 503, because the rule could not be applied. The lookup is
+  kept for 30 seconds, and a change made by the process is seen at once.
+- **The check.** The page and the reply look at the name of the request: on the name of a project only the
+  links of that project open, so a link of another project fails there (404, without a reason) while it still
+  opens on the shared address. The reply route accepts the origin of the application and of a verified name
+  (https only) and no other.
+
+Not covered: the proof is a record at a moment; a name whose record is later removed stays valid until it
+is removed here. A name that a platform serves for several installations is not told apart from another
+one. The certificate for a name is the platform's. A name of the customer page does not change where the
+sign-in or the desk is reached.
+
 ## Webhooks
 
 A project can have events delivered to HTTPS endpoints of its own, so that an

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -391,6 +392,31 @@ export const participants = pgTable(
     createdAt: created(),
   },
   (t) => [uniqueIndex("participant_ticket_email_idx").on(t.ticketId, t.email)],
+);
+// The names under which a project's customer page is reached next to the shared address. A name is claimed
+// by a project and belongs to it only after the owner of the name has proved it with a record in the DNS
+// that holds the token of this claim (so a claim on a name that someone else holds never becomes valid). The
+// names are the configuration of an installation: they are kept here and in no file of the code.
+export const portalDomains = pgTable(
+  "portal_domain",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    host: text("host").notNull(),
+    token: text("token").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [
+    uniqueIndex("portal_domain_project_host_idx").on(t.projectId, t.host),
+    // One verified owner for a name; any number of claims wait for their proof.
+    uniqueIndex("portal_domain_verified_host_idx")
+      .on(t.host)
+      .where(sql`${t.verifiedAt} is not null`),
+  ],
 );
 export const connections = pgTable(
   "connection",

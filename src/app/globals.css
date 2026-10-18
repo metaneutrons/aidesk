@@ -1834,3 +1834,21 @@ li.tag-chip button {
     flex-wrap: wrap;
     gap: 8px;
 }
+
+/* The names of the customer page: the form is one row that wraps. */
+.portal-domain-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+}
+
+.portal-domain-form label {
+    display: grid;
+    gap: 4px;
+    flex: 1 1 260px;
+}
+
+.portal-domains code {
+    overflow-wrap: anywhere;
+}

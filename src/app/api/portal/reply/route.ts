@@ -1,9 +1,9 @@
 import { ZodError } from "zod";
 import { DomainError } from "../../../../server/errors";
-import { env } from "../../../../server/env";
 import { getLimits } from "../../../../server/limits";
 import { portalRules } from "../../../../domain/limits";
 import { portalReply, type PortalFile } from "../../../../server/portal";
+import { portalHostProject, portalOriginAllowed } from "../../../../server/portal-domains";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 // The portal's only write: a customer's reply, as JSON or, with files, as a form. It belongs to no
@@ -41,10 +41,14 @@ async function parts(
 }
 export async function POST(request: Request): Promise<Response> {
   try {
-    if (request.headers.get("origin") !== new URL(env().APP_URL).origin)
+    // The request has to come from a page of the application: its own address or a name of a customer page.
+    if (!(await portalOriginAllowed(request.headers.get("origin"))))
       throw new DomainError("forbidden", 403);
+    const hostProject = await portalHostProject(
+      request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+    );
     const { token, input, files } = await parts(request);
-    return Response.json(await portalReply(token, input, files), {
+    return Response.json(await portalReply(token, input, files, hostProject), {
       status: 201,
       headers: { "Cache-Control": "no-store" },
     });

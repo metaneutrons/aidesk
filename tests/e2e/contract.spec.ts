@@ -317,6 +317,18 @@ test("answers every documented route in the published shape, with real data", as
   await call("projects.resume_agents", { params: { projectId: project }, data: {} });
   await call("workspace.controls_get");
   await call("workspace.limits_get");
+  // A claim for a name that nobody proves: added, looked for (the record is not there), and removed.
+  const claim = await call("portal_domains.add", {
+    params: { projectId: project },
+    data: { host: `contract-${desk.run}.example.test` },
+  });
+  await call("portal_domains.list", { params: { projectId: project } });
+  await call("portal_domains.verify", {
+    params: { projectId: project, domainId: String(claim.id) },
+  });
+  await call("portal_domains.remove", {
+    params: { projectId: project, domainId: String(claim.id) },
+  });
   await call("audit.list", { params: { projectId: project }, query: { limit: "5" } });
   await call("audit.workspace", { query: { limit: "5" } });
   await call("tickets.assign", {

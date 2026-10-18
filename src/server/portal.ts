@@ -22,6 +22,7 @@ import { getTicket } from "./operations";
 import { env } from "./env";
 import { fileRules, portalRules } from "../domain/limits";
 import { getLimits } from "./limits";
+import { portalBase } from "./portal-domains";
 import { permits, type Principal } from "../domain/permissions";
 // Portal grants give the requester of one ticket read access to that ticket's
 // public conversation. A link is derived, not stored: the identifier of the
@@ -111,7 +112,7 @@ export async function issuePortalGrant(
     });
     return linkToken(row.id, row.epoch);
   });
-  return { token, expiresAt };
+  return { token, expiresAt, projectId: ticket.projectId };
 }
 // The link for mail about a ticket, for the worker. A requester who was never
 // given one gets a grant now; a grant that ran out is renewed, because the mail
@@ -154,7 +155,9 @@ export async function revokePortalGrant(principal: Principal, ticketId: string) 
 // The grant behind a token, or null for anything that is not a valid grant:
 // malformed, forged, replaced by a newer link, revoked, expired, unverified, or
 // for a ticket in junk.
-export async function resolvePortalGrant(token: unknown) {
+// `hostProject` is the project of the name that the request came in on, when that is a name of a customer page:
+// a link of another project does not open there.
+export async function resolvePortalGrant(token: unknown, hostProject: string | null = null) {
   if (typeof token !== "string" || token.length > 100) return null;
   const parsed = participantOf(token);
   if (!parsed) return null;
@@ -180,6 +183,7 @@ export async function resolvePortalGrant(token: unknown) {
   if (!grant) return null;
   const expected = mac(grant.participantId, grant.epoch);
   if (parsed.mac.length !== expected.length || !timingSafeEqual(parsed.mac, expected)) return null;
+  if (hostProject !== null && grant.projectId !== hostProject) return null;
   return {
     participantId: grant.participantId,
     email: grant.email,
@@ -190,8 +194,12 @@ export async function resolvePortalGrant(token: unknown) {
 // What the holder of a token may see: the public conversation of that one
 // ticket. Private notes, messages that were not delivered, staff addresses and
 // everything else of the ticket stay out.
-export async function getPortalTicket(token: unknown, language?: string) {
-  const grant = await resolvePortalGrant(token);
+export async function getPortalTicket(
+  token: unknown,
+  language?: string,
+  hostProject: string | null = null,
+) {
+  const grant = await resolvePortalGrant(token, hostProject);
   if (!grant) throw new DomainError("not_found", 404);
   const [row] = await db()
     .select({
@@ -312,12 +320,17 @@ export interface PortalFile {
 // held to, and a number of files and a total that are set for the portal (10 files and 30 MB together
 // until an owner changes them). A file that is not accepted refuses the reply and says which rule it
 // broke, so that nothing is kept that the customer did not mean to send.
-export async function portalReply(token: unknown, input: unknown, files: PortalFile[] = []) {
+export async function portalReply(
+  token: unknown,
+  input: unknown,
+  files: PortalFile[] = [],
+  hostProject: string | null = null,
+) {
   const values = z
     .object({ markdown: z.string().trim().min(1).max(20_000), idempotencyKey: z.uuid() })
     .strict()
     .parse(input);
-  const grant = await resolvePortalGrant(token);
+  const grant = await resolvePortalGrant(token, hostProject);
   if (!grant) throw new DomainError("not_found", 404);
   const limits = await getLimits();
   const portal = portalRules(limits);
@@ -453,7 +466,8 @@ export async function portalReply(token: unknown, input: unknown, files: PortalF
   });
 }
 
-// The address of a link, on the application's public origin.
-export function portalUrl(token: string): string {
-  return `${new URL(env().APP_URL).origin}/portal/${token}`;
+// The address of a link: on a verified name of the project when it has one, otherwise on the application's
+// public origin.
+export async function portalUrl(token: string, projectId: string): Promise<string> {
+  return `${await portalBase(projectId)}/portal/${token}`;
 }
