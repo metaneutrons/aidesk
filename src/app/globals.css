@@ -1944,3 +1944,65 @@ button.danger {
     max-width: 240px;
     margin: 8px 0;
 }
+
+/* Single rights of an operator and the groups of a project. */
+.action-checks {
+    display: grid;
+    gap: 6px;
+    margin: 8px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.action-checks label.check {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.rights summary,
+.group-rights summary {
+    box-sizing: border-box;
+    min-height: 28px;
+    margin-top: 6px;
+    padding: 4px 0;
+    cursor: pointer;
+}
+
+.action-checks input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+}
+
+.groups .connection-list li {
+    flex-wrap: wrap;
+}
+
+.group-members {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.group-members li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.group-add {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-basis: 100%;
+}
+
+.group-rights {
+    flex-basis: 100%;
+}

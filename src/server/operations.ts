@@ -1,6 +1,7 @@
 import { cancelAgentRuns, cancelRunsOfAgent, queueAgentRun, takeOver } from "./agent-runs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { signed } from "../domain/profile";
+import { actionsOf, peopleWith } from "./grants";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
 import { emitEvent } from "./webhooks";
@@ -20,6 +21,8 @@ import {
   connections,
   jobs,
   memberships,
+  operatorGroupMembers,
+  operatorGroups,
   messages,
   projects,
   session,
@@ -365,21 +368,14 @@ export async function listAssignees(principal: Principal, ticketId: string) {
   const { ticket } = await getTicket(principal, ticketId);
   if (!permits(principal, ticket.projectId, "ticket.assign"))
     throw new DomainError("forbidden", 403);
-  const people = await db()
-    .select({ id: user.id, name: user.name, actions: memberships.actions })
-    .from(memberships)
-    .innerJoin(user, eq(user.id, memberships.userId))
-    .where(and(eq(memberships.projectId, ticket.projectId), eq(user.active, true)))
-    .orderBy(user.name);
+  const people = await peopleWith(ticket.projectId, "ticket.read");
   const held = await db()
     .select()
     .from(agents)
     .where(and(eq(agents.projectId, ticket.projectId), eq(agents.active, true)))
     .orderBy(agents.name);
   return {
-    users: people
-      .filter((person) => person.actions.includes("ticket.read"))
-      .map(({ id, name }) => ({ id, name })),
+    users: people,
     agents: held
       .filter((agent) => agent.expiresAt > new Date() && agent.actions.includes("ticket.read"))
       .map(({ id, name, managed }) => ({ id, name, managed })),
@@ -393,13 +389,13 @@ export async function assignTicket(principal: Principal, ticketId: string, input
   if (ticket.junkAt !== null) throw new DomainError("conflict", 409);
   if (values.userId !== null) {
     const [member] = await db()
-      .select({ active: user.active, actions: memberships.actions })
-      .from(memberships)
-      .innerJoin(user, eq(user.id, memberships.userId))
-      .where(
-        and(eq(memberships.userId, values.userId), eq(memberships.projectId, ticket.projectId)),
-      );
-    if (!member?.active || !member.actions.includes("ticket.read"))
+      .select({ active: user.active })
+      .from(user)
+      .where(eq(user.id, values.userId));
+    if (
+      !member?.active ||
+      !(await actionsOf(values.userId, ticket.projectId))?.includes("ticket.read")
+    )
       throw new ZodError([
         { code: "custom", path: ["userId"], message: "A person with access to this project" },
       ]);
@@ -1608,7 +1604,7 @@ export async function listOperators(principal: Principal) {
     .from(user)
     .orderBy(user.name);
   const ids = people.map((person) => person.id);
-  const [grants, logins] = ids.length
+  const [grants, logins, memberOf] = ids.length
     ? await Promise.all([
         managed.length
           ? db()
@@ -1624,17 +1620,51 @@ export async function listOperators(principal: Principal) {
           .select({ userId: account.userId, providerId: account.providerId })
           .from(account)
           .where(inArray(account.userId, ids)),
+        managed.length
+          ? db()
+              .select({
+                userId: operatorGroupMembers.userId,
+                groupId: operatorGroups.id,
+                projectId: operatorGroups.projectId,
+                name: operatorGroups.name,
+                actions: operatorGroups.actions,
+              })
+              .from(operatorGroupMembers)
+              .innerJoin(operatorGroups, eq(operatorGroups.id, operatorGroupMembers.groupId))
+              .where(
+                and(
+                  inArray(operatorGroupMembers.userId, ids),
+                  inArray(operatorGroups.projectId, managed),
+                ),
+              )
+          : Promise.resolve([]),
       ])
-    : [[], []];
+    : [[], [], []];
   return people.map((person) => ({
     ...person,
     signIn: logins
       .filter((login) => login.userId === person.id)
       .map((login) => (login.providerId === "credential" ? "password" : "sso"))
       .filter((value, index, all) => all.indexOf(value) === index),
+    // What the person's own membership gives, which the role of the settings changes.
     grants: grants
       .filter((grant) => grant.userId === person.id)
       .map((grant) => ({ projectId: grant.projectId, actions: grant.actions })),
+    // The groups of the managed projects that the person belongs to, and what they hold there altogether.
+    groups: memberOf
+      .filter((entry) => entry.userId === person.id)
+      .map(({ groupId, projectId, name }) => ({ id: groupId, projectId, name })),
+    effective: managed.flatMap((projectId) => {
+      const held = new Set<Action>([
+        ...grants
+          .filter((grant) => grant.userId === person.id && grant.projectId === projectId)
+          .flatMap((grant) => grant.actions),
+        ...memberOf
+          .filter((entry) => entry.userId === person.id && entry.projectId === projectId)
+          .flatMap((entry) => entry.actions),
+      ]);
+      return held.size > 0 ? [{ projectId, actions: [...held] }] : [];
+    }),
   }));
 }
 export const operatorInput = z.object({

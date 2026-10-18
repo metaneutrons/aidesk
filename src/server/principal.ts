@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { auth } from "./auth";
 import { db } from "./db";
-import { agents, memberships, projects, user } from "./db/schema";
+import { agents, projects, user } from "./db/schema";
+import { grantsOf } from "./grants";
 import { DomainError } from "./errors";
 import { env } from "./env";
 import type { Grant, Principal } from "../domain/permissions";
@@ -66,12 +67,7 @@ export async function identify(headers: Headers): Promise<Principal> {
     .where(eq(user.id, authenticated.user.id))
     .limit(1);
   if (!operator?.active) throw new DomainError("unauthenticated", 401);
-  const grants = await readOnlyWhenArchived(
-    await db()
-      .select({ projectId: memberships.projectId, actions: memberships.actions })
-      .from(memberships)
-      .where(eq(memberships.userId, operator.id)),
-  );
+  const grants = await readOnlyWhenArchived(await grantsOf(operator.id));
   return { id: operator.id, kind: "human", active: operator.active, owner: operator.owner, grants };
 }
 export function requireMutationOrigin(request: Request): void {
