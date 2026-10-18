@@ -18,6 +18,8 @@ import {
   issueDrafts,
   memberships,
   messages,
+  operatorGroupMembers,
+  operatorGroups,
   participants,
   portalDomains,
   projectExports,
@@ -91,6 +93,8 @@ export async function createProjectExport(
     domainRows,
     changeRows,
     auditRows,
+    groupRows,
+    groupMemberRows,
   ] = await Promise.all([
     db().select().from(tickets).where(eq(tickets.projectId, project)).orderBy(asc(tickets.number)),
     db()
@@ -134,6 +138,17 @@ export async function createProjectExport(
       .where(eq(configChanges.projectId, project))
       .orderBy(asc(configChanges.createdAt)),
     db().select().from(audit).where(eq(audit.projectId, project)).orderBy(asc(audit.createdAt)),
+    db().select().from(operatorGroups).where(eq(operatorGroups.projectId, project)),
+    db()
+      .select({
+        groupId: operatorGroupMembers.groupId,
+        userId: operatorGroupMembers.userId,
+        email: user.email,
+      })
+      .from(operatorGroupMembers)
+      .innerJoin(operatorGroups, eq(operatorGroups.id, operatorGroupMembers.groupId))
+      .innerJoin(user, eq(user.id, operatorGroupMembers.userId))
+      .where(eq(operatorGroups.projectId, project)),
   ]);
   // The objects that the rows name, once each.
   const keys = [
@@ -161,6 +176,10 @@ export async function createProjectExport(
         {
           project: row,
           memberships: memberRows,
+          groups: groupRows.map((group) => ({
+            ...group,
+            members: groupMemberRows.filter((member) => member.groupId === group.id),
+          })),
           agents: agentRows,
           connections: connectionRows,
           webhooks: webhookRows,

@@ -246,6 +246,13 @@
       "when": 1792320601985,
       "tag": "0034_operator_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792322157980,
+      "tag": "0035_operator_groups",
+      "breakpoints": true
     }
   ]
 }

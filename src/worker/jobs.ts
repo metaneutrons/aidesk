@@ -3,16 +3,8 @@ import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { workspaceControls } from "../server/controls";
 import { db } from "../server/db";
-import {
-  agents,
-  connections,
-  jobs,
-  memberships,
-  messages,
-  projects,
-  tickets,
-  user,
-} from "../server/db/schema";
+import { actionsOf } from "../server/grants";
+import { agents, connections, jobs, messages, projects, tickets, user } from "../server/db/schema";
 import { emailTemplateVersion, renderEmail } from "../server/email";
 import { activeEmailDesign, designForVersion, sampleMarkdown } from "../server/email-design";
 import { portalLinkForMail, portalUrl } from "../server/portal";
@@ -150,16 +142,11 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       throw new Error("stale_or_paused_dispatch");
     if (payload.actorKind === "human") {
       const [operator] = await db().select().from(user).where(eq(user.id, payload.actorId));
-      const [grant] = await db()
-        .select()
-        .from(memberships)
-        .where(
-          and(eq(memberships.userId, payload.actorId), eq(memberships.projectId, job.projectId)),
-        );
+      const held = await actionsOf(payload.actorId, job.projectId);
       if (
         !operator?.active ||
-        !grant?.actions.includes("ticket.reply") ||
-        (payload.resolve && !grant.actions.includes("ticket.resolve"))
+        !held?.includes("ticket.reply") ||
+        (payload.resolve && !held.includes("ticket.resolve"))
       )
         throw new Error("dispatch_grant_revoked");
     } else if (payload.actorKind === "system") {
@@ -409,11 +396,8 @@ export async function runTestSend(scope?: { projectId: string }): Promise<boolea
     )
       throw new Error("stale_or_paused_dispatch");
     const [operator] = await db().select().from(user).where(eq(user.id, payload.userId));
-    const [grant] = await db()
-      .select()
-      .from(memberships)
-      .where(and(eq(memberships.userId, payload.userId), eq(memberships.projectId, job.projectId)));
-    if (!operator?.active || !grant?.actions.includes("project.manage"))
+    const held = await actionsOf(payload.userId, job.projectId);
+    if (!operator?.active || !held?.includes("project.manage"))
       throw new Error("dispatch_grant_revoked");
     if (connection.status !== "ready") throw new Error("outbound_not_ready");
     const chosen = await designForVersion(project.id, project.settings, payload.version);

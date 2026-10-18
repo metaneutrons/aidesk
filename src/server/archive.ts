@@ -2,7 +2,8 @@ import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { allowedProjectIds, permits, type Action, type Principal } from "../domain/permissions";
 import { db } from "./db";
-import { audit, jobs, memberships, projects } from "./db/schema";
+import { audit, jobs, projects } from "./db/schema";
+import { actionsOf } from "./grants";
 import { DomainError } from "./errors";
 // Archiving a project. An archived project keeps all its data and is read-only: the people and tokens that
 // work in it keep only the rights that read (see `identify`), it takes no mail, nothing is sent from it, its
@@ -90,11 +91,7 @@ export async function archiveProject(principal: Principal, projectId: string) {
 export async function managesProject(principal: Principal, projectId: string): Promise<boolean> {
   if (principal.kind !== "human" || !principal.active) return false;
   if (principal.owner) return true;
-  const [member] = await db()
-    .select({ actions: memberships.actions })
-    .from(memberships)
-    .where(and(eq(memberships.userId, principal.id), eq(memberships.projectId, projectId)));
-  return member?.actions.includes("project.manage") ?? false;
+  return (await actionsOf(principal.id, projectId))?.includes("project.manage") ?? false;
 }
 // Restoring is for the owner and for a person who manages the project.
 export async function restoreProject(principal: Principal, projectId: string) {

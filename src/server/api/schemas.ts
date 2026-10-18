@@ -263,7 +263,17 @@ export const operatorOut = z.object({
   active: z.boolean(),
   owner: z.boolean(),
   signIn: z.array(z.enum(["password", "sso"])),
-  grants: z.array(z.object({ projectId: z.uuid(), actions: z.array(z.string()) })),
+  grants: z
+    .array(z.object({ projectId: z.uuid(), actions: z.array(z.string()) }))
+    .describe("What the own membership gives in the projects the caller manages"),
+  groups: z
+    .array(z.object({ id: z.uuid(), projectId: z.uuid(), name: z.string() }))
+    .describe("The groups of those projects that the operator belongs to"),
+  effective: z
+    .array(z.object({ projectId: z.uuid(), actions: z.array(z.string()) }))
+    .describe(
+      "What the operator holds in those projects by the membership and the groups together",
+    ),
 });
 export const agentOut = rowSchema(agents, { shapes: { actions: z.array(z.string()) } }).pick({
   id: true,

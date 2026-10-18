@@ -347,6 +347,24 @@ test("answers every documented route in the published shape, with real data", as
     data: { domain: `${sso}-moved.example.test` },
   });
   await call("sso.providers_delete", { params: { providerId: sso }, data: { confirm: sso } });
+  // A group of the project: made, changed, given a member and deleted.
+  const people = (await call("operators.list")) as unknown as { id: string; email: string }[];
+  const self = people.find((person) => person.email === desk.email);
+  const group = await call("groups.create", {
+    params: { projectId: project },
+    data: { name: `Contract ${desk.run}`, actions: ["project.read", "ticket.read"] },
+  });
+  const groupId = String(group.id);
+  await call("groups.list", { params: { projectId: project } });
+  await call("groups.update", {
+    params: { projectId: project, groupId },
+    data: { name: `Contract ${desk.run} renamed` },
+  });
+  await call("groups.member", {
+    params: { projectId: project, groupId },
+    data: { userId: self?.id ?? "", member: true },
+  });
+  await call("groups.delete", { params: { projectId: project, groupId } });
   // Archived and restored at once, so that nothing after it meets a read-only project.
   // An export is made and listed; the file itself and the deletion are covered by their own tests.
   await call("projects.export_create", { params: { projectId: project } });
