@@ -32,7 +32,7 @@ test("registers a provider, switches it off and on, tests it and deletes it", as
     await section.getByRole("button", { name: "Register the provider" }).click();
     await expect(section.getByText(`${id} was registered.`)).toBeVisible();
     const entry = section.getByRole("listitem").filter({ hasText: id }).first();
-    await expect(entry.getByText("Waiting for the domain record")).toBeVisible();
+    await expect(entry.getByText("Waiting for the domain record", { exact: true })).toBeVisible();
     // The record that proves the domain is shown, and a look at the DNS does not find it.
     await entry.getByRole("button", { name: `Show the record of ${id}` }).click();
     await expect(
@@ -55,9 +55,9 @@ test("registers a provider, switches it off and on, tests it and deletes it", as
     await expect(entry.getByText(/Problem: domain/)).toBeVisible();
     // Switched off and on again.
     await entry.getByRole("button", { name: `Switch ${id} off` }).click();
-    await expect(entry.getByText("Switched off")).toBeVisible();
+    await expect(entry.getByText("Switched off", { exact: true })).toBeVisible();
     await entry.getByRole("button", { name: `Switch ${id} on` }).click();
-    await expect(entry.getByText("Waiting for the domain record")).toBeVisible();
+    await expect(entry.getByText("Waiting for the domain record", { exact: true })).toBeVisible();
     // Deleted only when the identifier is typed.
     const remove = entry.getByRole("button", { name: `Delete ${id}` });
     await entry.getByLabel(`To delete ${id}, type its identifier`).fill(`${id}x`);
