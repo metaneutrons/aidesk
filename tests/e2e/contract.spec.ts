@@ -84,6 +84,9 @@ const notCalled: Record<string, string> = {
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "workspace.limits_set":
     "sets a limit of the whole installation, which would change what the tests that run beside check; covered by the limits tests",
+  "projects.export_download": "answers a zip file and not JSON; covered by the tests of the export",
+  "projects.delete":
+    "cannot be undone and needs a project that is archived and exported; covered by the tests of the deletion",
   "workspace.controls_set":
     "sets a switch of the whole installation, which would stop the agents or the mail of the tests that run beside; covered by the controls tests",
   "tickets.translate_draft":
@@ -319,6 +322,9 @@ test("answers every documented route in the published shape, with real data", as
   await call("workspace.controls_get");
   await call("workspace.limits_get");
   // Archived and restored at once, so that nothing after it meets a read-only project.
+  // An export is made and listed; the file itself and the deletion are covered by their own tests.
+  await call("projects.export_create", { params: { projectId: project } });
+  await call("projects.exports_list", { params: { projectId: project } });
   await call("projects.archive", { params: { projectId: project } });
   await call("projects.list", { query: { archived: "only" } });
   await call("projects.restore", { params: { projectId: project } });

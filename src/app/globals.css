@@ -1852,3 +1852,31 @@ li.tag-chip button {
 .portal-domains code {
     overflow-wrap: anywhere;
 }
+
+/* The deletion of an archived project: what is written is its name, and the button wears the colour of a warning. */
+.project-lifecycle .connection-list li {
+    flex-wrap: wrap;
+}
+
+.project-export,
+.project-delete {
+    flex-basis: 100%;
+}
+
+.project-delete {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+}
+
+.project-delete label {
+    display: grid;
+    gap: 4px;
+    flex: 1 1 260px;
+}
+
+button.danger {
+    color: var(--warning);
+    border-color: var(--warning);
+}

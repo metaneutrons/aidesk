@@ -127,6 +127,8 @@ import {
 import { aiProfileWrite } from "../../domain/ai";
 import { auditFilter } from "../../domain/audit";
 import { archiveProject, restoreProject } from "../archive";
+import { deleteProject, projectDeleteInput } from "../project-delete";
+import { createProjectExport, listProjectExports, readProjectExport } from "../project-export";
 import { limitsInput } from "../../domain/limits";
 import { portalDomainInput } from "../../domain/portal-domains";
 import {
@@ -285,6 +287,70 @@ export const routes: Route[] = [
     access: "project.manage",
     response: out.projectArchive,
     run: ({ principal, params }) => archiveProject(principal, params.projectId ?? ""),
+  },
+  {
+    id: "projects.exports_list",
+    mcp: { not: "The export of a project is for people" },
+    method: "GET",
+    path: "/projects/{projectId}/exports",
+    tag: "Projects",
+    summary: "The exports that were made of a project, newest first, with the digest of each file",
+    access: "project.manage",
+    response: list(out.projectExport),
+    run: ({ principal, params }) => listProjectExports(principal, params.projectId ?? ""),
+  },
+  {
+    id: "projects.export_create",
+    mcp: { not: "The export of a project is for people" },
+    method: "POST",
+    path: "/projects/{projectId}/exports",
+    tag: "Projects",
+    summary:
+      "Export a project as a zip file: its rows, its settings without secrets and every object that its rows name, with a manifest. Refused (413) when it is larger than the ceiling of an export in one piece",
+    access: "project.manage",
+    response: out.projectExport,
+    status: 201,
+    run: ({ principal, params }) => createProjectExport(principal, params.projectId ?? ""),
+  },
+  {
+    id: "projects.export_download",
+    mcp: { not: "A file is not a tool result" },
+    method: "GET",
+    path: "/projects/{projectId}/exports/{exportId}",
+    tag: "Projects",
+    summary: "Download the file of an export (.zip)",
+    access: "project.manage",
+    binary: true,
+    run: async ({ principal, params }) => {
+      const file = await readProjectExport(
+        principal,
+        params.projectId ?? "",
+        params.exportId ?? "",
+      );
+      return new Response(new Uint8Array(file.content), {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Length": String(file.content.length),
+          "Content-Disposition": `attachment; filename="${file.filename}"`,
+          "X-Export-Digest": file.digest,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+        },
+      });
+    },
+  },
+  {
+    id: "projects.delete",
+    mcp: { not: "Deleting a project is for its owner and cannot be undone" },
+    method: "POST",
+    path: "/projects/{projectId}/delete",
+    tag: "Projects",
+    summary:
+      "Delete an archived project for good. Only the owner; the name of the project has to be given, and an export that was made after the project was archived has to exist",
+    access: "owner",
+    body: projectDeleteInput,
+    response: out.projectDeleted,
+    run: ({ principal, params, input }) => deleteProject(principal, params.projectId ?? "", input),
   },
   {
     id: "projects.restore",

@@ -19,6 +19,7 @@ import {
   jobs,
   memberships,
   messages,
+  projectExports,
   projects,
   session,
   tickets,
@@ -29,6 +30,7 @@ import { actions, type Action } from "../src/domain/permissions";
 import { seal } from "../src/server/crypto";
 import { env } from "../src/server/env";
 import { sweepObjects } from "../src/server/object-sweep";
+import { deleteObjects } from "../src/server/storage";
 if (process.env.DEV_BOOTSTRAP !== "true" || process.env.NODE_ENV !== "development")
   throw new Error("Browser-test fixtures are restricted to private development.");
 const fixtureProjects: { key: string; label: string; grant: Action[] | null; language: string }[] =
@@ -220,6 +222,27 @@ async function teardown(run: string) {
     if (projectIds.length) await tx.delete(projects).where(inArray(projects.id, projectIds));
     if (userIds.length) await tx.delete(user).where(inArray(user.id, userIds));
   });
+  // The exports that the run made, of its projects and of the ones that it deleted, with their files.
+  const made = await db()
+    .select({ id: projectExports.id, key: projectExports.objectKey })
+    .from(projectExports)
+    .where(
+      or(
+        projectIds.length ? inArray(projectExports.projectId, projectIds) : undefined,
+        userIds.length ? inArray(projectExports.createdBy, userIds) : undefined,
+      ),
+    );
+  if (made.length) {
+    await deleteObjects(made.map((entry) => entry.key));
+    await db()
+      .delete(projectExports)
+      .where(
+        inArray(
+          projectExports.id,
+          made.map((entry) => entry.id),
+        ),
+      );
+  }
   // The objects of the deleted projects stay in the storage after a cascade. They are
   // named by project, so nothing else uses them, and the sweep removes them now instead
   // of leaving them to the daily one (a run of the suite leaves thousands).

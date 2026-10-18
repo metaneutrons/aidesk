@@ -17,6 +17,10 @@ export class DomainError extends Error {
       | "source_unavailable"
       // The project is archived: it keeps its data and takes no change.
       | "project_archived"
+      // The project is too large for an export that is made in one piece; its data is taken with the backup.
+      | "project_export_too_large"
+      // A project is deleted only after an export that was made once it was archived.
+      | "export_required"
       // A file that was sent is not accepted.
       | AttachmentRefusal
       // A task that asks a model ended without an answer.

@@ -621,5 +621,14 @@
   "projectRestore": "Restore {name}",
   "projectMessage_archived": "{name} was archived.",
   "projectMessage_restored": "{name} was restored.",
-  "projectMessage_error": "That did not work for {name}."
+  "projectMessage_error": "That did not work for {name}.",
+  "projectExport": "Export {name}",
+  "projectExportLatest": "Last export on {date}, {size} MB, SHA-256 {digest}…",
+  "projectExportDownload": "Download the export of {name}",
+  "projectDeleteType": "To delete {name} for good, type its name",
+  "projectDelete": "Delete {name} for good",
+  "projectMessage_exported": "The export of {name} was made. Download it before you delete.",
+  "projectMessage_deleted": "{name} was deleted.",
+  "projectMessage_tooLarge": "{name} is too large for an export in one piece. Take its data with the backup of the installation first.",
+  "projectMessage_needsExport": "{name} can only be deleted after an export that was made once it was archived."
 }
