@@ -239,6 +239,13 @@
       "when": 1792319258481,
       "tag": "0033_ai_budget_warned",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792320601985,
+      "tag": "0034_operator_profile",
+      "breakpoints": true
     }
   ]
 }

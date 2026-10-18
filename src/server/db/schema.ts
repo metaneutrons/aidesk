@@ -33,6 +33,9 @@ export const user = pgTable("auth_user", {
   active: boolean("active").notNull().default(true),
   owner: boolean("owner").notNull().default(false),
   locale: text("locale"),
+  // The name that customers read on a reply, and the text under it; the name of the account is used when there is none.
+  displayName: text("display_name"),
+  signature: text("signature"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
 });
 export const session = pgTable(

@@ -173,6 +173,8 @@ import {
   updateWebhook,
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
+import { getProfile, setProfile } from "../profile";
+import { profileInput, profileOut } from "../../domain/profile";
 import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
@@ -892,6 +894,30 @@ export const routes: Route[] = [
       await setLocale(principal, input);
       return { updated: true };
     },
+  },
+  {
+    id: "operator.profile_get",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/profile",
+    tag: "Operators",
+    summary: "Read the display name and the signature of the signed-in operator",
+    access: "human",
+    response: profileOut,
+    run: ({ principal }) => getProfile(principal),
+  },
+  {
+    id: "operator.profile_set",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "PUT",
+    path: "/me/profile",
+    tag: "Operators",
+    summary:
+      "Set the display name and the signature that the replies of the signed-in operator carry",
+    access: "human",
+    body: profileInput,
+    response: profileOut,
+    run: ({ principal, input }) => setProfile(principal, input),
   },
   {
     id: "config.get",

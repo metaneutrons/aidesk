@@ -192,6 +192,17 @@ access. Changes are audited. The same view issues and revokes service tokens for
 projects where the caller has `agent.manage`. REST offers the same operations
 (`/api/v1/operators`); MCP does not, as recorded in the capability ledger.
 
+### Display name and signature
+
+Each operator sets a name that customers read and a signature in the settings ("Your profile") or over REST
+(`GET` and `PUT /api/v1/me/profile`, for the person themself, not offered to MCP). An empty value removes it, and the
+name of the account is used then. A reply that a person writes is stored with that name as its author and with the
+signature after the text (a blank line between): the stored message is what the mail, the customer page and the
+thread show, so all three agree. A note carries the name but not the signature, because no customer reads it. The
+draft of an agent and a draft that a person sends carry neither: the person who sends it did not write it. A
+signature changed later does not change replies that were sent. Nobody sets the profile of another person, also not
+an owner or a manager. The audit entry `operator.profile` names the fields and never their text.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`
