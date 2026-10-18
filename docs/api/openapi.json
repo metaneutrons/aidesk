@@ -236,6 +236,198 @@
         }
       }
     },
+    "/projects/{projectId}/usage": {
+      "get": {
+        "operationId": "usage.get",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "The usage of a project over the last days: the calls of the AI by task and day (how they ended, tokens, the share of the daily budget used and what is left), the mail by day and what is stored. Needs config.read",
+        "x-required-access": "config.read",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "How many days, ending today (UTC)",
+            "schema": {
+              "default": 14,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "ai": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "task": {
+                            "type": "string"
+                          },
+                          "calls": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "outcomes": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "number"
+                            },
+                            "description": "How the calls ended: ok, or the code of the failure"
+                          },
+                          "inputTokens": {
+                            "type": "number"
+                          },
+                          "outputTokens": {
+                            "type": "number"
+                          },
+                          "charged": {
+                            "type": "number",
+                            "description": "What was charged to the daily budget of the task"
+                          },
+                          "budget": {
+                            "description": "The daily budget that the profile has now",
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "left": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "day",
+                          "task",
+                          "calls",
+                          "outcomes",
+                          "inputTokens",
+                          "outputTokens",
+                          "charged",
+                          "budget",
+                          "left"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "mail": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string"
+                          },
+                          "received": {
+                            "type": "number"
+                          },
+                          "sent": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "day",
+                          "received",
+                          "sent"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "storage": {
+                      "type": "object",
+                      "properties": {
+                        "files": {
+                          "type": "number"
+                        },
+                        "bytes": {
+                          "type": "number"
+                        },
+                        "rawMails": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "files",
+                        "bytes",
+                        "rawMails"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "days",
+                    "from",
+                    "to",
+                    "ai",
+                    "mail",
+                    "storage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/projects/{projectId}/archive": {
       "post": {
         "operationId": "projects.archive",
@@ -13439,7 +13631,8 @@
                         "ticket.assigned",
                         "ticket.warning",
                         "ticket.overdue",
-                        "change.proposed"
+                        "change.proposed",
+                        "ai.budget_low"
                       ]
                     }
                   },
@@ -13789,7 +13982,8 @@
                         "ticket.assigned",
                         "ticket.warning",
                         "ticket.overdue",
-                        "change.proposed"
+                        "change.proposed",
+                        "ai.budget_low"
                       ]
                     }
                   },
