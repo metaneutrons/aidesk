@@ -9,7 +9,7 @@
 //   github-source <projectId> gives a fixture project a repository that refuses every request
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
-import { eq, inArray, like, or } from "drizzle-orm";
+import { and, eq, inArray, like, or } from "drizzle-orm";
 import { db, sqlClient } from "../src/server/db";
 import {
   account,
@@ -256,6 +256,21 @@ function fixtureEmail(value: string | undefined): string {
     throw new Error("Only fixture users can be changed.");
   return value;
 }
+// How often a fixture operator signed in through a provider, as the audit says it.
+async function ssoSignIns(email: string) {
+  const [person] = await db().select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (!person) return { count: 0, providers: [] as string[] };
+  const rows = await db()
+    .select({ detail: audit.detail })
+    .from(audit)
+    .where(and(eq(audit.actorId, person.id), eq(audit.action, "operator.sso_sign_in")));
+  return {
+    count: rows.length,
+    providers: rows.map((row) =>
+      typeof row.detail.providerId === "string" ? row.detail.providerId : "",
+    ),
+  };
+}
 async function userCount(email: string) {
   return { count: (await db().select().from(user).where(eq(user.email, email))).length };
 }
@@ -297,6 +312,7 @@ try {
   if (command === "setup") write(await setup());
   else if (command === "teardown" && argument) write(await teardown(argument));
   else if (command === "user-count") write(await userCount(fixtureEmail(argument)));
+  else if (command === "sso-sign-ins") write(await ssoSignIns(fixtureEmail(argument)));
   else if (command === "disable") write(await disable(fixtureEmail(argument)));
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
   else if (command === "github-source" && argument) write(await githubSource(argument));

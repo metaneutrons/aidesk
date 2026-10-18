@@ -127,6 +127,18 @@ import {
 import { aiProfileWrite } from "../../domain/ai";
 import { auditFilter } from "../../domain/audit";
 import { archiveProject, restoreProject } from "../archive";
+import { ssoDeleteInput, ssoRegisterInput, ssoUpdateInput } from "../../domain/sso";
+import {
+  deleteSsoProvider,
+  disableSsoProvider,
+  enableSsoProvider,
+  listSsoProviders,
+  registerSsoProvider,
+  requestSsoDomainRecord,
+  testSsoProvider,
+  updateSsoProvider,
+  verifySsoDomain,
+} from "../sso-providers";
 import { deleteProject, projectDeleteInput } from "../project-delete";
 import { createProjectExport, listProjectExports, readProjectExport } from "../project-export";
 import { limitsInput } from "../../domain/limits";
@@ -1383,6 +1395,121 @@ export const routes: Route[] = [
     response: z.object({ removed: z.boolean(), host: z.string() }),
     run: ({ principal, params }) =>
       removeInstallationPortalDomain(principal, params.domainId ?? ""),
+  },
+  {
+    id: "sso.providers_list",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "GET",
+    path: "/sso-providers",
+    tag: "Workspace",
+    summary:
+      "The identity providers (OIDC and SAML) with their domain, state and the operators linked to each; only the owner",
+    access: "owner",
+    response: list(out.ssoProviderOut),
+    run: ({ principal }) => listSsoProviders(principal),
+  },
+  {
+    id: "sso.providers_register",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers",
+    tag: "Workspace",
+    summary:
+      "Register an OIDC or a SAML provider. It signs nobody in until the domain is verified with the text record that the answer names. The secret of the client is never returned",
+    access: "owner",
+    body: ssoRegisterInput,
+    response: out.ssoRegisteredOut,
+    status: 201,
+    run: ({ principal, input, request }) => registerSsoProvider(principal, request.headers, input),
+  },
+  {
+    id: "sso.providers_update",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "PUT",
+    path: "/sso-providers/{providerId}",
+    tag: "Workspace",
+    summary:
+      "Change the domain (which asks for a new proof), the secret of an OIDC client or its scopes. A change of the issuer or the client id is not offered: register a new provider",
+    access: "owner",
+    body: ssoUpdateInput,
+    response: out.ssoProviderOut,
+    run: ({ principal, params, input, request }) =>
+      updateSsoProvider(principal, request.headers, params.providerId ?? "", input),
+  },
+  {
+    id: "sso.providers_domain_record",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/domain-record",
+    tag: "Workspace",
+    summary: "The text record that proves the domain of a provider, as it is now asked for",
+    access: "owner",
+    response: out.ssoRecordOut,
+    run: ({ principal, params, request }) =>
+      requestSsoDomainRecord(principal, request.headers, params.providerId ?? ""),
+  },
+  {
+    id: "sso.providers_verify_domain",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/verify-domain",
+    tag: "Workspace",
+    summary:
+      "Look for the text record in the DNS; when it is there the provider may sign operators in. It can be asked again. A provider that is switched off is switched on instead (409)",
+    access: "owner",
+    response: out.ssoVerifiedOut,
+    run: ({ principal, params, request }) =>
+      verifySsoDomain(principal, request.headers, params.providerId ?? ""),
+  },
+  {
+    id: "sso.providers_test",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/test",
+    tag: "Workspace",
+    summary:
+      "Check a provider without signing anybody in: its documents can be read and agree with the registration, and the certificate is not about to end",
+    access: "owner",
+    response: out.ssoTestOut,
+    run: ({ principal, params }) => testSsoProvider(principal, params.providerId ?? ""),
+  },
+  {
+    id: "sso.providers_disable",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/disable",
+    tag: "Workspace",
+    summary:
+      "Switch a provider off: nobody signs in through it, and nothing else is changed. The operators stay linked",
+    access: "owner",
+    response: out.ssoProviderOut,
+    run: ({ principal, params }) => disableSsoProvider(principal, params.providerId ?? ""),
+  },
+  {
+    id: "sso.providers_enable",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/enable",
+    tag: "Workspace",
+    summary:
+      "Switch a provider on again; its domain is verified again if it was verified before it was switched off",
+    access: "owner",
+    response: out.ssoProviderOut,
+    run: ({ principal, params }) => enableSsoProvider(principal, params.providerId ?? ""),
+  },
+  {
+    id: "sso.providers_delete",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/delete",
+    tag: "Workspace",
+    summary:
+      "Delete a provider; the operators who signed in through it lose that way in. Its identifier has to be given as `confirm`",
+    access: "owner",
+    body: ssoDeleteInput,
+    response: out.ssoDeletedOut,
+    run: ({ principal, params, input, request }) =>
+      deleteSsoProvider(principal, request.headers, params.providerId ?? "", input),
   },
   {
     id: "workspace.limits_get",
