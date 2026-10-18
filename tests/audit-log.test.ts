@@ -354,17 +354,31 @@ describe("export", () => {
 });
 describe("the switches of the workspace", () => {
   it("leave an entry in the audit of the workspace", async () => {
+    // Only the entries of this owner are counted: other test files switch the controls of the workspace at the
+    // same time, with entries of their own.
     const before = await db()
       .select({ id: audit.id })
       .from(audit)
-      .where(and(isNull(audit.projectId), eq(audit.action, "workspace.controls")));
+      .where(
+        and(
+          isNull(audit.projectId),
+          eq(audit.action, "workspace.controls"),
+          eq(audit.actorId, owner.id),
+        ),
+      );
     // The same value again: the test changes nothing for the other tests, and the entry is written anyway.
     const current = await getWorkspaceControls(owner);
     await setWorkspaceControls(owner, { pauseOutgoing: current.pauseOutgoing });
     const after = await db()
       .select({ id: audit.id, actorId: audit.actorId, detail: audit.detail })
       .from(audit)
-      .where(and(isNull(audit.projectId), eq(audit.action, "workspace.controls")));
+      .where(
+        and(
+          isNull(audit.projectId),
+          eq(audit.action, "workspace.controls"),
+          eq(audit.actorId, owner.id),
+        ),
+      );
     expect(after.length).toBe(before.length + 1);
     const mine = after.find((row) => row.actorId === owner.id);
     expect(mine?.detail).toMatchObject({ after: { pauseOutgoing: current.pauseOutgoing } });
