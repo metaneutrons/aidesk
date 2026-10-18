@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../server/db";
+import { jobOfOpenProject } from "../server/archive";
 import { jobs } from "../server/db/schema";
 // The queue of one kind of job that is read file by file: take the next due job under
 // a lease, give it back when its worker disappeared, and finish it with a status.
@@ -43,6 +44,7 @@ export async function claimJob(
           eq(jobs.status, "queued"),
           eq(jobs.type, type),
           sql`${jobs.runAfter} <= now()`,
+          jobOfOpenProject,
           inScope,
         ),
       )

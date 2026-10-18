@@ -1,13 +1,38 @@
 import { createHash } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { auth } from "./auth";
 import { db } from "./db";
-import { agents, memberships, user } from "./db/schema";
+import { agents, memberships, projects, user } from "./db/schema";
 import { DomainError } from "./errors";
 import { env } from "./env";
-import type { Principal } from "../domain/permissions";
+import type { Grant, Principal } from "../domain/permissions";
+import { archivedActions } from "./archive";
 export function tokenHash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+// In an archived project a person or a token keeps only the rights that read, so that nothing in it can be
+// changed; every check of a right already refuses the rest.
+async function readOnlyWhenArchived(grants: Grant[]): Promise<Grant[]> {
+  if (grants.length === 0) return grants;
+  const archived = await db()
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        inArray(
+          projects.id,
+          grants.map((grant) => grant.projectId),
+        ),
+        isNotNull(projects.archivedAt),
+      ),
+    );
+  if (archived.length === 0) return grants;
+  const shut = new Set(archived.map((row) => row.id));
+  return grants.map((grant) =>
+    shut.has(grant.projectId)
+      ? { ...grant, actions: grant.actions.filter((action) => archivedActions.includes(action)) }
+      : grant,
+  );
 }
 export async function identify(headers: Headers): Promise<Principal> {
   const bearer = headers.get("authorization");
@@ -30,7 +55,7 @@ export async function identify(headers: Headers): Promise<Principal> {
       kind: "agent",
       active: true,
       owner: false,
-      grants: [{ projectId: agent.projectId, actions: agent.actions }],
+      grants: await readOnlyWhenArchived([{ projectId: agent.projectId, actions: agent.actions }]),
     };
   }
   const authenticated = await auth().api.getSession({ headers });
@@ -41,10 +66,12 @@ export async function identify(headers: Headers): Promise<Principal> {
     .where(eq(user.id, authenticated.user.id))
     .limit(1);
   if (!operator?.active) throw new DomainError("unauthenticated", 401);
-  const grants = await db()
-    .select({ projectId: memberships.projectId, actions: memberships.actions })
-    .from(memberships)
-    .where(eq(memberships.userId, operator.id));
+  const grants = await readOnlyWhenArchived(
+    await db()
+      .select({ projectId: memberships.projectId, actions: memberships.actions })
+      .from(memberships)
+      .where(eq(memberships.userId, operator.id)),
+  );
   return { id: operator.id, kind: "human", active: operator.active, owner: operator.owner, grants };
 }
 export function requireMutationOrigin(request: Request): void {

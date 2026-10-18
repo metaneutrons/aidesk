@@ -609,5 +609,17 @@
   "portalDomainMessage_taken": "This name belongs to another project or to the application itself.",
   "portalDomainMessage_error": "That did not work. Check the name and try again.",
   "portalDomainsTitleInstallation": "Customer page names of the installation",
-  "portalDomainsHintInstallation": "Names that serve the customer page of every project that has no name of its own. A project with a name of its own is reached under that name, and its links do not open here."
+  "portalDomainsHintInstallation": "Names that serve the customer page of every project that has no name of its own. A project with a name of its own is reached under that name, and its links do not open here.",
+  "projectLifecycleTitle": "Archive of projects",
+  "projectLifecycleHint": "An archived project keeps all its data and is read-only: it takes no mail, nothing is sent from it, and it is left out of the lists. You can restore it as it was.",
+  "projectArchive": "Archive {name}",
+  "projectArchiveAsk": "Archive this project?",
+  "projectArchiveConfirm": "Yes, archive {name}",
+  "projectArchiveCancel": "Cancel",
+  "projectArchivedTitle": "Archived projects",
+  "projectArchivedSince": "Archived on {date}",
+  "projectRestore": "Restore {name}",
+  "projectMessage_archived": "{name} was archived.",
+  "projectMessage_restored": "{name} was restored.",
+  "projectMessage_error": "That did not work for {name}."
 }

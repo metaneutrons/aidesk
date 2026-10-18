@@ -15,6 +15,8 @@ export class DomainError extends Error {
       | "translation_unusable"
       // A source outside the product that was asked did not answer as needed.
       | "source_unavailable"
+      // The project is archived: it keeps its data and takes no change.
+      | "project_archived"
       // A file that was sent is not accepted.
       | AttachmentRefusal
       // A task that asks a model ended without an answer.

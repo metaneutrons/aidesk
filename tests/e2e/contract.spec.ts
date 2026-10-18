@@ -144,6 +144,7 @@ test("answers every documented route in the published shape, with real data", as
   }
   // Reads.
   await call("projects.list");
+  await call("projects.list", { query: { archived: "include" } });
   await call("operators.list");
   await call("tags.list");
   await call("tickets.list", { query: { limit: "5" } });
@@ -317,6 +318,10 @@ test("answers every documented route in the published shape, with real data", as
   await call("projects.resume_agents", { params: { projectId: project }, data: {} });
   await call("workspace.controls_get");
   await call("workspace.limits_get");
+  // Archived and restored at once, so that nothing after it meets a read-only project.
+  await call("projects.archive", { params: { projectId: project } });
+  await call("projects.list", { query: { archived: "only" } });
+  await call("projects.restore", { params: { projectId: project } });
   // A claim for a name that nobody proves: added, looked for (the record is not there), and removed.
   const claim = await call("portal_domains.add", {
     params: { projectId: project },
