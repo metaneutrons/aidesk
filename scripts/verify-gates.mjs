@@ -16,7 +16,8 @@ try {
   await writeFile(
     target,
     Array.from(
-      { length: 40 },
+      // Enough untested branches to pull a tree far above the threshold below it: the margin is a few percent.
+      { length: 400 },
       (_, index) =>
         `export function untested${index}(value: number): number { return value > 1 ? value + 1 : value - 1; }`,
     ).join("\n") + "\n",
