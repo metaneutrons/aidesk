@@ -84,18 +84,23 @@ export async function archiveProject(principal: Principal, projectId: string) {
     return { archived: true, archivedAt: now };
   });
 }
-// Restoring is for the owner and for a person who manages the project. The rights of an archived project are
-// reduced to reading (see `identify`), so the right to manage is read from the membership.
+// Whether a person may manage a project that can be archived: the owner, or a person whose membership holds the
+// right. The rights of an archived project are reduced to reading (see `identify`), so the right to manage is read
+// from the membership.
+export async function managesProject(principal: Principal, projectId: string): Promise<boolean> {
+  if (principal.kind !== "human" || !principal.active) return false;
+  if (principal.owner) return true;
+  const [member] = await db()
+    .select({ actions: memberships.actions })
+    .from(memberships)
+    .where(and(eq(memberships.userId, principal.id), eq(memberships.projectId, projectId)));
+  return member?.actions.includes("project.manage") ?? false;
+}
+// Restoring is for the owner and for a person who manages the project.
 export async function restoreProject(principal: Principal, projectId: string) {
   human(principal);
   const project = id.parse(projectId);
-  if (!principal.owner) {
-    const [member] = await db()
-      .select({ actions: memberships.actions })
-      .from(memberships)
-      .where(and(eq(memberships.userId, principal.id), eq(memberships.projectId, project)));
-    if (!member?.actions.includes("project.manage")) throw new DomainError("not_found", 404);
-  }
+  if (!(await managesProject(principal, project))) throw new DomainError("not_found", 404);
   return db().transaction(async (tx) => {
     const [row] = await tx
       .select({ archivedAt: projects.archivedAt })

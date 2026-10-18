@@ -1398,8 +1398,37 @@ Neither is offered to MCP. An archived project keeps all its data and is read-on
   reconciliation of issues skips it.
 - **Audit.** Archiving and restoring are entries of the project (`project.archive`, `project.restore`).
 
-Not covered: a mail that a platform holds outside the product (a Cloudflare bucket) stays there; a webhook
-delivery that was due before the archive waits like any job; deleting an archived project is a step of its own.
+Not covered: a mail that a platform holds outside the product (a Cloudflare bucket) stays there, and a webhook
+delivery that was due before the archive waits like any job.
+
+### Export and deletion
+
+`POST /api/v1/projects/{id}/exports` (the owner, or a person who manages the project, also when it is archived)
+writes a zip file to the storage (`exports/<project>/<id>.zip`) and answers with its digest. The file holds
+`project.json` (the project, its memberships, agents, connections, webhooks, texts, designs, task profiles, portal
+names and changes of the configuration), one `*.ndjson` file for each kind of row (tickets, messages,
+participants, attachments and their texts, translations, linked issues and drafts, received mail, audit),
+every object that a row names under `objects/<key>`, and `manifest.json` with the size and the SHA-256 of each file
+and the objects that a row names and the storage did not have. No secret is in it: not the secret of a connection or a
+webhook, not the hash of a token and not the payload of a change of the configuration. It is made in memory, so a
+project with more than 200 MB of files is refused (413); take that one with the backup of the installation.
+`GET .../exports` lists the exports and `GET .../exports/{exportId}` downloads one (`X-Export-Digest` carries the
+digest). An export is an audit entry (`project.export`) and a row of `project_export`, which does not refer to the
+project, so it outlives it.
+
+`POST /api/v1/projects/{id}/delete` with `{ "confirmName": "<the name>", "exportId": "<id>" }` deletes a project for
+good. Only the owner does it, and only if every condition holds: the project is archived (nothing arrives and
+nothing is written, so what was exported is what is deleted), the name is typed exactly, and the export belongs to
+the project, was made after it was archived and its file is in the storage. Then, in one transaction, the jobs, the
+received mail and the tickets (and with them messages, attachments, participants, translations, linked issues and
+drafts) are deleted, the audit entries of the project become entries of the installation, the project row goes (the
+rest follows through its references) and `project.delete` is written with the name, the digest and the counts. The
+objects under `inbound/<project>/` and `attachments/<project>/` are removed after that; one that could not be
+removed is left to the sweep of the storage. The export stays, and the owner can still download it.
+
+Not covered: the export is a copy at one moment (archiving stops writes, so it is complete for an archived
+project); restoring a deleted project from the export is not built; the exports are kept until someone removes
+them (the retention of M8 will decide).
 
 ## Webhooks
 

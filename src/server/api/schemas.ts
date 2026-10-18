@@ -482,6 +482,21 @@ export const webhookDelivery = z.object({
   durationMs: z.number(),
   createdAt: isoDate,
 });
+export const projectExport = z.object({
+  id: z.uuid(),
+  projectId: z.uuid(),
+  projectName: z.string(),
+  digest: z.string().describe("SHA-256 of the file"),
+  bytes: z.number().int(),
+  counts: z.record(z.string(), z.number()),
+  createdBy: z.string(),
+  createdAt: isoDate,
+});
+export const projectDeleted = z.object({
+  deleted: z.boolean(),
+  counts: z.record(z.string(), z.number()),
+  objects: z.number().int().describe("Objects removed from the storage"),
+});
 export const projectArchive = z.object({
   archived: z.boolean(),
   archivedAt: isoDate.nullable(),

@@ -539,6 +539,7 @@ export function Settings({
       <ProjectLifecycle
         manageable={projects.filter((project) => held(project.id).includes("project.manage"))}
         locale={locale}
+        owner={owner}
       />
       <Designs
         projects={projects.filter((project) => held(project.id).includes("project.manage"))}

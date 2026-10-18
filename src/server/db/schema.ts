@@ -158,6 +158,25 @@ export const projects = pgTable("project", {
   createdAt: created(),
   updatedAt: updated(),
 });
+// The exports of a project: a file in the storage that holds its rows and its objects, with the digest of the
+// file and what it holds. There is no reference to the project, so that the record of an export outlives the
+// project that it was made of; a project is deleted only after an export of it that was made after it was
+// archived.
+export const projectExports = pgTable(
+  "project_export",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull(),
+    projectName: text("project_name").notNull(),
+    digest: text("digest").notNull(),
+    bytes: integer("bytes").notNull(),
+    counts: jsonb("counts").$type<Record<string, number>>().notNull(),
+    objectKey: text("object_key").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("project_export_project_idx").on(t.projectId, t.createdAt)],
+);
 export const memberships = pgTable(
   "membership",
   {
