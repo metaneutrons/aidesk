@@ -322,6 +322,7 @@ test("answers every documented route in the published shape, with real data", as
   await call("projects.resume_agents", { params: { projectId: project }, data: {} });
   await call("workspace.controls_get");
   await call("workspace.limits_get");
+  await call("usage.get", { params: { projectId: project }, query: { days: "7" } });
   // A provider of the SAML kind (it needs no network at registration), through its whole life: registered, listed,
   // its record asked for, looked for, tested, switched off and on, changed and deleted.
   const sso = `contract-${desk.run}`.toLowerCase();

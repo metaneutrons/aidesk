@@ -232,6 +232,13 @@
       "when": 1792317903818,
       "tag": "0032_sso_provider_state",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792319258481,
+      "tag": "0033_ai_budget_warned",
+      "breakpoints": true
     }
   ]
 }

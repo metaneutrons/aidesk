@@ -835,6 +835,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "usage.get": {
+    operation: "getUsage",
+    action: "config.read",
+    ui: "src/components/usage.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "workspace.limits_get": {
     operation: "readLimits",
     action: "workspace.limits.manage",

@@ -162,6 +162,21 @@ the issuer or the client id (the plugin refuses it for a provider that operators
 the success of the proof against a real DNS is done by the plugin and is covered in the tests by replacing the function
 that asks the DNS.
 
+### Usage in the settings
+
+"Usage" in the settings (`GET /api/v1/projects/{projectId}/usage?days=`, 1 to 90 days, default 14; for the right to read
+the configuration, not offered to MCP) shows what a project has used, for the days up to today in UTC:
+
+- **AI** by day and task: the calls with how they ended, the input and output tokens that the provider counted, what was
+  charged against the budget and what is left of it. The budget shown is the one the profile has now; a budget changed
+  earlier is not kept, and a task without a profile has none.
+- **Mail** by day: what customers sent, and what was sent to them (a reply that is delivered, not a note and not a mail that
+  waits or failed).
+- **Storage**: the stored files and their bytes (a file that was refused is not stored and not counted) and the raw mails.
+  This is the state now, not a history.
+
+An archived project can be read too. Nothing is shown of another project.
+
 ## Operator administration
 
 The Settings view lists operators. Owners add operators by name and email and
@@ -1604,6 +1619,13 @@ only if the sum stays within the budget, so concurrent runs cannot spend more th
 budget. After the call the hold is replaced by what the provider counted; if it did not
 say, the hold stays charged.
 
+When the charge of a task on a day first reaches 80 percent of its budget (`budgetWarningPercent`), after the hold or
+after the settlement, the webhook event `ai.budget_low` is queued once for that project, task and day: the day is marked
+in `ai_budget.warned_at` by one conditional statement, so concurrent runs and a repeated run send nothing twice, and the
+next day starts again. The event carries the task, the day, what was charged, the budget and the percent. A run that is
+refused for the budget sends it too when its hold had brought the day to the share. A budget raised during the day does
+not clear the mark.
+
 **One call, no repeat, one fallback.** The provider is called once, without the retries of
 the SDK (`maxRetries: 0`). When the outcome is not known (a timeout, a failure of the network
 or of the provider, a status 408 or 5xx) the request may have been accepted and may have cost
@@ -1924,30 +1946,4 @@ manual keyboard, screen-reader and zoom checks are still required before any WCA
 claim. Base UI's dialog focus guards are excluded because Base UI gives them
 role="button" in WebKit on purpose for VoiceOver.
 
-The test database `aidesk_test` is shared by every branch of a checkout. Before
-the tests start, the global setup compares the migrations the database has
-applied (their SHA-256 hashes, as drizzle records them) with the SQL files of the
-checked-out branch; when the database holds one the branch does not have, it is
-emptied and migrated again, because the schema would not be the one the code
-expects and drizzle skips a migration that is older than the last one applied.
-The development database `aidesk` is never touched.
-
-The 90% coverage floor applies to all current domain/server TypeScript, including
-database schema code. Tests use real PostgreSQL for scopes, grants, sessions,
-revocation, encrypted SSO configuration, audit, revision and idempotency behavior;
-storage error tests deliberately simulate 404/403/service failures. Those cases
-do not qualify a real SSO provider or external mail provider.
-The process/SMTP orchestration in `src/worker` is outside this coverage set and
-is exercised through Mailpit and container restart checks. Full negative
-dispatch/lease/race qualification remains M2/M5 work; the coverage figure must
-not be presented as that worker's branch coverage.
-
-The cloud run verified SMTP acceptance in Mailpit and production framework
-builds. A temporary GitHub/npm proxy outage was followed by a successful fresh
-Compose build/start. Browser installation still returned a destination-policy
-403; browser evidence remains open. Exact source/run evidence belongs in the
-linked milestone issues before acceptance.
-
-## Remaining product work
-
-Done in code for
+The test database `aidesk_test` i

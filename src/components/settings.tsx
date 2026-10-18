@@ -13,6 +13,7 @@ import { Limits } from "./limits";
 import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
+import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
@@ -511,6 +512,16 @@ export function Settings({
         .filter((grant) => grant.actions.includes("integration.manage"))
         .map((grant) => (
           <Webhooks
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            locale={locale}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("config.read"))
+        .map((grant) => (
+          <UsagePanel
             key={grant.projectId}
             projectId={grant.projectId}
             name={projectName(grant.projectId)}

@@ -15,7 +15,15 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
-import { aiBudgets, aiProfiles, aiRuns, connections, projects } from "../src/server/db/schema";
+import {
+  aiBudgets,
+  aiProfiles,
+  aiRuns,
+  connections,
+  jobs,
+  projects,
+  webhooks,
+} from "../src/server/db/schema";
 import { runAiTask, type AiRequest } from "../src/server/ai-run";
 import type { Answer, Call } from "../src/server/ai-provider";
 import { estimateFileTokens, estimateTokens } from "../src/domain/ai";
@@ -1005,4 +1013,109 @@ describe("the real call to each provider, against a fake one", () => {
       }, 15_000);
     });
   }
+});
+
+describe("the event of a budget that is nearly used", () => {
+  const events = async () =>
+    (await db().select().from(jobs).where(eq(jobs.projectId, projectId))).filter(
+      (job) => job.type === "webhook.deliver",
+    );
+  beforeEach(async () => {
+    await db().delete(jobs).where(eq(jobs.projectId, projectId));
+    await db().delete(webhooks).where(eq(webhooks.projectId, projectId));
+    await db()
+      .insert(webhooks)
+      .values({
+        projectId,
+        name: "Budget hook",
+        url: "https://hooks.example.test/budget",
+        events: ["ai.budget_low"],
+        secretCiphertext: seal("whsec-budget", env().ENCRYPTION_KEY),
+      });
+  });
+  afterEach(async () => {
+    await db().delete(jobs).where(eq(jobs.projectId, projectId));
+    await db().delete(webhooks).where(eq(webhooks.projectId, projectId));
+  });
+  const spend = (tokens: number, now?: () => Date) => {
+    const { generate } = fakeGenerate(answer({ usage: { totalTokens: tokens } }));
+    return runAiTask(request(), { generate, ...(now ? { now } : {}) });
+  };
+  it("is sent once when the use of the day reaches 80 percent, with what was used", async () => {
+    await profile({ dailyTokenBudget: 1000, maxOutputTokens: 50 });
+    expect(await spend(700)).toMatchObject({ ok: true });
+    expect(await events()).toHaveLength(0);
+    expect(await spend(150)).toMatchObject({ ok: true });
+    const queued = await events();
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.payload).toMatchObject({
+      event: {
+        type: "ai.budget_low",
+        projectId,
+        data: { task: "reply.draft", charged: 850, budget: 1000, percent: 85 },
+      },
+    });
+    // The marks of the day say that it was sent, and a third run does not send it again.
+    const [row] = await db().select().from(aiBudgets).where(eq(aiBudgets.projectId, projectId));
+    expect(row?.warnedAt).toBeInstanceOf(Date);
+    expect(await spend(10)).toMatchObject({ ok: true });
+    expect(await events()).toHaveLength(1);
+  });
+  it("is sent again the next day, and for each task by itself", async () => {
+    await profile({ dailyTokenBudget: 1000, maxOutputTokens: 50 });
+    const monday = () => new Date("2026-10-12T10:00:00Z");
+    const tuesday = () => new Date("2026-10-13T10:00:00Z");
+    await spend(900, monday);
+    await spend(900, tuesday);
+    const days = (await events()).map(
+      (job) => (job.payload as { event: { data: { day: string } } }).event.data.day,
+    );
+    expect(days.sort()).toEqual(["2026-10-12", "2026-10-13"]);
+  });
+  it("is not sent below the share, and not to a webhook that did not ask for it", async () => {
+    await profile({ dailyTokenBudget: 1000, maxOutputTokens: 50 });
+    await spend(790);
+    expect(await events()).toHaveLength(0);
+    await db()
+      .update(webhooks)
+      .set({ events: ["ticket.created"] })
+      .where(eq(webhooks.projectId, projectId));
+    await spend(100);
+    expect(await events()).toHaveLength(0);
+  });
+  it("is not sent for the charge of another day or of another task", async () => {
+    await profile({ dailyTokenBudget: 1000, maxOutputTokens: 50 });
+    // Another day and another task of the project stand at 90 percent and were not marked.
+    await db()
+      .insert(aiBudgets)
+      .values([
+        { projectId, task: "reply.draft", day: "2026-01-01", charged: 900 },
+        {
+          projectId,
+          task: "ticket.summarize",
+          day: new Date().toISOString().slice(0, 10),
+          charged: 900,
+        },
+      ]);
+    await spend(100);
+    expect(await events()).toHaveLength(0);
+    const marks = await db().select().from(aiBudgets).where(eq(aiBudgets.projectId, projectId));
+    expect(marks.filter((row) => row.warnedAt !== null)).toHaveLength(0);
+  });
+  it("is sent when a run that is refused for the budget leaves the day at the share", async () => {
+    // A held share that fits reserves most of the day at once: the reservation itself reaches 80 percent.
+    const share = held(300);
+    await profile({ dailyTokenBudget: Math.ceil(share * 1.1), maxOutputTokens: 300 });
+    const { generate } = fakeGenerate(
+      new APICallError({
+        message: "down",
+        url: "u",
+        requestBodyValues: {},
+        statusCode: 503,
+        isRetryable: true,
+      }),
+    );
+    await runAiTask(request(), { generate });
+    expect((await events()).length).toBe(1);
+  });
 });
