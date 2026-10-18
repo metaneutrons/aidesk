@@ -15,6 +15,10 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   timeout: 60_000,
+  // An assertion that waits for the page to answer gets five seconds on a machine of its own and fifteen in
+  // CI, where three browsers share two cores with the development server and a click that is answered
+  // after six seconds is slow, not broken. An assertion that succeeds fast is not slowed by this.
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
