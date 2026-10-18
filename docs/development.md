@@ -192,6 +192,32 @@ access. Changes are audited. The same view issues and revokes service tokens for
 projects where the caller has `agent.manage`. REST offers the same operations
 (`/api/v1/operators`); MCP does not, as recorded in the capability ledger.
 
+### Single rights and groups
+
+The role of an operator in a project (No access, Read, Respond, Manage) is a preset of actions. Under "Single rights"
+in the same cell a person who manages the project ticks the actions one by one; the role then reads Custom. An action
+that the person does not hold is shown and cannot be ticked. Setting the rights of an operator replaces them, and
+drops what the caller cannot give, as the role does.
+
+A **group** belongs to one project (`operator_group`, with members in `operator_group_member`). Every member holds its
+actions in that project besides what their own membership gives. People who manage the project make, rename, change,
+fill and delete groups in the settings ("Groups of ...") and over REST (`/api/v1/projects/{id}/groups`, not offered to
+MCP). Rights are read through `src/server/grants.ts` (`grantsOf`, `actionsOf`, `peopleWith`), which `identify`, the
+check of a dispatch in the worker, the list of people a ticket can be assigned to, and the right to restore an
+archived project all use; nothing else reads the memberships alone to decide what a person may do. The rights of an
+archived project are reduced to reading, groups included.
+
+Nobody gives, or takes away, more than they hold. A group can carry only actions the caller holds. A group whose
+actions reach beyond what the caller holds is left alone by that person: they cannot rename, change or delete it, nor
+add or remove its members. A change of the actions has to be within the old and the new actions. A group name is
+unique in a project. The list of operators shows, for each person, the own grants, the groups of the managed
+projects and what they hold altogether (`effective`). Audit entries: `group.create`, `.update` (with the actions
+before and after), `.delete` (with the number of members), `.member_add` and `.member_remove`. A project export
+contains its groups with their members.
+
+Not covered: a group across several projects (a person who belongs to groups in several projects is in each
+separately), nesting of groups, and a time limit on a membership.
+
 ### Display name and signature
 
 Each operator sets a name that customers read and a signature in the settings ("Your profile") or over REST

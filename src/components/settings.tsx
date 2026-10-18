@@ -13,6 +13,7 @@ import { Limits } from "./limits";
 import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
+import { ActionChecks, GroupsPanel } from "./groups";
 import { Profile } from "./profile";
 import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
@@ -35,6 +36,8 @@ const personSchema = z.object({
   owner: z.boolean(),
   signIn: z.array(z.enum(["sso", "password"])),
   grants: z.array(z.object({ projectId: z.string(), actions: z.array(action) })),
+  groups: z.array(z.object({ id: z.string(), projectId: z.string(), name: z.string() })),
+  effective: z.array(z.object({ projectId: z.string(), actions: z.array(action) })),
 });
 const tokenSchema = z.object({
   id: z.string(),
@@ -111,7 +114,7 @@ export function Settings({
       setFailure(null);
     } else setFailure("error");
   }, []);
-  const managed = people?.find((person) => person.id === viewerId)?.grants ?? [];
+  const managed = people?.find((person) => person.id === viewerId)?.effective ?? [];
   const held = (projectId: string): Action[] =>
     managed.find((grant) => grant.projectId === projectId)?.actions ?? [];
   const tokenProjects = managed.filter((grant) => grant.actions.includes("agent.manage"));
@@ -213,6 +216,47 @@ export function Settings({
                               </option>
                             ))}
                           </select>
+                          <details className="rights">
+                            <summary>
+                              <span className="visually-hidden">
+                                {t("rightsOf", {
+                                  name: person.name,
+                                  project: projectName(grant.projectId),
+                                })}
+                                {": "}
+                              </span>
+                              {t("rightsSummary")}
+                            </summary>
+                            <ActionChecks
+                              legend={t("rightsOf", {
+                                name: person.name,
+                                project: projectName(grant.projectId),
+                              })}
+                              held={held(grant.projectId)}
+                              value={current}
+                              onChange={(next) => {
+                                void act(
+                                  send(`/operators/${person.id}/grants`, {
+                                    projectId: grant.projectId,
+                                    actions: next.filter((entry) =>
+                                      held(grant.projectId).includes(entry),
+                                    ),
+                                  }),
+                                  load,
+                                );
+                              }}
+                            />
+                            {person.groups.some((entry) => entry.projectId === grant.projectId) && (
+                              <small className="muted">
+                                {t("rightsViaGroups", {
+                                  groups: person.groups
+                                    .filter((entry) => entry.projectId === grant.projectId)
+                                    .map((entry) => entry.name)
+                                    .join(", "),
+                                })}
+                              </small>
+                            )}
+                          </details>
                         </td>
                       );
                     })}
@@ -548,6 +592,20 @@ export function Settings({
             key={grant.projectId}
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("project.manage"))
+        .map((grant) => (
+          <GroupsPanel
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            held={grant.actions}
+            people={(people ?? []).filter((person) => person.active)}
+            onChanged={() => {
+              void load();
+            }}
           />
         ))}
       {owner && <PortalDomains projectId={null} name="" />}

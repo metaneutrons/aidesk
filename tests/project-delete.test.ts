@@ -13,6 +13,8 @@ import {
   ingress,
   jobs,
   memberships,
+  operatorGroupMembers,
+  operatorGroups,
   messages,
   participants,
   portalDomains,
@@ -178,6 +180,19 @@ beforeAll(async () => {
       { userId: ids.plain, projectId: projectD, actions: ["project.read", "ticket.read"] },
       { userId: ids.other, projectId: projectE, actions: [...actions] },
     ]);
+  // A group with a member, which the export names and the deletion removes.
+  const [exported] = await db()
+    .insert(operatorGroups)
+    .values({
+      projectId: projectD,
+      name: `Group ${run}`,
+      actions: ["project.read"],
+      createdBy: ids.manager,
+    })
+    .returning({ id: operatorGroups.id });
+  await db()
+    .insert(operatorGroupMembers)
+    .values({ groupId: exported?.id ?? "", userId: ids.plain, addedBy: ids.manager });
   await db()
     .insert(agents)
     .values({
@@ -320,6 +335,8 @@ describe("the export of a project", () => {
     expect(text("project.json")).toContain("smtp.example.test");
     expect(text("project.json")).toContain("hooks.example.test");
     expect(text("project.json")).toContain("We got your mail");
+    expect(text("project.json")).toContain(`Group ${run}`);
+    expect(text("project.json")).toContain(`${ids.plain}@example.test`);
     for (const secret of [
       secrets.connection,
       secrets.webhook,
@@ -465,6 +482,7 @@ describe("the deletion of a project", () => {
       webhooks,
       agents,
       memberships,
+      operatorGroups,
       portalDomains,
       configChanges,
       projectTexts,

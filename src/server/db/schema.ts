@@ -207,6 +207,40 @@ export const memberships = pgTable(
     index("membership_project_idx").on(t.projectId),
   ],
 );
+// A group of operators in one project with the actions that every member holds there, in addition to what each
+// holds by their own membership.
+export const operatorGroups = pgTable(
+  "operator_group",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    actions: jsonb("actions").$type<Action[]>().notNull().default([]),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("operator_group_name_idx").on(t.projectId, t.name)],
+);
+export const operatorGroupMembers = pgTable(
+  "operator_group_member",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => operatorGroups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    addedBy: text("added_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [
+    uniqueIndex("operator_group_member_idx").on(t.groupId, t.userId),
+    index("operator_group_member_user_idx").on(t.userId),
+  ],
+);
 export const agents = pgTable(
   "agent",
   {

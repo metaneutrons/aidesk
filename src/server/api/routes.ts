@@ -174,6 +174,8 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
+import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
 import { Reply } from "./reply";
 import * as out from "./schemas";
@@ -637,6 +639,70 @@ export const routes: Route[] = [
     }),
     run: ({ principal, params, input }) =>
       setOperatorGrant(principal, params.operatorId ?? "", input),
+  },
+  {
+    id: "groups.list",
+    mcp: { not: "People are managed by people" },
+    method: "GET",
+    path: "/projects/{projectId}/groups",
+    tag: "Operators",
+    summary: "List the groups of operators of a project with their actions and members",
+    access: "project.manage",
+    response: z.array(groupOut),
+    run: ({ principal, params }) => listGroups(principal, params.projectId ?? ""),
+  },
+  {
+    id: "groups.create",
+    mcp: { not: "People are managed by people" },
+    method: "POST",
+    path: "/projects/{projectId}/groups",
+    tag: "Operators",
+    summary: "Create a group; its actions are limited to those of the caller",
+    access: "project.manage",
+    body: groupCreate,
+    response: groupOut,
+    status: 201,
+    run: ({ principal, params, input }) => createGroup(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "groups.update",
+    mcp: { not: "People are managed by people" },
+    method: "POST",
+    path: "/projects/{projectId}/groups/{groupId}",
+    tag: "Operators",
+    summary:
+      "Rename a group or change its actions; the caller has to hold the old and the new actions",
+    access: "project.manage",
+    body: groupUpdate,
+    response: groupOut,
+    run: ({ principal, params, input }) =>
+      updateGroup(principal, params.projectId ?? "", params.groupId ?? "", input),
+  },
+  {
+    id: "groups.delete",
+    mcp: { not: "People are managed by people" },
+    method: "POST",
+    path: "/projects/{projectId}/groups/{groupId}/delete",
+    tag: "Operators",
+    summary: "Delete a group; its members lose what it gave them",
+    access: "project.manage",
+    response: z.object({ deleted: z.boolean() }),
+    run: ({ principal, params }) =>
+      deleteGroup(principal, params.projectId ?? "", params.groupId ?? ""),
+  },
+  {
+    id: "groups.member",
+    mcp: { not: "People are managed by people" },
+    method: "POST",
+    path: "/projects/{projectId}/groups/{groupId}/members",
+    tag: "Operators",
+    summary:
+      "Add an operator to a group or remove them; the caller has to hold the actions of the group",
+    access: "project.manage",
+    body: groupMemberInput,
+    response: groupOut,
+    run: ({ principal, params, input }) =>
+      setGroupMember(principal, params.projectId ?? "", params.groupId ?? "", input),
   },
   {
     id: "operators.active",

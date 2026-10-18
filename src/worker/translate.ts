@@ -10,11 +10,11 @@ import {
 import { cleanText } from "../domain/untrusted";
 import { runAiTask, type AiDeps } from "../server/ai-run";
 import { db } from "../server/db";
+import { actionsOf } from "../server/grants";
 import {
   agents,
   aiProfiles,
   aiRuns,
-  memberships,
   messages,
   tickets,
   translations,
@@ -43,11 +43,13 @@ async function mayRead(actor: z.infer<typeof payload>, projectId: string): Promi
     );
   }
   const [member] = await db()
-    .select({ active: user.active, actions: memberships.actions })
-    .from(memberships)
-    .innerJoin(user, eq(user.id, memberships.userId))
-    .where(and(eq(memberships.userId, actor.actorId), eq(memberships.projectId, projectId)));
-  return member?.active === true && member.actions.includes("ticket.read");
+    .select({ active: user.active })
+    .from(user)
+    .where(eq(user.id, actor.actorId));
+  return (
+    member?.active === true &&
+    ((await actionsOf(actor.actorId, projectId))?.includes("ticket.read") ?? false)
+  );
 }
 export async function runTranslations(
   scope?: { projectId: string },
