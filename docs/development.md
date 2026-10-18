@@ -177,6 +177,29 @@ the configuration, not offered to MCP) shows what a project has used, for the da
 
 An archived project can be read too. Nothing is shown of another project.
 
+### Branding of the customer page
+
+A person who may change the configuration (`config.write`) brands the customer page of a project in the settings
+("Customer page of ...") or over REST (`/api/v1/projects/{id}/portal-branding`, and `.../logo`; not offered to MCP; a
+person who may read the configuration sees it, an agent changes nothing). Four fields, each of which can be left empty
+and then is not shown: a **name** and a **line of text** (plain text, 80 and 300 characters) above the conversation, the
+**colour** of the buttons, and the **language** of the page. The text on the colour is black or white, whichever has
+the higher contrast (WCAG 2), so every colour that is six hexadecimal digits gives a readable button; the colour is used
+for the buttons and the line under the header and for no text. A project that fixes the language gets it for every
+visitor; without it the language of the browser decides, as before. The own wording of the texts of the page (see the
+texts) is chosen by the language that the page has.
+
+The **logo** is a PNG, a JPEG or a WebP of at most 256 KiB, sent as base64. Its type is decided by its first bytes and
+not by what the sender says; SVG is refused because it can carry script. It is stored as `branding/<project>/<sha256>`
+and named by `portal_branding.logo_key`, so the sweep of the storage keeps it, a replaced logo removes the old object,
+and deleting a project removes the prefix. The page shows it through `/api/portal/logo/<token>`, which needs a link
+that works on that name and answers 404 for every other reason, with `nosniff` and a content security policy that
+allows nothing. The audit entries (`portal_branding.update`, `.logo_set`, `.logo_remove`) name the fields, and for the
+logo the type, the size and the hash, never the text or the image. The export of a project contains the branding and the
+logo.
+
+The mails of a project have their own design; the branding of the page does not change them.
+
 ## Operator administration
 
 The Settings view lists operators. Owners add operators by name and email and

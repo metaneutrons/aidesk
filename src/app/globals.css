@@ -2006,3 +2006,54 @@ button.danger {
 .group-rights {
     flex-basis: 100%;
 }
+
+/* The branding of the customer page: the name, the line and the logo above the conversation, and the colour of the
+   buttons. The text on the colour is black or white, chosen on the server. */
+.portal-brand {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 3px solid var(--portal-accent, var(--line));
+}
+
+.portal-brand img {
+    max-height: 48px;
+    max-width: 160px;
+    width: auto;
+    object-fit: contain;
+}
+
+.portal-brand p {
+    margin: 4px 0 0;
+}
+
+.portal .primary {
+    background: var(--portal-accent, var(--accent));
+    color: var(--portal-on-accent, var(--panel));
+}
+
+.color-field {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.color-field input[type="color"] {
+    width: 44px;
+    height: 32px;
+    padding: 0;
+}
+
+.branding-logo {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.branding-logo img {
+    max-height: 48px;
+    max-width: 160px;
+    width: auto;
+    object-fit: contain;
+}

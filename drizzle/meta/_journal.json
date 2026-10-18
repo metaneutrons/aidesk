@@ -253,6 +253,13 @@
       "when": 1792322157980,
       "tag": "0035_operator_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792324957479,
+      "tag": "0036_portal_branding",
+      "breakpoints": true
     }
   ]
 }

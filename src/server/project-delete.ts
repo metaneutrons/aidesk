@@ -18,7 +18,7 @@ export const projectDeleteInput = z
   .strict();
 async function removeObjects(project: string): Promise<number> {
   let removed = 0;
-  for (const prefix of [`inbound/${project}/`, `attachments/${project}/`]) {
+  for (const prefix of [`inbound/${project}/`, `attachments/${project}/`, `branding/${project}/`]) {
     const keys: string[] = [];
     for await (const entry of listObjects(prefix)) keys.push(entry.key);
     const failed = keys.length ? await deleteObjects(keys) : [];

@@ -21,6 +21,7 @@ import {
   operatorGroupMembers,
   operatorGroups,
   participants,
+  portalBranding,
   portalDomains,
   projectExports,
   projects,
@@ -95,6 +96,7 @@ export async function createProjectExport(
     auditRows,
     groupRows,
     groupMemberRows,
+    brandingRows,
   ] = await Promise.all([
     db().select().from(tickets).where(eq(tickets.projectId, project)).orderBy(asc(tickets.number)),
     db()
@@ -149,6 +151,7 @@ export async function createProjectExport(
       .innerJoin(operatorGroups, eq(operatorGroups.id, operatorGroupMembers.groupId))
       .innerJoin(user, eq(user.id, operatorGroupMembers.userId))
       .where(eq(operatorGroups.projectId, project)),
+    db().select().from(portalBranding).where(eq(portalBranding.projectId, project)),
   ]);
   // The objects that the rows name, once each.
   const keys = [
@@ -157,6 +160,7 @@ export async function createProjectExport(
         ...messageRows.map((message) => message.rawObjectKey),
         ...attachmentRows.map((attachment) => attachment.objectKey),
         ...ingressRows.map((entry) => entry.rawObjectKey),
+        ...brandingRows.map((entry) => entry.logoKey),
       ].filter((key): key is string => typeof key === "string" && key.length > 0),
     ),
   ].sort();
@@ -187,6 +191,7 @@ export async function createProjectExport(
           designs: designRows,
           aiProfiles: profileRows,
           portalDomains: domainRows,
+          portalBranding: brandingRows,
           configChanges: changeRows,
         },
         null,
