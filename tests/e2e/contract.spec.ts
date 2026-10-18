@@ -4,6 +4,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { z } from "zod";
 import { expect, remote, test } from "./fixtures";
+import { certificates } from "../support/certificates";
 // Contract tests for the published API definition. The definition is read from
 // the running application, exactly as a client reads it, and every answer is
 // checked against it with a JSON Schema validator that has nothing to do with the
@@ -321,6 +322,28 @@ test("answers every documented route in the published shape, with real data", as
   await call("projects.resume_agents", { params: { projectId: project }, data: {} });
   await call("workspace.controls_get");
   await call("workspace.limits_get");
+  // A provider of the SAML kind (it needs no network at registration), through its whole life: registered, listed,
+  // its record asked for, looked for, tested, switched off and on, changed and deleted.
+  const sso = `contract-${desk.run}`.toLowerCase();
+  await call("sso.providers_register", {
+    data: {
+      providerId: sso,
+      issuer: "https://idp.example.test/saml",
+      domain: `${sso}.example.test`,
+      saml: { entryPoint: "https://idp.example.test/saml/sso", cert: certificates.long },
+    },
+  });
+  await call("sso.providers_list");
+  await call("sso.providers_domain_record", { params: { providerId: sso } });
+  await call("sso.providers_verify_domain", { params: { providerId: sso } });
+  await call("sso.providers_test", { params: { providerId: sso } });
+  await call("sso.providers_disable", { params: { providerId: sso } });
+  await call("sso.providers_enable", { params: { providerId: sso } });
+  await call("sso.providers_update", {
+    params: { providerId: sso },
+    data: { domain: `${sso}-moved.example.test` },
+  });
+  await call("sso.providers_delete", { params: { providerId: sso }, data: { confirm: sso } });
   // Archived and restored at once, so that nothing after it meets a read-only project.
   // An export is made and listed; the file itself and the deletion are covered by their own tests.
   await call("projects.export_create", { params: { projectId: project } });

@@ -9570,6 +9570,1331 @@
         }
       }
     },
+    "/sso-providers": {
+      "get": {
+        "operationId": "sso.providers_list",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "The identity providers (OIDC and SAML) with their domain, state and the operators linked to each; only the owner",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "providerId": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "oidc",
+                          "saml"
+                        ]
+                      },
+                      "issuer": {
+                        "type": "string"
+                      },
+                      "domain": {
+                        "type": "string"
+                      },
+                      "domainVerified": {
+                        "type": "boolean"
+                      },
+                      "disabled": {
+                        "type": "boolean"
+                      },
+                      "disabledAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "clientIdLastFour": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "callback": {
+                        "type": "string",
+                        "description": "The address that the provider is told to call back"
+                      },
+                      "metadata": {
+                        "description": "The metadata of this side, for a SAML provider",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "samlAudience": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "operators": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            },
+                            "active": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "email",
+                            "active"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "The operators who have signed in through this provider and are linked to it"
+                      }
+                    },
+                    "required": [
+                      "providerId",
+                      "type",
+                      "issuer",
+                      "domain",
+                      "domainVerified",
+                      "disabled",
+                      "disabledAt",
+                      "clientIdLastFour",
+                      "callback",
+                      "metadata",
+                      "samlAudience",
+                      "operators"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      },
+      "post": {
+        "operationId": "sso.providers_register",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Register an OIDC or a SAML provider. It signs nobody in until the domain is verified with the text record that the answer names. The secret of the client is never returned",
+        "x-required-access": "owner",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,43}$",
+                    "description": "A name for the provider in lower case; it is part of the address that the provider calls back"
+                  },
+                  "issuer": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "format": "uri"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "description": "The domain of the e-mail addresses of the operators who sign in through it"
+                  },
+                  "oidc": {
+                    "type": "object",
+                    "properties": {
+                      "clientId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "clientSecret": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "discoveryEndpoint": {
+                        "description": "Defaults to the well-known address of the issuer",
+                        "type": "string",
+                        "maxLength": 500,
+                        "format": "uri"
+                      },
+                      "scopes": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        }
+                      },
+                      "pkce": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "clientId",
+                      "clientSecret"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "saml": {
+                    "type": "object",
+                    "properties": {
+                      "entryPoint": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "format": "uri"
+                      },
+                      "cert": {
+                        "type": "string",
+                        "minLength": 50,
+                        "maxLength": 20000,
+                        "description": "The signing certificate of the provider (PEM)"
+                      },
+                      "audience": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      }
+                    },
+                    "required": [
+                      "entryPoint",
+                      "cert"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "providerId",
+                  "issuer",
+                  "domain"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "saml"
+                      ]
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "disabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "clientIdLastFour": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "callback": {
+                      "type": "string",
+                      "description": "The address that the provider is told to call back"
+                    },
+                    "metadata": {
+                      "description": "The metadata of this side, for a SAML provider",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "samlAudience": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "operators": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The operators who have signed in through this provider and are linked to it"
+                    },
+                    "domainRecord": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The text record that proves the domain; shown once, ask again for it later"
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "type",
+                    "issuer",
+                    "domain",
+                    "domainVerified",
+                    "disabled",
+                    "disabledAt",
+                    "clientIdLastFour",
+                    "callback",
+                    "metadata",
+                    "samlAudience",
+                    "operators",
+                    "domainRecord"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}": {
+      "put": {
+        "operationId": "sso.providers_update",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Change the domain (which asks for a new proof), the secret of an OIDC client or its scopes. A change of the issuer or the client id is not offered: register a new provider",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "maxLength": 253
+                  },
+                  "clientSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "scopes": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "saml"
+                      ]
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "disabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "clientIdLastFour": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "callback": {
+                      "type": "string",
+                      "description": "The address that the provider is told to call back"
+                    },
+                    "metadata": {
+                      "description": "The metadata of this side, for a SAML provider",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "samlAudience": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "operators": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The operators who have signed in through this provider and are linked to it"
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "type",
+                    "issuer",
+                    "domain",
+                    "domainVerified",
+                    "disabled",
+                    "disabledAt",
+                    "clientIdLastFour",
+                    "callback",
+                    "metadata",
+                    "samlAudience",
+                    "operators"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/domain-record": {
+      "post": {
+        "operationId": "sso.providers_domain_record",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "The text record that proves the domain of a provider, as it is now asked for",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "record": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "domainVerified",
+                    "record"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/verify-domain": {
+      "post": {
+        "operationId": "sso.providers_verify_domain",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Look for the text record in the DNS; when it is there the provider may sign operators in. It can be asked again. A provider that is switched off is switched on instead (409)",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "saml"
+                      ]
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "disabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "clientIdLastFour": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "callback": {
+                      "type": "string",
+                      "description": "The address that the provider is told to call back"
+                    },
+                    "metadata": {
+                      "description": "The metadata of this side, for a SAML provider",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "samlAudience": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "operators": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The operators who have signed in through this provider and are linked to it"
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "verified",
+                        "record_missing",
+                        "request_first",
+                        "already_verified"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "type",
+                    "issuer",
+                    "domain",
+                    "domainVerified",
+                    "disabled",
+                    "disabledAt",
+                    "clientIdLastFour",
+                    "callback",
+                    "metadata",
+                    "samlAudience",
+                    "operators",
+                    "result"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/test": {
+      "post": {
+        "operationId": "sso.providers_test",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Check a provider without signing anybody in: its documents can be read and agree with the registration, and the certificate is not about to end",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "ok",
+                          "detail"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "ok",
+                    "checks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/disable": {
+      "post": {
+        "operationId": "sso.providers_disable",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Switch a provider off: nobody signs in through it, and nothing else is changed. The operators stay linked",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "saml"
+                      ]
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "disabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "clientIdLastFour": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "callback": {
+                      "type": "string",
+                      "description": "The address that the provider is told to call back"
+                    },
+                    "metadata": {
+                      "description": "The metadata of this side, for a SAML provider",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "samlAudience": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "operators": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The operators who have signed in through this provider and are linked to it"
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "type",
+                    "issuer",
+                    "domain",
+                    "domainVerified",
+                    "disabled",
+                    "disabledAt",
+                    "clientIdLastFour",
+                    "callback",
+                    "metadata",
+                    "samlAudience",
+                    "operators"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/enable": {
+      "post": {
+        "operationId": "sso.providers_enable",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Switch a provider on again; its domain is verified again if it was verified before it was switched off",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "saml"
+                      ]
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "disabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "clientIdLastFour": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "callback": {
+                      "type": "string",
+                      "description": "The address that the provider is told to call back"
+                    },
+                    "metadata": {
+                      "description": "The metadata of this side, for a SAML provider",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "samlAudience": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "operators": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The operators who have signed in through this provider and are linked to it"
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "type",
+                    "issuer",
+                    "domain",
+                    "domainVerified",
+                    "disabled",
+                    "disabledAt",
+                    "clientIdLastFour",
+                    "callback",
+                    "metadata",
+                    "samlAudience",
+                    "operators"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/delete": {
+      "post": {
+        "operationId": "sso.providers_delete",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Delete a provider; the operators who signed in through it lose that way in. Its identifier has to be given as `confirm`",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "confirm"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    },
+                    "operators": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "operators"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/workspace/limits": {
       "get": {
         "operationId": "workspace.limits_get",

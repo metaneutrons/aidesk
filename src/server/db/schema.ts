@@ -139,6 +139,15 @@ export const ssoProvider = pgTable("sso_provider", {
   domain: text("domain").notNull(),
   domainVerified: boolean("domain_verified").default(false),
 });
+// The state of an identity provider that the plugin does not know: a provider that is switched off. The plugin has no
+// switch, and it refuses a provider whose domain is not verified, so switching off sets the domain to not verified and
+// remembers here whether it was verified, and switching on gives that back.
+export const ssoProviderState = pgTable("sso_provider_state", {
+  providerId: text("provider_id").primaryKey(),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }).notNull().defaultNow(),
+  disabledBy: text("disabled_by").notNull(),
+  verifiedBefore: boolean("verified_before").notNull().default(false),
+});
 export const projects = pgTable("project", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
