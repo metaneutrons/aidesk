@@ -22,6 +22,8 @@ import { activeTexts } from "./texts";
 import { queueAgentRun } from "./agent-runs";
 import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
+import { fileRules } from "../domain/limits";
+import { getLimits } from "./limits";
 import { decideLanguage, detectLanguage } from "../domain/language";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
@@ -220,6 +222,7 @@ export async function processIngress(
   // Files are stored before the transaction, like the original, under their
   // checksum; storing the same file again is harmless. Refused files are not
   // stored at all.
+  const rules = fileRules(await getLimits());
   const files = mail.attachments.map((file, index) => {
     const filename = safeFilename(file.filename, index);
     const contentType = (file.contentType || "application/octet-stream").toLowerCase();
@@ -230,7 +233,11 @@ export async function processIngress(
       checksum: createHash("sha256").update(file.content).digest("hex"),
       inline: file.contentDisposition === "inline",
       contentId: file.cid ? file.cid.slice(0, 200) : null,
-      refusal: attachmentRefusal({ filename, contentType, size: file.content.length }, index),
+      refusal: attachmentRefusal(
+        { filename, contentType, size: file.content.length },
+        index,
+        rules,
+      ),
       content: file.content,
     };
   });

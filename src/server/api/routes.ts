@@ -126,6 +126,8 @@ import {
 } from "../connections";
 import { aiProfileWrite } from "../../domain/ai";
 import { auditFilter } from "../../domain/audit";
+import { limitsInput } from "../../domain/limits";
+import { readLimits, setLimits } from "../limits";
 import {
   exportProjectAudit,
   exportWorkspaceAudit,
@@ -1143,6 +1145,31 @@ export const routes: Route[] = [
     body: workspaceInput,
     response: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
     run: ({ principal, input }) => setWorkspaceControls(principal, input),
+  },
+  {
+    id: "workspace.limits_get",
+    mcp: { not: "The limits of the whole workspace are for its owner" },
+    method: "GET",
+    path: "/workspace/limits",
+    tag: "Workspace",
+    summary:
+      "The limits that an owner sets: files at intake and in the portal, the length of a session and of a portal link",
+    access: "owner",
+    response: out.workspaceLimits,
+    run: ({ principal }) => readLimits(principal),
+  },
+  {
+    id: "workspace.limits_set",
+    mcp: { not: "The limits of the whole workspace are for its owner" },
+    method: "PUT",
+    path: "/workspace/limits",
+    tag: "Workspace",
+    summary:
+      "Set one or more limits; the others stay as they are. A change applies to what comes after it (a session that is running keeps its end) and is audited",
+    access: "owner",
+    body: limitsInput,
+    response: out.workspaceLimits,
+    run: ({ principal, input }) => setLimits(principal, input),
   },
   {
     id: "translations.request",

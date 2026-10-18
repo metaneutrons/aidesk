@@ -9,6 +9,7 @@ import { Configuration } from "./configuration";
 import { Connections } from "./connections";
 import { AiProfiles } from "./ai-profiles";
 import { AuditLog } from "./audit-log";
+import { Limits } from "./limits";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
@@ -492,6 +493,7 @@ export function Settings({
         ))}
       {owner && <OwnerPasskeys locale={locale} />}
       {owner && <WorkspaceControls />}
+      {owner && <Limits />}
       {managed
         .filter((grant) => grant.actions.includes("ticket.assign"))
         .map((grant) => (

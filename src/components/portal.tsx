@@ -29,10 +29,12 @@ export function Portal({
   token,
   locale,
   view,
+  fileLimits,
 }: {
   token: string;
   locale: string;
   view: PortalView | null;
+  fileLimits: { count: number; mib: number };
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -168,7 +170,9 @@ export function Portal({
               setFiles([...(event.target.files ?? [])]);
             }}
           />
-          <small className="muted">{t("portalAttachHint")}</small>
+          <small className="muted">
+            {t("portalAttachHint", { count: fileLimits.count, size: fileLimits.mib })}
+          </small>
           {files.length > 0 && <p role="status">{t("portalAttached", { count: files.length })}</p>}
           <button
             className="primary"

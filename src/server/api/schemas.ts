@@ -481,6 +481,14 @@ export const webhookDelivery = z.object({
   durationMs: z.number(),
   createdAt: isoDate,
 });
+export const workspaceLimits = z.object({
+  intakeFiles: z.number().int(),
+  intakeFileMiB: z.number().int(),
+  portalFiles: z.number().int(),
+  portalTotalMiB: z.number().int(),
+  sessionHours: z.number().int(),
+  portalLinkDays: z.number().int(),
+});
 export const auditEntry = z.object({
   id: z.uuid(),
   at: isoDate,
