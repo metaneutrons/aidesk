@@ -1,3 +1,4 @@
+import { lockOwners, unlockOwners } from "./support/owner-lock";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray, like } from "drizzle-orm";
@@ -44,10 +45,12 @@ async function removeOwners() {
 }
 beforeAll(async () => {
   await migrate(db(), { migrationsFolder: "drizzle" });
+  await lockOwners();
   await removeOwners();
 });
 afterAll(async () => {
   await removeOwners();
+  await unlockOwners();
   await sqlClient().end();
 });
 describe("owner credentials", () => {
