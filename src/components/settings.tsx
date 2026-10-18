@@ -8,6 +8,7 @@ import { ProjectAgentControls, WorkspaceControls } from "./agent-controls";
 import { Configuration } from "./configuration";
 import { Connections } from "./connections";
 import { AiProfiles } from "./ai-profiles";
+import { AuditLog } from "./audit-log";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
@@ -510,6 +511,17 @@ export function Settings({
             locale={locale}
           />
         ))}
+      {managed
+        .filter((grant) => grant.actions.includes("audit.read"))
+        .map((grant) => (
+          <AuditLog
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            locale={locale}
+          />
+        ))}
+      {owner && <AuditLog projectId={null} name="" locale={locale} />}
       <Designs
         projects={projects.filter((project) => held(project.id).includes("project.manage"))}
         locale={locale}

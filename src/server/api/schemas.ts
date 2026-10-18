@@ -481,6 +481,20 @@ export const webhookDelivery = z.object({
   durationMs: z.number(),
   createdAt: isoDate,
 });
+export const auditEntry = z.object({
+  id: z.uuid(),
+  at: isoDate,
+  actorId: z.string(),
+  actorName: z.string().nullable(),
+  actorKind: z.enum(["user", "agent", "customer", "unknown"]),
+  action: z.string(),
+  targetId: z.string().nullable(),
+  detail: z.unknown(),
+});
+export const auditPage = z.object({
+  entries: z.array(auditEntry),
+  next: z.string().nullable().describe("The cursor for the next page, null at the end"),
+});
 export const webhookResult = textResult;
 export const webhookPing = z.object({ eventId: z.uuid() });
 export const translationOut = z.object({

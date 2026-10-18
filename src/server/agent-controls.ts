@@ -150,8 +150,12 @@ export async function setWorkspaceControls(principal: Principal, input: unknown)
         target: workspaceSettings.key,
         set: { value: after, updatedBy: principal.id, updatedAt: new Date() },
       });
-    // The audit of the workspace has no project; it is kept with the first project it touches
-    // only through the runs it takes back, and as a log line.
+    // An entry without a project is an entry of the workspace, which only the owner reads.
+    await tx.insert(audit).values({
+      actorId: principal.id,
+      action: "workspace.controls",
+      detail: { before, after },
+    });
     if (after.stopAutonomous && !before.stopAutonomous) {
       const open = await tx
         .selectDistinct({ ticketId: agentRuns.ticketId })

@@ -78,6 +78,10 @@ const notCalled: Record<string, string> = {
   "junk.restore": "needs a mail in the junk folder",
   "tickets.junk": "moves a ticket of the fixture; covered by the desk test",
   "tickets.restore": "needs a ticket in the junk folder",
+  "audit.export":
+    "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
+  "audit.workspace_export":
+    "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "workspace.controls_set":
     "sets a switch of the whole installation, which would stop the agents or the mail of the tests that run beside; covered by the controls tests",
   "tickets.translate_draft":
@@ -310,6 +314,8 @@ test("answers every documented route in the published shape, with real data", as
   await call("projects.agent_stop", { params: { projectId: project }, data: { stopped: false } });
   await call("projects.resume_agents", { params: { projectId: project }, data: {} });
   await call("workspace.controls_get");
+  await call("audit.list", { params: { projectId: project }, query: { limit: "5" } });
+  await call("audit.workspace", { query: { limit: "5" } });
   await call("tickets.assign", {
     params: { ticketId: ticket },
     data: { userId: null, agentId: null },
@@ -353,8 +359,13 @@ test("answers a call that is not valid, or not allowed, in the documented error 
       headers,
       ...(method === "GET" ? {} : { data: {} }),
     });
-    const body = (await response.json()) as unknown;
     const id = operation.operationId;
+    // The export of the workspace answers its owner with a file, not with a refusal.
+    if ((response.headers()["content-type"] ?? "").startsWith("text/csv")) {
+      expect(response.status(), id).toBe(200);
+      continue;
+    }
+    const body = (await response.json()) as unknown;
     expect(check(operation, response.status(), body), `${id}: ${JSON.stringify(body)}`).toEqual([]);
   }
   expect(desk.run).toBeTruthy();

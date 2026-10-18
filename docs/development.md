@@ -1235,13 +1235,56 @@ ticket, `workspace_stopped` for the workspace), and a run that is in flight ends
 check. While a stop holds, nothing is queued. Lifting a stop queues nothing by itself, because
 what was queued before is out of date: `POST /projects/{id}/resume-agents` queues a run for every
 ticket with an assignee that still waits for an answer, at its current revision, for the agents
-that may work it (it answers 409 while a stop holds). Every change is audited (the workspace
-change is logged, since the audit belongs to a project).
+that may work it (it answers 409 while a stop holds). Every change is audited (the change of the workspace
+switches as an entry of the workspace, see Audit).
 
 The worker that sends asks again immediately before it hands a message over: a paused workspace
 or project stops every dispatch and the test mail of the designs, and an agent's message under
 the `direct` policy also needs that neither the project nor the workspace is stopped. A message
 that is not sent for that reason waits in review like any other refused dispatch.
+
+## Audit
+
+Every change of a setting, every ticket action, every file read and every sign-in of the owner writes a row
+to the audit with the actor, the action, the object it concerned and a small `detail`. Rows are written
+without ticket content, secrets or customer addresses; a read of the sources (60 places write rows, checked
+on 2026-10-17) found no ticket text, no subject, no token and no code, and no address of a customer. What
+can still get in is typed by a person: the address of a webhook or an endpoint (it may carry credentials or a
+token in its query), a name, a reason for a rejection, a standard text, and the login name of a mailbox.
+
+Reading: `GET /api/v1/projects/{id}/audit` needs `audit.read` in the project (the preset "manage" has it;
+a token may be given it); `GET /api/v1/audit` lists the entries without a project (sign-ins and recoveries
+of the owner, the creation and disabling of operators, the switches of the workspace) and is for the owner
+only. A reader without the right is told 404. Both take `actor`, `action` (one action, or a family when it ends
+with a dot, such as `ticket.`), `target`, `from`, `to` (ISO 8601) and `limit` (1 to 200, default 50), and
+answer `{entries, next}`, newest first; `next` is a cursor to hand back as `before`. The cursor holds the time
+of the last entry to the microsecond and its id, so that entries with the same time are neither repeated nor
+skipped. An entry names the actor when it is an operator or an agent (`actorKind`: `user`, `agent`,
+`customer` for a `portal:` actor, or `unknown`). MCP offers the list as `audit_list` to a token with the right.
+In the settings each project with the right has a closed block "Audit of ..." that loads on opening, with the
+filters, a table, the detail of an entry and "Load more"; the owner has one for the workspace.
+
+Export: `GET /api/v1/projects/{id}/audit/export` and `GET /api/v1/audit/export` answer a CSV file
+(`time, actor_id, actor_name, actor_kind, action, target_id, detail`) with the same filters except the page
+size and the cursor, for at most the newest 10 000 entries; a longer one is cut and says so in the header
+`X-Audit-Cut: true`. A cell that a spreadsheet would run as a formula (it starts with `=`, `+`, `-`, `@`, a
+tab or a return) is written with a leading apostrophe. An export is an entry of the audit itself
+(`audit.export`, with the number of entries, whether it was cut and the filters).
+
+What an entry shows of its `detail` is cut by `redactDetail` (`src/domain/audit.ts`) on every read, entries
+that were written earlier included: an address that begins with `http(s)://` is shown without user,
+password, query and fragment; a string is cut at 200 characters; a value under a key named like a secret,
+token, password, key or credential is withheld (the states `set`, `unset` and `replaced` of a secret stay);
+the values of a change of `/config/user` (the login name of a mailbox) are withheld, and the pointer stays so
+that the change is visible; arrays are cut at 50 entries and nesting at 6 levels. The writers of the changes
+that carry such values (webhooks, connections, configuration, proposals) apply the same function before
+they write, so the database does not hold the query of an address either. Rows that were written before that
+still hold what they held; they are shown cut.
+
+Not covered: an address that is part of a longer text is not recognised as an address; a person who types
+a customer's name as the reason of a rejection or into a tag has put it there (the length is cut, the
+content is not judged); entries are never deleted or changed by the product, and there is no retention
+period yet (M8).
 
 ## Webhooks
 
