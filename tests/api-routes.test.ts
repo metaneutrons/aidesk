@@ -42,6 +42,32 @@ describe("the route table", () => {
     expect(matchRoute("DELETE", `/tickets/${sample}`)).toBeNull();
     expect(matchRoute("GET", "/nothing")).toBeNull();
   });
+  it("answers a route that is called without its path parameters with a refusal and never with a failure of the server", async () => {
+    const withParameters = routes.filter((route) => /\{\w+\}/.test(route.path));
+    expect(withParameters.length).toBeGreaterThan(30);
+    for (const route of withParameters) {
+      const answer = await Promise.resolve()
+        .then(() =>
+          route.run({
+            principal: owner,
+            params: {},
+            query: new URLSearchParams(),
+            input: {},
+            request: new Request("http://localhost/api/v1"),
+          }),
+        )
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+      // A route may answer an empty request (it then names no project), or refuse it; it does not break.
+      if (answer !== null)
+        expect(
+          answer instanceof DomainError || answer instanceof ZodError,
+          `${route.id}: ${answer instanceof Error ? answer.message : "not an error"}`,
+        ).toBe(true);
+    }
+  });
   it("keeps the route file free of routes", () => {
     const file = readFileSync("src/app/api/v1/[[...path]]/route.ts", "utf8");
     expect(file.split("\n").length).toBeLessThan(12);
