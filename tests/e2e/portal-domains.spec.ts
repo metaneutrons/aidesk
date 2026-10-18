@@ -46,3 +46,24 @@ test("claims a name for the customer page, shows the record to create and remove
   await expect(section.getByText(`${host} was removed.`)).toBeVisible();
   await expect(section.getByText("No name yet.")).toBeVisible();
 });
+test("lets the owner claim a name for the whole installation and remove it", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  const host = `wide-${desk.run}.example.test`.toLowerCase();
+  await signIn();
+  await page.goto("/");
+  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  const section = page.locator("section.portal-domains").filter({
+    has: page.getByRole("heading", { name: "Customer page names of the installation" }),
+  });
+  await expect(section).toBeVisible();
+  await section.getByLabel("Name, for example help.example.org").fill(host);
+  await section.getByRole("button", { name: "Add name" }).click();
+  await expect(section.getByText(`${host} was added.`)).toBeVisible();
+  const entry = section.getByRole("listitem").filter({ hasText: host });
+  await expect(entry.locator("code").first()).toHaveText(`_aidesk-challenge.${host}`);
+  await entry.getByRole("button", { name: `Remove ${host}` }).click();
+  await expect(section.getByText(`${host} was removed.`)).toBeVisible();
+});

@@ -17,10 +17,12 @@ const checkedSchema = domainSchema.extend({
 type Domain = z.infer<typeof domainSchema>;
 type Message =
   "added" | "removed" | "verified" | "record_missing" | "dns_error" | "taken" | "error";
-export function PortalDomains({ projectId, name }: { projectId: string; name: string }) {
+export function PortalDomains({ projectId, name }: { projectId: string | null; name: string }) {
   const t = useTranslations();
   const titleId = useId();
-  const base = `/api/v1/projects/${projectId}/portal-domains`;
+  const base = projectId
+    ? `/api/v1/projects/${projectId}/portal-domains`
+    : "/api/v1/portal-domains";
   const [rows, setRows] = useState<Domain[] | null>(null);
   const [host, setHost] = useState("");
   const [message, setMessage] = useState<{ text: Message; host: string } | null>(null);
@@ -49,8 +51,14 @@ export function PortalDomains({ projectId, name }: { projectId: string; name: st
   if (rows === null) return null;
   return (
     <section className="connections portal-domains" aria-labelledby={`${titleId}-title`}>
-      <h3 id={`${titleId}-title`}>{t("portalDomainsTitle", { project: name })}</h3>
-      <p className="muted">{t("portalDomainsHint")}</p>
+      <h3 id={`${titleId}-title`}>
+        {projectId
+          ? t("portalDomainsTitle", { project: name })
+          : t("portalDomainsTitleInstallation")}
+      </h3>
+      <p className="muted">
+        {t(projectId ? "portalDomainsHint" : "portalDomainsHintInstallation")}
+      </p>
       {rows.length === 0 ? (
         <p className="muted">{t("portalDomainsNone")}</p>
       ) : (

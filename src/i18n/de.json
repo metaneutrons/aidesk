@@ -607,5 +607,7 @@
   "portalDomainMessage_record_missing": "Der Eintrag für {host} wurde noch nicht gefunden. DNS-Änderungen können dauern, versuche es später noch einmal.",
   "portalDomainMessage_dns_error": "Das DNS ließ sich gerade nicht abfragen. Versuche es noch einmal.",
   "portalDomainMessage_taken": "Dieser Name gehört einem anderen Projekt oder der Anwendung selbst.",
-  "portalDomainMessage_error": "Das hat nicht geklappt. Prüfe den Namen und versuche es noch einmal."
+  "portalDomainMessage_error": "Das hat nicht geklappt. Prüfe den Namen und versuche es noch einmal.",
+  "portalDomainsTitleInstallation": "Namen der Kundenseite der Installation",
+  "portalDomainsHintInstallation": "Namen, unter denen die Kundenseite jedes Projekts ohne eigenen Namen erreichbar ist. Ein Projekt mit eigenem Namen ist unter diesem Namen erreichbar, seine Links öffnen sich hier nicht."
 }

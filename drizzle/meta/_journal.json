@@ -204,6 +204,13 @@
       "when": 1792305616448,
       "tag": "0028_portal_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792312020255,
+      "tag": "0029_portal_domain_installation",
+      "breakpoints": true
     }
   ]
 }

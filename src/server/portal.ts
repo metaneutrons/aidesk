@@ -22,7 +22,7 @@ import { getTicket } from "./operations";
 import { env } from "./env";
 import { fileRules, portalRules } from "../domain/limits";
 import { getLimits } from "./limits";
-import { portalBase } from "./portal-domains";
+import { hostServesProject, portalBase, type PortalHost } from "./portal-domains";
 import { permits, type Principal } from "../domain/permissions";
 // Portal grants give the requester of one ticket read access to that ticket's
 // public conversation. A link is derived, not stored: the identifier of the
@@ -155,9 +155,10 @@ export async function revokePortalGrant(principal: Principal, ticketId: string) 
 // The grant behind a token, or null for anything that is not a valid grant:
 // malformed, forged, replaced by a newer link, revoked, expired, unverified, or
 // for a ticket in junk.
-// `hostProject` is the project of the name that the request came in on, when that is a name of a customer page:
-// a link of another project does not open there.
-export async function resolvePortalGrant(token: unknown, hostProject: string | null = null) {
+// `host` is what the name of the request belongs to, when that is a name of a customer page: a link of another
+// project does not open on the name of a project, and a link of a project with a name of its own does not open on
+// the name of the installation.
+export async function resolvePortalGrant(token: unknown, host: PortalHost | null = null) {
   if (typeof token !== "string" || token.length > 100) return null;
   const parsed = participantOf(token);
   if (!parsed) return null;
@@ -183,7 +184,7 @@ export async function resolvePortalGrant(token: unknown, hostProject: string | n
   if (!grant) return null;
   const expected = mac(grant.participantId, grant.epoch);
   if (parsed.mac.length !== expected.length || !timingSafeEqual(parsed.mac, expected)) return null;
-  if (hostProject !== null && grant.projectId !== hostProject) return null;
+  if (!(await hostServesProject(host, grant.projectId))) return null;
   return {
     participantId: grant.participantId,
     email: grant.email,
@@ -197,9 +198,9 @@ export async function resolvePortalGrant(token: unknown, hostProject: string | n
 export async function getPortalTicket(
   token: unknown,
   language?: string,
-  hostProject: string | null = null,
+  host: PortalHost | null = null,
 ) {
-  const grant = await resolvePortalGrant(token, hostProject);
+  const grant = await resolvePortalGrant(token, host);
   if (!grant) throw new DomainError("not_found", 404);
   const [row] = await db()
     .select({
@@ -324,13 +325,13 @@ export async function portalReply(
   token: unknown,
   input: unknown,
   files: PortalFile[] = [],
-  hostProject: string | null = null,
+  host: PortalHost | null = null,
 ) {
   const values = z
     .object({ markdown: z.string().trim().min(1).max(20_000), idempotencyKey: z.uuid() })
     .strict()
     .parse(input);
-  const grant = await resolvePortalGrant(token, hostProject);
+  const grant = await resolvePortalGrant(token, host);
   if (!grant) throw new DomainError("not_found", 404);
   const limits = await getLimits();
   const portal = portalRules(limits);

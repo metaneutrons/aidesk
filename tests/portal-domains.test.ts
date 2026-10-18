@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { NextRequest } from "next/server";
 import { ZodError } from "zod";
@@ -33,7 +33,12 @@ import {
   isApplicationHost,
   listPortalDomains,
   portalBase,
-  portalHostProject,
+  portalHost,
+  hasOwnPortalName,
+  addInstallationPortalDomain,
+  listInstallationPortalDomains,
+  removeInstallationPortalDomain,
+  verifyInstallationPortalDomain,
   portalOriginAllowed,
   removePortalDomain,
   verifyPortalDomain,
@@ -74,6 +79,7 @@ const person = (
   owner: false,
   grants: [{ projectId: project, actions: held }],
 });
+const owner: Principal = { ...person("owner", "human", projectA, ["project.read"]), owner: true };
 const managerA = person("manager-a", "human", projectA, ["project.read", "project.manage"]);
 const managerB = person("manager-b", "human", projectB, ["project.read", "project.manage"]);
 const agentA = person("agent-a", "agent", projectA, ["project.read", "project.manage"]);
@@ -88,6 +94,12 @@ const staffB = person("staff-b", "human", projectB, [
   "ticket.read",
   "ticket.reply",
 ]);
+// The project that a name belongs to, or null for a name that is none or the installation's.
+const projectOfHost = async (host: string | null) => {
+  const found = await portalHost(host);
+  return found?.kind === "project" ? found.projectId : null;
+};
+const asProject = (projectId: string) => ({ kind: "project", projectId }) as const;
 const outcome = async (promise: Promise<unknown>) =>
   promise.then(
     () => "ok",
@@ -140,6 +152,9 @@ beforeEach(async () => {
   await db()
     .delete(portalDomains)
     .where(inArray(portalDomains.projectId, [projectA, projectB]));
+  await db()
+    .delete(portalDomains)
+    .where(and(isNull(portalDomains.projectId), eq(portalDomains.createdBy, owner.id)));
   forgetPortalHosts();
 });
 afterAll(async () => {
@@ -281,7 +296,7 @@ describe("claiming, proving and removing a name", () => {
       verified: false,
       result: "dns_error",
     });
-    expect(await portalHostProject(host)).toBeNull();
+    expect(await projectOfHost(host)).toBeNull();
     // The record, split into the chunks that a long text record is made of, among others.
     dns.txt.set(added.challenge.name, [
       ["v=spf1 -all"],
@@ -290,7 +305,7 @@ describe("claiming, proving and removing a name", () => {
     const proved = await verifyPortalDomain(managerA, projectA, added.id);
     expect(proved).toMatchObject({ verified: true, result: "verified" });
     expect(proved.verifiedAt).toBeInstanceOf(Date);
-    expect(await portalHostProject(host)).toBe(projectA);
+    expect(await projectOfHost(host)).toBe(projectA);
     // Asked again after the proof, it stays proved, also when the record is gone.
     dns.txt.clear();
     expect((await verifyPortalDomain(managerA, projectA, added.id)).result).toBe("verified");
@@ -312,7 +327,7 @@ describe("claiming, proving and removing a name", () => {
     // The record of both is there, which only the owner of the name can make: the second to prove loses.
     dns.txt.set(a.challenge.name, [[a.challenge.value], [b.challenge.value]]);
     expect(await outcome(verifyPortalDomain(managerB, projectB, b.id))).toBe("conflict");
-    expect(await portalHostProject(host)).toBe(projectA);
+    expect(await projectOfHost(host)).toBe(projectA);
     // Once a project has proved the name, no other project can claim it, not even again.
     expect(await outcome(addPortalDomain(managerB, projectB, { host }))).toBe("conflict");
   });
@@ -320,12 +335,12 @@ describe("claiming, proving and removing a name", () => {
     const host = name("gone");
     const added = await claim(managerA, projectA, host);
     await verifyPortalDomain(managerA, projectA, added.id);
-    expect(await portalHostProject(host)).toBe(projectA);
+    expect(await projectOfHost(host)).toBe(projectA);
     expect(await removePortalDomain(managerA, projectA, added.id)).toEqual({
       removed: true,
       host,
     });
-    expect(await portalHostProject(host)).toBeNull();
+    expect(await projectOfHost(host)).toBeNull();
     expect(await outcome(removePortalDomain(managerA, projectA, added.id))).toBe("not_found");
     const [entry] = await db()
       .select()
@@ -338,24 +353,24 @@ describe("the lookup of a name", () => {
   it("knows only verified names, in any case and with a port, and takes the first of a list", async () => {
     const host = name("lookup");
     const added = await claim(managerA, projectA, host, false);
-    expect(await portalHostProject(host)).toBeNull();
+    expect(await projectOfHost(host)).toBeNull();
     dns.txt.set(added.challenge.name, [[added.challenge.value]]);
     await verifyPortalDomain(managerA, projectA, added.id);
-    expect(await portalHostProject(host)).toBe(projectA);
-    expect(await portalHostProject(host.toUpperCase())).toBe(projectA);
-    expect(await portalHostProject(`${host}:8443`)).toBe(projectA);
-    expect(await portalHostProject(`${host}, other.example.org`)).toBe(projectA);
-    expect(await portalHostProject(null)).toBeNull();
-    expect(await portalHostProject("never-claimed.example.test")).toBeNull();
-    expect(await portalHostProject(`sub.${host}`)).toBeNull();
+    expect(await projectOfHost(host)).toBe(projectA);
+    expect(await projectOfHost(host.toUpperCase())).toBe(projectA);
+    expect(await projectOfHost(`${host}:8443`)).toBe(projectA);
+    expect(await projectOfHost(`${host}, other.example.org`)).toBe(projectA);
+    expect(await projectOfHost(null)).toBeNull();
+    expect(await projectOfHost("never-claimed.example.test")).toBeNull();
+    expect(await projectOfHost(`sub.${host}`)).toBeNull();
   });
   it("drops a removed name at once in this process", async () => {
     const host = name("drop");
     const added = await claim(managerA, projectA, host);
     await verifyPortalDomain(managerA, projectA, added.id);
-    expect(await portalHostProject(host)).toBe(projectA);
+    expect(await projectOfHost(host)).toBe(projectA);
     await removePortalDomain(managerA, projectA, added.id);
-    expect(await portalHostProject(host)).toBeNull();
+    expect(await projectOfHost(host)).toBeNull();
   });
 });
 describe("the address of a link", () => {
@@ -417,17 +432,15 @@ describe("a link on the name of a project", () => {
     expect((await resolvePortalGrant(a.token, null))?.projectId).toBe(projectA);
     expect((await resolvePortalGrant(b.token, null))?.projectId).toBe(projectB);
     // The name of the project of the link.
-    expect((await resolvePortalGrant(a.token, await portalHostProject(hostA)))?.ticketId).toBe(
-      ticketA,
-    );
+    expect((await resolvePortalGrant(a.token, await portalHost(hostA)))?.ticketId).toBe(ticketA);
     // The name of another project: the link does not open there, and says nothing about why.
-    expect(await resolvePortalGrant(a.token, await portalHostProject(hostB))).toBeNull();
-    expect(await resolvePortalGrant(b.token, await portalHostProject(hostA))).toBeNull();
-    await expect(getPortalTicket(a.token, "en", projectB)).rejects.toMatchObject({
+    expect(await resolvePortalGrant(a.token, await portalHost(hostB))).toBeNull();
+    expect(await resolvePortalGrant(b.token, await portalHost(hostA))).toBeNull();
+    await expect(getPortalTicket(a.token, "en", asProject(projectB))).rejects.toMatchObject({
       code: "not_found",
       status: 404,
     });
-    const same = await getPortalTicket(a.token, "en", projectA);
+    const same = await getPortalTicket(a.token, "en", asProject(projectA));
     expect(same.messages.length).toBeGreaterThan(0);
     expect(same.messages.every((message) => !JSON.stringify(message).includes("Internal"))).toBe(
       true,
@@ -437,7 +450,12 @@ describe("a link on the name of a project", () => {
     const { a, ticketA } = await setup();
     const before = await db().select().from(messages).where(eq(messages.ticketId, ticketA));
     await expect(
-      portalReply(a.token, { markdown: "Wrong name", idempotencyKey: randomUUID() }, [], projectB),
+      portalReply(
+        a.token,
+        { markdown: "Wrong name", idempotencyKey: randomUUID() },
+        [],
+        asProject(projectB),
+      ),
     ).rejects.toMatchObject({ code: "not_found" });
     expect(await db().select().from(messages).where(eq(messages.ticketId, ticketA))).toHaveLength(
       before.length,
@@ -446,7 +464,7 @@ describe("a link on the name of a project", () => {
       a.token,
       { markdown: "Right name", idempotencyKey: randomUUID() },
       [],
-      projectA,
+      asProject(projectA),
     );
     expect(sent.duplicate).toBe(false);
   });
@@ -455,7 +473,7 @@ describe("a link on the name of a project", () => {
     const ticketA = (await resolvePortalGrant(a.token, null))?.ticketId ?? "";
     await revokePortalGrant(staffA, ticketA);
     expect(await resolvePortalGrant(a.token, null)).toBeNull();
-    expect(await resolvePortalGrant(a.token, projectA)).toBeNull();
+    expect(await resolvePortalGrant(a.token, asProject(projectA))).toBeNull();
     const rows = await db().select().from(participants).where(eq(participants.ticketId, ticketA));
     expect(rows.every((row) => row.revokedAt !== null)).toBe(true);
   });
@@ -550,8 +568,125 @@ describe("the reply route on a name", () => {
     expect((await post(token, { origin })).status).toBe(201);
   });
 });
+describe("the name of the installation", () => {
+  const request = (host: string, path: string) =>
+    new NextRequest(`https://${host}${path}`, { headers: { host } });
+  const passed = (response: Response) => response.headers.get("x-middleware-next") === "1";
+  async function installationName(label: string) {
+    const added = await addInstallationPortalDomain(owner, { host: name(label) });
+    dns.txt.set(added.challenge.name, [[added.challenge.value]]);
+    await verifyInstallationPortalDomain(owner, added.id);
+    return added;
+  }
+  it("is set by the owner only: a person who manages a project, an agent and an inactive owner are refused", async () => {
+    const host = name("inst-rights");
+    for (const other of [managerA, plainA, agentA, { ...owner, active: false }]) {
+      expect(await outcome(addInstallationPortalDomain(other, { host })), other.id).toBe(
+        "forbidden",
+      );
+      expect(await outcome(listInstallationPortalDomains(other)), other.id).toBe("forbidden");
+    }
+    const added = await addInstallationPortalDomain(owner, { host });
+    expect(await outcome(verifyInstallationPortalDomain(managerA, added.id))).toBe("forbidden");
+    expect(await outcome(removeInstallationPortalDomain(managerA, added.id))).toBe("forbidden");
+    expect((await listInstallationPortalDomains(owner)).map((row) => row.host)).toContain(host);
+    // The claims of a project are not the claims of the installation, and the other way round.
+    expect((await listPortalDomains(managerA, projectA)).map((row) => row.host)).not.toContain(
+      host,
+    );
+    expect(await outcome(verifyPortalDomain(managerA, projectA, added.id))).toBe("not_found");
+    expect(await outcome(removeInstallationPortalDomain(owner, randomUUID()))).toBe("not_found");
+  });
+  it("is claimed, proved and removed like the name of a project, with entries that belong to no project", async () => {
+    const added = await installationName("inst-cycle");
+    expect(await portalHost(added.host)).toEqual({ kind: "installation" });
+    expect(await projectOfHost(added.host)).toBeNull();
+    const entries = await db()
+      .select()
+      .from(audit)
+      .where(and(isNull(audit.projectId), eq(audit.targetId, added.id)));
+    expect(entries.map((entry) => entry.action).sort()).toEqual([
+      "portal_domain.add",
+      "portal_domain.verify",
+    ]);
+    expect(entries[0]?.detail).toMatchObject({ host: added.host, scope: "installation" });
+    await removeInstallationPortalDomain(owner, added.id);
+    expect(await portalHost(added.host)).toBeNull();
+    await db()
+      .delete(audit)
+      .where(and(isNull(audit.projectId), eq(audit.targetId, added.id)));
+  });
+  it("has one owner for a name: a project that proved it, or the installation, and not both", async () => {
+    const taken = await claim(managerA, projectA, name("inst-taken"));
+    await verifyPortalDomain(managerA, projectA, taken.id);
+    expect(await outcome(addInstallationPortalDomain(owner, { host: taken.host }))).toBe(
+      "conflict",
+    );
+    const wide = await installationName("inst-wide");
+    expect(await outcome(addPortalDomain(managerA, projectA, { host: wide.host }))).toBe(
+      "conflict",
+    );
+    // Both may be waiting for their proof; the second to prove loses.
+    const host = name("inst-race");
+    const first = await addInstallationPortalDomain(owner, { host });
+    const second = await addPortalDomain(managerA, projectA, { host });
+    dns.txt.set(first.challenge.name, [[first.challenge.value], [second.challenge.value]]);
+    expect((await verifyInstallationPortalDomain(owner, first.id)).verified).toBe(true);
+    expect(await outcome(verifyPortalDomain(managerA, projectA, second.id))).toBe("conflict");
+    expect(await portalHost(host)).toEqual({ kind: "installation" });
+  });
+  it("gives a project without a name of its own its link, and a project with one keeps its own", async () => {
+    const shared = new URL(env().APP_URL).origin;
+    expect(await portalBase(projectA)).toBe(shared);
+    const wide = await installationName("inst-base");
+    expect(await portalBase(projectA)).toBe(`https://${wide.host}`);
+    expect(await portalBase(projectB)).toBe(`https://${wide.host}`);
+    const own = await claim(managerB, projectB, name("inst-own"));
+    await verifyPortalDomain(managerB, projectB, own.id);
+    expect(await hasOwnPortalName(projectB)).toBe(true);
+    expect(await hasOwnPortalName(projectA)).toBe(false);
+    expect(await portalBase(projectB)).toBe(`https://${own.host}`);
+    expect(await portalBase(projectA)).toBe(`https://${wide.host}`);
+    expect(await portalUrl("tok", projectA)).toBe(`https://${wide.host}/portal/tok`);
+  });
+  it("opens the links of the projects that have no name of their own, and not those that have one", async () => {
+    const wide = await installationName("inst-open");
+    const own = await claim(managerB, projectB, name("inst-own-b"));
+    await verifyPortalDomain(managerB, projectB, own.id);
+    const a = await issuePortalGrant(staffA, await ticketOf(projectA));
+    const b = await issuePortalGrant(staffB, await ticketOf(projectB));
+    const onWide = await portalHost(wide.host);
+    const onOwn = await portalHost(own.host);
+    // Project A has no name: its link opens on the name of the installation and on the shared address.
+    expect((await resolvePortalGrant(a.token, onWide))?.projectId).toBe(projectA);
+    expect((await resolvePortalGrant(a.token, null))?.projectId).toBe(projectA);
+    expect(await resolvePortalGrant(a.token, onOwn)).toBeNull();
+    // Project B has a name: its link opens there and on the shared address, not on the name of the installation.
+    expect((await resolvePortalGrant(b.token, onOwn))?.projectId).toBe(projectB);
+    expect((await resolvePortalGrant(b.token, null))?.projectId).toBe(projectB);
+    expect(await resolvePortalGrant(b.token, onWide)).toBeNull();
+    await expect(getPortalTicket(b.token, "en", onWide)).rejects.toMatchObject({ status: 404 });
+    // When the project loses its name, its links open on the name of the installation.
+    await removePortalDomain(managerB, projectB, own.id);
+    expect((await resolvePortalGrant(b.token, await portalHost(wide.host)))?.projectId).toBe(
+      projectB,
+    );
+  });
+  it("serves the customer page and nothing else, and its origin may send a reply", async () => {
+    const wide = await installationName("inst-serves");
+    expect(passed(await proxy(request(wide.host, "/portal/abc")))).toBe(true);
+    expect(passed(await proxy(request(wide.host, "/api/portal/reply")))).toBe(true);
+    for (const path of ["/", "/login", "/api/v1/projects", "/api/auth/get-session", "/setup"])
+      expect((await proxy(request(wide.host, path))).status, path).toBe(404);
+    expect(await portalOriginAllowed(`https://${wide.host}`)).toBe(true);
+    expect(await portalOriginAllowed(`http://${wide.host}`)).toBe(false);
+  });
+});
 afterAll(async () => {
   await db()
     .delete(portalDomains)
     .where(inArray(portalDomains.projectId, [projectA, projectB]));
+  await db()
+    .delete(portalDomains)
+    .where(and(isNull(portalDomains.projectId), eq(portalDomains.createdBy, owner.id)));
 });

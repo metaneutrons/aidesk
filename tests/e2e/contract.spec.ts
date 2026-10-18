@@ -329,6 +329,13 @@ test("answers every documented route in the published shape, with real data", as
   await call("portal_domains.remove", {
     params: { projectId: project, domainId: String(claim.id) },
   });
+  // The same for the installation, which the owner of the fixture may do.
+  const wide = await call("workspace.portal_domains_add", {
+    data: { host: `contract-wide-${desk.run}.example.test` },
+  });
+  await call("workspace.portal_domains_list");
+  await call("workspace.portal_domains_verify", { params: { domainId: String(wide.id) } });
+  await call("workspace.portal_domains_remove", { params: { domainId: String(wide.id) } });
   await call("audit.list", { params: { projectId: project }, query: { limit: "5" } });
   await call("audit.workspace", { query: { limit: "5" } });
   await call("tickets.assign", {

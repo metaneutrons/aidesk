@@ -533,6 +533,7 @@ export function Settings({
             name={projectName(grant.projectId)}
           />
         ))}
+      {owner && <PortalDomains projectId={null} name="" />}
       {owner && <AuditLog projectId={null} name="" locale={locale} />}
       <Designs
         projects={projects.filter((project) => held(project.id).includes("project.manage"))}

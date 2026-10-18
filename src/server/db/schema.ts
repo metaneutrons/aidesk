@@ -393,17 +393,17 @@ export const participants = pgTable(
   },
   (t) => [uniqueIndex("participant_ticket_email_idx").on(t.ticketId, t.email)],
 );
-// The names under which a project's customer page is reached next to the shared address. A name is claimed
-// by a project and belongs to it only after the owner of the name has proved it with a record in the DNS
-// that holds the token of this claim (so a claim on a name that someone else holds never becomes valid). The
-// names are the configuration of an installation: they are kept here and in no file of the code.
+// The names under which the customer page is reached next to the shared address. A name belongs to one
+// project, or to the whole installation (no project): the name of the installation serves every project that
+// has no name of its own. A name is claimed first and belongs to its owner only after the owner of the name
+// has proved it with a record in the DNS that holds the token of this claim (so a claim on a name that someone
+// else holds never becomes valid). The names are the configuration of an installation: they are kept here and
+// in no file of the code.
 export const portalDomains = pgTable(
   "portal_domain",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     host: text("host").notNull(),
     token: text("token").notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
@@ -412,7 +412,11 @@ export const portalDomains = pgTable(
   },
   (t) => [
     uniqueIndex("portal_domain_project_host_idx").on(t.projectId, t.host),
-    // One verified owner for a name; any number of claims wait for their proof.
+    // A claim of the installation is one per name (a null project is not equal to another in the index above).
+    uniqueIndex("portal_domain_workspace_host_idx")
+      .on(t.host)
+      .where(sql`${t.projectId} is null`),
+    // One verified owner for a name, a project or the installation; any number of claims wait for their proof.
     uniqueIndex("portal_domain_verified_host_idx")
       .on(t.host)
       .where(sql`${t.verifiedAt} is not null`),

@@ -607,5 +607,7 @@
   "portalDomainMessage_record_missing": "The record for {host} was not found yet. DNS changes can take a while; try again.",
   "portalDomainMessage_dns_error": "The DNS could not be asked just now. Try again.",
   "portalDomainMessage_taken": "This name belongs to another project or to the application itself.",
-  "portalDomainMessage_error": "That did not work. Check the name and try again."
+  "portalDomainMessage_error": "That did not work. Check the name and try again.",
+  "portalDomainsTitleInstallation": "Customer page names of the installation",
+  "portalDomainsHintInstallation": "Names that serve the customer page of every project that has no name of its own. A project with a name of its own is reached under that name, and its links do not open here."
 }
