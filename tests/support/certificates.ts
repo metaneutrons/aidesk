@@ -1,0 +1,43 @@
+// Two certificates for the tests of the identity providers, made for them and without a key that is kept: one is
+// valid for ten years, the other ends within days of the day it was made (2026-10-18), so that a test finds a
+// certificate that is about to end, and later one that has ended; both fail the check of the certificate.
+export const certificates = {
+  long: `-----BEGIN CERTIFICATE-----
+MIIDCjCCAfKgAwIBAgIUOo6+kl6THvv9HLj24Z6/93s9iYQwDQYJKoZIhvcNAQEL
+BQAwJTEjMCEGA1UEAwwaaWRwLXRlc3QtbG9uZy5leGFtcGxlLnRlc3QwHhcNMjYx
+MDE4MTAxMTMyWhcNMzYxMDE1MTAxMTMyWjAlMSMwIQYDVQQDDBppZHAtdGVzdC1s
+b25nLmV4YW1wbGUudGVzdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
+AOQzWOCnfsygYgC2r9cnek4oWuNpqMON3TlKRzxFbuanSkVU5VgqUxUYsKXTLh8V
+RLPLjem7+4JvHj2BaGsmIsptMslDyP30HO1qQao5+5y6/jfkcZnjqH88q7uodc/N
+YNPwaM34TrQuxwM4wTzn+w+Et8Yu/jBELjw/GwPSrhiJEcrGixRXT43JWMYgnTf0
+Rxdfx5creBuPeP1MawVeUbks2uj0PwX7DzJLWADpPjFlV259ylSM6fEPMg7eFLDl
+YH80RltYbUEQE2awUhUIO3IW++lNQRn8ljcdOkwE4iOzwgl4NRpTM6TvB9GVUxMk
+c4+H8mIbFp+GJyvXDRxGgdECAwEAAaMyMDAwHQYDVR0OBBYEFA8pD+6Xt47o/ZEw
+NKMGcMBeC6UNMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAIUV
+6/J6C8OX/D9rxuTJxMdK6nKw/UZZJomAtdNyNs8sn6JRqsyf8v9jR77WUv6sjyYG
+qqAkU8sgrGF3LQp8Liay90+ytDHvfMadlh5/um1BZ8TJQRV9PhuWpLSGJ0RjjSDA
+w/Ov5401VQcueuBxPaz3eT7mu/oSEuMkyFfKcUaZ8ORzxWkfzUeCU2OJZFFPz3Th
+OAJXzT4VUtPv6iFE7ceLw4cwOTEEPJ6CvWRHjZeHJxIbG4FWUHEbvoBMWyKcg8+g
+Y1OqMcy7AgJr+8cwNd2LQn9lfIW4ugavLwB535pj3z6sykgNE+f47TOBMthSBskO
+M9vKj+U3L2YB+NlaXTQ=
+-----END CERTIFICATE-----`,
+  short: `-----BEGIN CERTIFICATE-----
+MIIDDDCCAfSgAwIBAgIUJWU6aFtp1nr3hj4rbBw16voLNo4wDQYJKoZIhvcNAQEL
+BQAwJjEkMCIGA1UEAwwbaWRwLXRlc3Qtc2hvcnQuZXhhbXBsZS50ZXN0MB4XDTI2
+MTAxODEwMTEzMloXDTI2MTAyMzEwMTEzMlowJjEkMCIGA1UEAwwbaWRwLXRlc3Qt
+c2hvcnQuZXhhbXBsZS50ZXN0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+AQEA04YbPRzO9jqw+yN7Sh3s/zVUOH0FeRPFiJ4DtTGG4hvfWwwv2abGRRaSXmOX
+y9GWRSu/6HpAMlia9g3And+/EaIGjO63gJZnaHjCVkH+ookCDcc+4uNUcPHGlqrg
+gT/6LUVvcQn8bLh21YUYpeVMoNyfEgvQ+Qy/1Q2x/rQEMMdWW1y1gkJUQ80bhQTD
+ub/MGZlEUctwTS3HY1XCGGW6A+aEfOIcIRZDaXabNKhGn3jg5MeBRoHRrjtIZ+CW
+r1oi8C/rxYDDb/Hk7882ayC/yWCv+YSIHnmDmAwzSEnRm2cYBgN/acQa2H9rxnaF
+gTV56iwD/etl4fv8pNhaVmyJbQIDAQABozIwMDAdBgNVHQ4EFgQU2bUtt807dqir
+gKxOSwBmJg3gpDAwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEA
+qhSEmt4Z2CpzBd7+qJW07X+ram1pfyrF0u+W+0yMElcjHIoQCsXQMOSiRKDqWl5W
+pocO0emLRE+x17Hlawx18KS+xbw0MaqZABL+nLkLRMtwBc183ACn02wVghlreL0z
+u+5bCTTd5sMhAstyWb/R0+H5WQ+JVnFKEZLyXHVHATruEqXaqEpSy7aWiip8Ohxf
+QQLl2lpJy7pHhoTR+xZCnaOfx6HkWV7inwZFzPGAxFaocmq5f5P291PgJ1J6qYxU
+w45oxbxyxGp3q6KezXy+9cDMXqVBratnFDfZsKd9mr9EsrNqW4Nut3QDPvtzWW6f
+ydA+p49VIkhi64s2WzFdGA==
+-----END CERTIFICATE-----`,
+};
