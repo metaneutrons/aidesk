@@ -218,6 +218,24 @@ contains its groups with their members.
 Not covered: a group across several projects (a person who belongs to groups in several projects is in each
 separately), nesting of groups, and a time limit on a membership.
 
+### Inviting an operator
+
+A person who manages a project adds an operator by name and address in the settings ("Invite an operator") or over REST
+(`POST /api/v1/projects/{id}/invitations`, not offered to MCP). An address that belongs to nobody gets an account, as
+when an owner adds an operator; an address that belongs to an operator gets the actions added to what they hold in
+the project, never less, and keeps its name. An operator who is switched off is refused (409); an owner enables them
+first. The rights are limited to what the caller holds (403) and cannot be empty.
+
+The person is told by mail unless `sendMail` is false. The mail is a `mail.test` job with an invitation, so it goes out
+through the outbound connection of the project, once, and is looked at again when the worker sends it: it is not
+sent when the inviter no longer manages the project, when outgoing mail is paused, or when the connection is no longer
+the project's. The answer says `queued`, `skipped`, `no_connection` or `paused`, and `mailId` is followed at
+`GET /api/v1/test-mails/{id}`. The text has no password and no link that signs in: the person signs in like every
+operator, through the provider of their organization. The answer says `canSignIn: false` when no provider with a
+verified domain exists for the address, so that nobody waits for a mail that cannot lead anywhere. A project takes at
+most 20 invitations a day (429). Every invitation is the audit entry `operator.invite` with the address, the actions,
+whether the account was created and what became of the mail.
+
 ### Display name and signature
 
 Each operator sets a name that customers read and a signature in the settings ("Your profile") or over REST

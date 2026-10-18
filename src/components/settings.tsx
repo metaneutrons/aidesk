@@ -14,6 +14,7 @@ import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
+import { Invite } from "./invite";
 import { Profile } from "./profile";
 import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
@@ -286,6 +287,14 @@ export function Settings({
           </div>
         </div>
       )}
+      <Invite
+        projects={projects.filter((project) => held(project.id).includes("project.manage"))}
+        held={held}
+        locale={locale}
+        onInvited={() => {
+          void load();
+        }}
+      />
       {owner && (
         <form
           className="settings-form"

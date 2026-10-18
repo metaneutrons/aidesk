@@ -430,6 +430,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "operators.invite": {
+    operation: "inviteOperator",
+    action: "project.manage",
+    ui: "src/components/invite.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "groups.list": {
     operation: "listGroups",
     action: "project.manage",

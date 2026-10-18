@@ -347,6 +347,16 @@ test("answers every documented route in the published shape, with real data", as
     data: { domain: `${sso}-moved.example.test` },
   });
   await call("sso.providers_delete", { params: { providerId: sso }, data: { confirm: sso } });
+  // An operator is invited without a mail; the shape of the answer is the one that the definition promises.
+  await call("operators.invite", {
+    params: { projectId: project },
+    data: {
+      email: `${desk.prefix}-contract@aidesk.local`,
+      name: "Contract Invited",
+      actions: ["project.read"],
+      sendMail: false,
+    },
+  });
   // A group of the project: made, changed, given a member and deleted.
   const people = (await call("operators.list")) as unknown as { id: string; email: string }[];
   const self = people.find((person) => person.email === desk.email);
