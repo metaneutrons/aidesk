@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
+import { lockOwners, unlockOwners } from "./support/owner-lock";
 import { db, sqlClient } from "../src/server/db";
 import {
   account,
@@ -110,12 +111,14 @@ const pendingSteps = () =>
   db().select().from(verification).where(like(verification.identifier, "2fa-%"));
 beforeAll(async () => {
   await migrate(db(), { migrationsFolder: "drizzle" });
+  await lockOwners();
 });
 afterAll(async () => {
   if (ids.length) {
     await db().delete(audit).where(inArray(audit.actorId, ids));
     await db().delete(user).where(inArray(user.id, ids));
   }
+  await unlockOwners();
   await sqlClient().end();
 });
 beforeEach(async () => {
