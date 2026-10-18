@@ -12,6 +12,7 @@ export const webhookEvents = [
   "ticket.warning",
   "ticket.overdue",
   "change.proposed",
+  "ai.budget_low",
 ] as const;
 export type WebhookEvent = (typeof webhookEvents)[number];
 export const webhookDescriptions: Record<WebhookEvent, string> = {
@@ -23,6 +24,8 @@ export const webhookDescriptions: Record<WebhookEvent, string> = {
   "ticket.warning": "A ticket has waited for an answer as long as the warning limit of the project",
   "ticket.overdue": "A ticket has waited for an answer as long as the overdue limit of the project",
   "change.proposed": "An agent proposed a change that waits for a person",
+  "ai.budget_low":
+    "The use of the daily budget of an AI task reached 80 percent; sent once for a task and a day",
 };
 const name = z.string().trim().min(1).max(100);
 const url = z.url().max(2000);
