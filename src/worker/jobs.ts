@@ -16,7 +16,9 @@ import { threadHeaders } from "../domain/threading";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
 import { pollCloudflareConnection } from "../server/cloudflare";
+import { env } from "../server/env";
 import { deliver } from "./transport";
+import { invitationMarkdown, invitationSubject } from "../domain/invitations";
 const payloadSchema = z.object({
   ticketId: z.uuid(),
   messageId: z.uuid(),
@@ -321,6 +323,8 @@ const testPayload = z.object({
   connectionId: z.uuid(),
   language: z.enum(["en", "de"]),
   version: z.number().int().min(0).optional(),
+  // An invitation of an operator goes the same way: it names the person and the one who invited them.
+  invitation: z.object({ name: z.string(), inviter: z.string() }).optional(),
 });
 // Test mails of a design (see sendTestMail). They use the same transport path
 // as replies but belong to no ticket and message. An expired dispatch may have
@@ -403,7 +407,13 @@ export async function runTestSend(scope?: { projectId: string }): Promise<boolea
     const chosen = await designForVersion(project.id, project.settings, payload.version);
     const content = await renderEmail({
       project: project.name,
-      markdown: sampleMarkdown(payload.language),
+      markdown: payload.invitation
+        ? invitationMarkdown(payload.language, {
+            ...payload.invitation,
+            project: project.name,
+            url: env().APP_URL,
+          })
+        : sampleMarkdown(payload.language),
       language: payload.language,
       color: project.color,
       fallbackLanguage: project.defaultLanguage,
@@ -415,7 +425,9 @@ export async function runTestSend(scope?: { projectId: string }): Promise<boolea
       connection,
       localId: job.id,
       to: payload.to,
-      subject: `[Test] ${project.name}, design version ${String(chosen.version)}`,
+      subject: payload.invitation
+        ? invitationSubject(payload.language, project.name)
+        : `[Test] ${project.name}, design version ${String(chosen.version)}`,
       thread: {},
       content,
       ticketId: job.id,

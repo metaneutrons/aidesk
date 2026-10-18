@@ -744,5 +744,18 @@
   "groupDeleteCancel": "Cancel",
   "groupCreate": "Create a group",
   "groupName": "Name of the group",
-  "groupActionsLegend": "Actions that the members hold"
+  "groupActionsLegend": "Actions that the members hold",
+  "inviteTitle": "Invite an operator",
+  "inviteHint": "Adds a person to a project by address and tells them by mail. The mail has no password and no sign-in link; the person signs in with the account of their organization. You can give only what you hold. Rights that the person already has stay.",
+  "inviteLanguage": "Language of the mail",
+  "inviteSendMail": "Tell the person by mail",
+  "inviteSubmit": "Invite",
+  "inviteError": "The person could not be invited.",
+  "inviteCreated": "The person was added.",
+  "inviteExisting": "The address already belongs to an operator, who now also holds this role in the project.",
+  "inviteMail_queued": "The mail is queued.",
+  "inviteMail_skipped": "No mail was sent.",
+  "inviteMail_no_connection": "No mail was sent: the project has no outgoing connection.",
+  "inviteMail_paused": "No mail was sent: outgoing mail is paused.",
+  "inviteNoProvider": "No identity provider with a verified domain exists for this address yet. The person cannot sign in until the owner registers one."
 }

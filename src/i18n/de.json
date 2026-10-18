@@ -744,5 +744,18 @@
   "groupDeleteCancel": "Abbrechen",
   "groupCreate": "Gruppe anlegen",
   "groupName": "Name der Gruppe",
-  "groupActionsLegend": "Rechte der Mitglieder"
+  "groupActionsLegend": "Rechte der Mitglieder",
+  "inviteTitle": "Operator einladen",
+  "inviteHint": "Trägt eine Person per Adresse in ein Projekt ein und informiert sie per Mail. Die Mail enthält kein Passwort und keinen Anmeldelink; die Person meldet sich mit dem Konto ihrer Organisation an. Du kannst nur geben, was du selbst hältst. Rechte, die die Person schon hat, bleiben.",
+  "inviteLanguage": "Sprache der Mail",
+  "inviteSendMail": "Die Person per Mail informieren",
+  "inviteSubmit": "Einladen",
+  "inviteError": "Die Person konnte nicht eingeladen werden.",
+  "inviteCreated": "Die Person wurde hinzugefügt.",
+  "inviteExisting": "Die Adresse gehört schon zu einem Operator, der jetzt auch diese Rolle im Projekt hat.",
+  "inviteMail_queued": "Die Mail ist eingereiht.",
+  "inviteMail_skipped": "Es wurde keine Mail gesendet.",
+  "inviteMail_no_connection": "Es wurde keine Mail gesendet: Das Projekt hat keine Ausgangsverbindung.",
+  "inviteMail_paused": "Es wurde keine Mail gesendet: Der Versand ist pausiert.",
+  "inviteNoProvider": "Für diese Adresse gibt es noch keinen Identity Provider mit bestätigter Domain. Die Person kann sich erst anmelden, wenn die Inhaberin oder der Inhaber einen einrichtet."
 }

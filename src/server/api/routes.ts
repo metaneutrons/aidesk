@@ -174,6 +174,8 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { inviteOperator } from "../invitations";
+import { invitationInput, invitationOut } from "../../domain/invitations";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
 import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
@@ -639,6 +641,20 @@ export const routes: Route[] = [
     }),
     run: ({ principal, params, input }) =>
       setOperatorGrant(principal, params.operatorId ?? "", input),
+  },
+  {
+    id: "operators.invite",
+    mcp: { not: "People are managed by people" },
+    method: "POST",
+    path: "/projects/{projectId}/invitations",
+    tag: "Operators",
+    summary:
+      "Add an operator to a project by address and tell them by mail; the rights are limited to those of the caller and added to what the person holds",
+    access: "project.manage",
+    body: invitationInput,
+    response: invitationOut,
+    status: 201,
+    run: ({ principal, params, input }) => inviteOperator(principal, params.projectId ?? "", input),
   },
   {
     id: "groups.list",
