@@ -1,0 +1,29 @@
+# TLS and a reverse proxy in front of the web server of compose.production.yaml, for the profile
+# `proxy`. SITE_ADDRESS is the host name that the product is reached at (a public name gets a certificate
+# from Let's Encrypt by itself; `localhost` with TLS_DIRECTIVE="tls internal" gets one from Caddy's own
+# CA, for a check on one machine). CADDY_GLOBAL_OPTIONS can hold a line such as `email ops@example.org`.
+{
+	admin off
+	{$CADDY_GLOBAL_OPTIONS}
+}
+{$SITE_ADDRESS} {
+	{$TLS_DIRECTIVE}
+	encode zstd gzip
+	# The largest body that a route reads is the reply of a customer with files (31 MB).
+	request_body {
+		max_size 40MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+	}
+	# A client address that arrives in X-Forwarded-For is replaced, not trusted, because no proxy in front
+	# of this one is declared; the limits of sign-ins count by that address. The streaming of MCP is not
+	# buffered.
+	reverse_proxy app:3000 {
+		flush_interval -1
+	}
+}
