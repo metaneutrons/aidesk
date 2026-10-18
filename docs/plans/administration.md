@@ -128,7 +128,8 @@ Execution: M9 issue.
 
 - M9-A1: Operators receive notifications by mail (and in the desk) for a new ticket in their projects, an
   assignment, a mention in a note, an overdue ticket and a draft of an agent that waits for them; rules are set
-  per project, preferences per operator, and a notification never holds more than the subject and a link.
+  per project, preferences per operator, and a notification never holds more than the subject and a link. Messengers
+  are added in two stages (see the decisions below).
 - M9-A2: An operator has a profile (display name, signature, locale, time zone, notification preferences) and
   manages the sign-in methods of their account (password, passkeys and codes, see P8, and the sessions that
   are open, which they can end).
@@ -143,18 +144,16 @@ M7-A2 to A6. M8 starts with M8-A4 (a view over what exists) and M8-A2 and M8-A3 
 need the list of what the system holds), then M8-A1 and M8-A5. M9 comes last because it uses the roles and
 groups of M6-A6. M6-A7 depends on the domain decision of M3-A2.
 
-## Decisions needed from the product owner
+## Decisions of the product owner
 
-- Retention defaults and who may erase (M8-A1, A2): off by default, only the owner, or per project.
-- Whether notifications go out by mail only or also by another channel (M9-A1), and from which connection.
-- Which languages beyond English and German a project may use for customers (M6-A7, M7-A5).
-- Whether priorities and categories are per project or shared (M7-A3).
+Decided on 2026-10-18:
 
-## Risks
-
-- Settings that touch the response clock (M7-A2, A3) change what "late" means; the defaults must keep today's
-  count, and a test with controlled time has to cover both.
-- Erasure and retention (M8) are irreversible; the first version removes in steps with a dry run that lists
-  counts, and the tests must prove that nothing of another project or customer goes.
-- A setting that routes or blocks mail (M7-A4, A7) can hide a customer's ticket; each has to leave a visible
-  trace (unassigned, junk with a reason) and an audit entry.
+- **Retention (M8-A1, A2).** Off by default in every project. The periods are set per project; the screen suggests
+  values and presets none. Setting or shortening a period needs `config.approve` and first shows a dry run with
+  counts; lengthening needs nothing more. Erasing a ticket or everything about one requester needs a new action
+  `data.erase`, which no preset holds and which is granted as a single action or through a group. The owner has no
+  access to the data of a project and erases nothing because of that status. The overview of M8-A4 shows a project
+  that has no period.
+- **Notifications (M9-A1).** In the desk and by mail through the outgoing connection of the project, with the subject
+  and a link only. Messengers in two stages. First formats of the webhooks for channels (`slack`, `teams`, `discord`,
+  `matte
