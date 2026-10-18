@@ -2,7 +2,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { ZodError } from "zod";
 import { createRequire, syncBuiltinESMExports } from "node:module";
@@ -28,6 +28,7 @@ import {
   session,
   ssoProvider,
   ssoProviderState,
+  verification,
   user,
 } from "../src/server/db/schema";
 import { auth } from "../src/server/auth";
@@ -336,6 +337,14 @@ describe("the domain of a provider", () => {
       .where(and(eq(audit.targetId, id), eq(audit.action, "sso_provider.verify_domain")));
     expect(entries).toHaveLength(1);
   });
+  it("asks for the record first when the proof that was asked for is gone", async () => {
+    const id = provider("gone");
+    await registerSsoProvider(owner, headers, oidc(id));
+    await db()
+      .delete(verification)
+      .where(like(verification.identifier, `%${id}%`));
+    expect((await verifySsoDomain(owner, headers, id)).result).toBe("request_first");
+  });
   it("gives the record again when it is asked for, as long as the domain is not verified", async () => {
     const id = provider("again");
     const made = await registerSsoProvider(owner, headers, oidc(id));
@@ -366,6 +375,15 @@ describe("the domain of a provider", () => {
       .where(and(eq(audit.targetId, id), eq(audit.action, "sso_provider.update")))
       .orderBy(audit.createdAt);
     expect(JSON.stringify(entry?.detail)).not.toContain("secret");
+    // The scopes alone, and the scopes with the secret, are changes of the OIDC client too.
+    expect(
+      (await updateSsoProvider(owner, headers, id, { scopes: ["openid", "email"] })).domain,
+    ).toBe(`moved-${run}.example.test`);
+    expect(
+      await outcome(
+        updateSsoProvider(owner, headers, id, { scopes: ["openid"], clientSecret: `again-${run}` }),
+      ),
+    ).toBe("ok");
     expect(await outcome(updateSsoProvider(owner, headers, id, {}))).toBe("invalid");
     expect(
       await outcome(updateSsoProvider(owner, headers, id, { issuer: "https://x.example.test" })),
@@ -535,6 +553,35 @@ describe("testing a provider", () => {
     expect(ending.checks.find((check) => check.name === "certificate")).toMatchObject({
       ok: false,
     });
+  });
+  it("does not read a provider outside the development stack unless it is on a public address over https", async () => {
+    const id = await verified("outside");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEV_BOOTSTRAP", "false");
+    try {
+      const plain = await testSsoProvider(owner, id);
+      expect(plain.ok).toBe(false);
+      expect(JSON.stringify(plain.checks.find((check) => check.name === "discovery"))).toContain(
+        "not_https",
+      );
+      await db()
+        .update(ssoProvider)
+        .set({
+          issuer: "https://127.0.0.1:9",
+          oidcConfig: JSON.stringify({
+            discoveryEndpoint: "https://127.0.0.1:9/.well-known/openid-configuration",
+          }),
+        })
+        .where(eq(ssoProvider.providerId, id));
+      const refused = await testSsoProvider(owner, id);
+      expect(refused.ok).toBe(false);
+      expect(refused.checks.find((check) => check.name === "discovery")).toMatchObject({
+        ok: false,
+      });
+    } finally {
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("DEV_BOOTSTRAP", "true");
+    }
   });
   it("names each thing that is missing in the document of the provider", async () => {
     const id = await verified("missing");
