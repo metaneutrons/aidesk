@@ -64,6 +64,15 @@ async function asPerson(userId: string): Promise<Principal> {
   const cookie = `${context.authCookies.sessionToken.name}=${encodeURIComponent(`${started.token}.${signature}`)}`;
   return identify(new Headers({ cookie }));
 }
+// The owner is a principal that is built here, not a row of the table of users: the tests of the setup of the
+// owner remove every owner row, also those that other test files made while they run.
+const ownerPrincipal: Principal = {
+  id: userIds.owner,
+  kind: "human",
+  active: true,
+  owner: true,
+  grants: [],
+};
 const asAgent = () => identify(new Headers({ authorization: `Bearer ${agentToken}` }));
 async function ticketOf(project: string, extra: Partial<typeof tickets.$inferInsert> = {}) {
   const [row] = await db()
@@ -105,7 +114,6 @@ beforeAll(async () => {
     .values([
       { id: userIds.manager, name: "Manager", email: `${userIds.manager}@example.test` },
       { id: userIds.plain, name: "Plain", email: `${userIds.plain}@example.test` },
-      { id: userIds.owner, name: "Owner", email: `${userIds.owner}@example.test`, owner: true },
       { id: userIds.outsider, name: "Outsider", email: `${userIds.outsider}@example.test` },
     ]);
   await db()
@@ -171,7 +179,7 @@ describe("archiving and restoring a project", () => {
       .where(and(eq(audit.projectId, projectP), eq(audit.action, "project.archive")));
     expect(entries).toHaveLength(1);
     expect(entries[0]?.actorId).toBe(userIds.manager);
-    await restoreProject(await asPerson(userIds.owner), projectP);
+    await restoreProject(ownerPrincipal, projectP);
   });
   it("leaves an archived project readable and nothing else to the people and tokens in it", async () => {
     const ticket = await ticketOf(projectP);
@@ -213,7 +221,7 @@ describe("archiving and restoring a project", () => {
       "project.read",
       "ticket.read",
     ]);
-    await restoreProject(await asPerson(userIds.owner), projectP);
+    await restoreProject(ownerPrincipal, projectP);
     const back = await asPerson(userIds.manager);
     expect(back.grants.find((grant) => grant.projectId === projectP)?.actions).toEqual(
       manageActions,
@@ -264,7 +272,7 @@ describe("archiving and restoring a project", () => {
     expect(await listJunk(person)).toBeInstanceOf(Array);
     // Naming a project that the person may not read is still not found.
     expect(await outcome(listTickets(person, [randomUUID()]))).toBe("not_found");
-    await restoreProject(await asPerson(userIds.owner), projectP);
+    await restoreProject(ownerPrincipal, projectP);
     expect(shown(await listProjects(await asPerson(userIds.manager)))).toContain(projectP);
   });
   it("is restored by the owner and by a person who manages it, and by nobody else", async () => {
@@ -284,7 +292,7 @@ describe("archiving and restoring a project", () => {
     expect((await restoreProject(manager, projectP)).archived).toBe(false);
     expect((await restoreProject(manager, projectP)).archived).toBe(false);
     await archiveProject(await asPerson(userIds.manager), projectP);
-    expect((await restoreProject(await asPerson(userIds.owner), projectP)).archived).toBe(false);
+    expect((await restoreProject(ownerPrincipal, projectP)).archived).toBe(false);
     const [row] = await db().select().from(projects).where(eq(projects.id, projectP));
     expect(row).toMatchObject({ archivedAt: null, archivedBy: null });
     const entries = await db()
@@ -299,7 +307,7 @@ describe("archiving and restoring a project", () => {
 });
 describe("an archived project takes nothing in", () => {
   it("refuses a mail, and takes it again after a restore", async () => {
-    const owner = await asPerson(userIds.owner);
+    const owner = ownerPrincipal;
     await archiveProject(await asPerson(userIds.manager), projectP);
     const raw = Buffer.from(
       `From: Kim <kim@example.test>\r\nTo: help@example.test\r\nSubject: Late\r\nMessage-ID: <arch-${run}@example.test>\r\n\r\nHello`,
@@ -328,7 +336,7 @@ describe("an archived project takes nothing in", () => {
     expect(taken?.job.projectId).toBe(projectQ);
     await taken?.finish({ status: "succeeded" }, "test");
     expect(await claimJob(type, 60_000)).toBeNull();
-    await restoreProject(await asPerson(userIds.owner), projectP);
+    await restoreProject(ownerPrincipal, projectP);
     const later = await claimJob(type, 60_000);
     expect(later?.job.projectId).toBe(projectP);
     await later?.finish({ status: "succeeded" }, "test");
@@ -341,7 +349,7 @@ describe("an archived project takes nothing in", () => {
     await scanResponseClock(new Date(), 500);
     const [archivedRow] = await db().select().from(tickets).where(eq(tickets.id, waiting));
     expect(archivedRow?.warnedFor).toBeNull();
-    await restoreProject(await asPerson(userIds.owner), projectP);
+    await restoreProject(ownerPrincipal, projectP);
     await scanResponseClock(new Date(), 500);
     const [openRow] = await db().select().from(tickets).where(eq(tickets.id, waiting));
     expect(openRow?.warnedFor).not.toBeNull();
@@ -369,7 +377,7 @@ describe("an archived project takes nothing in", () => {
         (row) => row.markdown,
       ),
     ).not.toContain("Too late");
-    await restoreProject(await asPerson(userIds.owner), projectP);
+    await restoreProject(ownerPrincipal, projectP);
     expect((await getPortalTicket(token)).canReply).toBe(true);
     expect(
       (await portalReply(token, { markdown: "In time", idempotencyKey: randomUUID() })).duplicate,
