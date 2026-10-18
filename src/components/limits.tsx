@@ -24,16 +24,22 @@ export function Limits() {
   const [stored, setStored] = useState<Values | null>(null);
   const [draft, setDraft] = useState<Partial<Record<LimitKey, string>>>({});
   const [message, setMessage] = useState<"saved" | "error" | null>(null);
-  const load = useCallback(async () => {
+  const load = useCallback(async (current: () => boolean = () => true) => {
     const response = await fetch("/api/v1/workspace/limits").catch(() => null);
     const parsed = response?.ok ? limitsSchema.safeParse(await response.json()) : null;
-    if (parsed?.success) {
+    if (parsed?.success && current()) {
       setStored(parsed.data);
       setDraft({});
     }
   }, []);
+  // In development React runs the effect twice, and the answer of the first run arrives after a person has begun to
+  // type; it is dropped, so that it does not take away what was typed.
   useEffect(() => {
-    void load();
+    let current = true;
+    void load(() => current);
+    return () => {
+      current = false;
+    };
   }, [load]);
   if (stored === null) return null;
   const shown = (key: LimitKey) => draft[key] ?? String(stored[key]);
