@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { negotiateLocale } from "../../../domain/locale";
 import { DomainError } from "../../../server/errors";
 import { getPortalTicket } from "../../../server/portal";
+import { portalHost } from "../../../server/portal-domains";
 import { activeTexts } from "../../../server/texts";
 import { portalMessageKeys } from "../../../domain/texts";
 import { Portal } from "../../../components/portal";
@@ -22,7 +23,10 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   const locale = negotiateLocale((await headers()).get("accept-language"));
   let view;
   try {
-    view = await getPortalTicket(token, locale);
+    const sent = await headers();
+    // On a name of the customer page only the links that belong to it open.
+    const host = await portalHost(sent.get("x-forwarded-host") ?? sent.get("host"));
+    view = await getPortalTicket(token, locale, host);
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
   }

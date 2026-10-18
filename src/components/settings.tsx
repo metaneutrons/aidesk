@@ -10,6 +10,7 @@ import { Connections } from "./connections";
 import { AiProfiles } from "./ai-profiles";
 import { AuditLog } from "./audit-log";
 import { Limits } from "./limits";
+import { PortalDomains } from "./portal-domains";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
@@ -523,6 +524,16 @@ export function Settings({
             locale={locale}
           />
         ))}
+      {managed
+        .filter((grant) => grant.actions.includes("project.manage"))
+        .map((grant) => (
+          <PortalDomains
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+          />
+        ))}
+      {owner && <PortalDomains projectId={null} name="" />}
       {owner && <AuditLog projectId={null} name="" locale={locale} />}
       <Designs
         projects={projects.filter((project) => held(project.id).includes("project.manage"))}

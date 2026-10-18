@@ -1,0 +1,2 @@
+ALTER TABLE "portal_domain" ALTER COLUMN "project_id" DROP NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "portal_domain_workspace_host_idx" ON "portal_domain" USING btree ("host") WHERE "portal_domain"."project_id" is null;

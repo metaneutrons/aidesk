@@ -188,7 +188,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
     // A project may add a link to the ticket page; it is the same for every mail
     // about the ticket, and a revoked grant yields none.
     const token = project.settings.portalLinks === true ? await portalLinkForMail(ticket.id) : null;
-    const link = token ? portalUrl(token) : null;
+    const link = token ? await portalUrl(token, project.id) : null;
     const content = await renderEmail({
       project: project.name,
       markdown: message.markdown,

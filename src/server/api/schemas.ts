@@ -481,6 +481,22 @@ export const webhookDelivery = z.object({
   durationMs: z.number(),
   createdAt: isoDate,
 });
+export const portalDomain = z.object({
+  id: z.uuid(),
+  host: z.string(),
+  verified: z.boolean(),
+  verifiedAt: isoDate.nullable(),
+  challenge: z.object({
+    name: z.string().describe("The name of the text record to create in the DNS"),
+    value: z.string().describe("The value that the text record has to hold"),
+  }),
+  createdAt: isoDate,
+});
+export const portalDomainChecked = portalDomain.extend({
+  result: z
+    .enum(["verified", "record_missing", "dns_error"])
+    .describe("What the look at the DNS found; only verified makes the name valid"),
+});
 export const workspaceLimits = z.object({
   intakeFiles: z.number().int(),
   intakeFileMiB: z.number().int(),

@@ -127,6 +127,17 @@ import {
 import { aiProfileWrite } from "../../domain/ai";
 import { auditFilter } from "../../domain/audit";
 import { limitsInput } from "../../domain/limits";
+import { portalDomainInput } from "../../domain/portal-domains";
+import {
+  addInstallationPortalDomain,
+  addPortalDomain,
+  listInstallationPortalDomains,
+  listPortalDomains,
+  removeInstallationPortalDomain,
+  removePortalDomain,
+  verifyInstallationPortalDomain,
+  verifyPortalDomain,
+} from "../portal-domains";
 import { readLimits, setLimits } from "../limits";
 import {
   exportProjectAudit,
@@ -627,7 +638,7 @@ export const routes: Route[] = [
     headers: { "Cache-Control": "no-store" },
     run: async ({ principal, params, input }) => {
       const grant = await issuePortalGrant(principal, params.ticketId ?? "", input);
-      return { url: portalUrl(grant.token), expiresAt: grant.expiresAt };
+      return { url: await portalUrl(grant.token, grant.projectId), expiresAt: grant.expiresAt };
     },
   },
   {
@@ -1145,6 +1156,127 @@ export const routes: Route[] = [
     body: workspaceInput,
     response: z.object({ stopAutonomous: z.boolean(), pauseOutgoing: z.boolean() }),
     run: ({ principal, input }) => setWorkspaceControls(principal, input),
+  },
+  {
+    id: "portal_domains.list",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for people",
+    },
+    method: "GET",
+    path: "/projects/{projectId}/portal-domains",
+    tag: "Customer portal",
+    summary:
+      "The names under which the customer page of the project is reached next to the shared address, with the record that proves each",
+    access: "project.manage",
+    response: list(out.portalDomain),
+    run: ({ principal, params }) => listPortalDomains(principal, params.projectId ?? ""),
+  },
+  {
+    id: "portal_domains.add",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for people",
+    },
+    method: "POST",
+    path: "/projects/{projectId}/portal-domains",
+    tag: "Customer portal",
+    summary:
+      "Claim a name for the customer page. It serves the page only after the text record that the answer names exists in the DNS and the claim is verified",
+    access: "project.manage",
+    body: portalDomainInput,
+    response: out.portalDomain,
+    status: 201,
+    run: ({ principal, params, input }) =>
+      addPortalDomain(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "portal_domains.verify",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for people",
+    },
+    method: "POST",
+    path: "/projects/{projectId}/portal-domains/{domainId}/verify",
+    tag: "Customer portal",
+    summary:
+      "Look for the text record of a claim in the DNS; when it is there the name is valid for this project, and it can be asked again as often as needed",
+    access: "project.manage",
+    response: out.portalDomainChecked,
+    run: ({ principal, params }) =>
+      verifyPortalDomain(principal, params.projectId ?? "", params.domainId ?? ""),
+  },
+  {
+    id: "portal_domains.remove",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for people",
+    },
+    method: "POST",
+    path: "/projects/{projectId}/portal-domains/{domainId}/remove",
+    tag: "Customer portal",
+    summary:
+      "Remove a name. Links that were sent with it stop working on it and keep working on the shared address",
+    access: "project.manage",
+    response: z.object({ removed: z.boolean(), host: z.string() }),
+    run: ({ principal, params }) =>
+      removePortalDomain(principal, params.projectId ?? "", params.domainId ?? ""),
+  },
+  {
+    id: "workspace.portal_domains_list",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for its owner",
+    },
+    method: "GET",
+    path: "/portal-domains",
+    tag: "Workspace",
+    summary:
+      "The names of the installation for the customer page: they serve every project that has no name of its own. Only the owner",
+    access: "owner",
+    response: list(out.portalDomain),
+    run: ({ principal }) => listInstallationPortalDomains(principal),
+  },
+  {
+    id: "workspace.portal_domains_add",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for its owner",
+    },
+    method: "POST",
+    path: "/portal-domains",
+    tag: "Workspace",
+    summary:
+      "Claim a name for the whole installation. It serves the customer page only after the text record that the answer names exists in the DNS and the claim is verified",
+    access: "owner",
+    body: portalDomainInput,
+    response: out.portalDomain,
+    status: 201,
+    run: ({ principal, input }) => addInstallationPortalDomain(principal, input),
+  },
+  {
+    id: "workspace.portal_domains_verify",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for its owner",
+    },
+    method: "POST",
+    path: "/portal-domains/{domainId}/verify",
+    tag: "Workspace",
+    summary:
+      "Look for the text record of a claim of the installation in the DNS; it can be asked again",
+    access: "owner",
+    response: out.portalDomainChecked,
+    run: ({ principal, params }) =>
+      verifyInstallationPortalDomain(principal, params.domainId ?? ""),
+  },
+  {
+    id: "workspace.portal_domains_remove",
+    mcp: {
+      not: "The names of the customer page are configuration of the installation, for its owner",
+    },
+    method: "POST",
+    path: "/portal-domains/{domainId}/remove",
+    tag: "Workspace",
+    summary:
+      "Remove a name of the installation. Links that were sent with it keep working on the shared address",
+    access: "owner",
+    response: z.object({ removed: z.boolean(), host: z.string() }),
+    run: ({ principal, params }) =>
+      removeInstallationPortalDomain(principal, params.domainId ?? ""),
   },
   {
     id: "workspace.limits_get",
