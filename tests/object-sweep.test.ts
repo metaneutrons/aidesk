@@ -3,7 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
-import { attachments, ingress, messages, projects, tickets } from "../src/server/db/schema";
+import {
+  attachments,
+  ingress,
+  messages,
+  projectExports,
+  projects,
+  tickets,
+} from "../src/server/db/schema";
 import { sweepObjects } from "../src/server/object-sweep";
 import {
   deleteObjects,
@@ -135,5 +142,37 @@ describe("the sweep of the storage", () => {
     await db().delete(attachments).where(eq(attachments.messageId, messageId));
     const found = await sweepObjects({ prefix, now: later });
     expect(found.unreferenced.map((object) => object.key)).toEqual([key("file")]);
+  });
+});
+describe("the file of an export of a project", () => {
+  it("is kept as long as the row of the export names it, and is unreferenced when the row is gone", async () => {
+    await putObject(key("export.zip"), Buffer.from("zip"), "application/zip");
+    const [made] = await db()
+      .insert(projectExports)
+      .values({
+        projectId,
+        projectName: "Sweep",
+        digest: "d",
+        bytes: 3,
+        counts: {},
+        objectKey: key("export.zip"),
+        createdBy: "someone",
+      })
+      .returning({ id: projectExports.id });
+    try {
+      const kept = await sweepObjects({ prefix, now: later });
+      expect(kept.unreferenced.map((object) => object.key)).not.toContain(key("export.zip"));
+      expect(await sweepObjects({ prefix, remove: true, now: later })).toMatchObject({
+        failed: [],
+      });
+      expect(await exists("export.zip")).toBe(true);
+    } finally {
+      await db()
+        .delete(projectExports)
+        .where(eq(projectExports.id, made?.id ?? ""));
+    }
+    const gone = await sweepObjects({ prefix, now: later });
+    expect(gone.unreferenced.map((object) => object.key)).toContain(key("export.zip"));
+    await deleteObjects([key("export.zip")]);
   });
 });
