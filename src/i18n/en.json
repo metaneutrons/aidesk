@@ -698,5 +698,12 @@
   "usageReceived": "Received",
   "usageSent": "Sent",
   "usageStorage": "Storage",
-  "usageStored": "{files} files ({size} MB) and {mails} received mails are stored."
+  "usageStored": "{files} files ({size} MB) and {mails} received mails are stored.",
+  "profileTitle": "Your profile",
+  "profileHint": "The name and the signature that customers read on your replies. A note and the draft of an agent do not carry them.",
+  "profileDisplayName": "Name on replies",
+  "profileSignature": "Signature",
+  "profileSave": "Save profile",
+  "profileSaved": "The profile was saved.",
+  "profileError": "The profile could not be saved."
 }

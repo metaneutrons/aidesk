@@ -13,6 +13,7 @@ import { Limits } from "./limits";
 import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
+import { Profile } from "./profile";
 import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
@@ -137,6 +138,7 @@ export function Settings({
     return (
       <section className="settings">
         <p className="muted">{t("settingsNoAccess")}</p>
+        <Profile />
       </section>
     );
   return (
@@ -146,6 +148,7 @@ export function Settings({
           {t("error")}
         </p>
       )}
+      <Profile />
       <h2>{t("operatorsTitle")}</h2>
       {people === null ? (
         <p className="muted">{t("loading")}</p>
