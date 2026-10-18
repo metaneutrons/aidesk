@@ -51,7 +51,9 @@ test("shows a webhook with its last delivery, sends a test event and disables it
           .getByRole("listitem")
           .filter({ hasText: name })
           .getByText(/Failed .* \(\w+\), trying again/),
-      ).toBeVisible({ timeout: 2000 });
+        // The settings page reads its data with many requests at once; under the load of CI, and in Firefox with its
+        // limit of connections, the list of webhooks can take longer than two seconds to appear after a reload.
+      ).toBeVisible({ timeout: 15_000 });
     }).toPass({ timeout: 100_000 });
   } catch (error) {
     // The delivery sometimes takes longer than the wait in CI. What the row and the API say at that moment tells
