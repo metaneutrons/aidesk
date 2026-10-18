@@ -1,6 +1,6 @@
 import { APICallError, type ModelMessage } from "ai";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   estimateFileTokens,
   estimateTokens,
@@ -12,6 +12,7 @@ import { aiSecret } from "../domain/connections";
 import { unseal } from "./crypto";
 import { db } from "./db";
 import { aiBudgets, aiProfiles, aiRuns, connections } from "./db/schema";
+import { emitEvent } from "./webhooks";
 import { env } from "./env";
 import {
   generate as callProvider,
@@ -186,6 +187,40 @@ function timedOut(error: unknown): boolean {
   const name = error instanceof Error ? error.name : "";
   return name === "TimeoutError" || name === "AbortError";
 }
+// The share of the daily budget of a task at which the event `ai.budget_low` is sent, in percent.
+export const budgetWarningPercent = 80;
+// Sends `ai.budget_low` once for a task and a day, when the use has reached the share. The mark and the event are
+// made in one step: of two runs that reach the share together, only the one that sets the mark sends the event.
+export async function warnWhenBudgetIsLow(
+  projectId: string,
+  task: string,
+  day: string,
+  budget: number,
+): Promise<void> {
+  const [reached] = await db()
+    .update(aiBudgets)
+    .set({ warnedAt: new Date() })
+    .where(
+      and(
+        eq(aiBudgets.projectId, projectId),
+        eq(aiBudgets.task, task),
+        eq(aiBudgets.day, day),
+        isNull(aiBudgets.warnedAt),
+        sql`${aiBudgets.charged} * 100 >= ${budget * budgetWarningPercent}::bigint`,
+      ),
+    )
+    .returning({ charged: aiBudgets.charged });
+  if (!reached) return;
+  await db().transaction((tx) =>
+    emitEvent(tx, projectId, "ai.budget_low", {
+      task,
+      day,
+      charged: reached.charged,
+      budget,
+      percent: Math.floor((reached.charged * 100) / budget),
+    }),
+  );
+}
 export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<AiOutcome> {
   const started = Date.now();
   const generate = deps.generate ?? callProvider;
@@ -315,6 +350,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
     })
     .returning({ charged: aiBudgets.charged });
   if (!reserved) return fail("ai_budget_exceeded", withConnection);
+  await warnWhenBudgetIsLow(request.projectId, request.task, day, profile.dailyTokenBudget);
   const adjust = (delta: number) =>
     db()
       .update(aiBudgets)
@@ -417,6 +453,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
   // stays charged.
   const settled = answer.usage.totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
   if (settled > 0) await adjust(settled - held);
+  await warnWhenBudgetIsLow(request.projectId, request.task, day, profile.dailyTokenBudget);
   return {
     ok: true,
     text: answer.text,
