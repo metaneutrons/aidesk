@@ -379,6 +379,8 @@ export const aiBudgets = pgTable(
     task: text("task").notNull(),
     day: text("day").notNull(),
     charged: integer("charged").notNull().default(0),
+    // Set when the day's use first reached the share at which the event `ai.budget_low` is sent, so that it is sent once.
+    warnedAt: timestamp("warned_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("ai_budget_day_unique").on(t.projectId, t.task, t.day)],
 );
