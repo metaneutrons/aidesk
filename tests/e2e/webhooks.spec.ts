@@ -42,16 +42,30 @@ test("shows a webhook with its last delivery, sends a test event and disables it
   await row.getByRole("button", { name: `Send a test event to ${name}` }).click();
   await expect(section.getByText(/A test event was queued/)).toBeVisible();
   // The worker delivers it; the answer of the endpoint is shown, with the pause.
-  await expect(async () => {
-    await page.reload();
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-    await expect(
-      section
-        .getByRole("listitem")
-        .filter({ hasText: name })
-        .getByText(/Failed .* \(\w+\), trying again/),
-    ).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 100_000 });
+  try {
+    await expect(async () => {
+      await page.reload();
+      await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+      await expect(
+        section
+          .getByRole("listitem")
+          .filter({ hasText: name })
+          .getByText(/Failed .* \(\w+\), trying again/),
+      ).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 100_000 });
+  } catch (error) {
+    // The delivery sometimes takes longer than the wait in CI. What the row and the API say at that moment tells
+    // whether it was not made, was made and is shown differently, or was made and is not shown.
+    const shown = await row.innerText({ timeout: 2000 }).catch(() => "the row is not on the page");
+    const api = await page.request
+      .get(`/api/v1/projects/${alpha.id}/webhooks`)
+      .then((response) => response.text())
+      .catch((reason: unknown) => String(reason));
+    throw new Error(
+      `The failed delivery was not shown within 100 seconds.\nRow: ${shown}\nAPI: ${api}\n${String(error)}`,
+      { cause: error },
+    );
+  }
   const scan = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .exclude("[data-base-ui-focus-guard]")
