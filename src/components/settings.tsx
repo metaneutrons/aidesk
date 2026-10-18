@@ -15,6 +15,7 @@ import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
 import { Invite } from "./invite";
+import { PortalBranding } from "./portal-branding";
 import { Profile } from "./profile";
 import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
@@ -572,6 +573,16 @@ export function Settings({
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
             locale={locale}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("config.read"))
+        .map((grant) => (
+          <PortalBranding
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            canWrite={grant.actions.includes("config.write")}
           />
         ))}
       {managed

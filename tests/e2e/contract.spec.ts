@@ -85,6 +85,7 @@ const notCalled: Record<string, string> = {
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "workspace.limits_set":
     "sets a limit of the whole installation, which would change what the tests that run beside check; covered by the limits tests",
+  "branding.logo_get": "answers an image and not JSON; covered by the tests of the branding",
   "projects.export_download": "answers a zip file and not JSON; covered by the tests of the export",
   "projects.delete":
     "cannot be undone and needs a project that is archived and exported; covered by the tests of the deletion",
@@ -347,6 +348,20 @@ test("answers every documented route in the published shape, with real data", as
     data: { domain: `${sso}-moved.example.test` },
   });
   await call("sso.providers_delete", { params: { providerId: sso }, data: { confirm: sso } });
+  // The branding of the customer page of the project: set, read, given a logo and cleared.
+  await call("branding.get", { params: { projectId: project } });
+  await call("branding.set", {
+    params: { projectId: project },
+    data: { displayName: "Contract", accentColor: "#336699", language: "en" },
+  });
+  const tiny =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  await call("branding.logo_set", { params: { projectId: project }, data: { data: tiny } });
+  await call("branding.logo_remove", { params: { projectId: project } });
+  await call("branding.set", {
+    params: { projectId: project },
+    data: { displayName: null, accentColor: null, language: null },
+  });
   // An operator is invited without a mail; the shape of the answer is the one that the definition promises.
   await call("operators.invite", {
     params: { projectId: project },

@@ -174,6 +174,8 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../branding";
+import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
 import { inviteOperator } from "../invitations";
 import { invitationInput, invitationOut } from "../../domain/invitations";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
@@ -641,6 +643,75 @@ export const routes: Route[] = [
     }),
     run: ({ principal, params, input }) =>
       setOperatorGrant(principal, params.operatorId ?? "", input),
+  },
+  {
+    id: "branding.get",
+    mcp: { not: "How the customer page looks is for the people who run the project" },
+    method: "GET",
+    path: "/projects/{projectId}/portal-branding",
+    tag: "Projects",
+    summary: "Read how the customer page of a project is branded",
+    access: "config.read",
+    response: brandingOut,
+    run: ({ principal, params }) => getBranding(principal, params.projectId ?? ""),
+  },
+  {
+    id: "branding.set",
+    mcp: { not: "How the customer page looks is for the people who run the project" },
+    method: "PUT",
+    path: "/projects/{projectId}/portal-branding",
+    tag: "Projects",
+    summary:
+      "Set the name, the line of text, the colour of the buttons and the language of the customer page; null removes a field",
+    access: "config.write",
+    body: brandingInput,
+    response: brandingOut,
+    run: ({ principal, params, input }) => setBranding(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "branding.logo_set",
+    mcp: { not: "How the customer page looks is for the people who run the project" },
+    method: "PUT",
+    path: "/projects/{projectId}/portal-branding/logo",
+    tag: "Projects",
+    summary: "Set the logo of the customer page (PNG, JPEG or WebP, at most 256 KiB, as base64)",
+    access: "config.write",
+    body: logoInput,
+    response: brandingOut,
+    run: ({ principal, params, input }) => setLogo(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "branding.logo_remove",
+    mcp: { not: "How the customer page looks is for the people who run the project" },
+    method: "POST",
+    path: "/projects/{projectId}/portal-branding/logo/delete",
+    tag: "Projects",
+    summary: "Remove the logo of the customer page",
+    access: "config.write",
+    response: brandingOut,
+    run: ({ principal, params }) => removeLogo(principal, params.projectId ?? ""),
+  },
+  {
+    id: "branding.logo_get",
+    mcp: { not: "A file is not a tool result" },
+    method: "GET",
+    path: "/projects/{projectId}/portal-branding/logo",
+    tag: "Projects",
+    summary: "The logo of the customer page, for a preview",
+    access: "config.read",
+    binary: true,
+    run: async ({ principal, params }) => {
+      const logo = await readLogo(principal, params.projectId ?? "");
+      return new Response(new Uint8Array(logo.content), {
+        headers: {
+          "Content-Type": logo.type,
+          "Content-Length": String(logo.content.length),
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'",
+          "Cache-Control": "private, no-store",
+        },
+      });
+    },
   },
   {
     id: "operators.invite",

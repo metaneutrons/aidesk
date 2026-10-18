@@ -207,6 +207,26 @@ export const memberships = pgTable(
     index("membership_project_idx").on(t.projectId),
   ],
 );
+// How the customer page of a project looks: the name, a line of text, the colour of the buttons, the language and the
+// logo (an object in the storage). A project without a row looks as it did before.
+export const portalBranding = pgTable(
+  "portal_branding",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    displayName: text("display_name"),
+    headerText: text("header_text"),
+    accentColor: text("accent_color"),
+    language: text("language"),
+    logoKey: text("logo_key"),
+    logoType: text("logo_type"),
+    updatedBy: text("updated_by").notNull(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("portal_branding_project_idx").on(t.projectId)],
+);
 // A group of operators in one project with the actions that every member holds there, in addition to what each
 // holds by their own membership.
 export const operatorGroups = pgTable(

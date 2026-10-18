@@ -25,14 +25,23 @@ const formatBytes = (size: number): string =>
     : size < 1_048_576
       ? `${String(Math.round(size / 1024))} kB`
       : `${(size / 1_048_576).toFixed(1)} MB`;
+export interface PortalBrand {
+  name: string | null;
+  headerText: string | null;
+  accent: string | null;
+  accentText: string | null;
+  hasLogo: boolean;
+}
 export function Portal({
   token,
   locale,
   view,
   fileLimits,
+  brand,
 }: {
   token: string;
   locale: string;
+  brand: PortalBrand | null;
   view: PortalView | null;
   fileLimits: { count: number; mib: number };
 }) {
@@ -102,8 +111,32 @@ export function Portal({
                 : "failed",
     );
   }
+  const branded =
+    brand !== null && (brand.name !== null || brand.headerText !== null || brand.hasLogo);
   return (
-    <main className="portal">
+    <main
+      className="portal"
+      style={
+        brand?.accent && brand.accentText
+          ? ({
+              "--portal-accent": brand.accent,
+              "--portal-on-accent": brand.accentText,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {branded && (
+        <div className="portal-brand">
+          {brand.hasLogo && (
+            // The logo is the project's own image; its size is not known, so the page limits it in CSS.
+            <img src={`/api/portal/logo/${token}`} alt="" height={48} />
+          )}
+          <div>
+            {brand.name && <strong>{brand.name}</strong>}
+            {brand.headerText && <p className="muted">{brand.headerText}</p>}
+          </div>
+        </div>
+      )}
       <header>
         <p className="eyebrow">{t("portalRequest", { number: view.ticket.number })}</p>
         <h1>{view.ticket.subject}</h1>

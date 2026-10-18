@@ -1,8 +1,10 @@
+import { brandingOfPage } from "../../../server/branding";
+import { textOn } from "../../../domain/branding";
 import { getLimits } from "../../../server/limits";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
-import { negotiateLocale } from "../../../domain/locale";
+import { negotiateLocale, type Locale } from "../../../domain/locale";
 import { DomainError } from "../../../server/errors";
 import { getPortalTicket } from "../../../server/portal";
 import { portalHost } from "../../../server/portal-domains";
@@ -20,7 +22,7 @@ export const metadata: Metadata = {
 };
 export default async function PortalPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const locale = negotiateLocale((await headers()).get("accept-language"));
+  let locale: Locale = negotiateLocale((await headers()).get("accept-language"));
   let view;
   try {
     const sent = await headers();
@@ -30,6 +32,9 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
   }
+  // A project that fixed the language of its page gets that language; the others the one of the browser.
+  const branding = view ? await brandingOfPage(view.projectId) : null;
+  if (branding?.language) locale = branding.language;
   // The project's own wording replaces the built-in text of the page.
   const own = view ? await activeTexts(view.projectId, locale) : {};
   const limits = await getLimits();
@@ -50,6 +55,17 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       <Portal
         token={token}
         locale={locale}
+        brand={
+          branding
+            ? {
+                name: branding.displayName,
+                headerText: branding.headerText,
+                accent: branding.accentColor,
+                accentText: branding.accentColor ? textOn(branding.accentColor) : null,
+                hasLogo: branding.hasLogo,
+              }
+            : null
+        }
         fileLimits={{ count: limits.portalFiles, mib: limits.portalTotalMiB }}
         view={
           shown
