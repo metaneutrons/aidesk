@@ -92,7 +92,9 @@ async function sessionHeaders(userId: string): Promise<Headers> {
 let idp: Server;
 let idpUrl = "";
 let idpIssuer: string | null = null;
-let idpKeys: unknown[] = [{ kty: "RSA", kid: "k1", n: "AQAB", e: "AQAB" }];
+let idpKeys: unknown = [{ kty: "RSA", kid: "k1", n: "AQAB", e: "AQAB" }];
+// Keys of the discovery document that the provider of a test leaves out.
+let idpOmit: string[] = [];
 beforeAll(async () => {
   dnsModule.resolveTxt = fakeResolveTxt;
   syncBuiltinESMExports();
@@ -101,16 +103,22 @@ beforeAll(async () => {
     const base = idpUrl;
     if (request.url === "/.well-known/openid-configuration") {
       response.setHeader("content-type", "application/json");
+      const document: Record<string, unknown> = {
+        issuer: idpIssuer ?? base,
+        authorization_endpoint: `${base}/authorize`,
+        token_endpoint: `${base}/token`,
+        jwks_uri: `${base}/jwks`,
+        userinfo_endpoint: `${base}/userinfo`,
+        token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+      };
       response.end(
-        JSON.stringify({
-          issuer: idpIssuer ?? base,
-          authorization_endpoint: `${base}/authorize`,
-          token_endpoint: `${base}/token`,
-          jwks_uri: `${base}/jwks`,
-          userinfo_endpoint: `${base}/userinfo`,
-          token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
-        }),
+        JSON.stringify(
+          Object.fromEntries(Object.entries(document).filter(([key]) => !idpOmit.includes(key))),
+        ),
       );
+    } else if (request.url === "/broken") {
+      response.statusCode = 503;
+      response.end();
     } else if (request.url === "/jwks") {
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ keys: idpKeys }));
@@ -142,6 +150,7 @@ afterEach(() => {
   dns.txt.clear();
   idpIssuer = null;
   idpKeys = [{ kty: "RSA", kid: "k1", n: "AQAB", e: "AQAB" }];
+  idpOmit = [];
 });
 afterAll(async () => {
   dnsModule.resolveTxt = realResolveTxt;
@@ -526,6 +535,59 @@ describe("testing a provider", () => {
     expect(ending.checks.find((check) => check.name === "certificate")).toMatchObject({
       ok: false,
     });
+  });
+  it("names each thing that is missing in the document of the provider", async () => {
+    const id = await verified("missing");
+    const failing = async () =>
+      (await testSsoProvider(owner, id)).checks
+        .filter((check) => !check.ok)
+        .map((check) => check.name);
+    idpOmit = ["issuer"];
+    expect(await failing()).toContain("issuer");
+    idpOmit = ["token_endpoint"];
+    expect(await failing()).toContain("endpoints");
+    idpOmit = ["jwks_uri"];
+    expect(await failing()).toEqual(expect.arrayContaining(["endpoints", "keys"]));
+    idpOmit = [];
+    idpKeys = "not a list";
+    expect(await failing()).toEqual(["keys"]);
+  });
+  it("reads a certificate that has ended, a missing one and an entry point that does not answer", async () => {
+    const entry = provider("samlentry");
+    await registerSsoProvider(owner, headers, {
+      providerId: entry,
+      issuer: "https://idp.example.test/saml",
+      domain: `${entry}.example.test`,
+      saml: { entryPoint: `${idpUrl}/broken`, cert: certificates.short },
+    });
+    const broken = await testSsoProvider(owner, entry);
+    expect(broken.checks.find((check) => check.name === "entry point")).toMatchObject({
+      ok: false,
+    });
+    await db()
+      .update(ssoProvider)
+      .set({ samlConfig: JSON.stringify({ entryPoint: `${idpUrl}/missing-page` }) })
+      .where(eq(ssoProvider.providerId, entry));
+    const bare = await testSsoProvider(owner, entry);
+    expect(bare.checks.find((check) => check.name === "certificate")).toMatchObject({ ok: false });
+    // An entry point that answers with a 404 still answers.
+    expect(bare.checks.find((check) => check.name === "entry point")).toMatchObject({ ok: true });
+    await db()
+      .update(ssoProvider)
+      .set({ samlConfig: JSON.stringify({ cert: certificates.short }) })
+      .where(eq(ssoProvider.providerId, entry));
+    expect(
+      (await testSsoProvider(owner, entry)).checks.find((check) => check.name === "entry point"),
+    ).toMatchObject({ ok: false });
+    // Years later both certificates have ended.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2040-01-01T00:00:00Z") });
+    try {
+      const ended = await testSsoProvider(owner, provider("samllong"));
+      expect(ended.checks.find((check) => check.name === "certificate")?.ok).toBe(false);
+      expect(JSON.stringify(ended.checks)).toContain("ended");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 describe("the operators of a provider and the deletion", () => {
