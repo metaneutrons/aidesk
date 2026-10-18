@@ -29,10 +29,25 @@
         "tags": [
           "Projects"
         ],
-        "summary": "List the projects the caller may read",
+        "summary": "List the projects the caller may read; archived projects are left out unless `archived` asks for them",
         "x-required-access": "project.read",
         "x-mcp-tool": "projects_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "description": "Leave archived projects out (default), list them with the others, or list only them",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hide",
+                "include",
+                "only"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -151,6 +166,24 @@
                     "configVersion": {
                       "type": "number"
                     },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "archivedBy": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time",
@@ -172,8 +205,156 @@
                     "portalDomainVerified",
                     "settings",
                     "configVersion",
+                    "archivedAt",
+                    "archivedBy",
                     "createdAt",
                     "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/archive": {
+      "post": {
+        "operationId": "projects.archive",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Archive a project: it keeps its data and becomes read-only, takes no mail and is left out of lists. Needs project.manage",
+        "x-required-access": "project.manage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "archived": {
+                      "type": "boolean"
+                    },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "archived",
+                    "archivedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/restore": {
+      "post": {
+        "operationId": "projects.restore",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Restore an archived project as it was. For the owner and for a person who manages the project",
+        "x-required-access": "project.manage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "archived": {
+                      "type": "boolean"
+                    },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "archived",
+                    "archivedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -13247,6 +13428,18 @@
           },
           "overdueHours": {
             "type": "number"
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -13258,7 +13451,8 @@
           "acknowledgements",
           "portalLinks",
           "warnHours",
-          "overdueHours"
+          "overdueHours",
+          "archivedAt"
         ],
         "additionalProperties": false
       },

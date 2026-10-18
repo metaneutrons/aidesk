@@ -36,6 +36,7 @@ export const projectSummary = z
     portalLinks: z.boolean(),
     warnHours: z.number(),
     overdueHours: z.number(),
+    archivedAt: isoDate.nullable(),
   })
   .meta({ id: "ProjectSummary" });
 export const projectRow = rowSchema(projects, {
@@ -480,6 +481,10 @@ export const webhookDelivery = z.object({
   code: z.string().nullable(),
   durationMs: z.number(),
   createdAt: isoDate,
+});
+export const projectArchive = z.object({
+  archived: z.boolean(),
+  archivedAt: isoDate.nullable(),
 });
 export const portalDomain = z.object({
   id: z.uuid(),

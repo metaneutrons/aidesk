@@ -34,6 +34,7 @@ export async function scanResponseClock(
       and(
         isNotNull(tickets.pendingSince),
         isNull(tickets.junkAt),
+        isNull(projects.archivedAt),
         or(due(tickets.warnedFor, warnLimit), due(tickets.overdueFor, overdueLimit)),
       ),
     )

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { jobOfOpenProject } from "./archive";
 import { ingress, jobs } from "./db/schema";
 import { processIngress } from "./inbound";
 import { syncImapJunk } from "./imap";
@@ -62,6 +63,7 @@ export async function runIdempotentJob(
           inArray(jobs.status, ["queued", "retry"]),
           inArray(jobs.type, types),
           sql`${jobs.runAfter} <= now()`,
+          jobOfOpenProject,
           inScope,
         ),
       )

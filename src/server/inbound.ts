@@ -1,3 +1,4 @@
+import { assertProjectOpen } from "./archive";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { simpleParser, type AddressObject } from "mailparser";
@@ -39,6 +40,8 @@ export async function acceptInbound(input: {
   origin?: Record<string, unknown>;
 }): Promise<{ ingressId: string; duplicate: boolean }> {
   if (input.raw.length === 0 || input.raw.length > maxRawBytes) throw new Error("inbound_size");
+  // An archived project takes no mail: the adapter counts it as a poll that failed, and the mail stays where it is.
+  await assertProjectOpen(input.projectId);
   const checksum = createHash("sha256").update(input.raw).digest("hex");
   const rawObjectKey = `inbound/${input.projectId}/${checksum}.eml`;
   await putObject(rawObjectKey, input.raw, "message/rfc822");

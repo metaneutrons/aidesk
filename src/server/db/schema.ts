@@ -151,6 +151,10 @@ export const projects = pgTable("project", {
   // Raised by every applied configuration change; a writer names the version it
   // read, so a change made in between is never overwritten unseen.
   configVersion: integer("config_version").notNull().default(1),
+  // An archived project keeps all its data and is read-only: it takes no mail, nothing is sent from it, its
+  // jobs wait, and it is left out of lists unless a list asks for it. Restoring takes it back as it was.
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  archivedBy: text("archived_by"),
   createdAt: created(),
   updatedAt: updated(),
 });

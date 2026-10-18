@@ -126,6 +126,7 @@ import {
 } from "../connections";
 import { aiProfileWrite } from "../../domain/ai";
 import { auditFilter } from "../../domain/audit";
+import { archiveProject, restoreProject } from "../archive";
 import { limitsInput } from "../../domain/limits";
 import { portalDomainInput } from "../../domain/portal-domains";
 import {
@@ -253,10 +254,49 @@ export const routes: Route[] = [
     method: "GET",
     path: "/projects",
     tag: "Projects",
-    summary: "List the projects the caller may read",
+    summary:
+      "List the projects the caller may read; archived projects are left out unless `archived` asks for them",
     access: "project.read",
+    query: z.object({
+      archived: z
+        .enum(["hide", "include", "only"])
+        .optional()
+        .describe(
+          "Leave archived projects out (default), list them with the others, or list only them",
+        ),
+    }),
     response: list(out.projectSummary),
-    run: ({ principal }) => listProjects(principal),
+    run: ({ principal, query }) => {
+      const asked = z
+        .enum(["hide", "include", "only"])
+        .catch("hide")
+        .parse(query.get("archived") ?? "hide");
+      return listProjects(principal, asked);
+    },
+  },
+  {
+    id: "projects.archive",
+    mcp: { not: "Archiving a project is for people" },
+    method: "POST",
+    path: "/projects/{projectId}/archive",
+    tag: "Projects",
+    summary:
+      "Archive a project: it keeps its data and becomes read-only, takes no mail and is left out of lists. Needs project.manage",
+    access: "project.manage",
+    response: out.projectArchive,
+    run: ({ principal, params }) => archiveProject(principal, params.projectId ?? ""),
+  },
+  {
+    id: "projects.restore",
+    mcp: { not: "Restoring a project is for people" },
+    method: "POST",
+    path: "/projects/{projectId}/restore",
+    tag: "Projects",
+    summary:
+      "Restore an archived project as it was. For the owner and for a person who manages the project",
+    access: "project.manage",
+    response: out.projectArchive,
+    run: ({ principal, params }) => restoreProject(principal, params.projectId ?? ""),
   },
   {
     id: "operators.list",

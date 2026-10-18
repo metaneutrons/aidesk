@@ -715,6 +715,22 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "projects.archive": {
+    operation: "archiveProject",
+    action: "project.manage",
+    ui: "src/components/project-lifecycle.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "projects.restore": {
+    operation: "restoreProject",
+    action: "project.manage",
+    ui: "src/components/project-lifecycle.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "workspace.limits_get": {
     operation: "readLimits",
     action: "workspace.limits.manage",

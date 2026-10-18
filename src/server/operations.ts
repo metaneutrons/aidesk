@@ -25,6 +25,7 @@ import {
   tickets,
   user,
 } from "./db/schema";
+import { activeProjectIds } from "./archive";
 import { DomainError } from "./errors";
 import { markdownHtml, markdownLinks } from "./markdown";
 import { getObject } from "./storage";
@@ -52,7 +53,9 @@ import {
   type Principal,
 } from "../domain/permissions";
 const id = z.uuid();
-export async function listProjects(principal: Principal) {
+// `archived`: the archived projects are left out ("hide"), listed with the others ("include") or the only ones ("only").
+export type ArchivedFilter = "hide" | "include" | "only";
+export async function listProjects(principal: Principal, archived: ArchivedFilter = "hide") {
   const allowed = allowedProjectIds(principal);
   if (allowed.length === 0) return [];
   return db()
@@ -66,9 +69,19 @@ export async function listProjects(principal: Principal) {
       portalLinks: sql<boolean>`coalesce((${projects.settings}->>'portalLinks')::boolean, false)`,
       overdueHours: sql<number>`coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours})`,
       warnHours: sql<number>`least(coalesce((${projects.settings}->>'warnHours')::int, ${defaultWarnHours}), coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
+      archivedAt: projects.archivedAt,
     })
     .from(projects)
-    .where(inArray(projects.id, allowed))
+    .where(
+      and(
+        inArray(projects.id, allowed),
+        archived === "hide"
+          ? isNull(projects.archivedAt)
+          : archived === "only"
+            ? isNotNull(projects.archivedAt)
+            : undefined,
+      ),
+    )
     .orderBy(projects.name);
 }
 // Project behaviour that people with project.manage may change. Only the
@@ -113,9 +126,11 @@ export async function listTickets(
   requested: string[] = [],
   limit: number = listStep,
 ) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
-  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
-  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  const filtered = await activeProjectIds(
+    principal,
+    "ticket.read",
+    requested.length ? requested.map((value) => id.parse(value)) : undefined,
+  );
   if (filtered.length === 0) return [];
   return db()
     .select()
@@ -135,9 +150,11 @@ export async function getOverview(
   requested: string[] = [],
   now: Date = new Date(),
 ) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
-  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
-  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  const filtered = await activeProjectIds(
+    principal,
+    "ticket.read",
+    requested.length ? requested.map((value) => id.parse(value)) : undefined,
+  );
   if (filtered.length === 0) return { projects: [], oldest: [] };
   const instant = now.toISOString();
   const counted = (condition: ReturnType<typeof sql>) =>
@@ -198,9 +215,11 @@ function snippetAround(text: string, query: string): string {
 }
 export async function searchTickets(principal: Principal, text: unknown, requested: string[] = []) {
   const query = z.string().trim().min(2).max(100).parse(text);
-  const allowed = allowedProjectIds(principal, "ticket.read");
-  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
-  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  const filtered = await activeProjectIds(
+    principal,
+    "ticket.read",
+    requested.length ? requested.map((value) => id.parse(value)) : undefined,
+  );
   if (filtered.length === 0) return [];
   const pattern = `%${escapeLike(query)}%`;
   const found = await db()
@@ -471,9 +490,11 @@ export async function setTicketTags(principal: Principal, ticketId: string, inpu
 // The tags in use in the authorized projects, most used first, for filters and
 // suggestions. Junk is not counted, and nothing of an unauthorized project is.
 export async function listTags(principal: Principal, requested: string[] = []) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
-  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
-  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  const filtered = await activeProjectIds(
+    principal,
+    "ticket.read",
+    requested.length ? requested.map((value) => id.parse(value)) : undefined,
+  );
   if (filtered.length === 0) return [];
   const rows = await db().execute<{ tag: string; count: number }>(sql`
     select tag, count(*)::int as count
@@ -930,9 +951,11 @@ export async function getOriginalPreview(principal: Principal, messageId: string
 // Junk: tickets moved there by a person and inbound mail classified as junk
 // before it became a ticket. Both stay out of the inbox until restored.
 export async function listJunk(principal: Principal, requested: string[] = []) {
-  const allowed = allowedProjectIds(principal, "ticket.read");
-  const filtered = requested.length ? requested.map((value) => id.parse(value)) : allowed;
-  if (filtered.some((value) => !allowed.includes(value))) throw new DomainError("not_found", 404);
+  const filtered = await activeProjectIds(
+    principal,
+    "ticket.read",
+    requested.length ? requested.map((value) => id.parse(value)) : undefined,
+  );
   if (filtered.length === 0) return [];
   const junkTickets = await db()
     .select({

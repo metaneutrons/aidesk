@@ -21,6 +21,7 @@ import { markdownHtml } from "./markdown";
 import { getTicket } from "./operations";
 import { env } from "./env";
 import { fileRules, portalRules } from "../domain/limits";
+import { assertProjectOpen } from "./archive";
 import { getLimits } from "./limits";
 import { hostServesProject, portalBase, type PortalHost } from "./portal-domains";
 import { permits, type Principal } from "../domain/permissions";
@@ -212,6 +213,7 @@ export async function getPortalTicket(
       createdAt: tickets.createdAt,
       project: projects.name,
       projectId: projects.id,
+      archivedAt: projects.archivedAt,
     })
     .from(tickets)
     .innerJoin(projects, eq(projects.id, tickets.projectId))
@@ -279,7 +281,8 @@ export async function getPortalTicket(
       language: row.language,
       createdAt: row.createdAt,
     },
-    canReply: repliesAllowed(row.status, row.resolvedAt),
+    // An archived project takes no reply; its page can still be read.
+    canReply: row.archivedAt === null && repliesAllowed(row.status, row.resolvedAt),
     messages: conversation.map((message) => ({
       id: message.id,
       from: message.authorType === "customer" ? ("you" as const) : ("team" as const),
@@ -333,6 +336,7 @@ export async function portalReply(
     .parse(input);
   const grant = await resolvePortalGrant(token, host);
   if (!grant) throw new DomainError("not_found", 404);
+  await assertProjectOpen(grant.projectId);
   const limits = await getLimits();
   const portal = portalRules(limits);
   const rules = { maxCount: portal.count, maxBytes: fileRules(limits).maxBytes };

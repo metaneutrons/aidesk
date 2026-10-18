@@ -609,5 +609,17 @@
   "portalDomainMessage_taken": "Dieser Name gehört einem anderen Projekt oder der Anwendung selbst.",
   "portalDomainMessage_error": "Das hat nicht geklappt. Prüfe den Namen und versuche es noch einmal.",
   "portalDomainsTitleInstallation": "Namen der Kundenseite der Installation",
-  "portalDomainsHintInstallation": "Namen, unter denen die Kundenseite jedes Projekts ohne eigenen Namen erreichbar ist. Ein Projekt mit eigenem Namen ist unter diesem Namen erreichbar, seine Links öffnen sich hier nicht."
+  "portalDomainsHintInstallation": "Namen, unter denen die Kundenseite jedes Projekts ohne eigenen Namen erreichbar ist. Ein Projekt mit eigenem Namen ist unter diesem Namen erreichbar, seine Links öffnen sich hier nicht.",
+  "projectLifecycleTitle": "Archiv der Projekte",
+  "projectLifecycleHint": "Ein archiviertes Projekt behält alle Daten und ist nur lesbar: Es nimmt keine Mail an, aus ihm wird nichts gesendet, und es fehlt in den Listen. Du kannst es so wiederherstellen, wie es war.",
+  "projectArchive": "{name} archivieren",
+  "projectArchiveAsk": "Dieses Projekt archivieren?",
+  "projectArchiveConfirm": "Ja, {name} archivieren",
+  "projectArchiveCancel": "Abbrechen",
+  "projectArchivedTitle": "Archivierte Projekte",
+  "projectArchivedSince": "Archiviert am {date}",
+  "projectRestore": "{name} wiederherstellen",
+  "projectMessage_archived": "{name} wurde archiviert.",
+  "projectMessage_restored": "{name} wurde wiederhergestellt.",
+  "projectMessage_error": "Das hat bei {name} nicht geklappt."
 }

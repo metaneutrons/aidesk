@@ -10,6 +10,7 @@ import { Connections } from "./connections";
 import { AiProfiles } from "./ai-profiles";
 import { AuditLog } from "./audit-log";
 import { Limits } from "./limits";
+import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
@@ -535,6 +536,10 @@ export function Settings({
         ))}
       {owner && <PortalDomains projectId={null} name="" />}
       {owner && <AuditLog projectId={null} name="" locale={locale} />}
+      <ProjectLifecycle
+        manageable={projects.filter((project) => held(project.id).includes("project.manage"))}
+        locale={locale}
+      />
       <Designs
         projects={projects.filter((project) => held(project.id).includes("project.manage"))}
         locale={locale}

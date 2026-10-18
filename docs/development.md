@@ -1374,6 +1374,33 @@ is removed here. A name that a platform serves for several installations is not 
 The certificate for a name is the platform's. A name of the customer page does not change where the sign-in or
 the desk is reached.
 
+## Archiving a project
+
+A person who manages a project (`project.manage`) archives it in the settings ("Archive of projects") or with
+`POST /api/v1/projects/{id}/archive`, and restores it with `POST .../restore`; the owner restores any project.
+Neither is offered to MCP. An archived project keeps all its data and is read-only:
+
+- **Rights.** `identify` (`src/server/principal.ts`) reduces the grants of a person and of a token in an
+  archived project to the rights that read (`project.read`, `ticket.read`, `ticket.read_files`, `config.read`,
+  `audit.read`; `archivedActions`). Every write already asks for its right, so every write is refused without a
+  check in sixty places, and a new write is refused as well. The ticket and its conversation stay readable, by
+  a link too. Restoring reads the right to manage from the membership, because the grant is reduced.
+- **Lists.** The list of projects leaves archived ones out (`?archived=hide`, the default), lists them with the
+  others (`include`) or lists only them (`only`); the lists of tickets, the overview, the search, the tags and
+  the junk cover only projects that are not archived, unless a call names the project (it still needs the
+  right in it). Settings has no sections for an archived project; "Archived projects" lists them with
+  "Restore".
+- **Mail.** `acceptInbound` refuses mail for an archived project (`project_archived`), and the poll of mailboxes
+  skips its connections, so the mail stays in the mailbox and is read after a restore. The reply of a customer
+  is refused (409) and the customer page shows the conversation without a field to reply.
+- **Jobs.** The worker does not take the jobs of an archived project (mail to send, webhooks, translations,
+  agent runs, readings): they wait and run after a restore. The response clock sends no warning for it and the
+  reconciliation of issues skips it.
+- **Audit.** Archiving and restoring are entries of the project (`project.archive`, `project.restore`).
+
+Not covered: a mail that a platform holds outside the product (a Cloudflare bucket) stays there; a webhook
+delivery that was due before the archive waits like any job; deleting an archived project is a step of its own.
+
 ## Webhooks
 
 A project can have events delivered to HTTPS endpoints of its own, so that an

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { workspaceControls } from "../server/controls";
 import { db } from "../server/db";
@@ -478,8 +478,11 @@ export async function pollMailboxes(): Promise<void> {
   const inbound = await db()
     .select({ id: connections.id, kind: connections.kind })
     .from(connections)
+    .innerJoin(projects, eq(projects.id, connections.projectId))
     .where(
       and(
+        // An archived project takes no mail: its mailbox is not polled and the mail stays in it.
+        isNull(projects.archivedAt),
         inArray(connections.kind, ["imap", "cloudflare"]),
         eq(connections.direction, "inbound"),
         inArray(connections.status, ["ready", "degraded"]),

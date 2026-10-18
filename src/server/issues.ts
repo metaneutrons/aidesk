@@ -4,7 +4,7 @@ import { githubConfig, repositoryName } from "../domain/connections";
 import { permits, type Action, type Principal } from "../domain/permissions";
 import { cleanText } from "../domain/untrusted";
 import { db } from "./db";
-import { audit, connections, issueDrafts, ticketIssues, tickets } from "./db/schema";
+import { audit, connections, issueDrafts, projects, ticketIssues, tickets } from "./db/schema";
 import { DomainError } from "./errors";
 import { githubRequest, type GithubConnection, type GithubDeps, type GithubResult } from "./github";
 import { searchTerms } from "./knowledge";
@@ -345,9 +345,11 @@ export async function reconcileIssues(
     .select({ link: ticketIssues })
     .from(ticketIssues)
     .innerJoin(tickets, eq(tickets.id, ticketIssues.ticketId))
+    .innerJoin(projects, eq(projects.id, tickets.projectId))
     .where(
       and(
         isNull(tickets.junkAt),
+        isNull(projects.archivedAt),
         sql`${tickets.status} <> 'resolved'`,
         or(
           isNull(ticketIssues.refreshedAt),
