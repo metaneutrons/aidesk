@@ -1,5 +1,6 @@
 import { cancelAgentRuns, cancelRunsOfAgent, queueAgentRun, takeOver } from "./agent-runs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { signed } from "../domain/profile";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
 import { emitEvent } from "./webhooks";
@@ -1195,8 +1196,17 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
     throw new DomainError("invalid_input", 400);
   const [operator] =
     principal.kind === "human"
-      ? await db().select({ name: user.name }).from(user).where(eq(user.id, principal.id))
+      ? await db()
+          .select({ name: user.name, displayName: user.displayName, signature: user.signature })
+          .from(user)
+          .where(eq(user.id, principal.id))
       : [];
+  // A person's reply carries the name and the signature that they set; a note and the draft of an agent do not.
+  const writtenAs = operator?.displayName ?? operator?.name ?? "Agent";
+  const body =
+    principal.kind === "human" && !values.internal
+      ? signed(values.markdown, operator?.signature)
+      : values.markdown;
   // Under the review policy an agent's reply to a customer is a draft: it is
   // stored, not queued, and a person with ticket.reply sends or discards it.
   const draft =
@@ -1237,7 +1247,7 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
         id: draftId,
         ticketId: ticket.id,
         authorType: principal.kind,
-        authorName: operator?.name ?? "Agent",
+        authorName: writtenAs,
         internal: false,
         markdown: values.markdown,
         language: values.language,
@@ -1286,9 +1296,9 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
       id: messageId,
       ticketId: ticket.id,
       authorType: principal.kind,
-      authorName: operator?.name ?? "Agent",
+      authorName: writtenAs,
       internal: values.internal,
-      markdown: values.markdown,
+      markdown: body,
       language: values.language,
       deliveryState: values.internal ? "internal" : "queued",
     });
@@ -1301,7 +1311,7 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
         fingerprint,
         ticketId: ticket.id,
         messageId,
-        markdown: values.markdown,
+        markdown: body,
         actorId: principal.id,
         actorKind: principal.kind,
         expectedRevision: current.revision,

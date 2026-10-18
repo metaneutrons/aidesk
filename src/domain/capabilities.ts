@@ -430,6 +430,22 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "operator.profile_get": {
+    operation: "getProfile",
+    action: "self.profile",
+    ui: "src/components/profile.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "operator.profile_set": {
+    operation: "setProfile",
+    action: "self.profile",
+    ui: "src/components/profile.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "agents.issue": {
     operation: "issueAgentToken",
     action: "agent.manage",

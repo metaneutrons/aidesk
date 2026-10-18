@@ -698,5 +698,12 @@
   "usageReceived": "Empfangen",
   "usageSent": "Gesendet",
   "usageStorage": "Speicher",
-  "usageStored": "{files} Dateien ({size} MB) und {mails} empfangene Mails sind gespeichert."
+  "usageStored": "{files} Dateien ({size} MB) und {mails} empfangene Mails sind gespeichert.",
+  "profileTitle": "Dein Profil",
+  "profileHint": "Der Name und die Signatur, die Kundinnen und Kunden unter deinen Antworten lesen. Eine Notiz und der Entwurf eines Agenten tragen sie nicht.",
+  "profileDisplayName": "Name auf Antworten",
+  "profileSignature": "Signatur",
+  "profileSave": "Profil speichern",
+  "profileSaved": "Das Profil wurde gespeichert.",
+  "profileError": "Das Profil konnte nicht gespeichert werden."
 }
