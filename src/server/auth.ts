@@ -11,6 +11,7 @@ import * as schema from "./db/schema";
 import { env } from "./env";
 import { getLimits } from "./limits";
 import { passwordSignInAllowed } from "./owner";
+import { auditSsoSignIn } from "./sso-audit";
 import { auditPasskeySignIn, guardPasskeyRoutes, passkeys2FA, passkeyStatus } from "./passkey";
 function createAuth() {
   return betterAuth({
@@ -81,6 +82,14 @@ function createAuth() {
         const newSession = ctx.context.newSession;
         if (newSession && ctx.path === "/passkey/verify-authentication")
           await auditPasskeySignIn(newSession.user.id);
+        // A sign-in through an identity provider: the callback of OIDC and the answer of SAML.
+        if (
+          newSession &&
+          (ctx.path.startsWith("/sso/callback") || ctx.path.startsWith("/sso/saml2/sp/acs"))
+        ) {
+          const named = (ctx.params as Record<string, unknown> | undefined)?.providerId;
+          await auditSsoSignIn(newSession.user.id, typeof named === "string" ? named : undefined);
+        }
         if (
           newSession &&
           (ctx.path === "/two-factor/verify-totp" || ctx.path === "/two-factor/verify-backup-code")

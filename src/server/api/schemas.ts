@@ -482,6 +482,42 @@ export const webhookDelivery = z.object({
   durationMs: z.number(),
   createdAt: isoDate,
 });
+export const ssoProviderOut = z.object({
+  providerId: z.string(),
+  type: z.enum(["oidc", "saml"]),
+  issuer: z.string(),
+  domain: z.string(),
+  domainVerified: z.boolean(),
+  disabled: z.boolean(),
+  disabledAt: isoDate.nullable(),
+  clientIdLastFour: z.string().nullable(),
+  callback: z.string().describe("The address that the provider is told to call back"),
+  metadata: z.string().nullable().describe("The metadata of this side, for a SAML provider"),
+  samlAudience: z.string().nullable(),
+  operators: z
+    .array(z.object({ id: z.string(), name: z.string(), email: z.string(), active: z.boolean() }))
+    .describe("The operators who have signed in through this provider and are linked to it"),
+});
+export const ssoRegisteredOut = ssoProviderOut.extend({
+  domainRecord: z
+    .object({ name: z.string(), value: z.string() })
+    .nullable()
+    .describe("The text record that proves the domain; shown once, ask again for it later"),
+});
+export const ssoRecordOut = z.object({
+  providerId: z.string(),
+  domainVerified: z.boolean(),
+  record: z.object({ name: z.string(), value: z.string() }).nullable(),
+});
+export const ssoVerifiedOut = ssoProviderOut.extend({
+  result: z.enum(["verified", "record_missing", "request_first", "already_verified"]),
+});
+export const ssoTestOut = z.object({
+  providerId: z.string(),
+  ok: z.boolean(),
+  checks: z.array(z.object({ name: z.string(), ok: z.boolean(), detail: z.string() })),
+});
+export const ssoDeletedOut = z.object({ deleted: z.boolean(), operators: z.number().int() });
 export const projectExport = z.object({
   id: z.uuid(),
   projectId: z.uuid(),

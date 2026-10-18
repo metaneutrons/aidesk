@@ -124,6 +124,44 @@ TOTP codes, so a code can be reused within its 90-second window by someone who
 also knows the password. Further owners, re-enrolment after a lost authenticator
 and owner management are not implemented yet.
 
+### Identity providers in the settings
+
+The owner registers, lists, edits, proves, tests, switches off and on, and deletes identity providers in the settings
+("Identity providers") and over REST (`/api/v1/sso-providers`, owner only, not offered to MCP). The plugin of the
+sign-in does the protocol; this layer (`src/server/sso-providers.ts`) calls it on the server with the session of the
+owner and adds what the plugin does not have. The routes of the plugin under `/api/auth/sso/...` stay as they are
+and stay owner-only, so registration through the API keeps working.
+
+- **Registration** takes an identifier (lower case, at most 44 characters, because the record of the proof carries it),
+  the issuer, one domain and either an OIDC client (id, secret, optional discovery address) or a SAML provider (sign-in
+  address, certificate). The plugin reads the discovery document of an OIDC provider and refuses an address that is not
+  public unless its origin is in `BETTER_AUTH_TRUSTED_ORIGINS`. The answer of the plugin holds the secret of the
+  client; it is never returned or written to the audit. It is stored encrypted, as before.
+- **Proof of the domain.** Until the domain is verified a provider signs nobody in (the plugin refuses sign-in, callback
+  and answer). `POST .../domain-record` gives the text record to create (`_better-auth-token-<id>.<domain>` with the
+  value `_better-auth-token-<id>=<token>`), and `POST .../verify-domain` looks for it (`verified`, `record_missing`,
+  `request_first`, `already_verified`). A new domain asks for a new proof.
+- **Test.** `POST .../test` signs nobody in. For OIDC it reads the discovery document, compares its issuer with the
+  registered one, checks that it names the authorization and token endpoints and the keys, and reads the keys; for SAML
+  it reads the certificate (a certificate that ends within 30 days fails) and asks the sign-in address. A provider on a
+  private address is read only on the development stack. A real sign-in is tested by signing in.
+- **Switching off.** The plugin has no switch, and it refuses a provider whose domain is not verified. Switching off
+  stores the provider in `sso_provider_state` with whether its domain was verified and sets the domain to not
+  verified; switching on gives that back, so a domain that was never proved stays unproved. The operators stay linked.
+  A proof does not switch a provider on (409). The routes of the plugin are not told of the switch: `verify-domain` of the
+  plugin itself verifies a provider that is off, which this layer then shows as off but verified; switch it off again.
+- **Operators.** The list names, for each provider, the operators who are linked to it, which is the operators who have
+  signed in through it. Every sign-in through a provider is an audit entry `operator.sso_sign_in` with the provider when
+  the route names it (the callback of one provider and the SAML answer do). Deleting a provider deletes those links, so
+  the operators lose that way in; the identifier has to be typed. The audit entry of the deletion names how many.
+- **Audit.** `sso_provider.register`, `.update` (the names of the fields, never a secret), `.verify_domain`, `.test`,
+  `.disable`, `.enable` and `.delete`, as entries of the installation.
+
+Not covered: several domains for one provider, organizations and private-key authentication of the plugin; a change of
+the issuer or the client id (the plugin refuses it for a provider that operators are linked to; register a new one);
+the success of the proof against a real DNS is done by the plugin and is covered in the tests by replacing the function
+that asks the DNS.
+
 ## Operator administration
 
 The Settings view lists operators. Owners add operators by name and email and

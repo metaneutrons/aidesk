@@ -26,6 +26,11 @@ test("signs in a provisioned operator through OIDC", async ({ page, desk }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview");
   const visible = projects.parse(await (await page.request.get("/api/v1/projects")).json());
   expect(visible.map((project) => project.id)).toEqual([desk.projects.alpha.id]);
+  // The sign-in is an entry of the audit with the provider that answered.
+  const signedIn = z
+    .object({ count: z.number(), providers: z.array(z.string()) })
+    .parse(JSON.parse(fixture("sso-sign-ins", desk.sso.oidc)));
+  expect(signedIn.providers).toContain("keycloak-oidc");
   // Replaying the authorization response must not create another session,
   // neither in the same browser (state already consumed) nor elsewhere.
   const url = (await callback).url();
@@ -53,6 +58,11 @@ test("signs in a provisioned operator through SAML and rejects a replayed respon
   await expect(page).toHaveURL("http://localhost:3000/");
   const visible = projects.parse(await (await page.request.get("/api/v1/projects")).json());
   expect(visible.map((project) => project.id)).toEqual([desk.projects.alpha.id]);
+  // The sign-in is an entry of the audit with the provider that answered; a replay adds none.
+  const signedIn = z
+    .object({ count: z.number(), providers: z.array(z.string()) })
+    .parse(JSON.parse(fixture("sso-sign-ins", desk.sso.saml)));
+  expect(signedIn.providers).toEqual(["keycloak-saml"]);
   const response = await acs;
   const replayContext = await page
     .context()
@@ -68,6 +78,7 @@ test("signs in a provisioned operator through SAML and rejects a replayed respon
   const after = await replayContext?.request.get("/api/v1/projects");
   expect(after?.status()).toBe(401);
   await replayContext?.close();
+  expect(JSON.parse(fixture("sso-sign-ins", desk.sso.saml))).toMatchObject({ count: 1 });
 });
 test("rejects an IdP user without an aidesk account and does not create one", async ({
   page,
