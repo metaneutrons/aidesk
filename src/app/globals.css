@@ -1885,3 +1885,46 @@ button.danger {
     color: var(--warning);
     border-color: var(--warning);
 }
+
+/* The identity providers: the forms under a provider and the register form use the width of the section. */
+.sso-providers .connection-list li {
+    flex-wrap: wrap;
+}
+
+.sso-edit,
+.sso-delete {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+}
+
+.sso-edit label,
+.sso-delete label,
+.sso-register label {
+    display: grid;
+    gap: 4px;
+    flex: 1 1 260px;
+}
+
+.sso-register form {
+    display: grid;
+    gap: 12px;
+    max-width: 640px;
+    margin-top: 12px;
+}
+
+.sso-register textarea {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+}
+
+.sso-checks {
+    margin: 4px 0 0;
+    padding-left: 18px;
+}
+
+.sso-providers code {
+    overflow-wrap: anywhere;
+}

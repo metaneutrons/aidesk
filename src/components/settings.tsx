@@ -12,6 +12,7 @@ import { AuditLog } from "./audit-log";
 import { Limits } from "./limits";
 import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
+import { SsoProviders } from "./sso-providers";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
@@ -496,6 +497,7 @@ export function Settings({
       {owner && <OwnerPasskeys locale={locale} />}
       {owner && <WorkspaceControls />}
       {owner && <Limits />}
+      {owner && <SsoProviders />}
       {managed
         .filter((grant) => grant.actions.includes("ticket.assign"))
         .map((grant) => (
