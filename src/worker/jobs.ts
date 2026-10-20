@@ -12,6 +12,7 @@ import { activeTexts } from "../server/texts";
 import { emitEvent } from "../server/webhooks";
 // The project's own wording of the link line, if it set one.
 const ownLine = (text: string | undefined) => (text === undefined ? {} : { portalLinkLine: text });
+import { autoResolveOf } from "../domain/reply-policy";
 import { threadHeaders } from "../domain/threading";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
@@ -40,6 +41,7 @@ const refusalCodes = new Set([
   "stale_or_paused_dispatch",
   "dispatch_grant_revoked",
   "acknowledgement_not_enabled",
+  "auto_resolve_not_enabled",
   "autonomous_dispatch_not_enabled",
   "outbound_not_ready",
   "development_connection_not_allowed",
@@ -152,9 +154,14 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       )
         throw new Error("dispatch_grant_revoked");
     } else if (payload.actorKind === "system") {
-      // Only acknowledgements are sent without a person or agent, and only
-      // while the project still has them enabled.
-      if (message.source.kind !== "acknowledgement" || project.settings.acknowledgements !== true)
+      // Only acknowledgements and the reminders before an automatic resolve are sent without a person or an
+      // agent. An acknowledgement only while the project still has them on; a reminder only while the project
+      // still sends it and the ticket still waits for the customer.
+      const kind = message.source.kind;
+      if (kind === "auto_resolve_reminder") {
+        if (autoResolveOf(project.settings).reminderDays === null || ticket.status !== "waiting")
+          throw new Error("auto_resolve_not_enabled");
+      } else if (kind !== "acknowledgement" || project.settings.acknowledgements !== true)
         throw new Error("acknowledgement_not_enabled");
     } else {
       const [agent] = await db().select().from(agents).where(eq(agents.id, payload.actorId));
@@ -275,6 +282,8 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
             pendingSince: null,
             status: payload.resolve ? "resolved" : "waiting",
             resolvedAt: payload.resolve ? new Date() : null,
+            // The wait for the customer begins with the answer that was sent.
+            waitingSince: payload.resolve ? null : new Date(),
             updatedAt: new Date(),
           })
           .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, payload.expectedRevision)));

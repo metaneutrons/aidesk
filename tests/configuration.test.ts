@@ -92,6 +92,8 @@ describe("reading the configuration", () => {
         overdueHours: 24,
         reopenMode: "reopen",
         reopenDays: 30,
+        autoResolveDays: null,
+        autoResolveReminderDays: null,
       },
     });
   });
@@ -417,6 +419,41 @@ describe("the policy for a reply to a resolved ticket", () => {
       .set({ settings: { reopenMode: "bogus", reopenDays: "many" } })
       .where(eq(projects.id, projectId));
     expect(await current()).toMatchObject({ reopenMode: "reopen", reopenDays: 30 });
+  });
+});
+describe("the automatic resolve of a waiting ticket", () => {
+  it("is off by default, set with its reminder in one change, and a reminder needs the days and comes before them", async () => {
+    await reset();
+    expect(await current()).toMatchObject({ autoResolveDays: null, autoResolveReminderDays: null });
+    for (const bad of [
+      { autoResolveReminderDays: 3 },
+      { autoResolveDays: 14, autoResolveReminderDays: 14 },
+      { autoResolveDays: 0 },
+      { autoResolveDays: 366 },
+    ])
+      await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ autoResolveDays: 14, autoResolveReminderDays: 3 }),
+      ),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [
+        { pointer: "/autoResolveDays", from: null, to: 14 },
+        { pointer: "/autoResolveReminderDays", from: null, to: 3 },
+      ],
+    });
+    expect(await current()).toMatchObject({ autoResolveDays: 14, autoResolveReminderDays: 3 });
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ autoResolveDays: null, autoResolveReminderDays: null }),
+      ),
+    ).toMatchObject({ outcome: "applied" });
+    expect(await current()).toMatchObject({ autoResolveDays: null, autoResolveReminderDays: null });
   });
 });
 describe("the warning limit", () => {

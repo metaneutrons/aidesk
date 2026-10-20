@@ -4,6 +4,7 @@ import { runAgents } from "./agent-runs";
 import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
 import { runTranslations } from "./translate";
+import { scanAutoResolve } from "../server/auto-resolve";
 import { scanResponseClock } from "../server/response-clock";
 import { reconcileIssues } from "../server/issues";
 // The work of the worker, in passes that end: one pass looks at the clock, polls the mailboxes and
@@ -16,6 +17,7 @@ import { reconcileIssues } from "../server/issues";
 // both on every call.
 let nextClockScan = 0;
 let nextIssueRefresh = 0;
+let nextAutoResolve = 0;
 export async function runPass(): Promise<boolean> {
   if (Date.now() >= nextClockScan) {
     nextClockScan = Date.now() + 30_000;
@@ -24,6 +26,11 @@ export async function runPass(): Promise<boolean> {
   if (Date.now() >= nextIssueRefresh) {
     nextIssueRefresh = Date.now() + 5 * 60_000;
     await reconcileIssues();
+  }
+  // The reminders and the automatic resolve are counted in days, so every five minutes is often enough.
+  if (Date.now() >= nextAutoResolve) {
+    nextAutoResolve = Date.now() + 5 * 60_000;
+    await scanAutoResolve();
   }
   await pollMailboxes();
   const done = [

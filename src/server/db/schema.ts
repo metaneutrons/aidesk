@@ -311,6 +311,10 @@ export const tickets = pgTable(
     // an event is sent once per cycle, and a new cycle has a new start.
     warnedFor: timestamp("warned_for", { withTimezone: true }),
     overdueFor: timestamp("overdue_for", { withTimezone: true }),
+    // When the ticket began to wait for the customer (the team's answer was sent), and the start of the wait for
+    // which the reminder before the automatic resolve was sent: a reminder is sent once for each wait.
+    waitingSince: timestamp("waiting_since", { withTimezone: true }),
+    autoRemindedFor: timestamp("auto_reminded_for", { withTimezone: true }),
     // When the team wants to look at the ticket again; private to the team.
     remindAt: timestamp("remind_at", { withTimezone: true }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
