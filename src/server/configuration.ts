@@ -14,6 +14,7 @@ import { permits, type Principal } from "../domain/permissions";
 import { businessSettingsOf, businessValuesOf } from "../domain/business-hours";
 import { limitsOf, priorityLimitKey } from "../domain/response-clock";
 import { categoriesOf, parseCategories } from "../domain/triage";
+import { retentionOf, tightens } from "../domain/retention";
 import { junkSensitivityOf } from "../domain/junk";
 import { autoResolveOf, replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
@@ -56,6 +57,17 @@ const priorityOverrides = (
     overdueHoursUrgent: urgent.overdue,
   };
 };
+// The periods of the retention as the configuration holds them.
+const retentionValues = (settings: Record<string, unknown>) => {
+  const periods = retentionOf(settings);
+  return {
+    retentionTicketsDays: periods.tickets,
+    retentionAttachmentsDays: periods.attachments,
+    retentionOriginalsDays: periods.originals,
+    retentionTranslationsDays: periods.translations,
+    retentionAiRunsDays: periods.aiRuns,
+  };
+};
 export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "settings">) {
   const settings = row.settings;
   const { warnHours, overdueHours } = limitsOf(settings);
@@ -83,6 +95,7 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     junkSensitivity: junkSensitivityOf(settings.junkSensitivity),
     ...businessSettingsOf(settings),
     ...priorityOverrides(settings, { warnHours, overdueHours }),
+    ...retentionValues(settings),
     categories: categoriesOf(settings).join("\n"),
   });
 }
@@ -129,6 +142,14 @@ async function apply(tx: Tx, project: string, config: ConfigDocument, version: n
   await supersedeOlder(tx, project, next);
   return next;
 }
+// The settings that a configuration document would store, for the parts that are compared before it is written.
+const sqlSettings = (config: ConfigDocument): Record<string, unknown> => ({
+  retentionTicketsDays: config.retentionTicketsDays,
+  retentionAttachmentsDays: config.retentionAttachmentsDays,
+  retentionOriginalsDays: config.retentionOriginalsDays,
+  retentionTranslationsDays: config.retentionTranslationsDays,
+  retentionAiRunsDays: config.retentionAiRunsDays,
+});
 function sqlMerge(config: ConfigDocument) {
   const values = {
     acknowledgements: config.acknowledgements,
@@ -151,6 +172,11 @@ function sqlMerge(config: ConfigDocument) {
     warnHoursUrgent: config.warnHoursUrgent,
     overdueHoursUrgent: config.overdueHoursUrgent,
     categories: (parseCategories(config.categories) ?? []).join("\n"),
+    retentionTicketsDays: config.retentionTicketsDays,
+    retentionAttachmentsDays: config.retentionAttachmentsDays,
+    retentionOriginalsDays: config.retentionOriginalsDays,
+    retentionTranslationsDays: config.retentionTranslationsDays,
+    retentionAiRunsDays: config.retentionAiRunsDays,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }
@@ -239,7 +265,13 @@ export async function putConfig(
       (principal.kind !== "human" || !permits(principal, project, "config.approve"))
     )
       throw new DomainError("forbidden", 403);
-    const direct = principal.kind === "human" || current.approvalPolicy === "direct";
+    // A retention period that is set or made shorter removes more than before: only a person with the right to
+    // approve applies it, under every policy; anyone else proposes it.
+    const tightened = tightens(retentionOf(row.settings), retentionOf(sqlSettings(request.config)));
+    const direct =
+      tightened.length > 0
+        ? principal.kind === "human" && permits(principal, project, "config.approve")
+        : principal.kind === "human" || current.approvalPolicy === "direct";
     if (options.validate)
       return {
         outcome: direct ? "applied" : "proposed",

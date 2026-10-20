@@ -107,6 +107,11 @@ describe("reading the configuration", () => {
         warnHoursUrgent: null,
         overdueHoursUrgent: null,
         categories: "",
+        retentionTicketsDays: null,
+        retentionAttachmentsDays: null,
+        retentionOriginalsDays: null,
+        retentionTranslationsDays: null,
+        retentionAiRunsDays: null,
       },
     });
   });
@@ -488,6 +493,94 @@ describe("the sensitivity of the junk rules", () => {
       .set({ settings: { junkSensitivity: "bogus" } })
       .where(eq(projects.id, projectId));
     expect(await current()).toMatchObject({ junkSensitivity: "standard" });
+  });
+});
+describe("the retention periods", () => {
+  it("are off by default and read as off when the stored value is not valid", async () => {
+    await reset();
+    expect(await current()).toMatchObject({
+      retentionTicketsDays: null,
+      retentionAttachmentsDays: null,
+      retentionOriginalsDays: null,
+      retentionTranslationsDays: null,
+      retentionAiRunsDays: null,
+    });
+    await db()
+      .update(projects)
+      .set({
+        settings: {
+          retentionTicketsDays: 0,
+          retentionAiRunsDays: "90",
+          retentionOriginalsDays: 4000,
+        },
+      })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({
+      retentionTicketsDays: null,
+      retentionAiRunsDays: null,
+      retentionOriginalsDays: null,
+    });
+    for (const bad of [
+      { retentionTicketsDays: 0 },
+      { retentionTicketsDays: 3651 },
+      { retentionAiRunsDays: 1.5 },
+    ])
+      await expect(putConfig(manager, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+  });
+  it("need a person who may approve when one is set or made shorter, and nothing more when made longer or off", async () => {
+    await reset();
+    // Without the right to approve, setting a period is a proposal and changes nothing.
+    const proposed = await putConfig(writer, projectId, await edit({ retentionTicketsDays: 365 }));
+    expect(proposed).toMatchObject({
+      outcome: "proposed",
+      diff: [{ pointer: "/retentionTicketsDays", from: null, to: 365 }],
+    });
+    expect(await current()).toMatchObject({ retentionTicketsDays: null });
+    // A dry run of the write says the same.
+    expect(
+      await putConfig(writer, projectId, await edit({ retentionTicketsDays: 365 }), {
+        validate: true,
+      }),
+    ).toMatchObject({ outcome: "proposed", validated: true });
+    // The proposal is applied by a person who may approve.
+    await decideConfigChange(manager, proposed.changeId ?? "", { decision: "approve" });
+    expect(await current()).toMatchObject({ retentionTicketsDays: 365 });
+    // That person applies a new period at once, and a longer one is applied by a writer.
+    expect(
+      await putConfig(manager, projectId, await edit({ retentionAttachmentsDays: 180 })),
+    ).toMatchObject({ outcome: "applied" });
+    expect(
+      await putConfig(writer, projectId, await edit({ retentionTicketsDays: 730 })),
+    ).toMatchObject({ outcome: "applied" });
+    // Shorter needs approval again; off does not.
+    expect(
+      await putConfig(writer, projectId, await edit({ retentionTicketsDays: 100 })),
+    ).toMatchObject({ outcome: "proposed" });
+    expect(await current()).toMatchObject({ retentionTicketsDays: 730 });
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ retentionTicketsDays: null, retentionAttachmentsDays: null }),
+      ),
+    ).toMatchObject({ outcome: "applied" });
+    expect(await current()).toMatchObject({
+      retentionTicketsDays: null,
+      retentionAttachmentsDays: null,
+    });
+  });
+  it("are never applied by an agent, whatever the policy and the rights of the agent", async () => {
+    await reset();
+    await putConfig(manager, projectId, await edit({ approvalPolicy: "direct" }));
+    for (const who of [agent, approvingAgent]) {
+      const result = await putConfig(who, projectId, await edit({ retentionAiRunsDays: 30 }));
+      expect(result.outcome).toBe("proposed");
+    }
+    expect(await current()).toMatchObject({ retentionAiRunsDays: null });
+    // A change of another key still follows the policy, so that the rule is about retention only.
+    expect(
+      await putConfig(agent, projectId, await edit({ name: "By agent under direct" })),
+    ).toMatchObject({ outcome: "applied" });
   });
 });
 describe("the warning limit", () => {

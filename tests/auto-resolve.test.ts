@@ -287,6 +287,11 @@ describe("the policy in the configuration", () => {
     warnHoursUrgent: null,
     overdueHoursUrgent: null,
     categories: "",
+    retentionTicketsDays: null,
+    retentionAttachmentsDays: null,
+    retentionOriginalsDays: null,
+    retentionTranslationsDays: null,
+    retentionAiRunsDays: null,
   };
   it("takes days from 1 to 365 or none, and a reminder only with days and before them", () => {
     const ok = (change: Record<string, unknown>) =>

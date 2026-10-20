@@ -9,6 +9,7 @@ import {
   type ProcessingEntry,
   type ProcessingOverview,
 } from "../domain/processing";
+import { retentionOf } from "../domain/retention";
 import { db } from "./db";
 import { aiProfiles, audit, configChanges, connections, projects, webhooks } from "./db/schema";
 import { DomainError } from "./errors";
@@ -186,10 +187,15 @@ async function overviewOf(projectId: string): Promise<ProcessingOverview> {
       state: hook.status === "active" ? "active" : "off",
       issues: waiting(hook.id) ? ["approval_pending"] : [],
     });
+  const retention = retentionOf(settings);
   return {
     projectId,
     name: project.name,
     entries,
+    retention,
+    projectIssues: Object.values(retention).every((value) => value === null)
+      ? (["no_retention"] as const)
+      : [],
     pending,
     withIssues: entries.filter((entry) => entry.issues.length > 0).length,
   };

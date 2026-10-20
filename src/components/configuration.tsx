@@ -4,6 +4,15 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { z } from "zod";
 import { parseDays } from "../domain/business-hours";
+import {
+  retentionCounts,
+  retentionKinds,
+  retentionKey,
+  retentionOf,
+  retentionSuggestions,
+  tightens,
+  type RetentionKind,
+} from "../domain/retention";
 import { configDocument, type ConfigDocument } from "../domain/configuration";
 // The configuration of one project as the REST API offers it: read with its
 // version, checked or saved as a whole, and the changes waiting for approval.
@@ -40,6 +49,14 @@ const priorityFields = [
   ["warnHoursUrgent", "configWarnUrgent"],
   ["overdueHoursUrgent", "configOverdueUrgent"],
 ] as const;
+// The configuration key of the period of a kind, typed.
+const retentionConfigKey = (kind: RetentionKind) =>
+  retentionKey(kind) as
+    | "retentionTicketsDays"
+    | "retentionAttachmentsDays"
+    | "retentionOriginalsDays"
+    | "retentionTranslationsDays"
+    | "retentionAiRunsDays";
 const show = (value: unknown) =>
   typeof value === "boolean" ? String(value) : typeof value === "string" ? value : "";
 export function Configuration({
@@ -68,6 +85,10 @@ export function Configuration({
   // True once the person has changed a field; a slower load must not take the
   // edit away. A save or a decision starts from the stored values again.
   const edited = useRef(false);
+  const [dryRun, setDryRun] = useState<{
+    for: string;
+    due: z.infer<typeof retentionCounts>;
+  } | null>(null);
   const [checked, setChecked] = useState<z.infer<typeof diffSchema> | null>(null);
   const load = useCallback(
     async (keepDraft = false) => {
@@ -163,6 +184,23 @@ export function Configuration({
     setChecked(null);
   };
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const periods = retentionOf(draft);
+  const periodsKey = JSON.stringify(periods);
+  // A period that is set or made shorter removes more than before, and its dry run has to be seen first.
+  const tightened = tightens(retentionOf(saved), periods);
+  const needsDryRun = tightened.length > 0 && dryRun?.for !== periodsKey;
+  async function showDryRun() {
+    const response = await fetch(`/api/v1/projects/${projectId}/retention/preview`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(periods),
+    }).catch(() => null);
+    const parsed = response?.ok
+      ? z.object({ due: retentionCounts }).safeParse(await response.json())
+      : null;
+    if (parsed?.success) setDryRun({ for: periodsKey, due: parsed.data.due });
+    else setMessage("error");
+  }
   const valid = configDocument.safeParse(draft).success;
   const businessOn = draft.businessDays !== null;
   const businessDays = parseDays(draft.businessDays ?? "") ?? [];
@@ -387,6 +425,64 @@ export function Configuration({
             }}
           />
         </label>
+        <fieldset className="retention">
+          <legend>{t("retentionTitle")}</legend>
+          <p className="muted">{t("retentionHint")}</p>
+          {retentionKinds.map((kind) => (
+            <label key={kind}>
+              {t(`retentionKind_${kind}`)}
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                value={draft[retentionConfigKey(kind)] ?? ""}
+                placeholder={t("retentionForever")}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  set(
+                    retentionConfigKey(kind),
+                    event.target.value === ""
+                      ? null
+                      : Math.min(3650, Math.max(1, Math.trunc(Number(event.target.value)) || 1)),
+                  );
+                }}
+              />
+              <small className="muted">
+                {t("retentionSuggestion", { days: retentionSuggestions[kind] })}
+              </small>
+            </label>
+          ))}
+          <button
+            type="button"
+            className="secondary"
+            disabled={!canWrite}
+            onClick={() => void showDryRun()}
+          >
+            {t("retentionDryRun")}
+          </button>
+          {dryRun?.for === periodsKey && (
+            <ul aria-label={t("retentionDryRunResult")}>
+              {retentionKinds
+                .filter((kind) => periods[kind] !== null)
+                .map((kind) => (
+                  <li key={kind}>
+                    {t(`retentionKind_${kind}`)}:{" "}
+                    {t("retentionWouldRemove", { count: dryRun.due[kind] })}
+                  </li>
+                ))}
+            </ul>
+          )}
+          {needsDryRun && (
+            <p className="muted" role="status">
+              {t("retentionNeedsDryRun")}
+            </p>
+          )}
+          {tightened.length > 0 && !canApprove && (
+            <p className="muted" role="status">
+              {t("retentionNeedsApproval")}
+            </p>
+          )}
+        </fieldset>
         {priorityFields.map(([key, label]) => (
           <label key={key}>
             {t(label)}
@@ -526,7 +622,7 @@ export function Configuration({
           <button
             type="button"
             className="secondary"
-            disabled={!dirty || !valid}
+            disabled={!dirty || !valid || needsDryRun}
             onClick={() => {
               void write(true);
             }}
@@ -536,7 +632,7 @@ export function Configuration({
           <button
             type="button"
             className="primary"
-            disabled={!dirty || !valid}
+            disabled={!dirty || !valid || needsDryRun}
             onClick={() => {
               void write(false);
             }}

@@ -41,6 +41,28 @@ export function Processing({ projectId, name }: { projectId: string; name: strin
           </span>
         )}
       </p>
+      <div>
+        <h4>{t("processingRetention")}</h4>
+        {overview.projectIssues.includes("no_retention") && (
+          <p className="error" role="status">
+            {t("processingIssue_no_retention")}
+          </p>
+        )}
+        <ul className="connection-list">
+          {(["tickets", "attachments", "originals", "translations", "aiRuns"] as const).map(
+            (kind) => (
+              <li key={kind}>
+                <span>{t(`retentionKind_${kind}`)}</span>
+                <span className="muted">
+                  {overview.retention[kind] === null
+                    ? t("retentionForever")
+                    : t("retentionDays", { count: overview.retention[kind] })}
+                </span>
+              </li>
+            ),
+          )}
+        </ul>
+      </div>
       {groups.map((group) => {
         const entries = overview.entries.filter((entry) => entry.group === group);
         if (entries.length === 0) return null;

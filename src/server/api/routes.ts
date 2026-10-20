@@ -226,6 +226,8 @@ import {
 } from "../../domain/erasure";
 import { exportRequester } from "../requester-export";
 import { requesterExportInput } from "../../domain/requester-export";
+import { previewRetention } from "../retention";
+import { retentionPreviewInput, retentionPreviewOut } from "../../domain/retention";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -1759,6 +1761,20 @@ export const routes: Route[] = [
         },
       });
     },
+  },
+  {
+    id: "retention.preview",
+    mcp: { tool: "retention_preview" },
+    method: "POST",
+    path: "/projects/{projectId}/retention/preview",
+    tag: "Privacy",
+    summary:
+      "A dry run: what the given retention periods (days, or null for none, for tickets, attachments, originals, translations and aiRuns) would remove now. Nothing is changed. Setting or shortening a period in the configuration needs a person with config.approve",
+    access: "config.read",
+    body: retentionPreviewInput,
+    response: retentionPreviewOut,
+    run: ({ principal, params, input }) =>
+      previewRetention(principal, params.projectId ?? "", input),
   },
   {
     id: "tickets.status",

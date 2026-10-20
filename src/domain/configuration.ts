@@ -8,6 +8,7 @@ import {
   parseHolidays,
 } from "./business-hours";
 import { junkSensitivities } from "./junk";
+import { retentionPeriod } from "./retention";
 import { maxCategories, maxCategoryLength, parseCategories } from "./triage";
 import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
@@ -57,6 +58,13 @@ export const configDocument = z
     overdueHoursHigh: limit,
     warnHoursUrgent: limit,
     overdueHoursUrgent: limit,
+    // How long the project keeps what it holds, in days; null keeps it for good (see `retention.ts`). A period that
+    // is set or made shorter needs a person with the right to approve changes.
+    retentionTicketsDays: retentionPeriod,
+    retentionAttachmentsDays: retentionPeriod,
+    retentionOriginalsDays: retentionPeriod,
+    retentionTranslationsDays: retentionPeriod,
+    retentionAiRunsDays: retentionPeriod,
     // The categories that a ticket can have, one name per line (see `triage.ts`).
     categories: z.string().max(maxCategories * (maxCategoryLength + 1)),
     businessDays: z.string().max(13).nullable(),

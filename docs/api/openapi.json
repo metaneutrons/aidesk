@@ -7813,6 +7813,66 @@
                             }
                           ]
                         },
+                        "retentionTicketsDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "retentionAttachmentsDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "retentionOriginalsDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "retentionTranslationsDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "retentionAiRunsDays": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "categories": {
                           "type": "string",
                           "maxLength": 2050
@@ -7874,6 +7934,11 @@
                         "overdueHoursHigh",
                         "warnHoursUrgent",
                         "overdueHoursUrgent",
+                        "retentionTicketsDays",
+                        "retentionAttachmentsDays",
+                        "retentionOriginalsDays",
+                        "retentionTranslationsDays",
+                        "retentionAiRunsDays",
                         "categories",
                         "businessDays",
                         "businessStart",
@@ -8123,6 +8188,66 @@
                           }
                         ]
                       },
+                      "retentionTicketsDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "retentionAttachmentsDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "retentionOriginalsDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "retentionTranslationsDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "retentionAiRunsDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 3650
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
                       "categories": {
                         "type": "string",
                         "maxLength": 2050
@@ -8184,6 +8309,11 @@
                       "overdueHoursHigh",
                       "warnHoursUrgent",
                       "overdueHoursUrgent",
+                      "retentionTicketsDays",
+                      "retentionAttachmentsDays",
+                      "retentionOriginalsDays",
+                      "retentionTranslationsDays",
+                      "retentionAiRunsDays",
                       "categories",
                       "businessDays",
                       "businessStart",
@@ -12875,6 +13005,58 @@
                           "additionalProperties": false
                         }
                       },
+                      "retention": {
+                        "type": "object",
+                        "properties": {
+                          "tickets": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "attachments": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "originals": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "translations": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "aiRuns": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "tickets",
+                          "attachments",
+                          "originals",
+                          "translations",
+                          "aiRuns"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "projectIssues": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "no_retention"
+                          ]
+                        }
+                      },
                       "pending": {
                         "type": "array",
                         "items": {
@@ -12905,6 +13087,8 @@
                       "projectId",
                       "name",
                       "entries",
+                      "retention",
+                      "projectIssues",
                       "pending",
                       "withIssues"
                     ],
@@ -13073,6 +13257,58 @@
                         "additionalProperties": false
                       }
                     },
+                    "retention": {
+                      "type": "object",
+                      "properties": {
+                        "tickets": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "attachments": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "originals": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "translations": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "aiRuns": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tickets",
+                        "attachments",
+                        "originals",
+                        "translations",
+                        "aiRuns"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "projectIssues": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "no_retention"
+                        ]
+                      }
+                    },
                     "pending": {
                       "type": "array",
                       "items": {
@@ -13103,6 +13339,8 @@
                     "projectId",
                     "name",
                     "entries",
+                    "retention",
+                    "projectIssues",
                     "pending",
                     "withIssues"
                   ],
@@ -14126,6 +14364,256 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/retention/preview": {
+      "post": {
+        "operationId": "retention.preview",
+        "tags": [
+          "Privacy"
+        ],
+        "summary": "A dry run: what the given retention periods (days, or null for none, for tickets, attachments, originals, translations and aiRuns) would remove now. Nothing is changed. Setting or shortening a period in the configuration needs a person with config.approve",
+        "x-required-access": "config.read",
+        "x-mcp-tool": "retention_preview",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tickets": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "attachments": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "originals": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "translations": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "aiRuns": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tickets",
+                  "attachments",
+                  "originals",
+                  "translations",
+                  "aiRuns"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "periods": {
+                      "type": "object",
+                      "properties": {
+                        "tickets": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "attachments": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "originals": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "translations": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "aiRuns": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tickets",
+                        "attachments",
+                        "originals",
+                        "translations",
+                        "aiRuns"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "due": {
+                      "type": "object",
+                      "properties": {
+                        "tickets": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "attachments": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "originals": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "translations": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "aiRuns": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "tickets",
+                        "attachments",
+                        "originals",
+                        "translations",
+                        "aiRuns"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "periods",
+                    "due"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }

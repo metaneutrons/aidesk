@@ -1123,6 +1123,8 @@ export async function restoreJunkMail(principal: Principal, ingressId: string) {
   if (principal.kind !== "human") throw new DomainError("forbidden", 403);
   const entry = await junkMailOf(principal, ingressId, "ticket.read");
   if (!permits(principal, entry.projectId, "ticket.junk")) throw new DomainError("forbidden", 403);
+  // The original of a mail that the retention of the project has removed cannot be read again.
+  if (!entry.rawObjectKey) throw new DomainError("conflict", 409);
   return db().transaction(async (tx) => {
     const [restored] = await tx
       .update(ingress)

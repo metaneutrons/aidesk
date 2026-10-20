@@ -44,6 +44,16 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await section.getByLabel("Urgent priority: warn after").fill("1");
     await section.getByLabel("Urgent priority: overdue after").fill("2");
     await section.getByLabel("Categories of tickets (one per line)").fill("Billing\nSupport");
+    // A retention period is off until it is set; setting one asks for its dry run before the form can be saved.
+    await section.getByLabel("Resolved and junk tickets").fill("365");
+    await expect(
+      section.getByText("Show the dry run of these periods before you save them."),
+    ).toBeVisible();
+    await expect(section.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    await section.getByRole("button", { name: "Show what would be removed now" }).click();
+    await expect(
+      section.getByRole("list", { name: "What the periods would remove now" }),
+    ).toContainText("Resolved and junk tickets");
     // Business hours: the fields are open once they are switched on, and the form cannot be saved incomplete.
     await expect(section.getByLabel("Time zone of the business hours")).toBeDisabled();
     await section.getByLabel("The response clock runs only within business hours").check();
@@ -71,6 +81,7 @@ test("edits the configuration, checks it first, and approves what an agent propo
       autoResolveDays: 10,
       autoResolveReminderDays: 3,
       junkSensitivity: "strict",
+      retentionTicketsDays: 365,
       warnHoursUrgent: 1,
       overdueHoursUrgent: 2,
       categories: "Billing\nSupport",
