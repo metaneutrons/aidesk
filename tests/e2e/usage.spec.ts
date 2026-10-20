@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSection, test } from "./fixtures";
 // The usage of a project in the settings: the block is closed until it is opened, then it shows the AI, the mail and
 // the storage, the period can be changed, and what is shown is what the API returns for that period.
 const usageSchema = z.object({
@@ -21,7 +21,7 @@ test("shows the usage of a project and changes its period", async ({ page, desk,
   await expect(section).toBeVisible();
   // Nothing is read before the block is opened.
   await expect(section.getByRole("heading", { name: "Storage" })).toBeHidden();
-  await section.getByRole("heading", { name: `Usage of ${alpha.name}` }).click();
+  await openSection(section, `Usage of ${alpha.name}`);
   await expect(section.getByRole("heading", { name: "AI", exact: true })).toBeVisible();
   await expect(section.getByRole("heading", { name: "Mail", exact: true })).toBeVisible();
   await expect(
