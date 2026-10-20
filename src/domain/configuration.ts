@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  defaultBusinessEnd,
+  defaultBusinessStart,
+  isTimeZone,
+  minuteOf,
+  parseDays,
+  parseHolidays,
+} from "./business-hours";
 import { junkSensitivities } from "./junk";
 import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
@@ -36,12 +44,45 @@ export const configDocument = z
     autoResolveReminderDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
     // How much the junk rules trust the headers of a mail (see `junk.ts`); the lists of senders come first.
     junkSensitivity: z.enum(junkSensitivities),
+    // Business hours of the response clock (see `business-hours.ts`). Days are ISO weekdays such as "1,2,3,4,5";
+    // null means no business hours, and the clock counts every hour. Holidays are dates, separated by commas
+    // or line breaks.
+    businessDays: z.string().max(13).nullable(),
+    businessStart: z.string().max(5),
+    businessEnd: z.string().max(5),
+    businessTimeZone: z.string().max(64).nullable(),
+    holidays: z.string().max(2400),
   })
   .strict()
   .refine((config) => config.warnHours <= config.overdueHours, {
     message: "The warning comes before the overdue limit or at the same time",
     path: ["warnHours"],
   })
+  .refine((config) => parseHolidays(config.holidays) !== null, {
+    message: "Dates like 2026-12-25, separated by commas or line breaks, at most 200",
+    path: ["holidays"],
+  })
+  .refine((config) => config.businessDays === null || parseDays(config.businessDays) !== null, {
+    message: "Weekdays from 1 (Monday) to 7 (Sunday), each once",
+    path: ["businessDays"],
+  })
+  .refine(
+    (config) =>
+      config.businessDays === null ||
+      (config.businessTimeZone !== null && isTimeZone(config.businessTimeZone)),
+    {
+      message: "Business hours need a time zone such as Europe/Berlin",
+      path: ["businessTimeZone"],
+    },
+  )
+  .refine(
+    (config) => {
+      const start = minuteOf(config.businessStart);
+      const end = minuteOf(config.businessEnd);
+      return start !== null && end !== null && (config.businessDays === null || start < end);
+    },
+    { message: "Times like 09:00, the end after the start", path: ["businessEnd"] },
+  )
   .refine(
     (config) =>
       config.autoResolveReminderDays === null ||
@@ -51,6 +92,7 @@ export const configDocument = z
       path: ["autoResolveReminderDays"],
     },
   );
+export { defaultBusinessEnd, defaultBusinessStart };
 export type ConfigDocument = z.infer<typeof configDocument>;
 export const configWrite = z
   .object({

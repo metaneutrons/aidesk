@@ -1,9 +1,15 @@
+import { clockMillis, type BusinessCalendar } from "./business-hours";
 export interface ResponseCycle {
   receivedAt: Date;
   answeredAt: Date | null;
 }
-export function responseAge(cycle: ResponseCycle, now: Date): number | null {
-  return cycle.answeredAt === null ? Math.max(0, now.getTime() - cycle.receivedAt.getTime()) : null;
+// How long the customer has waited, counted in business time when the project has business hours.
+export function responseAge(
+  cycle: ResponseCycle,
+  now: Date,
+  calendar: BusinessCalendar | null = null,
+): number | null {
+  return cycle.answeredAt === null ? clockMillis(cycle.receivedAt, now, calendar) : null;
 }
 export const defaultWarnHours = 4;
 export const defaultOverdueHours = 24;
@@ -12,8 +18,9 @@ export function responseState(
   now: Date,
   warnHours = defaultWarnHours,
   overdueHours = defaultOverdueHours,
+  calendar: BusinessCalendar | null = null,
 ): "answered" | "pending" | "warning" | "overdue" {
-  const age = responseAge(cycle, now);
+  const age = responseAge(cycle, now, calendar);
   if (age === null) return "answered";
   if (age >= overdueHours * 3_600_000) return "overdue";
   return age >= warnHours * 3_600_000 ? "warning" : "pending";

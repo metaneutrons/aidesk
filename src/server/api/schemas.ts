@@ -36,6 +36,14 @@ export const projectSummary = z
     portalLinks: z.boolean(),
     warnHours: z.number(),
     overdueHours: z.number(),
+    // The business hours of the response clock in the form of the configuration; no days means no business hours.
+    clock: z.object({
+      businessDays: z.string().nullable(),
+      businessStart: z.string(),
+      businessEnd: z.string(),
+      businessTimeZone: z.string().nullable(),
+      holidays: z.string(),
+    }),
     archivedAt: isoDate.nullable(),
   })
   .meta({ id: "ProjectSummary" });

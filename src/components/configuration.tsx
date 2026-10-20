@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { z } from "zod";
+import { parseDays } from "../domain/business-hours";
 import { configDocument, type ConfigDocument } from "../domain/configuration";
 // The configuration of one project as the REST API offers it: read with its
 // version, checked or saved as a whole, and the changes waiting for approval.
@@ -24,6 +25,12 @@ const changeSchema = z.object({
   diff: diffSchema,
 });
 type Message = "configApplied" | "configProposed" | "configUnchanged" | "configStale" | "error";
+// The seven weekdays, Monday first, as ISO numbers; the names come from the locale.
+const weekdays = [1, 2, 3, 4, 5, 6, 7];
+const weekdayName = (day: number, locale: string) =>
+  new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(2024, 0, day)),
+  );
 const show = (value: unknown) =>
   typeof value === "boolean" ? String(value) : typeof value === "string" ? value : "";
 export function Configuration({
@@ -40,6 +47,7 @@ export function Configuration({
   connectionsStamp: number;
 }) {
   const t = useTranslations();
+  const locale = useLocale();
   const router = useRouter();
   const fieldId = useId();
   const [version, setVersion] = useState<number | null>(null);
@@ -146,6 +154,10 @@ export function Configuration({
     setChecked(null);
   };
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const valid = configDocument.safeParse(draft).success;
+  const businessOn = draft.businessDays !== null;
+  const businessDays = parseDays(draft.businessDays ?? "") ?? [];
+  const zones: string[] = Intl.supportedValuesOf("timeZone");
   return (
     <section className="configuration" aria-labelledby={`${fieldId}-title`}>
       <h3 id={`${fieldId}-title`}>{t("configTitle", { project: name })}</h3>
@@ -369,6 +381,95 @@ export function Configuration({
         <label className="configuration-check">
           <input
             type="checkbox"
+            checked={businessOn}
+            disabled={!canWrite}
+            onChange={(event) => {
+              setDraft({
+                ...draft,
+                businessDays: event.target.checked ? "1,2,3,4,5" : null,
+                businessTimeZone: event.target.checked
+                  ? (draft.businessTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+                  : draft.businessTimeZone,
+              });
+              edited.current = true;
+              setChecked(null);
+            }}
+          />
+          {t("configBusinessHours")}
+        </label>
+        <fieldset className="business-days" disabled={!canWrite || !businessOn}>
+          <legend>{t("configBusinessDays")}</legend>
+          {weekdays.map((day) => (
+            <label key={day} className="configuration-check">
+              <input
+                type="checkbox"
+                checked={businessDays.includes(day)}
+                onChange={(event) => {
+                  const next = event.target.checked
+                    ? [...businessDays, day]
+                    : businessDays.filter((entry) => entry !== day);
+                  set("businessDays", [...next].sort((a, b) => a - b).join(","));
+                }}
+              />
+              {weekdayName(day, locale)}
+            </label>
+          ))}
+        </fieldset>
+        <label>
+          {t("configBusinessStart")}
+          <input
+            type="time"
+            value={draft.businessStart}
+            disabled={!canWrite || !businessOn}
+            onChange={(event) => {
+              set("businessStart", event.target.value);
+            }}
+          />
+        </label>
+        <label>
+          {t("configBusinessEnd")}
+          <input
+            type="time"
+            value={draft.businessEnd}
+            disabled={!canWrite || !businessOn}
+            onChange={(event) => {
+              set("businessEnd", event.target.value);
+            }}
+          />
+        </label>
+        <label>
+          {t("configBusinessTimeZone")}
+          <input
+            list={`${fieldId}-zones`}
+            value={draft.businessTimeZone ?? ""}
+            disabled={!canWrite || !businessOn}
+            maxLength={64}
+            onChange={(event) => {
+              set("businessTimeZone", event.target.value === "" ? null : event.target.value);
+            }}
+          />
+          <datalist id={`${fieldId}-zones`}>
+            {zones.map((zone) => (
+              <option key={zone} value={zone} />
+            ))}
+          </datalist>
+        </label>
+        <label>
+          {t("configHolidays")}
+          <textarea
+            rows={3}
+            value={draft.holidays}
+            disabled={!canWrite}
+            maxLength={2400}
+            placeholder="2026-12-25"
+            onChange={(event) => {
+              set("holidays", event.target.value);
+            }}
+          />
+        </label>
+        <label className="configuration-check">
+          <input
+            type="checkbox"
             checked={draft.pauseOutgoing}
             disabled={!canWrite}
             onChange={(event) => {
@@ -383,7 +484,7 @@ export function Configuration({
           <button
             type="button"
             className="secondary"
-            disabled={!dirty}
+            disabled={!dirty || !valid}
             onClick={() => {
               void write(true);
             }}
@@ -393,7 +494,7 @@ export function Configuration({
           <button
             type="button"
             className="primary"
-            disabled={!dirty}
+            disabled={!dirty || !valid}
             onClick={() => {
               void write(false);
             }}
@@ -401,6 +502,11 @@ export function Configuration({
             {t("configSave")}
           </button>
         </div>
+      )}
+      {canWrite && dirty && !valid && (
+        <p className="error" role="status">
+          {t("configInvalid")}
+        </p>
       )}
       {checked && (
         <ul className="configuration-diff" aria-label={t("configDiff")}>

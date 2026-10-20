@@ -6573,6 +6573,40 @@
                             "standard",
                             "strict"
                           ]
+                        },
+                        "businessDays": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 13
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "businessStart": {
+                          "type": "string",
+                          "maxLength": 5
+                        },
+                        "businessEnd": {
+                          "type": "string",
+                          "maxLength": 5
+                        },
+                        "businessTimeZone": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "holidays": {
+                          "type": "string",
+                          "maxLength": 2400
                         }
                       },
                       "required": [
@@ -6590,7 +6624,12 @@
                         "reopenDays",
                         "autoResolveDays",
                         "autoResolveReminderDays",
-                        "junkSensitivity"
+                        "junkSensitivity",
+                        "businessDays",
+                        "businessStart",
+                        "businessEnd",
+                        "businessTimeZone",
+                        "holidays"
                       ],
                       "additionalProperties": false
                     }
@@ -6761,6 +6800,40 @@
                           "standard",
                           "strict"
                         ]
+                      },
+                      "businessDays": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 13
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "businessStart": {
+                        "type": "string",
+                        "maxLength": 5
+                      },
+                      "businessEnd": {
+                        "type": "string",
+                        "maxLength": 5
+                      },
+                      "businessTimeZone": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "holidays": {
+                        "type": "string",
+                        "maxLength": 2400
                       }
                     },
                     "required": [
@@ -6778,7 +6851,12 @@
                       "reopenDays",
                       "autoResolveDays",
                       "autoResolveReminderDays",
-                      "junkSensitivity"
+                      "junkSensitivity",
+                      "businessDays",
+                      "businessStart",
+                      "businessEnd",
+                      "businessTimeZone",
+                      "holidays"
                     ],
                     "additionalProperties": false
                   },
@@ -17284,6 +17362,40 @@
           "overdueHours": {
             "type": "number"
           },
+          "clock": {
+            "type": "object",
+            "properties": {
+              "businessDays": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "businessStart": {
+                "type": "string"
+              },
+              "businessEnd": {
+                "type": "string"
+              },
+              "businessTimeZone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "holidays": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "businessDays",
+              "businessStart",
+              "businessEnd",
+              "businessTimeZone",
+              "holidays"
+            ],
+            "additionalProperties": false
+          },
           "archivedAt": {
             "anyOf": [
               {
@@ -17307,6 +17419,7 @@
           "portalLinks",
           "warnHours",
           "overdueHours",
+          "clock",
           "archivedAt"
         ],
         "additionalProperties": false

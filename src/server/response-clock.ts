@@ -1,4 +1,5 @@
 import { and, asc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { calendarOf, clockMillis } from "../domain/business-hours";
 import { defaultOverdueHours, defaultWarnHours, limitsOf } from "../domain/response-clock";
 import { db } from "./db";
 import { projects, tickets } from "./db/schema";
@@ -12,8 +13,14 @@ import { emitEvent } from "./webhooks";
 //
 // A ticket is looked at again under a lock before an event is sent: a reply that ends the
 // cycle while the scan runs wins, and no event follows it.
+//
+// A project with business hours counts business time. The database only knows calendar time, which is never
+// shorter, so it names the tickets that may be due, and the exact age is measured on the ticket under the lock.
+// The scan looks at more tickets than it may handle, because tickets that wait outside the business hours are
+// not due and must not crowd out those that are.
 const warnLimit = sql`least(coalesce((${projects.settings}->>'warnHours')::int, ${defaultWarnHours}), coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`;
 const overdueLimit = sql`coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours})`;
+const lookAhead = 2000;
 export async function scanResponseClock(
   now: Date = new Date(),
   limit = 100,
@@ -39,9 +46,12 @@ export async function scanResponseClock(
       ),
     )
     .orderBy(asc(tickets.pendingSince))
-    .limit(limit);
+    .limit(Math.max(limit, lookAhead));
   const sent = { warned: 0, overdue: 0 };
-  for (const { id } of candidates)
+  let handled = 0;
+  for (const { id } of candidates) {
+    if (handled >= limit) break;
+    const before = sent.warned + sent.overdue;
     await db().transaction(async (tx) => {
       const [row] = await tx
         .select({ ticket: tickets, settings: projects.settings })
@@ -52,7 +62,7 @@ export async function scanResponseClock(
       const start = row?.ticket.pendingSince;
       if (!row || !start || row.ticket.junkAt !== null) return;
       const limits = limitsOf(row.settings);
-      const age = now.getTime() - start.getTime();
+      const age = clockMillis(start, now, calendarOf(row.settings));
       const facts = {
         ticketId: row.ticket.id,
         number: row.ticket.number,
@@ -81,5 +91,7 @@ export async function scanResponseClock(
         sent.overdue += 1;
       }
     });
+    if (sent.warned + sent.overdue > before) handled += 1;
+  }
   return sent;
 }

@@ -95,6 +95,11 @@ describe("reading the configuration", () => {
         autoResolveDays: null,
         autoResolveReminderDays: null,
         junkSensitivity: "standard",
+        businessDays: null,
+        businessStart: "09:00",
+        businessEnd: "17:00",
+        businessTimeZone: null,
+        holidays: "",
       },
     });
   });
