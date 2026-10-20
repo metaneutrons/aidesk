@@ -38,6 +38,8 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await expect(section.getByLabel("Remind the customer days before")).toBeDisabled();
     await section.getByLabel("Resolve a waiting ticket after days without an answer").fill("10");
     await section.getByLabel("Remind the customer days before").fill("3");
+    // How far the headers of a mail count for junk.
+    await section.getByLabel("Junk detection by the headers of a mail").selectOption("strict");
     await section.getByRole("button", { name: "Check" }).click();
     await expect(section.getByRole("list", { name: "Changes" })).toContainText(
       `name: ${String(original.name)} → ${renamed}`,
@@ -52,6 +54,7 @@ test("edits the configuration, checks it first, and approves what an agent propo
       reopenDays: 14,
       autoResolveDays: 10,
       autoResolveReminderDays: 3,
+      junkSensitivity: "strict",
     });
     const scan = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

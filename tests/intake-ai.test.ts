@@ -13,6 +13,7 @@ import {
   jobs,
   messages,
   projects,
+  senderRules,
   tickets,
 } from "../src/server/db/schema";
 import { acceptInbound, processIngress } from "../src/server/inbound";
@@ -474,6 +475,55 @@ describe("classifying junk with a model", () => {
     expect(result.outcome).toBe("junk");
     expect(result.entry?.classification).toMatchObject({ source: "rules" });
     expect(script.calls).toHaveLength(0);
+  });
+  it("does not ask about a sender on the lists: a blocked one is out, and the model cannot call an allowed one junk", async () => {
+    await both();
+    await db()
+      .insert(senderRules)
+      .values([
+        {
+          projectId,
+          kind: "allow",
+          type: "domain",
+          value: "friends.example.test",
+          createdBy: "tester",
+        },
+        {
+          projectId,
+          kind: "block",
+          type: "domain",
+          value: "pests.example.test",
+          createdBy: "tester",
+        },
+      ]);
+    try {
+      const script = models(select([1, 1]), verdict("junk", "advertising"));
+      const allowed = await ingest(
+        mail("Hello", { from: "Fay <fay@friends.example.test>" }),
+        script.generate,
+      );
+      expect(allowed.outcome).toBe("created");
+      const blocked = await ingest(
+        mail("Hello", { from: "Pat <pat@pests.example.test>" }),
+        script.generate,
+      );
+      expect(blocked.outcome).toBe("junk");
+      expect(blocked.entry?.classification).toMatchObject({
+        reason: "blocked_sender",
+        source: "rules",
+      });
+      // The model was asked about neither sender's junk status.
+      expect(script.asked("classify")).toHaveLength(0);
+      // Another sender is still asked.
+      const other = await ingest(
+        mail("Hello", { from: "Al <al@else.example.test>" }),
+        script.generate,
+      );
+      expect(other.outcome).toBe("junk");
+      expect(script.asked("classify")).toHaveLength(1);
+    } finally {
+      await db().delete(senderRules).where(eq(senderRules.projectId, projectId));
+    }
   });
   it("does not ask about a mail that a person restored, nor about a delivery report", async () => {
     await both();

@@ -4573,6 +4573,302 @@
         }
       }
     },
+    "/projects/{projectId}/sender-rules": {
+      "get": {
+        "operationId": "senders.list",
+        "tags": [
+          "Junk"
+        ],
+        "summary": "List the senders and domains of a project that are always taken or always kept out",
+        "x-required-access": "intake.manage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "allow",
+                          "block"
+                        ]
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "address",
+                          "domain"
+                        ]
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "note": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdBy": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "type",
+                      "value",
+                      "note",
+                      "createdBy",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      },
+      "post": {
+        "operationId": "senders.add",
+        "tags": [
+          "Junk"
+        ],
+        "summary": "Always take or always keep out the mail of an address or a domain",
+        "x-required-access": "intake.manage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "allow",
+                      "block"
+                    ]
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 320
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "allow",
+                        "block"
+                      ]
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "address",
+                        "domain"
+                      ]
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "type",
+                    "value",
+                    "note",
+                    "createdBy",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/sender-rules/{ruleId}/delete": {
+      "post": {
+        "operationId": "senders.remove",
+        "tags": [
+          "Junk"
+        ],
+        "summary": "Take an address or a domain off the lists of a project",
+        "x-required-access": "intake.manage",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "ruleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "removed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "removed"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/operators/{operatorId}/active": {
       "post": {
         "operationId": "operators.active",
@@ -6269,6 +6565,14 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "junkSensitivity": {
+                          "type": "string",
+                          "enum": [
+                            "off",
+                            "standard",
+                            "strict"
+                          ]
                         }
                       },
                       "required": [
@@ -6285,7 +6589,8 @@
                         "reopenMode",
                         "reopenDays",
                         "autoResolveDays",
-                        "autoResolveReminderDays"
+                        "autoResolveReminderDays",
+                        "junkSensitivity"
                       ],
                       "additionalProperties": false
                     }
@@ -6448,6 +6753,14 @@
                             "type": "null"
                           }
                         ]
+                      },
+                      "junkSensitivity": {
+                        "type": "string",
+                        "enum": [
+                          "off",
+                          "standard",
+                          "strict"
+                        ]
                       }
                     },
                     "required": [
@@ -6464,7 +6777,8 @@
                       "reopenMode",
                       "reopenDays",
                       "autoResolveDays",
-                      "autoResolveReminderDays"
+                      "autoResolveReminderDays",
+                      "junkSensitivity"
                     ],
                     "additionalProperties": false
                   },

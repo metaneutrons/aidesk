@@ -390,6 +390,13 @@ test("answers every documented route in the published shape, with real data", as
     data: { userId: self?.id ?? "", member: true },
   });
   await call("groups.delete", { params: { projectId: project, groupId } });
+  // The lists of senders: a domain is blocked, listed and taken off again.
+  const rule = await call("senders.add", {
+    params: { projectId: project },
+    data: { kind: "block", value: `contract-${desk.run}.example.test` },
+  });
+  await call("senders.list", { params: { projectId: project } });
+  await call("senders.remove", { params: { projectId: project, ruleId: String(rule.id) } });
   // Archived and restored at once, so that nothing after it meets a read-only project.
   // An export is made and listed; the file itself and the deletion are covered by their own tests.
   await call("projects.export_create", { params: { projectId: project } });

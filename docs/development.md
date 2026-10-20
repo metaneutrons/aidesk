@@ -606,6 +606,30 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
+### Allowed and blocked senders, junk sensitivity
+
+Each project has two lists of senders, kept in the table `sender_rule` (migration 0038) and managed in the settings
+("Allowed and blocked senders for ...") and over REST (`/api/v1/projects/{id}/sender-rules`, with `intake.manage`;
+not offered to agents or over MCP, because a list decides which mail reaches the inbox). A rule names an address
+(`kim@example.org`) or a domain (`example.org`, which also covers its subdomains), is either `allow` or `block`, and
+a name is in the lists once, at most 500 per project. An address rule wins over a domain rule, and among domain
+rules the longest one wins, so one address of a blocked domain can be allowed and the other way round. Every change
+is an audit entry (`sender_rule.add`, `sender_rule.remove`) with kind, type and value.
+
+At intake the lists come before everything else. Mail from a blocked sender is kept out like any junk, with the
+reason `blocked_sender`, also when it replies to an existing ticket. Mail from an allowed sender is not classified by
+its headers and is not shown to the junk model. A mail that a person restored from junk is not classified again, so
+a blocked mail that was restored is processed once; the next mail of the sender is blocked again.
+
+The configuration key `junkSensitivity` sets how far the headers of a mail count:
+
+- `off`: no header keeps a mail out; only the blocked senders do.
+- `standard` (default): the verdict of an upstream spam filter, as before.
+- `strict`: additionally bulk mail, meaning `Precedence: bulk|list|junk` or a `List-Id` or `List-Unsubscribe`
+  header, with the reason `bulk_mail`.
+
+The project export contains the rules under `senderRules`.
+
 A delivery status notification (RFC 3464, `multipart/report` with
 `report-type=delivery-status`) for a sent reply belongs to that reply and creates
 no ticket. It must name the Message-ID of one of the project's sent messages and

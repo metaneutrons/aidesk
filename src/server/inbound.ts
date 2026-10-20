@@ -9,6 +9,7 @@ import { attachments, ingress, jobs, messages, projects, tickets } from "./db/sc
 import { getObject, putObject } from "./storage";
 import { extractReply } from "../domain/extraction";
 import { classifyJunk } from "../domain/junk";
+import { matchSender } from "../domain/sender-rules";
 import { assemble, textLines, type ExtractResult, type JunkResult } from "../domain/intake";
 import type { AiDeps } from "./ai-run";
 import { runIntakeAi } from "./intake-ai";
@@ -25,6 +26,7 @@ import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
 import { fileRules } from "../domain/limits";
 import { getLimits } from "./limits";
+import { senderPolicyOf } from "./sender-rules";
 import { decideLanguage, detectLanguage } from "../domain/language";
 import { mayReopen, replyPolicyOf } from "../domain/reply-policy";
 // Inbound mail, independent of the adapter that received it. The original is
@@ -170,7 +172,17 @@ export async function processIngress(
   // What is known without a transaction, and what the AI steps of intake need: a mail that the
   // rules keep out, a delivery report and a copy of a mail that is already in are not asked
   // about, and a reply to a ticket is not asked whether it is junk.
-  const ruleVerdict = entry.classification?.restored ? null : classifyJunk(mail.headers);
+  // The lists of senders of the project come first: a blocked sender is kept out, an allowed one is never taken for
+  // junk, by the headers or by the model. A mail that a person restored from junk is not classified again.
+  const senderPolicy = await senderPolicyOf(entry.projectId);
+  const listed = matchSender(senderPolicy.rules, sender.address);
+  const ruleVerdict = entry.classification?.restored
+    ? null
+    : listed?.kind === "block"
+      ? { junk: true, reason: "blocked_sender" }
+      : listed?.kind === "allow"
+        ? null
+        : classifyJunk(mail.headers, senderPolicy.sensitivity);
   const report = parseDeliveryReport(
     mail.headers.get("content-type"),
     mail.text ?? "",
@@ -209,6 +221,7 @@ export async function processIngress(
             ],
             wantJunk:
               !entry.classification?.restored &&
+              listed?.kind !== "allow" &&
               !(await findTarget(db(), entry.projectId, references, sender.address)),
             stored: storedAi(entry.classification),
           },

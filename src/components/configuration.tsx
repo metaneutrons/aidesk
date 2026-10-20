@@ -284,6 +284,20 @@ export function Configuration({
           />
         </label>
         <label>
+          {t("configJunkSensitivity")}
+          <select
+            value={draft.junkSensitivity}
+            disabled={!canWrite}
+            onChange={(event) => {
+              set("junkSensitivity", event.target.value as typeof draft.junkSensitivity);
+            }}
+          >
+            <option value="off">{t("configJunkSensitivityOff")}</option>
+            <option value="standard">{t("configJunkSensitivityStandard")}</option>
+            <option value="strict">{t("configJunkSensitivityStrict")}</option>
+          </select>
+        </label>
+        <label>
           {t("configReopenMode")}
           <select
             value={draft.reopenMode}

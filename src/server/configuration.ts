@@ -12,6 +12,7 @@ import {
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
 import { limitsOf } from "../domain/response-clock";
+import { junkSensitivityOf } from "../domain/junk";
 import { autoResolveOf, replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
@@ -47,6 +48,7 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     reopenDays: reply.days,
     autoResolveDays: auto.days,
     autoResolveReminderDays: auto.reminderDays,
+    junkSensitivity: junkSensitivityOf(settings.junkSensitivity),
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -105,6 +107,7 @@ function sqlMerge(config: ConfigDocument) {
     reopenDays: config.reopenDays,
     autoResolveDays: config.autoResolveDays,
     autoResolveReminderDays: config.autoResolveReminderDays,
+    junkSensitivity: config.junkSensitivity,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }

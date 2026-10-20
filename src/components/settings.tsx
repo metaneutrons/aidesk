@@ -14,6 +14,7 @@ import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
+import { SenderRules } from "./sender-rules";
 import { Invite } from "./invite";
 import { PortalBranding } from "./portal-branding";
 import { Profile } from "./profile";
@@ -609,6 +610,15 @@ export function Settings({
         .filter((grant) => grant.actions.includes("project.manage"))
         .map((grant) => (
           <PortalDomains
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("intake.manage"))
+        .map((grant) => (
+          <SenderRules
             key={grant.projectId}
             projectId={grant.projectId}
             name={projectName(grant.projectId)}

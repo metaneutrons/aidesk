@@ -2007,6 +2007,18 @@ button.danger {
     flex-basis: 100%;
 }
 
+.sender-rules form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: end;
+}
+
+.sender-rules label {
+    display: grid;
+    gap: 4px;
+}
+
 /* The branding of the customer page: the name, the line and the logo above the conversation, and the colour of the
    buttons. The text on the colour is black or white, chosen on the server. */
 .portal-brand {
