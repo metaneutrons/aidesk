@@ -2045,6 +2045,25 @@ button.danger {
     color: #fff;
 }
 
+.routing-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: end;
+}
+
+.routing-form label,
+.routing-form fieldset {
+    display: grid;
+    gap: 4px;
+}
+
+.routing-rules ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
 .sender-rules form {
     display: flex;
     flex-wrap: wrap;

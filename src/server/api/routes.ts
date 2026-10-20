@@ -178,6 +178,20 @@ import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../bran
 import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
 import { inviteOperator } from "../invitations";
 import { invitationInput, invitationOut } from "../../domain/invitations";
+import {
+  createRoutingRule,
+  deleteRoutingRule,
+  listRoutingRules,
+  listRoutingTargets,
+  reorderRoutingRules,
+  updateRoutingRule,
+} from "../routing";
+import {
+  routingOrder,
+  routingRuleInput,
+  routingRuleOut,
+  routingTargetsOut,
+} from "../../domain/routing";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -836,6 +850,80 @@ export const routes: Route[] = [
     response: z.object({ removed: z.boolean() }),
     run: ({ principal, params }) =>
       removeSenderRule(principal, params.projectId ?? "", params.ruleId ?? ""),
+  },
+  {
+    id: "routing.list",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "GET",
+    path: "/projects/{projectId}/routing-rules",
+    tag: "Intake",
+    summary: "List the rules that route a new ticket, in the order in which they are tried",
+    access: "intake.manage",
+    response: z.array(routingRuleOut),
+    run: ({ principal, params }) => listRoutingRules(principal, params.projectId ?? ""),
+  },
+  {
+    id: "routing.targets",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "GET",
+    path: "/projects/{projectId}/routing-targets",
+    tag: "Intake",
+    summary: "List the people, groups and agents that a routing rule can name",
+    access: "intake.manage",
+    response: routingTargetsOut,
+    run: ({ principal, params }) => listRoutingTargets(principal, params.projectId ?? ""),
+  },
+  {
+    id: "routing.create",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-rules",
+    tag: "Intake",
+    summary: "Add a routing rule at the end of the order",
+    access: "intake.manage",
+    body: routingRuleInput,
+    response: routingRuleOut,
+    status: 201,
+    run: ({ principal, params, input }) =>
+      createRoutingRule(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "routing.update",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-rules/{ruleId}",
+    tag: "Intake",
+    summary: "Replace a routing rule; its place in the order stays",
+    access: "intake.manage",
+    body: routingRuleInput,
+    response: routingRuleOut,
+    run: ({ principal, params, input }) =>
+      updateRoutingRule(principal, params.projectId ?? "", params.ruleId ?? "", input),
+  },
+  {
+    id: "routing.delete",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-rules/{ruleId}/delete",
+    tag: "Intake",
+    summary: "Remove a routing rule",
+    access: "intake.manage",
+    response: z.object({ removed: z.boolean() }),
+    run: ({ principal, params }) =>
+      deleteRoutingRule(principal, params.projectId ?? "", params.ruleId ?? ""),
+  },
+  {
+    id: "routing.reorder",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-order",
+    tag: "Intake",
+    summary: "Set the order of all routing rules of the project, as the list of their ids",
+    access: "intake.manage",
+    body: routingOrder,
+    response: z.array(routingRuleOut),
+    run: ({ principal, params, input }) =>
+      reorderRoutingRules(principal, params.projectId ?? "", input),
   },
   {
     id: "operators.active",

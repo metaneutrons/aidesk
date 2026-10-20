@@ -244,6 +244,32 @@ export const senderRules = pgTable(
   },
   (t) => [uniqueIndex("sender_rule_value_idx").on(t.projectId, t.value)],
 );
+// The rules that route a new ticket of a project to an assignee and give it a priority and a category (see
+// `domain/routing.ts`). The first enabled rule in order that matches wins; `cursor` counts the tickets that a rule gave
+// to the members of a group, for the round robin.
+export const routingRules = pgTable(
+  "routing_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    conditions: jsonb("conditions")
+      .$type<{ senders: string[]; languages: string[]; subjectWords: string[] }>()
+      .notNull(),
+    target: jsonb("target").$type<{ kind: "user" | "group" | "agent"; id: string } | null>(),
+    priority: text("priority"),
+    category: text("category"),
+    cursor: integer("cursor").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [index("routing_rule_project_idx").on(t.projectId, t.position)],
+);
 // A group of operators in one project with the actions that every member holds there, in addition to what each
 // holds by their own membership.
 export const operatorGroups = pgTable(

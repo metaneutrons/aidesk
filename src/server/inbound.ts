@@ -26,6 +26,7 @@ import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
 import { fileRules } from "../domain/limits";
 import { getLimits } from "./limits";
+import { routeNewTicket } from "./routing";
 import { senderPolicyOf } from "./sender-rules";
 import { decideLanguage, detectLanguage } from "../domain/language";
 import { mayReopen, replyPolicyOf } from "../domain/reply-policy";
@@ -634,6 +635,16 @@ export async function processIngress(
       messageId: messageIds[0] ?? null,
       channel: "email",
     });
+    // The rules of the project give the new ticket its assignee, its priority and its category.
+    await routeNewTicket(
+      tx,
+      { id: ticket.id, projectId: entry.projectId, number: ticket.number },
+      {
+        sender: sender.address,
+        language,
+        subject,
+      },
+    );
     return finish(ticket.id, "processed", target ? "follow_up" : "created");
   });
 }
