@@ -981,5 +981,22 @@
   "requesterExportButton": "Gespeichertes exportieren",
   "requesterExportWorking": "Datei wird erstellt …",
   "requesterExportDone": "Die Datei wurde heruntergeladen. Der Export steht im Audit.",
-  "requesterExportTooLarge": "Was zu dieser Adresse gespeichert ist, ist für eine Datei zu groß. Es wird mit der Sicherung der Installation entnommen."
+  "requesterExportTooLarge": "Was zu dieser Adresse gespeichert ist, ist für eine Datei zu groß. Es wird mit der Sicherung der Installation entnommen.",
+  "processingRetention": "Aufbewahrung",
+  "processingIssue_no_retention": "Es ist keine Aufbewahrungsfrist gesetzt: alles wird dauerhaft behalten.",
+  "retentionKind_tickets": "Gelöste und Junk-Tickets",
+  "retentionKind_attachments": "Anhänge",
+  "retentionKind_originals": "Original-Mails",
+  "retentionKind_translations": "Übersetzungen",
+  "retentionKind_aiRuns": "Protokolle von Modellläufen",
+  "retentionForever": "Dauerhaft behalten",
+  "retentionDays": "{count, plural, one {# Tag} other {# Tage}}",
+  "retentionTitle": "Aufbewahrung",
+  "retentionHint": "Wie lange dieses Projekt behält, was es hält. Jede Frist ist aus, bis du sie setzt, und eine Löschung lässt sich nicht rückgängig machen. Wer eine Frist setzt oder verkürzt, sieht zuerst einen Probelauf und braucht eine Person, die Änderungen freigeben darf; eine Verlängerung braucht nichts weiter.",
+  "retentionSuggestion": "Vorschlag: {days} Tage",
+  "retentionDryRun": "Zeigen, was jetzt entfernt würde",
+  "retentionDryRunResult": "Was die Fristen jetzt entfernen würden",
+  "retentionWouldRemove": "{count, plural, one {# Eintrag} other {# Einträge}}",
+  "retentionNeedsDryRun": "Zeige den Probelauf dieser Fristen, bevor du speicherst.",
+  "retentionNeedsApproval": "Du darfst Änderungen nicht freigeben; Speichern erzeugt einen Vorschlag, den eine Person mit diesem Recht entscheidet."
 }

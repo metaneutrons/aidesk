@@ -424,6 +424,11 @@ test("answers every documented route in the published shape, with real data", as
   });
   await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
   await call("routing.delete", { params: { projectId: project, ruleId } });
+  // What the periods of a retention would remove now; nothing is changed.
+  await call("retention.preview", {
+    params: { projectId: project },
+    data: { tickets: 730, attachments: null, originals: null, translations: null, aiRuns: 90 },
+  });
   // What an erasure would remove, for a ticket and for a requester; nothing is erased.
   await call("erasure.ticket_preview", { params: { ticketId: ticket } });
   await call("erasure.requester_preview", {

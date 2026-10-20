@@ -742,6 +742,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "retention.preview": {
+    operation: "previewRetention",
+    action: "config.read",
+    ui: "src/components/configuration.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+    difference: "docs/capabilities.md",
+  },
   "operator.profile_get": {
     operation: "getProfile",
     action: "self.profile",

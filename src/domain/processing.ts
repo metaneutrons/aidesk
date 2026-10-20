@@ -83,6 +83,16 @@ export const processingOverview = z.object({
   projectId: z.uuid(),
   name: z.string(),
   entries: z.array(processingEntry),
+  // How long the project keeps what it holds, in days; null for a kind that it keeps for good.
+  retention: z.object({
+    tickets: z.number().nullable(),
+    attachments: z.number().nullable(),
+    originals: z.number().nullable(),
+    translations: z.number().nullable(),
+    aiRuns: z.number().nullable(),
+  }),
+  // What is missing for the project as a whole: no retention period is set at all.
+  projectIssues: z.array(z.enum(["no_retention"])),
   // Changes that wait for approval, by kind.
   pending: z.array(z.object({ kind: z.string(), target: z.string().nullable() })),
   // The number of entries that have an issue, for the list of projects.

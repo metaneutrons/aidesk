@@ -1917,6 +1917,39 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Retention
+
+A project can limit how long it keeps what it holds. Every period is **off** (null, kept for good) until the project sets
+it; the settings suggest values (tickets 730 days, files 365, original mails 365, translations 180, records of model runs
+90) and preset none. The periods are configuration keys in days, 1 to 3650: `retentionTicketsDays`,
+`retentionAttachmentsDays`, `retentionOriginalsDays`, `retentionTranslationsDays` and `retentionAiRunsDays`.
+
+**Approval.** A period that is set where there was none, or made shorter, removes more than before. Only a person with
+`config.approve` applies such a change; a person with `config.write` only, and every agent under every policy, makes a
+proposal that a person with `config.approve` decides. Making a period longer, or switching it off, needs nothing more. The
+settings form first asks for a dry run of the periods that would tighten something (`POST
+/api/v1/projects/{id}/retention/preview`, `config.read`, MCP tool `retention_preview`), which counts what the periods
+would remove now and changes nothing, and does not let the form be saved before that dry run was seen.
+
+**The job.** The worker calls `scanRetention` every quarter of an hour (`src/server/retention.ts`). For each project that
+is not archived and has a period, one pass removes up to 200 tickets and up to 1,000 of each other kind, so a large backlog is
+worked off over several passes. What each period counts from:
+
+- tickets: a ticket that was resolved, or moved to junk, longer ago than the period; an open or waiting ticket stays, also
+  one that was reopened. The ticket is erased as by an erasure (messages, files, translations, links, portal records, run
+  records, jobs), as the system and without a confirmation;
+- attachments: an attachment older than the period loses its file and its extracted text; the row stays and says that the
+  file was removed (`removed_by_retention`);
+- originals: the original of a message older than the period and the original of a mail entry that is not waiting to be
+  read; the entry stays, because it recognizes a mail that is read again, without the stored sender and subject. A junk mail
+  whose original is gone cannot be restored (409);
+- translations and records of model runs older than the period.
+
+A file is removed only when no other row still names it. Every pass that removed something writes `retention.run` with the
+counts and the periods (the erasure of tickets writes `retention.erase` as well); the entries hold counts and no content, and
+the actor is `system`. A project that has no period at all is listed by the processing overview with the issue
+`no_retention`, and the overview shows the periods.
+
 ## Export about a requester
 
 For a request for information, a person who manages a project (`project.manage`, the same people who may take out the

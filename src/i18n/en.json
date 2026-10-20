@@ -981,5 +981,22 @@
   "requesterExportButton": "Export what is held",
   "requesterExportWorking": "Preparing the file…",
   "requesterExportDone": "The file was downloaded. The export is in the audit.",
-  "requesterExportTooLarge": "What is held about this address is too large for one file. It is taken with the backup of the installation."
+  "requesterExportTooLarge": "What is held about this address is too large for one file. It is taken with the backup of the installation.",
+  "processingRetention": "Retention",
+  "processingIssue_no_retention": "No retention period is set: everything is kept for good.",
+  "retentionKind_tickets": "Resolved and junk tickets",
+  "retentionKind_attachments": "Attached files",
+  "retentionKind_originals": "Original mails",
+  "retentionKind_translations": "Translations",
+  "retentionKind_aiRuns": "Records of model runs",
+  "retentionForever": "Kept for good",
+  "retentionDays": "{count, plural, one {# day} other {# days}}",
+  "retentionTitle": "Retention",
+  "retentionHint": "How long this project keeps what it holds. Every period is off until you set it, and a removal cannot be undone. Setting a period or making it shorter shows a dry run first and needs a person who may approve changes; making it longer needs nothing more.",
+  "retentionSuggestion": "Suggested: {days} days",
+  "retentionDryRun": "Show what would be removed now",
+  "retentionDryRunResult": "What the periods would remove now",
+  "retentionWouldRemove": "{count, plural, one {# item} other {# items}}",
+  "retentionNeedsDryRun": "Show the dry run of these periods before you save them.",
+  "retentionNeedsApproval": "You may not approve changes; saving makes a proposal that a person with that right decides."
 }

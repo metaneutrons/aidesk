@@ -214,12 +214,56 @@ export async function previewRequesterErasure(
   });
   return { counts: measured.counts, outOfReach: measured.outOfReach, tickets: found };
 }
+// The files that no row names any more are removed; the others are shared with a message or a ticket that stays.
+export async function removeObjects(keys: readonly string[]) {
+  let shared = 0;
+  const removable: string[] = [];
+  const unique = [...new Set(keys)];
+  if (unique.length) {
+    const [attachmentUse, messageUse, ingressUse, exportUse, logoUse] = await Promise.all([
+      db()
+        .select({ key: attachments.objectKey })
+        .from(attachments)
+        .where(inArray(attachments.objectKey, unique)),
+      db()
+        .select({ key: messages.rawObjectKey })
+        .from(messages)
+        .where(inArray(messages.rawObjectKey, unique)),
+      db()
+        .select({ key: ingress.rawObjectKey })
+        .from(ingress)
+        .where(inArray(ingress.rawObjectKey, unique)),
+      db()
+        .select({ key: projectExports.objectKey })
+        .from(projectExports)
+        .where(inArray(projectExports.objectKey, unique)),
+      db()
+        .select({ key: portalBranding.logoKey })
+        .from(portalBranding)
+        .where(and(isNotNull(portalBranding.logoKey), inArray(portalBranding.logoKey, unique))),
+    ]);
+    const used = new Set(
+      [...attachmentUse, ...messageUse, ...ingressUse, ...exportUse, ...logoUse].flatMap((row) =>
+        row.key ? [row.key] : [],
+      ),
+    );
+    for (const key of unique) {
+      if (used.has(key)) shared += 1;
+      else removable.push(key);
+    }
+  }
+  const failed = removable.length ? await deleteObjects(removable) : [];
+  return { removed: removable.length - failed.length, shared, failed: failed.length };
+}
+// The removal itself. A person confirms it with the counts they were shown (`expected`); the retention of a project
+// removes what is due without a confirmation (`expected` null) and writes its own entry.
 async function run(
-  principal: Principal,
+  actor: string,
   project: string,
   scopeOf: (tx: Tx) => Promise<Scope>,
-  expected: ErasureCounts,
+  expected: ErasureCounts | null,
   detail: Record<string, unknown>,
+  action = "data.erase",
 ) {
   const outcome = await db().transaction(async (tx) => {
     // The tickets are locked first, so that nothing is added while they are counted and removed.
@@ -231,7 +275,7 @@ async function run(
         .where(inArray(tickets.id, scope.ticketIds))
         .for("update");
     const measured = await measure(tx, scope);
-    if (JSON.stringify(measured.counts) !== JSON.stringify(expected))
+    if (expected && JSON.stringify(measured.counts) !== JSON.stringify(expected))
       throw new DomainError("stale_version", 409);
     if (measured.jobIds.length) await tx.delete(jobs).where(inArray(jobs.id, measured.jobIds));
     // The detail of the audit entries about these tickets and their messages goes; the entries stay as facts.
@@ -250,57 +294,31 @@ async function run(
       await tx.delete(tickets).where(inArray(tickets.id, scope.ticketIds));
     await tx.insert(audit).values({
       projectId: project,
-      actorId: principal.id,
-      action: "data.erase",
+      actorId: actor,
+      action,
       targetId: project,
       detail: { ...detail, counts: measured.counts, outOfReach: measured.outOfReach },
     });
     return measured;
   });
   // The files, after the commit: the ones that no row names any more.
-  const keys = [...new Set([...outcome.attachmentKeys, ...outcome.originalKeys])];
-  let shared = 0;
-  const removable: string[] = [];
-  if (keys.length) {
-    const [attachmentUse, messageUse, ingressUse, exportUse, logoUse] = await Promise.all([
-      db()
-        .select({ key: attachments.objectKey })
-        .from(attachments)
-        .where(inArray(attachments.objectKey, keys)),
-      db()
-        .select({ key: messages.rawObjectKey })
-        .from(messages)
-        .where(inArray(messages.rawObjectKey, keys)),
-      db()
-        .select({ key: ingress.rawObjectKey })
-        .from(ingress)
-        .where(inArray(ingress.rawObjectKey, keys)),
-      db()
-        .select({ key: projectExports.objectKey })
-        .from(projectExports)
-        .where(inArray(projectExports.objectKey, keys)),
-      db()
-        .select({ key: portalBranding.logoKey })
-        .from(portalBranding)
-        .where(and(isNotNull(portalBranding.logoKey), inArray(portalBranding.logoKey, keys))),
-    ]);
-    const used = new Set(
-      [...attachmentUse, ...messageUse, ...ingressUse, ...exportUse, ...logoUse].flatMap((row) =>
-        row.key ? [row.key] : [],
-      ),
-    );
-    for (const key of keys) {
-      if (used.has(key)) shared += 1;
-      else removable.push(key);
-    }
-  }
-  const failed = removable.length ? await deleteObjects(removable) : [];
-  return {
-    counts: outcome.counts,
-    objects: { removed: removable.length - failed.length, shared, failed: failed.length },
-    outOfReach: outcome.outOfReach,
-  };
+  const objects = await removeObjects([...outcome.attachmentKeys, ...outcome.originalKeys]);
+  return { counts: outcome.counts, objects, outOfReach: outcome.outOfReach };
 }
+// For the retention of a project: erases tickets that are due, as the system, without a confirmation.
+export const eraseTicketsAsSystem = (
+  project: string,
+  ticketIds: string[],
+  detail: Record<string, unknown>,
+) =>
+  run(
+    "system",
+    project,
+    () => Promise.resolve({ project, ticketIds, email: null }),
+    null,
+    detail,
+    "retention.erase",
+  );
 export async function eraseTicket(principal: Principal, ticketId: string, input: unknown) {
   const { expected } = erasureConfirm.parse(input);
   const [row] = await db()
@@ -314,7 +332,7 @@ export async function eraseTicket(principal: Principal, ticketId: string, input:
     .from(tickets)
     .where(eq(tickets.id, ticketId));
   return run(
-    principal,
+    principal.id,
     project,
     () => Promise.resolve({ project, ticketIds: [ticketId], email: null }),
     expected,
@@ -325,7 +343,7 @@ export async function eraseRequester(principal: Principal, projectId: string, in
   const project = eraser(principal, projectId);
   const { email, expected } = requesterConfirm.parse(input);
   return run(
-    principal,
+    principal.id,
     project,
     async (tx) => ({
       project,
