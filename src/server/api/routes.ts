@@ -211,6 +211,19 @@ import {
 } from "../../domain/tags";
 import { exportProcessing, getProcessing, listProcessing } from "../processing";
 import { processingOverview } from "../../domain/processing";
+import {
+  eraseRequester,
+  eraseTicket,
+  previewRequesterErasure,
+  previewTicketErasure,
+} from "../erasure";
+import {
+  erasureConfirm,
+  erasurePreview,
+  erasureResult,
+  requesterConfirm,
+  requesterQuery,
+} from "../../domain/erasure";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -1665,6 +1678,58 @@ export const routes: Route[] = [
     binary: true,
     run: async ({ principal, params }) =>
       csv(await exportProcessing(principal, params.projectId ?? "")),
+  },
+  {
+    id: "erasure.ticket_preview",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "GET",
+    path: "/tickets/{ticketId}/erasure",
+    tag: "Privacy",
+    summary:
+      "What erasing a ticket would remove, and what is out of reach (webhook events delivered, issues created, exports)",
+    access: "data.erase",
+    response: erasurePreview,
+    run: ({ principal, params }) => previewTicketErasure(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "erasure.ticket",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "POST",
+    path: "/tickets/{ticketId}/erase",
+    tag: "Privacy",
+    summary:
+      "Erase a ticket from the database and the storage; names the counts that the preview gave, and a different count is a conflict",
+    access: "data.erase",
+    body: erasureConfirm,
+    response: erasureResult,
+    run: ({ principal, params, input }) => eraseTicket(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "erasure.requester_preview",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "GET",
+    path: "/projects/{projectId}/erasure/requester",
+    tag: "Privacy",
+    summary:
+      "What erasing everything about a requester (their tickets, portal records and mail) would remove",
+    access: "data.erase",
+    query: requesterQuery,
+    response: erasurePreview,
+    run: ({ principal, params, query }) =>
+      previewRequesterErasure(principal, params.projectId ?? "", Object.fromEntries(query)),
+  },
+  {
+    id: "erasure.requester",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "POST",
+    path: "/projects/{projectId}/erasure/requester",
+    tag: "Privacy",
+    summary:
+      "Erase everything about a requester; names the counts that the preview gave, and a different count is a conflict",
+    access: "data.erase",
+    body: requesterConfirm,
+    response: erasureResult,
+    run: ({ principal, params, input }) => eraseRequester(principal, params.projectId ?? "", input),
   },
   {
     id: "tickets.status",

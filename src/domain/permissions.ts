@@ -16,6 +16,8 @@ export const actions = [
   "config.approve",
   "github.publish",
   "audit.read",
+  // Erases a ticket or everything about a requester; no preset holds it.
+  "data.erase",
 ] as const;
 export type Action = (typeof actions)[number];
 export interface Grant {
