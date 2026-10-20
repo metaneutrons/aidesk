@@ -6232,6 +6232,19 @@
                           "type": "integer",
                           "minimum": 1,
                           "maximum": 720
+                        },
+                        "reopenMode": {
+                          "type": "string",
+                          "enum": [
+                            "reopen",
+                            "new_ticket",
+                            "refuse"
+                          ]
+                        },
+                        "reopenDays": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 365
                         }
                       },
                       "required": [
@@ -6244,7 +6257,9 @@
                         "outboundConnectionId",
                         "pauseOutgoing",
                         "warnHours",
-                        "overdueHours"
+                        "overdueHours",
+                        "reopenMode",
+                        "reopenDays"
                       ],
                       "additionalProperties": false
                     }
@@ -6370,6 +6385,19 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 720
+                      },
+                      "reopenMode": {
+                        "type": "string",
+                        "enum": [
+                          "reopen",
+                          "new_ticket",
+                          "refuse"
+                        ]
+                      },
+                      "reopenDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 365
                       }
                     },
                     "required": [
@@ -6382,7 +6410,9 @@
                       "outboundConnectionId",
                       "pauseOutgoing",
                       "warnHours",
-                      "overdueHours"
+                      "overdueHours",
+                      "reopenMode",
+                      "reopenDays"
                     ],
                     "additionalProperties": false
                   },

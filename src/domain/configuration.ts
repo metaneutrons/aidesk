@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
 // document. Connections, secrets and texts are not part of it; they follow with
 // their own rules. The slug identifies the project and cannot be changed.
@@ -23,6 +24,10 @@ export const configDocument = z
     // counts as overdue. The first is never longer than the second.
     warnHours: z.number().int().min(1).max(720),
     overdueHours: z.number().int().min(1).max(720),
+    // What a reply of a customer does to a resolved ticket (see `reply-policy.ts`), and for how many
+    // days after the resolution a reply reopens it when the mode is "reopen".
+    reopenMode: z.enum(replyModes),
+    reopenDays: z.number().int().min(1).max(maxReopenDays),
   })
   .strict()
   .refine((config) => config.warnHours <= config.overdueHours, {

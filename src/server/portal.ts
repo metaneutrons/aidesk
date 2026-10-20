@@ -1,3 +1,4 @@
+import { mayReopen, replyPolicyOf, type ReplyPolicy } from "../domain/reply-policy";
 import { queueAgentRun } from "./agent-runs";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
@@ -214,6 +215,7 @@ export async function getPortalTicket(
       project: projects.name,
       projectId: projects.id,
       archivedAt: projects.archivedAt,
+      settings: projects.settings,
     })
     .from(tickets)
     .innerJoin(projects, eq(projects.id, tickets.projectId))
@@ -282,7 +284,9 @@ export async function getPortalTicket(
       createdAt: row.createdAt,
     },
     // An archived project takes no reply; its page can still be read.
-    canReply: row.archivedAt === null && repliesAllowed(row.status, row.resolvedAt),
+    canReply:
+      row.archivedAt === null &&
+      repliesAllowed(row.status, row.resolvedAt, replyPolicyOf(row.settings)),
     messages: conversation.map((message) => ({
       id: message.id,
       from: message.authorType === "customer" ? ("you" as const) : ("team" as const),
@@ -301,13 +305,11 @@ export async function getPortalTicket(
   };
 }
 
-// A resolved ticket can be answered for 30 days, like by mail; after that the
-// customer starts a new request.
-const reopenWindowMs = 30 * 86_400_000;
-function repliesAllowed(status: string, resolvedAt: Date | null): boolean {
+// A resolved ticket can be answered in the window that the project sets (30 days until it changes it), like by
+// mail; after that, and when the project does not reopen at all, the customer starts a new request.
+function repliesAllowed(status: string, resolvedAt: Date | null, policy: ReplyPolicy): boolean {
   if (status !== "resolved") return true;
-  if (!resolvedAt) return false;
-  return Date.now() - resolvedAt.getTime() <= reopenWindowMs;
+  return mayReopen(policy, resolvedAt, new Date());
 }
 const replyLimit = 20;
 // A reply written in the portal by the holder of a token. It becomes a message
@@ -386,7 +388,12 @@ export async function portalReply(
         ),
       );
     if (again) return { id: again.id, duplicate: true };
-    if (!repliesAllowed(ticket.status, ticket.resolvedAt)) throw new DomainError("conflict", 409);
+    const [owner] = await tx
+      .select({ settings: projects.settings })
+      .from(projects)
+      .where(eq(projects.id, ticket.projectId));
+    if (!repliesAllowed(ticket.status, ticket.resolvedAt, replyPolicyOf(owner?.settings ?? {})))
+      throw new DomainError("conflict", 409);
     const [recent] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(messages)

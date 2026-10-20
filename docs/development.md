@@ -959,12 +959,32 @@ The editable configuration of a project is one document: name, colour, default
 language, acknowledgements, portal links, approval policy, the outgoing
 connection, a pause for outgoing mail and the hours after which an unanswered
 ticket is flagged as late (`warnHours`, 4 by default) and is overdue (`overdueHours`, 24 by
-default; both 1 to 720, the first never later than the second). Connections themselves, secrets and texts
+default; both 1 to 720, the first never later than the second) and what a reply of a customer does to a
+resolved ticket (`reopenMode` and `reopenDays`, see below). Connections themselves, secrets and texts
 are not part of it. It is read with `GET
 /api/v1/projects/{id}/config`, which also returns its `version`, and replaced with
 `PUT` on the same path. A write names the version it read (`expectedVersion`); a
 change made in between answers `409 stale_version`. An optional
 `idempotencyKey` makes a repeated request have the effect of one.
+
+### A reply to a resolved ticket
+
+`reopenMode` says what a reply of the customer does to a ticket that is resolved, by mail and in the customer page:
+
+- `reopen` (the default): a reply within `reopenDays` (1 to 365, 30 by default) after the resolution reopens the
+  ticket; a later reply starts a new ticket that is linked to the old one (`follow_up`). This is what the constant of
+  30 days did before.
+- `new_ticket`: a reply never reopens. By mail it starts a linked new ticket; the customer page does not take a reply
+  to a resolved ticket.
+- `refuse`: a mail that answers a resolved ticket is not taken. It is kept out as junk with the reason
+  `reply_to_resolved`, where a person with `ticket.junk` sees it and can restore it; a restored mail is taken like a
+  reply in `reopen` mode with the window of the project, so it is not refused twice. The customer page does not take
+  a reply to a resolved ticket. Nothing is sent to the customer: a refusal that answered by mail would answer every
+  automatic mail as well.
+
+A reply to a ticket that is not resolved is taken in every mode. A value in the settings that is not valid reads as
+the default. The policy is part of the configuration document, so a change is a versioned change that an agent
+proposes under the review policy.
 
 `PUT ...?validate=true` writes nothing and reports the diff and what a real write
 would do. Errors for an invalid body name the offending field as a JSON pointer in

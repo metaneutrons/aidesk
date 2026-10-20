@@ -12,6 +12,7 @@ import {
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
 import { limitsOf } from "../domain/response-clock";
+import { replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
 import { applyTextPayload, textProposalStale } from "./texts";
@@ -25,6 +26,7 @@ type Row = typeof projects.$inferSelect;
 export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "settings">) {
   const settings = row.settings;
   const { warnHours, overdueHours } = limitsOf(settings);
+  const reply = replyPolicyOf(settings);
   return configDocument.parse({
     name: row.name,
     color: row.color,
@@ -40,6 +42,8 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     pauseOutgoing: settings.pauseOutgoing === true,
     warnHours,
     overdueHours,
+    reopenMode: reply.mode,
+    reopenDays: reply.days,
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -94,6 +98,8 @@ function sqlMerge(config: ConfigDocument) {
     pauseOutgoing: config.pauseOutgoing,
     warnHours: config.warnHours,
     overdueHours: config.overdueHours,
+    reopenMode: config.reopenMode,
+    reopenDays: config.reopenDays,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }

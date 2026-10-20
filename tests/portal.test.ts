@@ -537,6 +537,39 @@ describe("portal replies", () => {
         .where(and(eq(messages.ticketId, old.id), eq(messages.markdown, "Too late"))),
     ).toHaveLength(0);
   });
+  it("follows the policy of the project: a window of its own, and no reopening at all in the other modes", async () => {
+    const owner = async (settings: Record<string, unknown>) =>
+      db().update(projects).set({ settings }).where(eq(projects.id, projectId));
+    const resolvedDaysAgo = async (days: number) => {
+      const entry = await open();
+      await db()
+        .update(tickets)
+        .set({
+          status: "resolved",
+          resolvedAt: new Date(Date.now() - days * 86_400_000),
+          pendingSince: null,
+        })
+        .where(eq(tickets.id, entry.id));
+      return entry;
+    };
+    try {
+      await owner({ reopenMode: "reopen", reopenDays: 3 });
+      expect((await getPortalTicket((await resolvedDaysAgo(2)).token)).canReply).toBe(true);
+      expect((await getPortalTicket((await resolvedDaysAgo(4)).token)).canReply).toBe(false);
+      await owner({ reopenMode: "reopen", reopenDays: 90 });
+      expect((await getPortalTicket((await resolvedDaysAgo(60)).token)).canReply).toBe(true);
+      for (const mode of ["new_ticket", "refuse"]) {
+        await owner({ reopenMode: mode, reopenDays: 90 });
+        const entry = await resolvedDaysAgo(1);
+        expect((await getPortalTicket(entry.token)).canReply).toBe(false);
+        await expect(reply(entry.token, "No way")).rejects.toMatchObject({ code: "conflict" });
+        // A ticket that is not resolved can still be answered.
+        expect((await getPortalTicket((await open()).token)).canReply).toBe(true);
+      }
+    } finally {
+      await owner({});
+    }
+  });
   it("is limited to twenty replies an hour per grant", async () => {
     const { id, token } = await open();
     for (let index = 0; index < 20; index += 1) await reply(token, `Reply ${String(index)}`);
