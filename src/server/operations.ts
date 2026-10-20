@@ -8,7 +8,8 @@ import { emitEvent } from "./webhooks";
 import { aiWorkOf } from "./ai-work";
 import type { Tx } from "./changes";
 import { clampLimit, listStep } from "../domain/paging";
-import { defaultOverdueHours, defaultWarnHours } from "../domain/response-clock";
+import { businessSettingsOf, calendarOf, clockMillis } from "../domain/business-hours";
+import { defaultOverdueHours, defaultWarnHours, limitsOf } from "../domain/response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import { db } from "./db";
@@ -74,6 +75,7 @@ export async function listProjects(principal: Principal, archived: ArchivedFilte
       overdueHours: sql<number>`coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours})`,
       warnHours: sql<number>`least(coalesce((${projects.settings}->>'warnHours')::int, ${defaultWarnHours}), coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
       archivedAt: projects.archivedAt,
+      settings: projects.settings,
     })
     .from(projects)
     .where(
@@ -86,7 +88,10 @@ export async function listProjects(principal: Principal, archived: ArchivedFilte
             : undefined,
       ),
     )
-    .orderBy(projects.name);
+    .orderBy(projects.name)
+    .then((rows) =>
+      rows.map(({ settings, ...row }) => ({ ...row, clock: businessSettingsOf(settings) })),
+    );
 }
 // Project behaviour that people with project.manage may change. Only the
 // listed fields are accepted; other settings are kept as they are.
@@ -199,7 +204,43 @@ export async function getOverview(
       ),
     ),
   ]);
-  return { projects: projectRows, oldest: oldest.flat() };
+  // A project with business hours counts its overdue tickets in business time, which the database does not know.
+  const clocks = await db()
+    .select({ id: projects.id, settings: projects.settings })
+    .from(projects)
+    .where(inArray(projects.id, filtered));
+  const counted_ = new Map<string, number>();
+  for (const { id: projectId, settings } of clocks) {
+    const calendar = calendarOf(settings);
+    if (!calendar) continue;
+    const limit = limitsOf(settings).overdueHours;
+    // Business time is never longer than calendar time, so what is not overdue by the calendar is not at all.
+    const waiting = await db()
+      .select({ pendingSince: tickets.pendingSince })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.projectId, projectId),
+          isNull(tickets.junkAt),
+          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => ${limit})`,
+        ),
+      );
+    counted_.set(
+      projectId,
+      waiting.filter(
+        (ticket) =>
+          ticket.pendingSince !== null &&
+          clockMillis(ticket.pendingSince, now, calendar) >= limit * 3_600_000,
+      ).length,
+    );
+  }
+  return {
+    projects: projectRows.map((row) => ({
+      ...row,
+      overdue: counted_.get(row.projectId) ?? row.overdue,
+    })),
+    oldest: oldest.flat(),
+  };
 }
 // Search across the authorized projects, decided in the database: a ticket
 // matches when the text is in its subject, the requester's name or address, or

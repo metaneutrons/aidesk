@@ -40,6 +40,18 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await section.getByLabel("Remind the customer days before").fill("3");
     // How far the headers of a mail count for junk.
     await section.getByLabel("Junk detection by the headers of a mail").selectOption("strict");
+    // Business hours: the fields are open once they are switched on, and the form cannot be saved incomplete.
+    await expect(section.getByLabel("Time zone of the business hours")).toBeDisabled();
+    await section.getByLabel("The response clock runs only within business hours").check();
+    await section.getByLabel("Time zone of the business hours").fill("Europe/Berlin");
+    await section.getByLabel("Business hours start").fill("08:00");
+    await section.getByLabel("Business hours end").fill("16:30");
+    await section.getByLabel("Friday").uncheck();
+    await section.getByLabel(/^Holidays without business hours/).fill("2026-12-25\n2026-12-26");
+    await section.getByLabel("Time zone of the business hours").fill("Mars/Base");
+    await expect(section.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    await expect(section.getByText("The configuration is not valid.")).toBeVisible();
+    await section.getByLabel("Time zone of the business hours").fill("Europe/Berlin");
     await section.getByRole("button", { name: "Check" }).click();
     await expect(section.getByRole("list", { name: "Changes" })).toContainText(
       `name: ${String(original.name)} → ${renamed}`,
@@ -55,6 +67,11 @@ test("edits the configuration, checks it first, and approves what an agent propo
       autoResolveDays: 10,
       autoResolveReminderDays: 3,
       junkSensitivity: "strict",
+      businessDays: "1,2,3,4",
+      businessStart: "08:00",
+      businessEnd: "16:30",
+      businessTimeZone: "Europe/Berlin",
+      holidays: "2026-12-25,2026-12-26",
     });
     const scan = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

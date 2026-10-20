@@ -805,5 +805,12 @@
   "senderRulesRemoveShort": "Entfernen",
   "senderRulesInvalid": "Gib eine Adresse wie kim@example.org oder eine Domain wie example.org ein.",
   "senderRulesExists": "Diese Adresse oder Domain steht schon in der Liste.",
-  "senderRulesFull": "Die Liste ist voll."
+  "senderRulesFull": "Die Liste ist voll.",
+  "configBusinessHours": "Die Reaktionsuhr läuft nur innerhalb der Geschäftszeiten",
+  "configBusinessDays": "Geschäftstage",
+  "configBusinessStart": "Beginn der Geschäftszeiten",
+  "configBusinessEnd": "Ende der Geschäftszeiten",
+  "configBusinessTimeZone": "Zeitzone der Geschäftszeiten",
+  "configHolidays": "Feiertage ohne Geschäftszeit (Daten wie 2026-12-25, eines pro Zeile oder durch Komma getrennt)",
+  "configInvalid": "Die Konfiguration ist nicht gültig. Geschäftszeiten brauchen mindestens einen Tag, eine Zeitzone, ein Ende nach dem Beginn und Feiertage als Daten."
 }

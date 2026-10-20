@@ -275,6 +275,11 @@ describe("the policy in the configuration", () => {
     autoResolveDays: null,
     autoResolveReminderDays: null,
     junkSensitivity: "standard",
+    businessDays: null,
+    businessStart: "09:00",
+    businessEnd: "17:00",
+    businessTimeZone: null,
+    holidays: "",
   };
   it("takes days from 1 to 365 or none, and a reminder only with days and before them", () => {
     const ok = (change: Record<string, unknown>) =>

@@ -1885,6 +1885,30 @@ both events. An event carries the ticket id and number, the start of the cycle a
 hours. The marker is set also when no webhook is subscribed: an event that nobody listened to is
 not sent later when someone subscribes.
 
+#### Business hours
+
+A project can restrict the clock to business hours. The configuration holds `businessDays` (ISO weekdays such as
+`1,2,3,4,5`; null means no business hours), `businessStart` and `businessEnd` (`09:00`, `17:00`), `businessTimeZone`
+(an IANA name such as `Europe/Berlin`) and `holidays` (dates such as `2026-12-25`, separated by commas or line
+breaks, at most 200; they are dates in the time zone of the project). Business hours need at least one day, a time
+zone and an end after the start; the settings form cannot be saved otherwise, and the API refuses it. Without
+business hours the clock counts every hour as before, and a stored value that does not make business hours is read
+as none.
+
+What counts is the time within an open day (`src/domain/business-hours.ts`, `businessMillis`). The warning limit,
+the overdue limit, the overdue state in the desk and the overdue count of the overview then mean business hours:
+a ticket that arrived on Friday at 16:00 has waited one business hour on Monday at 09:00 when the window is 09:00 to
+17:00. The wall times of the window follow the clock of the zone, so a day with a change of the time has the
+hours it really has (25 on the night the clocks go back). Counting stops after ten years of waiting, which is longer
+than any limit.
+
+The database only knows calendar time, which is never shorter than business time. The scan therefore takes the
+tickets that are due by the calendar (up to 2000 of them, oldest first) and measures the business time of each
+under its lock; tickets that wait outside the hours are not handled and do not use up the number a pass may handle.
+The overview counts the overdue tickets of a project with business hours in the application, over the tickets that
+are overdue by the calendar. The project list (`GET /api/v1/projects`) carries the settings as `clock`, so that the
+desk counts in the same way as the server. Limits that depend on the priority of a ticket follow with the priority.
+
 The ticket list is loaded in steps of 250, oldest unanswered first, and up to
 2000 (`?limit=` on the page and on `GET /api/v1/tickets`). When fewer tickets
 are loaded than exist, the list says so and offers to load more. Views such as

@@ -31,6 +31,7 @@ import { OriginalPreview } from "./original-preview";
 import { PortalLink } from "./portal-link";
 import { Reminder } from "./reminder";
 import { listCeiling, listStep } from "../domain/paging";
+import { calendarOf } from "../domain/business-hours";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
@@ -209,6 +210,8 @@ interface Project {
   defaultLanguage: string;
   // After how many hours without an answer a ticket of the project is overdue.
   overdueHours: number;
+  // The business hours of the response clock, in the form of the configuration.
+  clock: Record<string, unknown>;
 }
 interface Overview {
   projects: {
@@ -446,6 +449,7 @@ export function Desk({
       new Date(now),
       undefined,
       projectById.get(ticket.projectId)?.overdueHours,
+      calendarOf(projectById.get(ticket.projectId)?.clock ?? {}),
     ) === "overdue";
   // The list is refreshed after a change, so it is the newer source; a cleared
   // reminder is null there and must not fall back to the older conversation.

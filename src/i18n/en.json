@@ -805,5 +805,12 @@
   "senderRulesRemoveShort": "Remove",
   "senderRulesInvalid": "Enter an address like kim@example.org or a domain like example.org.",
   "senderRulesExists": "This address or domain is already listed.",
-  "senderRulesFull": "The list is full."
+  "senderRulesFull": "The list is full.",
+  "configBusinessHours": "The response clock runs only within business hours",
+  "configBusinessDays": "Business days",
+  "configBusinessStart": "Business hours start",
+  "configBusinessEnd": "Business hours end",
+  "configBusinessTimeZone": "Time zone of the business hours",
+  "configHolidays": "Holidays without business hours (dates like 2026-12-25, one per line or separated by commas)",
+  "configInvalid": "The configuration is not valid. Business hours need at least one day, a time zone, an end after the start, and holidays as dates."
 }
