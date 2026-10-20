@@ -33,6 +33,7 @@ import {
   operatorGroups,
   messages,
   projects,
+  projectTags,
   session,
   tickets,
   user,
@@ -70,6 +71,12 @@ export type ArchivedFilter = "hide" | "include" | "only";
 export async function listProjects(principal: Principal, archived: ArchivedFilter = "hide") {
   const allowed = allowedProjectIds(principal);
   if (allowed.length === 0) return [];
+  const colours = new Map<string, Record<string, string>>();
+  for (const row of await db()
+    .select()
+    .from(projectTags)
+    .where(inArray(projectTags.projectId, allowed)))
+    colours.set(row.projectId, { ...colours.get(row.projectId), [row.tag]: row.color });
   return db()
     .select({
       id: projects.id,
@@ -99,6 +106,7 @@ export async function listProjects(principal: Principal, archived: ArchivedFilte
     .then((rows) =>
       rows.map(({ settings, ...row }) => ({
         ...row,
+        tagColors: colours.get(row.id) ?? {},
         clock: businessSettingsOf(settings),
         limits: priorityLimitsOf(settings),
         categories: categoriesOf(settings),

@@ -200,6 +200,15 @@ import {
   updateCannedReply,
 } from "../canned";
 import { cannedForTicketOut, cannedInput, cannedOut, cannedRemoval } from "../../domain/canned";
+import { listTagAdmin, mergeTags, removeTag, renameTag, setTagColor } from "../tag-admin";
+import {
+  tagAdminOut,
+  tagChangeOut,
+  tagColorInput,
+  tagMerge,
+  tagRemoval,
+  tagRename,
+} from "../../domain/tags";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -1555,6 +1564,68 @@ export const routes: Route[] = [
     access: "ticket.reply",
     response: list(cannedForTicketOut),
     run: ({ principal, params }) => cannedForTicket(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "tagadmin.list",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "GET",
+    path: "/projects/{projectId}/tag-admin",
+    tag: "Tags",
+    summary: "List the tags of a project with the number of tickets and the colour of each",
+    access: "project.manage",
+    response: list(tagAdminOut),
+    run: ({ principal, params }) => listTagAdmin(principal, params.projectId ?? ""),
+  },
+  {
+    id: "tagadmin.rename",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/rename",
+    tag: "Tags",
+    summary:
+      "Rename a tag in all tickets of the project; a name that is in use is a conflict (merge instead)",
+    access: "project.manage",
+    body: tagRename,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => renameTag(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "tagadmin.merge",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/merge",
+    tag: "Tags",
+    summary:
+      "Merge tags into one in all tickets of the project; a ticket that has several of them keeps one",
+    access: "project.manage",
+    body: tagMerge,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => mergeTags(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "tagadmin.color",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/color",
+    tag: "Tags",
+    summary: "Give a tag a colour for its chips, or take the colour away with null",
+    access: "project.manage",
+    body: tagColorInput,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => setTagColor(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "tagadmin.remove",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/remove",
+    tag: "Tags",
+    summary:
+      "Remove a tag from all tickets of the project; names the number of tickets that was shown, and a different number is a conflict",
+    access: "project.manage",
+    body: tagRemoval,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => removeTag(principal, params.projectId ?? "", input),
   },
   {
     id: "tickets.status",

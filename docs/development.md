@@ -2012,6 +2012,30 @@ row, offers the ones in use as a filter over the list and suggests them when a
 tag is added. MCP does not offer tags yet; the ledger in
 [capabilities.md](capabilities.md) records the difference.
 
+### Administration of the tags
+
+A person with `project.manage` administers the tags of a project in the settings ("Tags of ...") and over REST
+(`/api/v1/projects/{id}/tag-admin`; not offered to agents or over MCP, because a change reaches all tickets at once;
+migration 0042 adds the table `project_tag` for colours):
+
+- The list shows every tag of the project with the number of its tickets (junk included) and its colour; a tag that has
+  only a colour is listed with no tickets.
+- Renaming (`.../rename`) changes the tag in every ticket of the project; the new name goes through the same
+  normalization, and a name that is in use is a conflict, so that two tags are never joined by accident. A tag that no
+  ticket has is `not_found`.
+- Merging (`.../merge`) puts one or more tags into another; a ticket that has several of them keeps one. A merge never
+  gives a ticket more tags than it had, so the limit of ten holds.
+- Both move the colour: the colour of the tag that is merged into wins, otherwise the first colour of the tags that go.
+- A colour (`.../color`, `#rrggbb` or null) is shown on the chips in the list, the filter and the ticket header, with
+  black or white text chosen for the contrast. The project list carries the colours as `tagColors`.
+- Removing (`.../remove`) takes a tag from all tickets and drops its colour. The request names the number of tickets that
+  was shown; a different number (`stale_version`, 409) means that tickets changed meanwhile and nothing is removed. The
+  desk asks with that number before it sends the request.
+
+Every change is an audit entry (`tag.rename`, `tag.merge`, `tag.color`, `tag.remove`) with the names and the number of
+tickets, runs in one transaction under a lock per project, and leaves the revision of a ticket as it is. The project
+export contains the colours under `tagColors`.
+
 ## Reminders
 
 A reminder is a time at which the team wants to see a ticket again

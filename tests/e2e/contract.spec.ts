@@ -417,6 +417,28 @@ test("answers every documented route in the published shape, with real data", as
   });
   await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
   await call("routing.delete", { params: { projectId: project, ruleId } });
+  // The tags of the project: renamed, merged, coloured and removed again.
+  await call("tickets.tags", {
+    params: { ticketId: ticket },
+    data: { tags: ["contract-a", "contract-b"] },
+  });
+  await call("tagadmin.list", { params: { projectId: project } });
+  await call("tagadmin.rename", {
+    params: { projectId: project },
+    data: { from: "contract-a", to: "contract-c" },
+  });
+  await call("tagadmin.merge", {
+    params: { projectId: project },
+    data: { from: ["contract-b"], into: "contract-c" },
+  });
+  await call("tagadmin.color", {
+    params: { projectId: project },
+    data: { tag: "contract-c", color: "#336699" },
+  });
+  await call("tagadmin.remove", {
+    params: { projectId: project },
+    data: { tag: "contract-c", expectedTickets: 1 },
+  });
   // The canned replies: made, listed, changed, rendered for a ticket and removed.
   const canned = await call("canned.create", {
     params: { projectId: project },

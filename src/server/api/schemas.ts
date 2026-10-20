@@ -51,6 +51,8 @@ export const projectSummary = z
       z.object({ warnHours: z.number(), overdueHours: z.number() }),
     ),
     categories: z.array(z.string()),
+    // The colours that the project gave to tags, by tag.
+    tagColors: z.record(z.string(), z.string()),
     archivedAt: isoDate.nullable(),
   })
   .meta({ id: "ProjectSummary" });
