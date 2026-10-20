@@ -12,7 +12,7 @@ import {
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
 import { limitsOf } from "../domain/response-clock";
-import { replyPolicyOf } from "../domain/reply-policy";
+import { autoResolveOf, replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
 import { applyTextPayload, textProposalStale } from "./texts";
@@ -27,6 +27,7 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
   const settings = row.settings;
   const { warnHours, overdueHours } = limitsOf(settings);
   const reply = replyPolicyOf(settings);
+  const auto = autoResolveOf(settings);
   return configDocument.parse({
     name: row.name,
     color: row.color,
@@ -44,6 +45,8 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     overdueHours,
     reopenMode: reply.mode,
     reopenDays: reply.days,
+    autoResolveDays: auto.days,
+    autoResolveReminderDays: auto.reminderDays,
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -100,6 +103,8 @@ function sqlMerge(config: ConfigDocument) {
     overdueHours: config.overdueHours,
     reopenMode: config.reopenMode,
     reopenDays: config.reopenDays,
+    autoResolveDays: config.autoResolveDays,
+    autoResolveReminderDays: config.autoResolveReminderDays,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }

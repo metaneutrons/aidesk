@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { maxReopenDays, replyModes } from "./reply-policy";
+import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
 // document. Connections, secrets and texts are not part of it; they follow with
 // their own rules. The slug identifies the project and cannot be changed.
@@ -28,12 +28,26 @@ export const configDocument = z
     // days after the resolution a reply reopens it when the mode is "reopen".
     reopenMode: z.enum(replyModes),
     reopenDays: z.number().int().min(1).max(maxReopenDays),
+    // A ticket that waits for the customer is resolved after this many days without an answer; null never
+    // resolves it. The customer is reminded this many days before; null sends no reminder, and a reminder
+    // comes before the resolve.
+    autoResolveDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
+    autoResolveReminderDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
   })
   .strict()
   .refine((config) => config.warnHours <= config.overdueHours, {
     message: "The warning comes before the overdue limit or at the same time",
     path: ["warnHours"],
-  });
+  })
+  .refine(
+    (config) =>
+      config.autoResolveReminderDays === null ||
+      (config.autoResolveDays !== null && config.autoResolveReminderDays < config.autoResolveDays),
+    {
+      message: "A reminder needs a time to resolve, and comes before it",
+      path: ["autoResolveReminderDays"],
+    },
+  );
 export type ConfigDocument = z.infer<typeof configDocument>;
 export const configWrite = z
   .object({

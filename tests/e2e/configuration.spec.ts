@@ -34,6 +34,10 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await expect(section.getByLabel("Window for reopening in days")).toBeDisabled();
     await section.getByLabel("A reply to a resolved ticket").selectOption("reopen");
     await section.getByLabel("Window for reopening in days").fill("14");
+    // The reminder of the automatic resolve is open only when there are days to resolve in.
+    await expect(section.getByLabel("Remind the customer days before")).toBeDisabled();
+    await section.getByLabel("Resolve a waiting ticket after days without an answer").fill("10");
+    await section.getByLabel("Remind the customer days before").fill("3");
     await section.getByRole("button", { name: "Check" }).click();
     await expect(section.getByRole("list", { name: "Changes" })).toContainText(
       `name: ${String(original.name)} → ${renamed}`,
@@ -43,7 +47,12 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await expect(section.getByText("Saved.")).toBeVisible();
     expect((await read()).config.name).toBe(renamed);
     expect((await read()).config.warnHours).toBe(3);
-    expect((await read()).config).toMatchObject({ reopenMode: "reopen", reopenDays: 14 });
+    expect((await read()).config).toMatchObject({
+      reopenMode: "reopen",
+      reopenDays: 14,
+      autoResolveDays: 10,
+      autoResolveReminderDays: 3,
+    });
     const scan = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .exclude("[data-base-ui-focus-guard]")

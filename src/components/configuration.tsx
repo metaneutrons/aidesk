@@ -313,6 +313,45 @@ export function Configuration({
             }}
           />
         </label>
+        <label>
+          {t("configAutoResolve")}
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={draft.autoResolveDays ?? ""}
+            placeholder={t("configAutoResolveOff")}
+            disabled={!canWrite}
+            onChange={(event) => {
+              const days = Math.trunc(Number(event.target.value));
+              set(
+                "autoResolveDays",
+                event.target.value === "" ? null : Math.min(365, Math.max(1, days || 1)),
+              );
+              if (event.target.value === "") set("autoResolveReminderDays", null);
+            }}
+          />
+        </label>
+        <label>
+          {t("configAutoResolveReminder")}
+          <input
+            type="number"
+            min={1}
+            max={364}
+            value={draft.autoResolveReminderDays ?? ""}
+            placeholder={t("configAutoResolveOff")}
+            disabled={!canWrite || draft.autoResolveDays === null}
+            onChange={(event) => {
+              const days = Math.trunc(Number(event.target.value));
+              set(
+                "autoResolveReminderDays",
+                event.target.value === ""
+                  ? null
+                  : Math.min((draft.autoResolveDays ?? 2) - 1, Math.max(1, days || 1)),
+              );
+            }}
+          />
+        </label>
         <label className="configuration-check">
           <input
             type="checkbox"

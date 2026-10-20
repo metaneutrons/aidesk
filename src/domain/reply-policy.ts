@@ -25,6 +25,25 @@ export function replyPolicyOf(settings: Record<string, unknown>): ReplyPolicy {
         : defaultReopenDays,
   };
 }
+// The automatic resolve of a ticket that waits for the customer: after `days` without an answer the ticket is
+// resolved, and `reminderDays` before that the customer gets a reminder. Both are off until a project sets them.
+export const maxAutoResolveDays = 365;
+export interface AutoResolvePolicy {
+  days: number | null;
+  reminderDays: number | null;
+}
+const wholeDays = (value: unknown, max: number): number | null =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max ? value : null;
+export function autoResolveOf(settings: Record<string, unknown>): AutoResolvePolicy {
+  const days = wholeDays(settings.autoResolveDays, maxAutoResolveDays);
+  const reminderDays = wholeDays(settings.autoResolveReminderDays, maxAutoResolveDays);
+  // Without a time to resolve there is nothing to remind of, and a reminder comes before the resolve.
+  return {
+    days,
+    reminderDays:
+      days !== null && reminderDays !== null && reminderDays < days ? reminderDays : null,
+  };
+}
 // Whether a reply may reopen a ticket that was resolved at `resolvedAt`, at `at`.
 export function mayReopen(policy: ReplyPolicy, resolvedAt: Date | null, at: Date): boolean {
   if (policy.mode !== "reopen" || resolvedAt === null) return false;

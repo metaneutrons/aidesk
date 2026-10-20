@@ -35,6 +35,20 @@ export const textKeys = {
         "Wenn du etwas ergänzen möchtest, antworte einfach auf diese E-Mail.",
     },
   },
+  autoResolveReminder: {
+    description:
+      "The mail that reminds a customer that a ticket is resolved automatically when nobody answers",
+    placeholders: ["number", "days"],
+    required: ["number"],
+    defaults: {
+      en:
+        "We have not heard from you about #{number}. If we hear nothing within {days} days, " +
+        "we will mark it as resolved.\n\nIf you still need help, simply reply to this email.",
+      de:
+        "Wir haben zu #{number} nichts mehr von dir gehört. Wenn wir in {days} Tagen nichts hören, " +
+        "markieren wir es als gelöst.\n\nWenn du noch Hilfe brauchst, antworte einfach auf diese E-Mail.",
+    },
+  },
   portalLink: {
     description: "The line in a mail that leads to the ticket page; the link follows it",
     placeholders: [],

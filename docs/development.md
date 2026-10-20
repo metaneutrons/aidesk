@@ -986,6 +986,30 @@ A reply to a ticket that is not resolved is taken in every mode. A value in the 
 the default. The policy is part of the configuration document, so a change is a versioned change that an agent
 proposes under the review policy.
 
+### Automatic resolve of a waiting ticket
+
+A ticket waits for the customer from the moment an answer of the team is sent (`ticket.waiting_since`, set by the
+worker when it sends the mail). Two more keys of the configuration say what happens when nobody answers:
+`autoResolveDays` (1 to 365, or none, which is the default: never) and `autoResolveReminderDays` (none, or fewer than
+the days). The worker looks every five minutes (`scanAutoResolve`):
+
+- **Reminder.** When the wait has lasted `autoResolveDays - autoResolveReminderDays`, a mail goes to the requester
+  through the outgoing connection of the project: a message of the system with the source `auto_resolve_reminder`, whose
+  text is the project text `autoResolveReminder` (placeholders `{number}` and `{days}`, built-in wording in English and
+  German). It is sent once for each wait: `auto_reminded_for` holds the start of the wait that it was sent for. A
+  project without an outgoing connection, or whose mail is paused, sends none, and the wait counts as reminded all the
+  same, so that no reminder arrives when the wait is nearly over. The worker sends it only while the project still
+  has the reminder on and the ticket still waits; otherwise the job goes to review with `auto_resolve_not_enabled`. It
+  is automatic mail: it does not change the ticket.
+- **Resolve.** When the wait has lasted `autoResolveDays`, the ticket is resolved (`resolved_at` now, revision raised,
+  the event `ticket.status_changed`), with a note for the team in the conversation (an internal system message with the
+  source `auto_resolve`) and the audit entry `ticket.auto_resolve`. A reply of the customer reopens a resolved ticket by
+  the policy above.
+
+Only tickets with the status waiting that are not junk and belong to a project that is not archived are touched. A
+reply of the customer before the end sets the status to open and ends the wait. Existing waiting tickets start their
+wait at the time they were last changed (migration 0037).
+
 `PUT ...?validate=true` writes nothing and reports the diff and what a real write
 would do. Errors for an invalid body name the offending field as a JSON pointer in
 `issues`.

@@ -782,5 +782,8 @@
   "configReopenModeReopen": "Öffnet das Ticket im Zeitfenster wieder",
   "configReopenModeNew": "Legt ein neues Ticket an",
   "configReopenModeRefuse": "Wird als Junk aussortiert",
-  "configReopenDays": "Zeitfenster zum Wiedereröffnen in Tagen"
+  "configReopenDays": "Zeitfenster zum Wiedereröffnen in Tagen",
+  "configAutoResolve": "Wartendes Ticket nach Tagen ohne Antwort lösen",
+  "configAutoResolveOff": "Nie",
+  "configAutoResolveReminder": "Kundschaft so viele Tage vorher erinnern"
 }

@@ -782,5 +782,8 @@
   "configReopenModeReopen": "Reopens the ticket within the window",
   "configReopenModeNew": "Starts a new ticket",
   "configReopenModeRefuse": "Is kept out as junk",
-  "configReopenDays": "Window for reopening in days"
+  "configReopenDays": "Window for reopening in days",
+  "configAutoResolve": "Resolve a waiting ticket after days without an answer",
+  "configAutoResolveOff": "Never",
+  "configAutoResolveReminder": "Remind the customer days before"
 }
