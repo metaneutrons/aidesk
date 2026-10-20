@@ -15,6 +15,7 @@ import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
 import { CannedReplies } from "./canned-replies";
+import { KeyRotation } from "./key-rotation";
 import { EraseRequester } from "./erase-requester";
 import { Processing } from "./processing";
 import { RequesterExport } from "./requester-export";
@@ -704,6 +705,7 @@ export function Settings({
           />
         ))}
       {owner && <PortalDomains projectId={null} name="" />}
+      {owner && <KeyRotation />}
       {owner && <AuditLog projectId={null} name="" locale={locale} />}
       <ProjectLifecycle
         manageable={projects.filter((project) => held(project.id).includes("project.manage"))}

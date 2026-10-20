@@ -32,14 +32,14 @@ import { permits, type Principal } from "../domain/permissions";
 // with a key derived from the encryption key. So every mail about the ticket
 // can carry the same link, a database copy does not contain any link, and a
 // new link (a higher epoch) replaces the earlier one. A grant also expires and
-// can be revoked. Changing the encryption key ends all links.
-const subkey = () =>
-  createHmac("sha256", Buffer.from(env().ENCRYPTION_KEY, "hex"))
-    .update("aidesk portal links v1")
-    .digest();
+// can be revoked. Changing the encryption key ends all links, unless the previous key is kept in
+// `ENCRYPTION_KEY_PREVIOUS`: the links that were issued under it then stay valid (a link cannot be derived again for
+// a customer who holds it), and new links are issued under the current key.
+const subkey = (key: string = env().ENCRYPTION_KEY) =>
+  createHmac("sha256", Buffer.from(key, "hex")).update("aidesk portal links v1").digest();
 const uuidBytes = (value: string) => Buffer.from(value.replaceAll("-", ""), "hex");
-function mac(participantId: string, epoch: number): Buffer {
-  return createHmac("sha256", subkey())
+function mac(participantId: string, epoch: number, key?: string): Buffer {
+  return createHmac("sha256", subkey(key))
     .update(`portal:${participantId}:${String(epoch)}`)
     .digest();
 }
@@ -184,8 +184,15 @@ export async function resolvePortalGrant(token: unknown, host: PortalHost | null
       ),
     );
   if (!grant) return null;
-  const expected = mac(grant.participantId, grant.epoch);
-  if (parsed.mac.length !== expected.length || !timingSafeEqual(parsed.mac, expected)) return null;
+  // A link issued before a rotation of the encryption key stays valid while the previous key is kept.
+  const previous = env().ENCRYPTION_KEY_PREVIOUS;
+  const matches = (expected: Buffer) =>
+    parsed.mac.length === expected.length && timingSafeEqual(parsed.mac, expected);
+  if (
+    !matches(mac(grant.participantId, grant.epoch)) &&
+    !(previous && matches(mac(grant.participantId, grant.epoch, previous)))
+  )
+    return null;
   if (!(await hostServesProject(host, grant.projectId))) return null;
   return {
     participantId: grant.participantId,

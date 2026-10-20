@@ -14639,6 +14639,210 @@
         }
       }
     },
+    "/workspace/keys": {
+      "get": {
+        "operationId": "keys.status",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "What still depends on the previous encryption key and the previous secret of the installation, by group of stored values; only the owner. Nothing is changed",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "encryptionPrevious": {
+                      "type": "boolean"
+                    },
+                    "authPrevious": {
+                      "type": "boolean"
+                    },
+                    "authVersion": {
+                      "type": "number"
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "encryption",
+                              "auth"
+                            ]
+                          },
+                          "total": {
+                            "type": "number"
+                          },
+                          "current": {
+                            "type": "number"
+                          },
+                          "previous": {
+                            "type": "number"
+                          },
+                          "unreadable": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "key",
+                          "total",
+                          "current",
+                          "previous",
+                          "unreadable"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "settled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "encryptionPrevious",
+                    "authPrevious",
+                    "authVersion",
+                    "groups",
+                    "settled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/workspace/keys/rotate": {
+      "post": {
+        "operationId": "keys.rotate",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Re-protect every stored value that still depends on the previous key with the current one, one by one; only the owner, and only while a previous key is set in the environment. A value that no key opens is left as it is, and a run that stops can be repeated",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "encryptionPrevious": {
+                      "type": "boolean"
+                    },
+                    "authPrevious": {
+                      "type": "boolean"
+                    },
+                    "authVersion": {
+                      "type": "number"
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string",
+                            "enum": [
+                              "encryption",
+                              "auth"
+                            ]
+                          },
+                          "total": {
+                            "type": "number"
+                          },
+                          "current": {
+                            "type": "number"
+                          },
+                          "previous": {
+                            "type": "number"
+                          },
+                          "unreadable": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "key",
+                          "total",
+                          "current",
+                          "previous",
+                          "unreadable"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "settled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "encryptionPrevious",
+                    "authPrevious",
+                    "authVersion",
+                    "groups",
+                    "settled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/tickets/{ticketId}/status": {
       "post": {
         "operationId": "tickets.status",

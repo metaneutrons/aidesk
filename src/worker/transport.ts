@@ -1,11 +1,10 @@
 import nodemailer from "nodemailer";
 import type { connections, projects } from "../server/db/schema";
-import { unseal } from "../server/crypto";
-import { env } from "../server/env";
 import { classifySmtpFailure, smtpProgress } from "../domain/delivery";
 import { smtp2goSuppressed } from "../server/smtp2go";
 import { smtpConfig, smtpSecret } from "../domain/connections";
 import { parseCloudflareOutbound, sendViaCloudflare } from "../server/cloudflare";
+import { unsealSecret } from "../server/secrets";
 // Hands one mail to the outgoing connection of a project. Shared by replies
 // and test mails, so both go through the same configuration checks, the same
 // suppression check and the same classification of failures. `report` receives
@@ -71,7 +70,7 @@ export async function deliver(input: Delivery): Promise<{
   )
     throw new Error("development_connection_not_allowed");
   const secret = connection.secretCiphertext
-    ? smtpSecret.parse(JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)))
+    ? smtpSecret.parse(JSON.parse(unsealSecret(connection.secretCiphertext)))
     : undefined;
   if (!config.developmentOnly && !config.secure && config.port !== 587)
     throw new Error("smtp_tls_required");

@@ -38,6 +38,10 @@ x-environment: &environment
   # Taken from the environment when it is set there, and not passed on otherwise.
   OWNER_CLAIM_TOKEN:
   OWNER_RECOVERY_TOKEN:
+  # Only while the keys are rotated (see "Rotating the keys" in docs/development.md).
+  ENCRYPTION_KEY_PREVIOUS:
+  BETTER_AUTH_SECRET_PREVIOUS:
+  BETTER_AUTH_SECRET_VERSION:
 services:
   postgres:
     profiles: [bundled]

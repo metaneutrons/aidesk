@@ -8,16 +8,15 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { connections } from "./db/schema";
-import { unseal } from "./crypto";
 import {
   cloudflareInboundConfig,
   cloudflareInboundSecret,
   cloudflareOutboundConfig,
   cloudflareOutboundSecret,
 } from "../domain/connections";
-import { env } from "./env";
 import { acceptInbound } from "./inbound";
 import { isMessageId } from "../domain/threading";
+import { unsealSecret } from "./secrets";
 // Cloudflare Email Routing hands each message to the Email Worker in
 // cloudflare/mail-ingest, which stores it unchanged in an R2 bucket under
 // inbound/<recipient>/. aidesk collects the objects through the S3 API, so a
@@ -56,7 +55,7 @@ export async function pollCloudflareConnection(
     throw new Error("cloudflare_tls_required");
   if (!connection.secretCiphertext) throw new Error("cloudflare_secret_missing");
   const secret = cloudflareInboundSecret.parse(
-    JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
+    JSON.parse(unsealSecret(connection.secretCiphertext)),
   );
   const client = new S3Client({
     endpoint: config.endpoint,
@@ -97,9 +96,7 @@ export function parseCloudflareOutbound(config: unknown, secretCiphertext: strin
   if (!secretCiphertext) throw new Error("cloudflare_secret_missing");
   return {
     config: cloudflareOutboundConfig.parse(config),
-    secret: cloudflareOutboundSecret.parse(
-      JSON.parse(unseal(secretCiphertext, env().ENCRYPTION_KEY)),
-    ),
+    secret: cloudflareOutboundSecret.parse(JSON.parse(unsealSecret(secretCiphertext))),
   };
 }
 export interface OutgoingMail {

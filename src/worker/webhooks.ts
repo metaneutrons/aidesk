@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { signWebhook } from "../domain/webhooks";
-import { unseal } from "../server/crypto";
 import { db } from "../server/db";
 import { jobs, webhookDeliveries, webhooks } from "../server/db/schema";
-import { env } from "../server/env";
 import { checkHost } from "../server/host-guard";
 import { failureCode } from "../server/connections";
+import { unsealSecret } from "../server/secrets";
 // Delivers queued events to the endpoints of webhooks. A delivery is a signed
 // POST with the event as its JSON body; a 2xx answer is success, anything else
 // is tried again after a growing pause, and after the last attempt the job goes
@@ -87,7 +86,7 @@ export async function runWebhooks(scope?: { projectId: string }): Promise<boolea
       } else {
         const body = JSON.stringify(parsed.data.event);
         const timestamp = Math.floor(Date.now() / 1000);
-        const secret = unseal(hook.secretCiphertext, env().ENCRYPTION_KEY);
+        const secret = unsealSecret(hook.secretCiphertext);
         const response = await fetch(hook.url, {
           method: "POST",
           headers: {

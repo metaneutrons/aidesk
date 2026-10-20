@@ -92,6 +92,10 @@ services:
       DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD}@postgres:5432/aidesk
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Only while the keys are rotated.
+      ENCRYPTION_KEY_PREVIOUS:
+      BETTER_AUTH_SECRET_PREVIOUS:
+      BETTER_AUTH_SECRET_VERSION:
       S3_ENDPOINT: http://storage:9000
       S3_REGION: us-east-1
       S3_BUCKET: aidesk

@@ -9,11 +9,9 @@ import {
   type AiTask,
 } from "../domain/ai";
 import { aiSecret } from "../domain/connections";
-import { unseal } from "./crypto";
 import { db } from "./db";
 import { aiBudgets, aiProfiles, aiRuns, connections } from "./db/schema";
 import { emitEvent } from "./webhooks";
-import { env } from "./env";
 import {
   generate as callProvider,
   type CallFile,
@@ -22,6 +20,7 @@ import {
   type ToolCall,
 } from "./ai-provider";
 import { checkHost } from "./host-guard";
+import { unsealSecret } from "./secrets";
 // The one boundary through which a task of the product asks a model. A run needs a
 // profile that is on and a connection that is ready, holds its share of the daily
 // budget before the call and settles it after, ends at the timeout of the profile,
@@ -298,9 +297,7 @@ export async function runAiTask(request: AiRequest, deps: AiDeps = {}): Promise<
       (await checkHost(new URL(endpoint).hostname)) !== "allowed"
     )
       return null;
-    const secret = aiSecret.safeParse(
-      JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
-    );
+    const secret = aiSecret.safeParse(JSON.parse(unsealSecret(connection.secretCiphertext)));
     if (!secret.success) return null;
     return {
       id: connection.id,

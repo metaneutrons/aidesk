@@ -1,8 +1,7 @@
 import { githubConfig, githubSecret } from "../domain/connections";
-import { unseal } from "./crypto";
 import type { connections } from "./db/schema";
-import { env } from "./env";
 import { checkHost } from "./host-guard";
+import { unsealSecret } from "./secrets";
 // The one place that talks to the API of GitHub for a connection of a project. A request has a
 // time limit, does not follow a redirect (it would take the token to another host) and checks the
 // host again. What comes back is a status and the parsed body; a request that did not complete is
@@ -23,9 +22,7 @@ export async function githubRequest(
   deps: GithubDeps = {},
 ): Promise<GithubResult> {
   const config = githubConfig.parse(row.config);
-  const secret = githubSecret.parse(
-    JSON.parse(unseal(row.secretCiphertext ?? "", env().ENCRYPTION_KEY)),
-  );
+  const secret = githubSecret.parse(JSON.parse(unsealSecret(row.secretCiphertext ?? "")));
   const url = `${(config.endpoint ?? "https://api.github.com").replace(/\/+$/, "")}${call.path}`;
   if (!config.developmentOnly && (await checkHost(new URL(url).hostname)) !== "allowed")
     return { kind: "unknown", code: "host_refused" };

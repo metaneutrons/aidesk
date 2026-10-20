@@ -802,7 +802,7 @@ ends the access. A link is not stored: it is the participant's identifier plus a
 MAC over that identifier and the participant's epoch, made with a key derived
 from `ENCRYPTION_KEY`. A database copy therefore contains no link, a new link
 raises the epoch and replaces the earlier one, and changing the encryption key
-ends all links. A grant is valid for 30 days by default (1 to 90), can be
+ends all links unless the previous key is kept (see "Rotating the keys"). A grant is valid for 30 days by default (1 to 90), can be
 revoked, and is bound to the ticket's requester (a participant of that ticket).
 Issuing and disabling are audited. A link resolves only while the MAC fits, the
 grant is not revoked or expired and the ticket is not in junk; every other case
@@ -1917,11 +1917,39 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Rotating the keys
+
+`ENCRYPTION_KEY` seals the stored secrets (connections, webhooks, single sign-on, and the secrets in proposals that wait for
+approval) and derives the links of the customer page. `BETTER_AUTH_SECRET` protects the authenticator and the backup codes of
+the owners and their claims and recoveries that are under way, and signs the session cookies. Either can be rotated without
+losing a secret:
+
+1. Put the new value in the variable and the old value in `ENCRYPTION_KEY_PREVIOUS` or `BETTER_AUTH_SECRET_PREVIOUS`. When the
+   secret changes, raise `BETTER_AUTH_SECRET_VERSION` by one (1 if it was never set; the previous secret is read as the version
+   before). Restart the web server and the worker. From now on reading works with either key and writing uses the current one,
+   so the product keeps working.
+2. The owner opens "Keys of the installation" in the settings (`GET /api/v1/workspace/keys` for the status, `POST
+/api/v1/workspace/keys/rotate` for the run). The status counts, for each group of stored values, how many are protected with
+   the current key, how many still depend on the previous one and how many no key opens. The run re-protects the ones that
+   depend on the previous key, one by one, each only if it is still the value that was read; it is an audit entry
+   (`keys.rotate`, counts only) and can be repeated. It runs while a previous key is set, or while a value is still protected the older
+   way (an authenticator stored before values carried the version of their secret, which a first run turns into the versioned form
+   without any change of the environment); otherwise it answers 409.
+3. When the status says that nothing depends on the previous key (`settled`), remove it from the environment and restart. A
+   value that no key opens (a secret that was sealed with a third key) does not keep the previous key in use: it is left as it
+   is and reported with its group, and the run does not delete it.
+
+A run that stops halfway (an error, a restart) leaves every value readable: a value is rewritten on its own, and the previous key
+is not removed before the status is settled. Sessions that were started under the previous secret end with the change of the
+secret, because their cookies are signed with it, and their people sign in again. Links of the customer page that were issued
+under the previous encryption key stay valid while it is set, and end when it is removed; a link cannot be derived again for a
+customer who holds it. Better Auth reads the owner's authenticator with the versioned secrets (`secrets`) and the oldest secret
+for values that carry no version.
+
 ## Retention
 
 A project can limit how long it keeps what it holds. Every period is **off** (null, kept for good) until the project sets
-it; the settings suggest values (tickets 730 days, files 365, original mails 365, translations 180, records of model runs
-90) and preset none. The periods are configuration keys in days, 1 to 3650: `retentionTicketsDays`,
+it; the settings suggest values (tickets 730 days, files 365, original mails 365, translations 180, records of model runs 90) and preset none. The periods are configuration keys in days, 1 to 3650: `retentionTicketsDays`,
 `retentionAttachmentsDays`, `retentionOriginalsDays`, `retentionTranslationsDays` and `retentionAiRunsDays`.
 
 **Approval.** A period that is set where there was none, or made shorter, removes more than before. Only a person with

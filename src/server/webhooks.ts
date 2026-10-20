@@ -13,12 +13,11 @@ import {
   type WebhookPayload,
 } from "../domain/webhooks";
 import { submitChange, type ChangeOutcome, type Tx } from "./changes";
-import { seal } from "./crypto";
 import { db } from "./db";
 import { audit, jobs, webhookDeliveries, webhooks } from "./db/schema";
 import { DomainError } from "./errors";
-import { env } from "./env";
 import { checkHost, developmentStack } from "./host-guard";
+import { sealSecret } from "./secrets";
 const id = z.uuid();
 type Row = typeof webhooks.$inferSelect;
 function manageable(principal: Principal, project: string): void {
@@ -198,7 +197,7 @@ export async function webhookProposalStale(
     .for("update");
   return row?.version !== baseVersion;
 }
-const sealed = (secret: string) => seal(secret, env().ENCRYPTION_KEY);
+const sealed = (secret: string) => sealSecret(secret);
 async function submit(
   principal: Principal,
   projectId: string,
