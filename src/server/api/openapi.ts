@@ -76,7 +76,7 @@ export function openApiDocument() {
           ? { "x-mcp-tool": route.mcp.legacy }
           : {}),
       parameters: parameters(route),
-      ...(!route.binary && route.body
+      ...(route.body
         ? {
             requestBody: {
               required: true,

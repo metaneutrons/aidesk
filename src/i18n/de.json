@@ -975,5 +975,11 @@
   "eraseRequesterHint": "Löscht jedes Ticket einer Adresse in diesem Projekt mit Nachrichten, Dateien, Übersetzungen und Portal-Einträgen sowie Mails der Adresse, die kein Ticket hält. Braucht das Recht, Daten zu löschen.",
   "eraseRequesterAddress": "Adresse der anfragenden Person",
   "eraseRequesterShow": "Anzeigen, was gelöscht würde",
-  "eraseRequesterGroup": "{email} löschen"
+  "eraseRequesterGroup": "{email} löschen",
+  "requesterExportTitle": "Auskunft über eine anfragende Person in {project}",
+  "requesterExportHint": "Was das System zu einer Adresse in diesem Projekt hält, als Zip-Datei für ein Auskunftsersuchen: Tickets mit Nachrichten und internen Notizen, Dateien, Original-Mails, Übersetzungen, Portal-Einträge und Mails, die kein Ticket hält. Die Datei entsteht für diese Anfrage und wird nirgends aufbewahrt; der Export steht im Audit.",
+  "requesterExportButton": "Gespeichertes exportieren",
+  "requesterExportWorking": "Datei wird erstellt …",
+  "requesterExportDone": "Die Datei wurde heruntergeladen. Der Export steht im Audit.",
+  "requesterExportTooLarge": "Was zu dieser Adresse gespeichert ist, ist für eine Datei zu groß. Es wird mit der Sicherung der Installation entnommen."
 }

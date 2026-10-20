@@ -975,5 +975,11 @@
   "eraseRequesterHint": "Erases every ticket of one address in this project with its messages, files, translations and portal records, and mail of the address that no ticket holds. Needs the right to erase data.",
   "eraseRequesterAddress": "Address of the requester",
   "eraseRequesterShow": "Show what would be erased",
-  "eraseRequesterGroup": "Erasing {email}"
+  "eraseRequesterGroup": "Erasing {email}",
+  "requesterExportTitle": "Export about a requester in {project}",
+  "requesterExportHint": "What the system holds about one address in this project as a zip file, for a request for information: tickets with their messages and internal notes, files, original mails, translations, portal records and mail that no ticket holds. The file is made for this request and kept nowhere; the export is written to the audit.",
+  "requesterExportButton": "Export what is held",
+  "requesterExportWorking": "Preparing the file…",
+  "requesterExportDone": "The file was downloaded. The export is in the audit.",
+  "requesterExportTooLarge": "What is held about this address is too large for one file. It is taken with the backup of the installation."
 }
