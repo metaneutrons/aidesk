@@ -12741,6 +12741,445 @@
         }
       }
     },
+    "/processing": {
+      "get": {
+        "operationId": "processing.list",
+        "tags": [
+          "Privacy"
+        ],
+        "summary": "For every project whose configuration the caller may read: where the content of its tickets goes (mail connection, models by task, sources of knowledge, webhooks), what each receives and what is missing",
+        "x-required-access": "config.read",
+        "x-mcp-tool": "processing_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "projectId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "entries": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "group": {
+                              "type": "string",
+                              "enum": [
+                                "mail_out",
+                                "mail_in",
+                                "ai",
+                                "knowledge",
+                                "webhook"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "task": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "host": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "detail": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "receives": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "conversation",
+                                  "notes",
+                                  "typed_text",
+                                  "subject",
+                                  "customer_name",
+                                  "customer_address",
+                                  "mail_text",
+                                  "message_text",
+                                  "attachment_images",
+                                  "attachment_text",
+                                  "search_words",
+                                  "template_text",
+                                  "event_facts",
+                                  "raw_mail"
+                                ]
+                              }
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "active",
+                                "off",
+                                "not_set_up",
+                                "unused"
+                              ]
+                            },
+                            "issues": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "not_ready",
+                                  "approval_pending",
+                                  "paused",
+                                  "no_outbound",
+                                  "acknowledgements_without_outbound"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "group",
+                            "id",
+                            "name",
+                            "kind",
+                            "task",
+                            "host",
+                            "detail",
+                            "receives",
+                            "state",
+                            "issues"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "pending": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string"
+                            },
+                            "target": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "target"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "withIssues": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "projectId",
+                      "name",
+                      "entries",
+                      "pending",
+                      "withIssues"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/processing": {
+      "get": {
+        "operationId": "processing.get",
+        "tags": [
+          "Privacy"
+        ],
+        "summary": "Where the content of the tickets of a project goes: the entries with host, content classes, state and issues",
+        "x-required-access": "config.read",
+        "x-mcp-tool": "processing_get",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "group": {
+                            "type": "string",
+                            "enum": [
+                              "mail_out",
+                              "mail_in",
+                              "ai",
+                              "knowledge",
+                              "webhook"
+                            ]
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "task": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "host": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "detail": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "receives": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "conversation",
+                                "notes",
+                                "typed_text",
+                                "subject",
+                                "customer_name",
+                                "customer_address",
+                                "mail_text",
+                                "message_text",
+                                "attachment_images",
+                                "attachment_text",
+                                "search_words",
+                                "template_text",
+                                "event_facts",
+                                "raw_mail"
+                              ]
+                            }
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "off",
+                              "not_set_up",
+                              "unused"
+                            ]
+                          },
+                          "issues": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "not_ready",
+                                "approval_pending",
+                                "paused",
+                                "no_outbound",
+                                "acknowledgements_without_outbound"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "group",
+                          "id",
+                          "name",
+                          "kind",
+                          "task",
+                          "host",
+                          "detail",
+                          "receives",
+                          "state",
+                          "issues"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "pending": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "target"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "withIssues": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "projectId",
+                    "name",
+                    "entries",
+                    "pending",
+                    "withIssues"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/projects/{projectId}/processing/export": {
+      "get": {
+        "operationId": "processing.export",
+        "tags": [
+          "Privacy"
+        ],
+        "summary": "The same list as a CSV file for the records of processing; the export is an entry of the audit",
+        "x-required-access": "config.read",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/tickets/{ticketId}/status": {
       "post": {
         "operationId": "tickets.status",

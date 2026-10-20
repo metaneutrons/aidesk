@@ -1917,6 +1917,37 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Processing of ticket content
+
+For the records of processing and for a customer who asks where their data goes, each project has an overview of the
+connections, models and webhooks that receive content of its tickets (`src/server/processing.ts`). It is read from the
+configuration and changes nothing. It is in the settings ("Processing of ticket content for ...") and over REST
+(`GET /api/v1/processing` for every project whose configuration the caller may read, archived ones left out;
+`GET /api/v1/projects/{id}/processing`; MCP tools `processing_list` and `processing_get`), all with `config.read`.
+
+An entry has a group, the kind, the host that is reached, a detail (the model, the account, the repositories or the events),
+the content classes that it receives, a state and the issues:
+
+- **Outgoing mail**: the connection that the project sends through (`outboundConnectionId`) gets the messages of replies
+  and acknowledgements with the subject, the name and the address of the customer. The other outgoing connections are
+  listed as not used. A project without one says so; with acknowledgements on, the issue is
+  `acknowledgements_without_outbound`.
+- **Incoming mail**: an IMAP connection reads mail; a Cloudflare connection stores the raw mail in its bucket.
+- **Models by task**: one entry for each of the eight tasks. A task without a profile is `not_set_up` and receives nothing;
+  a profile that is off is `off`; a profile that is on and whose connection is not ready has the issue `not_ready`. The host is
+  the address of the connection or the standard address of the provider. What a task receives is fixed by task in
+  `taskContent` (a reply draft gets the conversation without the notes, a note draft also the notes, the junk check the
+  sender, the subject and the start of the mail).
+- **Sources of knowledge**: they receive search words; a source of customer data also the address of the requester.
+- **Webhooks**: they receive ticket numbers and status facts, never the content of a message, and the subject of a new
+  ticket when they listen to `ticket.created`.
+
+Where a provider keeps the data (the region of an account, for instance) is not known to the product; the overview names
+the host and leaves the rest to the contract with the provider. A change of an entry that waits for approval gives the
+issue `approval_pending`. The list can be taken out as a CSV file for the records of processing
+(`.../processing/export`; a cell that a spreadsheet would read as a formula is written as text); the export is an audit
+entry (`processing.export`).
+
 ## Canned replies
 
 A project keeps canned replies (table `canned_reply`, migration 0041): a name, a language (`en` or `de`) and a body in

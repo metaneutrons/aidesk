@@ -81,6 +81,8 @@ const notCalled: Record<string, string> = {
   "tickets.restore": "needs a ticket in the junk folder",
   "audit.export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
+  "processing.export":
+    "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the processing spec",
   "audit.workspace_export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "workspace.limits_set":
@@ -417,6 +419,9 @@ test("answers every documented route in the published shape, with real data", as
   });
   await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
   await call("routing.delete", { params: { projectId: project, ruleId } });
+  // Where the content of the tickets goes: for all projects and for this one.
+  await call("processing.list");
+  await call("processing.get", { params: { projectId: project } });
   // The tags of the project: renamed, merged, coloured and removed again.
   await call("tickets.tags", {
     params: { ticketId: ticket },

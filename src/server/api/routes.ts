@@ -209,6 +209,8 @@ import {
   tagRemoval,
   tagRename,
 } from "../../domain/tags";
+import { exportProcessing, getProcessing, listProcessing } from "../processing";
+import { processingOverview } from "../../domain/processing";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -1626,6 +1628,43 @@ export const routes: Route[] = [
     body: tagRemoval,
     response: tagChangeOut,
     run: ({ principal, params, input }) => removeTag(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "processing.list",
+    mcp: { tool: "processing_list" },
+    method: "GET",
+    path: "/processing",
+    tag: "Privacy",
+    summary:
+      "For every project whose configuration the caller may read: where the content of its tickets goes (mail connection, models by task, sources of knowledge, webhooks), what each receives and what is missing",
+    access: "config.read",
+    response: z.array(processingOverview),
+    run: ({ principal }) => listProcessing(principal),
+  },
+  {
+    id: "processing.get",
+    mcp: { tool: "processing_get" },
+    method: "GET",
+    path: "/projects/{projectId}/processing",
+    tag: "Privacy",
+    summary:
+      "Where the content of the tickets of a project goes: the entries with host, content classes, state and issues",
+    access: "config.read",
+    response: processingOverview,
+    run: ({ principal, params }) => getProcessing(principal, params.projectId ?? ""),
+  },
+  {
+    id: "processing.export",
+    mcp: { not: "A file is not a tool result; processing_get reads the entries as data" },
+    method: "GET",
+    path: "/projects/{projectId}/processing/export",
+    tag: "Privacy",
+    summary:
+      "The same list as a CSV file for the records of processing; the export is an entry of the audit",
+    access: "config.read",
+    binary: true,
+    run: async ({ principal, params }) =>
+      csv(await exportProcessing(principal, params.projectId ?? "")),
   },
   {
     id: "tickets.status",
