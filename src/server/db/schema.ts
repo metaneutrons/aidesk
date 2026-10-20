@@ -336,6 +336,9 @@ export const tickets = pgTable(
     remindAt: timestamp("remind_at", { withTimezone: true }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    // The priority, one of low, normal, high and urgent (see `triage.ts`), and the category from the list of the project.
+    priority: text("priority").notNull().default("normal"),
+    category: text("category"),
     createdAt: created(),
     updatedAt: updated(),
   },

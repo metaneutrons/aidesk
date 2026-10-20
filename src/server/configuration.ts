@@ -12,7 +12,8 @@ import {
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
 import { businessSettingsOf, businessValuesOf } from "../domain/business-hours";
-import { limitsOf } from "../domain/response-clock";
+import { limitsOf, priorityLimitKey } from "../domain/response-clock";
+import { categoriesOf, parseCategories } from "../domain/triage";
 import { junkSensitivityOf } from "../domain/junk";
 import { autoResolveOf, replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
@@ -25,6 +26,35 @@ import { DomainError } from "./errors";
 const id = z.uuid();
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
 type Row = typeof projects.$inferSelect;
+// The limits that a priority sets for itself, each as stored when it is a valid number of hours, null otherwise.
+// A pair that would put the warning after the overdue limit is read as no limits of its own.
+const priorityOverrides = (
+  settings: Record<string, unknown>,
+  base: { warnHours: number; overdueHours: number },
+) => {
+  const hours = (key: string) => {
+    const value = settings[key];
+    return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 720
+      ? value
+      : null;
+  };
+  const pair = (priority: "low" | "high" | "urgent") => {
+    const warn = hours(priorityLimitKey("warn", priority));
+    const overdue = hours(priorityLimitKey("overdue", priority));
+    return (warn ?? base.warnHours) <= (overdue ?? base.overdueHours)
+      ? { warn, overdue }
+      : { warn: null, overdue: null };
+  };
+  const [low, high, urgent] = [pair("low"), pair("high"), pair("urgent")];
+  return {
+    warnHoursLow: low.warn,
+    overdueHoursLow: low.overdue,
+    warnHoursHigh: high.warn,
+    overdueHoursHigh: high.overdue,
+    warnHoursUrgent: urgent.warn,
+    overdueHoursUrgent: urgent.overdue,
+  };
+};
 export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "settings">) {
   const settings = row.settings;
   const { warnHours, overdueHours } = limitsOf(settings);
@@ -51,6 +81,8 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     autoResolveReminderDays: auto.reminderDays,
     junkSensitivity: junkSensitivityOf(settings.junkSensitivity),
     ...businessSettingsOf(settings),
+    ...priorityOverrides(settings, { warnHours, overdueHours }),
+    categories: categoriesOf(settings).join("\n"),
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -111,6 +143,13 @@ function sqlMerge(config: ConfigDocument) {
     autoResolveReminderDays: config.autoResolveReminderDays,
     junkSensitivity: config.junkSensitivity,
     ...businessValuesOf(config),
+    warnHoursLow: config.warnHoursLow,
+    overdueHoursLow: config.overdueHoursLow,
+    warnHoursHigh: config.warnHoursHigh,
+    overdueHoursHigh: config.overdueHoursHigh,
+    warnHoursUrgent: config.warnHoursUrgent,
+    overdueHoursUrgent: config.overdueHoursUrgent,
+    categories: (parseCategories(config.categories) ?? []).join("\n"),
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }

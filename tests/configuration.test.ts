@@ -100,6 +100,13 @@ describe("reading the configuration", () => {
         businessEnd: "17:00",
         businessTimeZone: null,
         holidays: "",
+        warnHoursLow: null,
+        overdueHoursLow: null,
+        warnHoursHigh: null,
+        overdueHoursHigh: null,
+        warnHoursUrgent: null,
+        overdueHoursUrgent: null,
+        categories: "",
       },
     });
   });

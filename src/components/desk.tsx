@@ -43,6 +43,8 @@ import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
+import { priorityKey, Triage } from "./triage";
+import { priorities, priorityOf, type Priority } from "../domain/triage";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -56,6 +58,8 @@ const ticketSchema = z.object({
   pendingSince: z.string().nullable(),
   remindAt: z.string().nullable(),
   tags: z.array(z.string()),
+  priority: z.string(),
+  category: z.string().nullable(),
   junkAt: z.string().nullable(),
   assigneeUserId: z.string().nullable(),
   assigneeAgentId: z.string().nullable(),
@@ -212,6 +216,9 @@ interface Project {
   overdueHours: number;
   // The business hours of the response clock, in the form of the configuration.
   clock: Record<string, unknown>;
+  // The limits of the clock for each priority, and the categories that a ticket of the project can have.
+  limits: Record<string, { warnHours: number; overdueHours: number }>;
+  categories: string[];
 }
 interface Overview {
   projects: {
@@ -266,6 +273,8 @@ export function Desk({
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   // The server's answer for a text of two or more characters; it covers all
   // tickets of the authorized projects, not only the loaded list.
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -437,6 +446,8 @@ export function Desk({
     (ticket) =>
       (!filters.length || filters.includes(ticket.projectId)) &&
       (tagFilter === null || ticket.tags.includes(tagFilter)) &&
+      (priorityFilter === "" || priorityOf(ticket.priority) === priorityFilter) &&
+      (categoryFilter === "" || ticket.category === categoryFilter) &&
       (searching ||
         `${ticket.subject} ${ticket.requesterName} ${ticket.requesterEmail}`
           .toLowerCase()
@@ -448,7 +459,8 @@ export function Desk({
       { receivedAt: new Date(ticket.pendingSince), answeredAt: null },
       new Date(now),
       undefined,
-      projectById.get(ticket.projectId)?.overdueHours,
+      projectById.get(ticket.projectId)?.limits[priorityOf(ticket.priority)]?.overdueHours ??
+        projectById.get(ticket.projectId)?.overdueHours,
       calendarOf(projectById.get(ticket.projectId)?.clock ?? {}),
     ) === "overdue";
   // The list is refreshed after a change, so it is the newer source; a cleared
@@ -456,6 +468,14 @@ export function Desk({
   const reminderOf = (ticket: { id: string; remindAt: string | null }) => {
     const entry = initialTickets.find((candidate) => candidate.id === ticket.id);
     return entry ? entry.remindAt : ticket.remindAt;
+  };
+  // The list is refreshed after a change, so it is the newer source for the priority and the category too.
+  const triageOf = (ticket: { id: string; priority: string; category: string | null }) => {
+    const fresh = initialTickets.find((candidate) => candidate.id === ticket.id);
+    return {
+      priority: fresh?.priority ?? ticket.priority,
+      category: fresh ? fresh.category : ticket.category,
+    };
   };
   const tagsOf = (ticket: { id: string; tags: string[] }) =>
     initialTickets.find((candidate) => candidate.id === ticket.id)?.tags ?? ticket.tags;
@@ -469,6 +489,17 @@ export function Desk({
         new Map<string, number>(),
       ),
   ].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  // The categories of the chosen projects and the ones that their loaded tickets have, for the filter.
+  const categoryChoices = [
+    ...new Set([
+      ...projects
+        .filter((project) => !filters.length || filters.includes(project.id))
+        .flatMap((project) => project.categories),
+      ...initialTickets
+        .filter((ticket) => !filters.length || filters.includes(ticket.projectId))
+        .flatMap((ticket) => (ticket.category === null ? [] : [ticket.category])),
+    ]),
+  ].sort((a, b) => a.localeCompare(b));
   // Numbers over every ticket of the chosen projects, counted by the server,
   // and the oldest unanswered ones of those projects.
   const chosen = overview.projects.filter(
@@ -1010,6 +1041,44 @@ export function Desk({
                     ))}
                   </div>
                 )}
+                <div className="triage-filter" role="group" aria-label={t("triageFilter")}>
+                  <label>
+                    {t("priorityLabel")}
+                    <select
+                      value={priorityFilter}
+                      onChange={(event) => {
+                        setPriorityFilter(
+                          event.target.value === "" ? "" : priorityOf(event.target.value),
+                        );
+                      }}
+                    >
+                      <option value="">{t("filterAll")}</option>
+                      {priorities.map((entry) => (
+                        <option key={entry} value={entry}>
+                          {t(priorityKey(entry))}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {categoryChoices.length > 0 && (
+                    <label>
+                      {t("categoryLabel")}
+                      <select
+                        value={categoryFilter}
+                        onChange={(event) => {
+                          setCategoryFilter(event.target.value);
+                        }}
+                      >
+                        <option value="">{t("filterAll")}</option>
+                        {categoryChoices.map((entry) => (
+                          <option key={entry} value={entry}>
+                            {entry}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
                 {searching && hits !== null ? (
                   <>
                     <div className="list-heading" role="status">
@@ -1071,6 +1140,18 @@ export function Desk({
                                 timeStyle: "short",
                               }).format(new Date(ticket.remindAt)),
                             })}
+                          </span>
+                        )}
+                        {(priorityOf(ticket.priority) !== "normal" || ticket.category !== null) && (
+                          <span className="ticket-row-triage">
+                            {priorityOf(ticket.priority) !== "normal" && (
+                              <span className={`priority-badge ${priorityOf(ticket.priority)}`}>
+                                {t(priorityKey(priorityOf(ticket.priority)))}
+                              </span>
+                            )}
+                            {ticket.category !== null && (
+                              <span className="tag-chip">{ticket.category}</span>
+                            )}
                           </span>
                         )}
                         {ticket.tags.length > 0 && (
@@ -1188,6 +1269,23 @@ export function Desk({
                               key={`${conversation.ticket.id}:portal`}
                               ticketId={conversation.ticket.id}
                               locale={initialLocale}
+                            />
+                          )}
+                        {conversation.actions.includes("ticket.assign") &&
+                          !conversation.ticket.junkAt && (
+                            <Triage
+                              key={`${conversation.ticket.id}:triage:${triageOf(conversation.ticket).priority}:${triageOf(conversation.ticket).category ?? ""}`}
+                              ticketId={conversation.ticket.id}
+                              priority={triageOf(conversation.ticket).priority}
+                              category={triageOf(conversation.ticket).category}
+                              categories={
+                                projectById.get(conversation.ticket.projectId)?.categories ?? []
+                              }
+                              onChanged={() => {
+                                transition(() => {
+                                  router.refresh();
+                                });
+                              }}
                             />
                           )}
                         {conversation.actions.includes("ticket.note") &&

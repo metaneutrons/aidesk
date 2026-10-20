@@ -9,7 +9,14 @@ import { aiWorkOf } from "./ai-work";
 import type { Tx } from "./changes";
 import { clampLimit, listStep } from "../domain/paging";
 import { businessSettingsOf, calendarOf, clockMillis } from "../domain/business-hours";
-import { defaultOverdueHours, defaultWarnHours, limitsOf } from "../domain/response-clock";
+import {
+  defaultOverdueHours,
+  defaultWarnHours,
+  limitsOf,
+  priorityLimitsOf,
+} from "../domain/response-clock";
+import { categoriesOf, priorities, priorityOf } from "../domain/triage";
+import { overdueLimit } from "./response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import { db } from "./db";
@@ -90,7 +97,12 @@ export async function listProjects(principal: Principal, archived: ArchivedFilte
     )
     .orderBy(projects.name)
     .then((rows) =>
-      rows.map(({ settings, ...row }) => ({ ...row, clock: businessSettingsOf(settings) })),
+      rows.map(({ settings, ...row }) => ({
+        ...row,
+        clock: businessSettingsOf(settings),
+        limits: priorityLimitsOf(settings),
+        categories: categoriesOf(settings),
+      })),
     );
 }
 // Project behaviour that people with project.manage may change. Only the
@@ -134,6 +146,8 @@ export async function listTickets(
   principal: Principal,
   requested: string[] = [],
   limit: number = listStep,
+  // Only the tickets of a priority or a category; the category is matched in any case.
+  only: { priority?: string | undefined; category?: string | undefined } = {},
 ) {
   const filtered = await activeProjectIds(
     principal,
@@ -144,7 +158,18 @@ export async function listTickets(
   return db()
     .select()
     .from(tickets)
-    .where(and(inArray(tickets.projectId, filtered), isNull(tickets.junkAt)))
+    .where(
+      and(
+        inArray(tickets.projectId, filtered),
+        isNull(tickets.junkAt),
+        only.priority === undefined
+          ? undefined
+          : eq(tickets.priority, z.enum(priorities).parse(only.priority)),
+        only.category === undefined
+          ? undefined
+          : sql`lower(${tickets.category}) = lower(${only.category})`,
+      ),
+    )
     .orderBy(sql`${tickets.pendingSince} asc nulls last`, desc(tickets.updatedAt))
     .limit(clampLimit(limit));
 }
@@ -175,7 +200,7 @@ export async function getOverview(
         total: sql<number>`count(*)::int`,
         // The limit is the project's own, 24 hours unless it set another.
         overdue: counted(
-          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
+          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => ${overdueLimit})`,
         ),
         unassigned: counted(
           sql`${tickets.status} = 'open' and ${tickets.assigneeUserId} is null and ${tickets.assigneeAgentId} is null`,
@@ -213,16 +238,16 @@ export async function getOverview(
   for (const { id: projectId, settings } of clocks) {
     const calendar = calendarOf(settings);
     if (!calendar) continue;
-    const limit = limitsOf(settings).overdueHours;
     // Business time is never longer than calendar time, so what is not overdue by the calendar is not at all.
     const waiting = await db()
-      .select({ pendingSince: tickets.pendingSince })
+      .select({ pendingSince: tickets.pendingSince, priority: tickets.priority })
       .from(tickets)
+      .innerJoin(projects, eq(projects.id, tickets.projectId))
       .where(
         and(
           eq(tickets.projectId, projectId),
           isNull(tickets.junkAt),
-          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => ${limit})`,
+          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => ${overdueLimit})`,
         ),
       );
     counted_.set(
@@ -230,7 +255,8 @@ export async function getOverview(
       waiting.filter(
         (ticket) =>
           ticket.pendingSince !== null &&
-          clockMillis(ticket.pendingSince, now, calendar) >= limit * 3_600_000,
+          clockMillis(ticket.pendingSince, now, calendar) >=
+            limitsOf(settings, priorityOf(ticket.priority)).overdueHours * 3_600_000,
       ).length,
     );
   }

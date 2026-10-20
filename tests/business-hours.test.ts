@@ -242,8 +242,10 @@ const viewer: Principal = {
     { projectId: plainId, actions: ["project.read", "ticket.read"] },
   ],
 };
-const friday = new Date("2026-10-23T14:00:00Z");
-const monday = (h: number) => new Date(Date.parse("2026-10-26T09:00:00Z") + h * hour);
+// The scans of these tests look at their own projects only, in a year that no other test uses.
+const mine = [projectId, plainId];
+const friday = new Date("2040-10-26T14:00:00Z");
+const monday = (h: number) => new Date(Date.parse("2040-10-29T09:00:00Z") + h * hour);
 async function ticket(project: string, pendingSince: Date) {
   const [row] = await db()
     .insert(tickets)
@@ -314,18 +316,18 @@ describe("the events of the clock in a project with business hours", () => {
     await clear();
     const waiting = await ticket(projectId, friday);
     // Saturday night, three days before Monday ends: one business hour has passed.
-    expect(await scanResponseClock(new Date("2026-10-25T20:00:00Z"))).toEqual({
+    expect(await scanResponseClock(new Date("2040-10-28T20:00:00Z"), 100, mine)).toEqual({
       warned: 0,
       overdue: 0,
     });
-    expect(await scanResponseClock(new Date(monday(0).getTime() - 1))).toEqual({
+    expect(await scanResponseClock(new Date(monday(0).getTime() - 1), 100, mine)).toEqual({
       warned: 0,
       overdue: 0,
     });
-    expect(await scanResponseClock(monday(0))).toEqual({ warned: 1, overdue: 0 });
-    expect(await scanResponseClock(monday(0.5))).toEqual({ warned: 0, overdue: 0 });
-    expect(await scanResponseClock(monday(1))).toEqual({ warned: 0, overdue: 1 });
-    expect(await scanResponseClock(monday(2))).toEqual({ warned: 0, overdue: 0 });
+    expect(await scanResponseClock(monday(0), 100, mine)).toEqual({ warned: 1, overdue: 0 });
+    expect(await scanResponseClock(monday(0.5), 100, mine)).toEqual({ warned: 0, overdue: 0 });
+    expect(await scanResponseClock(monday(1), 100, mine)).toEqual({ warned: 0, overdue: 1 });
+    expect(await scanResponseClock(monday(2), 100, mine)).toEqual({ warned: 0, overdue: 0 });
     expect(await count("ticket.warning", waiting)).toBe(1);
     expect(await count("ticket.overdue", waiting)).toBe(1);
   });
@@ -334,9 +336,9 @@ describe("the events of the clock in a project with business hours", () => {
     // Fifty tickets of the project with business hours came in on Saturday morning. On Monday at 10:00 they have
     // waited no business time, and they are older than the ticket of the other project, which is due.
     for (let index = 0; index < 50; index += 1)
-      await ticket(projectId, new Date("2026-10-24T08:00:00Z"));
-    await ticket(plainId, new Date("2026-10-24T10:00:00Z"));
-    expect(await scanResponseClock(monday(0), 1)).toEqual({ warned: 1, overdue: 1 });
+      await ticket(projectId, new Date("2040-10-27T08:00:00Z"));
+    await ticket(plainId, new Date("2040-10-27T10:00:00Z"));
+    expect(await scanResponseClock(monday(0), 1, mine)).toEqual({ warned: 1, overdue: 1 });
   });
   it("still counts every hour in a project without business hours", async () => {
     await clear();
@@ -351,7 +353,7 @@ describe("the events of the clock in a project with business hours", () => {
         secretCiphertext: "not-a-secret",
       });
     try {
-      expect(await scanResponseClock(monday(0))).toEqual({ warned: 1, overdue: 1 });
+      expect(await scanResponseClock(monday(0), 100, mine)).toEqual({ warned: 1, overdue: 1 });
       const sent = await db()
         .select()
         .from(jobs)

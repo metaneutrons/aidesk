@@ -2007,6 +2007,44 @@ button.danger {
     flex-basis: 100%;
 }
 
+.triage,
+.triage-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
+}
+
+.triage-filter label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.ticket-row-triage {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.priority-badge {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid var(--line);
+}
+
+.priority-badge.high {
+    border-color: var(--warn, #b45309);
+    color: var(--warn, #b45309);
+}
+
+.priority-badge.urgent {
+    background: var(--danger, #b91c1c);
+    border-color: var(--danger, #b91c1c);
+    color: #fff;
+}
+
 .sender-rules form {
     display: flex;
     flex-wrap: wrap;

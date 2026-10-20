@@ -2979,6 +2979,31 @@
               "minimum": 1,
               "maximum": 2000
             }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "description": "Only tickets of this priority",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Only tickets of this category",
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            }
           }
         ],
         "responses": {
@@ -6574,6 +6599,82 @@
                             "strict"
                           ]
                         },
+                        "warnHoursLow": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 720
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "overdueHoursLow": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 720
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "warnHoursHigh": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 720
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "overdueHoursHigh": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 720
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "warnHoursUrgent": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 720
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "overdueHoursUrgent": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 720
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "categories": {
+                          "type": "string",
+                          "maxLength": 2050
+                        },
                         "businessDays": {
                           "anyOf": [
                             {
@@ -6625,6 +6726,13 @@
                         "autoResolveDays",
                         "autoResolveReminderDays",
                         "junkSensitivity",
+                        "warnHoursLow",
+                        "overdueHoursLow",
+                        "warnHoursHigh",
+                        "overdueHoursHigh",
+                        "warnHoursUrgent",
+                        "overdueHoursUrgent",
+                        "categories",
                         "businessDays",
                         "businessStart",
                         "businessEnd",
@@ -6801,6 +6909,82 @@
                           "strict"
                         ]
                       },
+                      "warnHoursLow": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 720
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "overdueHoursLow": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 720
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "warnHoursHigh": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 720
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "overdueHoursHigh": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 720
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "warnHoursUrgent": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 720
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "overdueHoursUrgent": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 720
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "categories": {
+                        "type": "string",
+                        "maxLength": 2050
+                      },
                       "businessDays": {
                         "anyOf": [
                           {
@@ -6852,6 +7036,13 @@
                       "autoResolveDays",
                       "autoResolveReminderDays",
                       "junkSensitivity",
+                      "warnHoursLow",
+                      "overdueHoursLow",
+                      "warnHoursHigh",
+                      "overdueHoursHigh",
+                      "warnHoursUrgent",
+                      "overdueHoursUrgent",
+                      "categories",
                       "businessDays",
                       "businessStart",
                       "businessEnd",
@@ -10196,6 +10387,118 @@
                   "required": [
                     "assigneeUserId",
                     "assigneeAgentId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/tickets/{ticketId}/triage": {
+      "post": {
+        "operationId": "tickets.triage",
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Set the priority (low, normal, high, urgent) or the category (from the list of the project, null takes it off) of a ticket",
+        "x-required-access": "ticket.assign",
+        "x-mcp-tool": "tickets_set_triage",
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "normal",
+                      "high",
+                      "urgent"
+                    ]
+                  },
+                  "category": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "priority": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "normal",
+                        "high",
+                        "urgent"
+                      ]
+                    },
+                    "category": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "priority",
+                    "category",
+                    "changed"
                   ],
                   "additionalProperties": false
                 }
@@ -15671,6 +15974,7 @@
                         "ticket.status_changed",
                         "draft.created",
                         "ticket.assigned",
+                        "ticket.triaged",
                         "ticket.warning",
                         "ticket.overdue",
                         "change.proposed",
@@ -16022,6 +16326,7 @@
                         "ticket.status_changed",
                         "draft.created",
                         "ticket.assigned",
+                        "ticket.triaged",
                         "ticket.warning",
                         "ticket.overdue",
                         "change.proposed",
@@ -17396,6 +17701,46 @@
             ],
             "additionalProperties": false
           },
+          "limits": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "warnHours": {
+                  "type": "number"
+                },
+                "overdueHours": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "warnHours",
+                "overdueHours"
+              ],
+              "additionalProperties": false
+            },
+            "required": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "archivedAt": {
             "anyOf": [
               {
@@ -17420,6 +17765,8 @@
           "warnHours",
           "overdueHours",
           "clock",
+          "limits",
+          "categories",
           "archivedAt"
         ],
         "additionalProperties": false
@@ -17594,6 +17941,15 @@
               "type": "string"
             }
           },
+          "priority": {
+            "type": "string"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -17629,6 +17985,8 @@
           "remindAt",
           "resolvedAt",
           "tags",
+          "priority",
+          "category",
           "createdAt",
           "updatedAt"
         ],

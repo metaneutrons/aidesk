@@ -274,6 +274,13 @@
       "when": 1792473550692,
       "tag": "0038_sender_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792475619591,
+      "tag": "0039_ticket_priority_category",
+      "breakpoints": true
     }
   ]
 }
