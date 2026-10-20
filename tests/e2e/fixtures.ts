@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type Locator, type Page } from "@playwright/test";
 import { z } from "zod";
 import { createIdpUser, deleteIdpUser } from "./keycloak";
 import { totp } from "./totp";
@@ -70,6 +70,17 @@ export async function openPasswordSignIn(page: Page): Promise<void> {
   const toggle = page.getByRole("button", { name: "Owner sign-in with password" });
   await expect(toggle.or(page.getByLabel("Password"))).toBeVisible();
   if (await toggle.isVisible()) await toggle.click();
+}
+// Opens a collapsed section of the settings. The sections are filled in while the page is still loading, and in CI a
+// click on the heading that lands in between was lost now and then (no request for the content was ever sent), so
+// the section is checked and clicked again until it stays open.
+export async function openSection(section: Locator, heading: string | RegExp): Promise<void> {
+  const details = section.locator("details").first();
+  await expect(async () => {
+    if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open)))
+      await section.getByRole("heading", { name: heading }).click({ timeout: 5_000 });
+    await expect(details).toHaveJSProperty("open", true, { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 export const mailpit = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
 export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>({

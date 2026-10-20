@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
 import { request } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openSection, test } from "./fixtures";
 // The audit in the settings: opened on demand, filtered by action and actor, the detail of an entry, the
 // export with the filters that are applied, and the audit of the workspace for the owner.
 test.describe.configure({ mode: "serial" });
@@ -29,7 +29,7 @@ test("filters the audit of a project, shows the detail of an entry and exports w
   const section = page
     .locator("section.audit-log")
     .filter({ has: page.getByRole("heading", { name: `Audit of ${alpha.name}` }) });
-  await section.getByText(`Audit of ${alpha.name}`).click();
+  await openSection(section, `Audit of ${alpha.name}`);
   // Newest first: the removal of the tags, then the entry that set them.
   const rows = section.getByRole("row").filter({ hasText: "ticket.tags" });
   const row = rows.nth(1);
