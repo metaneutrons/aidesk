@@ -244,6 +244,24 @@ export const senderRules = pgTable(
   },
   (t) => [uniqueIndex("sender_rule_value_idx").on(t.projectId, t.value)],
 );
+// The canned replies of a project (see `domain/canned.ts`); `version` counts the changes, for the proposals of agents.
+export const cannedReplies = pgTable(
+  "canned_reply",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    language: text("language").notNull(),
+    body: text("body").notNull(),
+    version: integer("version").notNull().default(1),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("canned_reply_name_idx").on(t.projectId, t.language, t.name)],
+);
 // The rules that route a new ticket of a project to an assignee and give it a priority and a category (see
 // `domain/routing.ts`). The first enabled rule in order that matches wins; `cursor` counts the tickets that a rule gave
 // to the members of a group, for the round robin.

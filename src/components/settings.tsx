@@ -14,6 +14,7 @@ import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
+import { CannedReplies } from "./canned-replies";
 import { RoutingRules } from "./routing-rules";
 import { SenderRules } from "./sender-rules";
 import { Invite } from "./invite";
@@ -624,6 +625,16 @@ export function Settings({
             key={grant.projectId}
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("config.read"))
+        .map((grant) => (
+          <CannedReplies
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            canWrite={grant.actions.includes("config.write")}
           />
         ))}
       {managed

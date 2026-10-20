@@ -1354,7 +1354,8 @@ repository that is not on the connection is dropped. The text is written by othe
 has a portal record of that address that is verified and not revoked (the record is made when the
 portal link for the address is issued; it is not proof that the customer owns the mailbox).
 
-The runner has the tool `search_knowledge` (at most three searches a run, with `ticket.read`), and
+The runner has the tool `search_knowledge` (at most three searches a run, with `ticket.read`) and `list_canned_replies`
+(see "Canned replies"), and
 the draft button can use the sources (`knowledge: true`): the passages go to the model as data with
 their source, and the draft is told to name the source of a fact that it takes from one. A source
 that fails leaves the draft without it. The desk shows the search under the ticket.
@@ -1915,6 +1916,33 @@ are loaded than exist, the list says so and offers to load more. Views such as
 Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
+
+## Canned replies
+
+A project keeps canned replies (table `canned_reply`, migration 0041): a name, a language (`en` or `de`) and a body in
+Markdown of up to 4,000 characters, at most 100 per project, the name unique per language in any case. A body can hold
+the placeholders `{{customer_name}}`, `{{ticket_number}}` and `{{operator_name}}` (spaces inside the braces are
+allowed); any other placeholder and unclosed braces are refused when the reply is saved.
+
+Changes follow the path of the other project settings (`submitChange`): a person with `config.write` adds, changes and
+removes a reply at once (`POST/PUT /api/v1/projects/{id}/canned-replies[/{replyId}]`, `.../delete`, with `validate=true`
+for a check and an `idempotencyKey`); an agent under the review policy makes a proposal (202) that a person with
+`config.approve` decides. A change and a removal name the version that was read (`stale_version` otherwise); a proposal
+on a version that has changed since never applies, and a proposal to add a name that was taken meanwhile does not apply
+either. Every applied change is an audit entry (`canned.create`, `canned.update`, `canned.delete`). The list needs
+`config.read` or `ticket.reply`; the project export contains the replies under `cannedReplies`.
+
+Used for a ticket, the replies come with the placeholders filled in (`GET /api/v1/tickets/{id}/canned-replies`, MCP tool
+`tickets_canned_replies`, `ticket.reply`): the customer name and the number of the ticket, and the name of the person or
+the agent who asks. The replies in the language of the ticket come first. Three places use them:
+
+- The composer has a select "Insert a canned reply" for a public reply; the text goes below what is typed and the
+  insertion can be undone like a draft.
+- The draft button gives the model up to twenty replies of the project, filled in, as data between the markers (never
+  as instructions) for a draft of a reply, and tells it to base the draft on one that fits and to keep to its facts. The
+  audit entry of the draft counts them (`cannedReplies`).
+- A managed agent has the tool `list_canned_replies` (with `ticket.reply`); an agent without that right is refused like
+  for any other tool.
 
 ## Routing of new tickets
 

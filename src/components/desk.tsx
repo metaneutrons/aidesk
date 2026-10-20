@@ -43,6 +43,7 @@ import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
+import { CannedPicker } from "./canned-picker";
 import { priorityKey, Triage } from "./triage";
 import { priorities, priorityOf, type Priority } from "../domain/triage";
 const ticketSchema = z.object({
@@ -1552,6 +1553,18 @@ export function Desk({
                           readOnly={assisting || translating}
                         />
                         <div className="assist-row">
+                          {!internal && conversation.actions.includes("ticket.reply") && (
+                            <CannedPicker
+                              key={conversation.ticket.id}
+                              ticketId={conversation.ticket.id}
+                              disabled={assisting || translating || sending}
+                              onPick={(text) => {
+                                setUndo(draft);
+                                editDraft(draft.trim() ? `${draft.trimEnd()}\n\n${text}` : text);
+                                setAssistNote(null);
+                              }}
+                            />
+                          )}
                           <input
                             type="text"
                             aria-label={t("assistInstruction")}

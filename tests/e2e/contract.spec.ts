@@ -417,6 +417,31 @@ test("answers every documented route in the published shape, with real data", as
   });
   await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
   await call("routing.delete", { params: { projectId: project, ruleId } });
+  // The canned replies: made, listed, changed, rendered for a ticket and removed.
+  const canned = await call("canned.create", {
+    params: { projectId: project },
+    data: { name: `Contract ${desk.run}`, language: "en", body: "Hello {{customer_name}}" },
+  });
+  const cannedId = String(canned.target);
+  const cannedList = (await call("canned.list", { params: { projectId: project } })) as unknown as {
+    id: string;
+    version: number;
+  }[];
+  const version = cannedList.find((entry) => entry.id === cannedId)?.version ?? 1;
+  await call("canned.update", {
+    params: { projectId: project, replyId: cannedId },
+    data: {
+      name: `Contract ${desk.run}`,
+      language: "en",
+      body: "Hello {{customer_name}}, ticket {{ticket_number}}",
+      expectedVersion: version,
+    },
+  });
+  await call("canned.for_ticket", { params: { ticketId: ticket } });
+  await call("canned.delete", {
+    params: { projectId: project, replyId: cannedId },
+    data: { expectedVersion: version + 1 },
+  });
   // Archived and restored at once, so that nothing after it meets a read-only project.
   // An export is made and listed; the file itself and the deletion are covered by their own tests.
   await call("projects.export_create", { params: { projectId: project } });
