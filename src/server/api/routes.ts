@@ -224,6 +224,8 @@ import {
   requesterConfirm,
   requesterQuery,
 } from "../../domain/erasure";
+import { exportRequester } from "../requester-export";
+import { requesterExportInput } from "../../domain/requester-export";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -277,6 +279,8 @@ export interface JsonRoute extends Base {
 }
 export interface BinaryRoute extends Base {
   binary: true;
+  // A file that is made for the request in the body, such as the export of a requester.
+  body?: z.ZodType;
   run: (context: RouteContext) => Promise<Response>;
 }
 export type Route = JsonRoute | BinaryRoute;
@@ -1730,6 +1734,31 @@ export const routes: Route[] = [
     body: requesterConfirm,
     response: erasureResult,
     run: ({ principal, params, input }) => eraseRequester(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "requester.export",
+    mcp: { not: "A file is not a tool result, and it holds the personal data of one person" },
+    method: "POST",
+    path: "/projects/{projectId}/requester-export",
+    tag: "Privacy",
+    summary:
+      "What the system holds about one requester of the project (tickets with their messages and notes, files, original mails, translations, portal records, mail that no ticket holds, entries of the audit about their tickets) as a .zip file for a request for information. The file is made for the request and kept nowhere; the export is an entry of the audit with the digest of the address",
+    access: "project.manage",
+    body: requesterExportInput,
+    binary: true,
+    run: async ({ principal, params, input }) => {
+      const file = await exportRequester(principal, params.projectId ?? "", input);
+      return new Response(new Uint8Array(file.content), {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Length": String(file.content.length),
+          "Content-Disposition": `attachment; filename="${file.filename}"`,
+          "X-Export-Digest": file.digest,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+        },
+      });
+    },
   },
   {
     id: "tickets.status",

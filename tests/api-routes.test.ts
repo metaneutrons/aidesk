@@ -131,7 +131,7 @@ describe("the published definition", () => {
         .filter((parameter) => parameter.in === "path")
         .map((parameter) => parameter.name);
       expect(declared).toEqual(names);
-      expect(Boolean(operation?.requestBody)).toBe(!route.binary && route.body !== undefined);
+      expect(Boolean(operation?.requestBody)).toBe(route.body !== undefined);
     }
   });
   it("equals the committed copy; run `pnpm api:docs` after changing the API", () => {

@@ -1917,6 +1917,24 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Export about a requester
+
+For a request for information, a person who manages a project (`project.manage`, the same people who may take out the
+export of a project) takes out what the system holds about one address (`POST /api/v1/projects/{id}/requester-export`
+with `{ "email": ... }`; in the settings "Export about a requester in ..."; not offered over MCP). The answer is the file
+itself, a zip (`src/server/requester-export.ts`): the rows as lines of JSON (`tickets`, `messages`, `participants`,
+`attachments`, `attachment-texts`, `translations`, `ticket-issues`, `issue-drafts`, `ingress`, `audit`), the files that the rows
+name under `objects/` (original mails and attached files) and `manifest.json` with the counts, the missing objects and
+the size and SHA-256 of every file. It holds the tickets of the address with all their messages, the internal notes of the
+team included because they are about the person, the portal records of the address on any ticket, the mail of the address
+that no ticket holds (junk, delivery reports) and the audit entries that name these tickets or their messages. Secrets and
+settings of the project are not in it.
+
+The file is made in memory with the ceiling of the project export (200 MiB; above it the answer is `413` and the data is taken
+with the backup) and kept nowhere, so that it cannot outlive an erasure. The export is an audit entry (`requester.export`)
+with the counts, the digest of the file and the SHA-256 of the address, never the address; the file name carries only a
+short part of that digest.
+
 ## Erasing a ticket or a requester
 
 A person with `data.erase` in a project erases one ticket, or everything about one requester, from the database and the

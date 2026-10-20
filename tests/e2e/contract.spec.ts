@@ -81,6 +81,8 @@ const notCalled: Record<string, string> = {
   "tickets.restore": "needs a ticket in the junk folder",
   "audit.export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
+  "requester.export":
+    "answers a zip file and not JSON, and the export is an entry of the audit; covered by the export tests and the requester export spec",
   "erasure.ticket": "erases a ticket for good; covered by the erasure tests and the erase spec",
   "erasure.requester":
     "erases a requester for good; covered by the erasure tests and the erase spec",

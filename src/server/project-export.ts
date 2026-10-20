@@ -51,9 +51,9 @@ function without<T extends PgTable>(table: T, ...omit: string[]) {
   const columns = Object.entries(getTableColumns(table)).filter(([name]) => !omit.includes(name));
   return Object.fromEntries(columns) as ReturnType<typeof getTableColumns<T>>;
 }
-const lines = (rows: unknown[]) =>
+export const lines = (rows: unknown[]) =>
   strToU8(rows.map((row) => JSON.stringify(row)).join("\n") + (rows.length ? "\n" : ""));
-const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
+export const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
 async function mayExport(principal: Principal, projectId: string): Promise<string> {
   if (principal.kind !== "human" || !principal.active) throw new DomainError("forbidden", 403);
   const project = id.parse(projectId);
