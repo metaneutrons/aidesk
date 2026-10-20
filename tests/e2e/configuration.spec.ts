@@ -29,6 +29,11 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await section.getByLabel("Name").fill(renamed);
     // The warning limit is its own field; it is saved with the name.
     await section.getByLabel("Warn after (hours)").fill("3");
+    // What a reply to a resolved ticket does is a field too; the window is only open for reopening.
+    await section.getByLabel("A reply to a resolved ticket").selectOption("refuse");
+    await expect(section.getByLabel("Window for reopening in days")).toBeDisabled();
+    await section.getByLabel("A reply to a resolved ticket").selectOption("reopen");
+    await section.getByLabel("Window for reopening in days").fill("14");
     await section.getByRole("button", { name: "Check" }).click();
     await expect(section.getByRole("list", { name: "Changes" })).toContainText(
       `name: ${String(original.name)} → ${renamed}`,
@@ -38,6 +43,7 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await expect(section.getByText("Saved.")).toBeVisible();
     expect((await read()).config.name).toBe(renamed);
     expect((await read()).config.warnHours).toBe(3);
+    expect((await read()).config).toMatchObject({ reopenMode: "reopen", reopenDays: 14 });
     const scan = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .exclude("[data-base-ui-focus-guard]")

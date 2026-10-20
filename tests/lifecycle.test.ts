@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setTimeout as delay } from "node:timers/promises";
 import { eq, inArray } from "drizzle-orm";
+import type { Principal } from "../src/domain/permissions";
+import { restoreJunkMail } from "../src/server/operations";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
-import { ingress, jobs, messages, projects, tickets } from "../src/server/db/schema";
+import { audit, ingress, jobs, messages, projects, tickets } from "../src/server/db/schema";
 import { acceptInbound, processIngress } from "../src/server/inbound";
 import { initializeStorage } from "../src/server/storage";
 const projectId = randomUUID();
@@ -73,6 +75,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   const ids = [projectId, otherProject];
+  await db().delete(audit).where(inArray(audit.projectId, ids));
   await db().delete(jobs).where(inArray(jobs.projectId, ids));
   await db().delete(ingress).where(inArray(ingress.projectId, ids));
   await db().delete(tickets).where(inArray(tickets.projectId, ids));
@@ -149,6 +152,111 @@ describe("reopen boundary", () => {
       mail({ inReplyTo: first.conversation[0]?.receivedMessageId ?? "" }),
     );
     expect(result.outcome).toBe("follow_up");
+  });
+});
+describe("the policy of the project for a reply to a resolved ticket", () => {
+  const setPolicy = (settings: Record<string, unknown>) =>
+    db().update(projects).set({ settings }).where(eq(projects.id, projectId));
+  const person: Principal = {
+    id: `policy-${projectId}`,
+    kind: "human",
+    active: true,
+    owner: false,
+    grants: [{ projectId, actions: ["project.read", "ticket.read", "ticket.junk"] }],
+  };
+  async function resolvedAgo(ms: number, at: Date) {
+    const first = await ingest(mail({}));
+    await db()
+      .update(tickets)
+      .set({ status: "resolved", resolvedAt: new Date(at.getTime() - ms), pendingSince: null })
+      .where(eq(tickets.id, first.ticket?.id ?? ""));
+    return first;
+  }
+  const replyTo = (first: Awaited<ReturnType<typeof resolvedAgo>>, at: Date) =>
+    ingest(mail({ inReplyTo: first.conversation[0]?.receivedMessageId ?? "" }), { at });
+  afterEach(() => setPolicy({}));
+  it("reopens within the days that the project sets and links a follow-up after them", async () => {
+    await setPolicy({ reopenMode: "reopen", reopenDays: 7 });
+    const at = new Date();
+    const edge = await resolvedAgo(7 * day, at);
+    expect((await replyTo(edge, at)).outcome).toBe("reopened");
+    const late = await resolvedAgo(7 * day + 1, at);
+    const followUp = await replyTo(late, at);
+    expect(followUp.outcome).toBe("follow_up");
+    expect(followUp.ticket?.id).not.toBe(late.ticket?.id);
+  });
+  it("reopens after a long window that the project sets, which the old constant would not", async () => {
+    await setPolicy({ reopenMode: "reopen", reopenDays: 365 });
+    const at = new Date();
+    const old = await resolvedAgo(200 * day, at);
+    expect((await replyTo(old, at)).outcome).toBe("reopened");
+  });
+  it("starts a linked new ticket and leaves the old one resolved when the mode is new_ticket", async () => {
+    await setPolicy({ reopenMode: "new_ticket", reopenDays: 30 });
+    const at = new Date();
+    const recent = await resolvedAgo(1 * day, at);
+    const result = await replyTo(recent, at);
+    expect(result.outcome).toBe("follow_up");
+    expect(result.ticket?.id).not.toBe(recent.ticket?.id);
+    expect(result.conversation[0]?.source).toMatchObject({ followUpOf: recent.ticket?.id });
+    const [old] = await db()
+      .select()
+      .from(tickets)
+      .where(eq(tickets.id, recent.ticket?.id ?? ""));
+    expect(old).toMatchObject({ status: "resolved" });
+  });
+  it("keeps a reply out as junk with a reason when the mode is refuse, and a person can restore it", async () => {
+    await setPolicy({ reopenMode: "refuse", reopenDays: 30 });
+    const at = new Date();
+    const recent = await resolvedAgo(1 * day, at);
+    const refused = await replyTo(recent, at);
+    expect(refused.outcome).toBe("junk");
+    expect(refused.ticket).toBeUndefined();
+    expect(refused.entry).toMatchObject({
+      state: "junk",
+      classification: { verdict: "junk", reason: "reply_to_resolved", source: "rules" },
+    });
+    const [old] = await db()
+      .select()
+      .from(tickets)
+      .where(eq(tickets.id, recent.ticket?.id ?? ""));
+    expect(old).toMatchObject({ status: "resolved" });
+    // Restored, it is taken like a reply that reopens within the window, and not refused a second time.
+    await restoreJunkMail(person, refused.ingressId);
+    await processIngress(refused.ingressId);
+    const [after] = await db().select().from(ingress).where(eq(ingress.id, refused.ingressId));
+    expect(after?.state).not.toBe("junk");
+    expect(
+      (
+        await db()
+          .select()
+          .from(tickets)
+          .where(eq(tickets.id, recent.ticket?.id ?? ""))
+      )[0],
+    ).toMatchObject({
+      status: "open",
+    });
+  });
+  it("does not refuse a reply to a ticket that is not resolved", async () => {
+    await setPolicy({ reopenMode: "refuse", reopenDays: 30 });
+    const open = await ingest(mail({}));
+    const reply = await ingest(mail({ inReplyTo: open.conversation[0]?.receivedMessageId ?? "" }));
+    expect(reply.outcome).toBe("appended");
+    expect(reply.ticket?.id).toBe(open.ticket?.id);
+  });
+  it("does not let a mail of another project or another sender reach the policy of this one", async () => {
+    await setPolicy({ reopenMode: "refuse", reopenDays: 30 });
+    const at = new Date();
+    const recent = await resolvedAgo(1 * day, at);
+    // Another sender with the reference: not a reply to this ticket, so a ticket of its own.
+    const stranger = await ingest(
+      mail({
+        from: "Stranger <stranger@example.test>",
+        inReplyTo: recent.conversation[0]?.receivedMessageId ?? "",
+      }),
+      { at },
+    );
+    expect(stranger.outcome).toBe("created");
   });
 });
 describe("suspicious threading", () => {

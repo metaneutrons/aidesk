@@ -777,5 +777,10 @@
   "brandingMessage_logoRemoved": "The logo was removed.",
   "brandingMessage_logoTooLarge": "The logo is larger than 256 KiB.",
   "brandingMessage_logoType": "The logo has to be a PNG, a JPEG or a WebP image.",
-  "brandingMessage_error": "The change could not be saved."
+  "brandingMessage_error": "The change could not be saved.",
+  "configReopenMode": "A reply to a resolved ticket",
+  "configReopenModeReopen": "Reopens the ticket within the window",
+  "configReopenModeNew": "Starts a new ticket",
+  "configReopenModeRefuse": "Is kept out as junk",
+  "configReopenDays": "Window for reopening in days"
 }

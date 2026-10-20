@@ -283,6 +283,36 @@ export function Configuration({
             }}
           />
         </label>
+        <label>
+          {t("configReopenMode")}
+          <select
+            value={draft.reopenMode}
+            disabled={!canWrite}
+            onChange={(event) => {
+              set("reopenMode", event.target.value as typeof draft.reopenMode);
+            }}
+          >
+            <option value="reopen">{t("configReopenModeReopen")}</option>
+            <option value="new_ticket">{t("configReopenModeNew")}</option>
+            <option value="refuse">{t("configReopenModeRefuse")}</option>
+          </select>
+        </label>
+        <label>
+          {t("configReopenDays")}
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={draft.reopenDays}
+            disabled={!canWrite || draft.reopenMode !== "reopen"}
+            onChange={(event) => {
+              set(
+                "reopenDays",
+                Math.min(365, Math.max(1, Math.trunc(Number(event.target.value) || 1))),
+              );
+            }}
+          />
+        </label>
         <label className="configuration-check">
           <input
             type="checkbox"

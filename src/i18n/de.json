@@ -777,5 +777,10 @@
   "brandingMessage_logoRemoved": "Das Logo wurde entfernt.",
   "brandingMessage_logoTooLarge": "Das Logo ist größer als 256 KiB.",
   "brandingMessage_logoType": "Das Logo muss ein PNG-, JPEG- oder WebP-Bild sein.",
-  "brandingMessage_error": "Die Änderung konnte nicht gespeichert werden."
+  "brandingMessage_error": "Die Änderung konnte nicht gespeichert werden.",
+  "configReopenMode": "Eine Antwort auf ein gelöstes Ticket",
+  "configReopenModeReopen": "Öffnet das Ticket im Zeitfenster wieder",
+  "configReopenModeNew": "Legt ein neues Ticket an",
+  "configReopenModeRefuse": "Wird als Junk aussortiert",
+  "configReopenDays": "Zeitfenster zum Wiedereröffnen in Tagen"
 }

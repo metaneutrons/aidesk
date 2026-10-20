@@ -90,6 +90,8 @@ describe("reading the configuration", () => {
         pauseOutgoing: false,
         warnHours: 4,
         overdueHours: 24,
+        reopenMode: "reopen",
+        reopenDays: 30,
       },
     });
   });
@@ -386,6 +388,35 @@ describe("the overdue limit", () => {
       .set({ settings: { overdueHours: "garbage" } })
       .where(eq(projects.id, projectId));
     expect((await current()).overdueHours).toBe(24);
+  });
+});
+describe("the policy for a reply to a resolved ticket", () => {
+  it("is part of the document: the mode and the window of 1 to 365 days, 30 days and reopening by default", async () => {
+    await reset();
+    expect(await current()).toMatchObject({ reopenMode: "reopen", reopenDays: 30 });
+    for (const bad of [
+      { reopenMode: "ignore" },
+      { reopenDays: 0 },
+      { reopenDays: 366 },
+      { reopenDays: 1.5 },
+    ])
+      await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(writer, projectId, await edit({ reopenMode: "refuse", reopenDays: 7 })),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [
+        { pointer: "/reopenMode", from: "reopen", to: "refuse" },
+        { pointer: "/reopenDays", from: 30, to: 7 },
+      ],
+    });
+    expect(await current()).toMatchObject({ reopenMode: "refuse", reopenDays: 7 });
+    // A value in the settings that is not valid reads as the default.
+    await db()
+      .update(projects)
+      .set({ settings: { reopenMode: "bogus", reopenDays: "many" } })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({ reopenMode: "reopen", reopenDays: 30 });
   });
 });
 describe("the warning limit", () => {

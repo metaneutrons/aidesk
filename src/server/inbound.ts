@@ -26,11 +26,11 @@ import { parseDeliveryReport } from "../domain/bounce";
 import { fileRules } from "../domain/limits";
 import { getLimits } from "./limits";
 import { decideLanguage, detectLanguage } from "../domain/language";
+import { mayReopen, replyPolicyOf } from "../domain/reply-policy";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
 // together. Processing is idempotent and may be retried.
 const maxRawBytes = 25 * 1024 * 1024;
-const reopenWindowMs = 30 * 86_400_000;
 export async function acceptInbound(input: {
   projectId: string;
   connectionId: string | null;
@@ -383,6 +383,21 @@ export async function processIngress(
     // calls junk stays out of the inbox, where a person can restore it. A reply to a ticket was
     // not asked about, and what it was not sure about is a ticket like any other, marked.
     if (!target && ai.junk?.state === "junk") return keepOut(ai.junk.reason, "ai");
+    // What a reply to a resolved ticket does is the project's policy. A mail that a person restored from junk
+    // is taken as a reply that reopens within the window, whatever the policy says: it is not refused twice.
+    const [policySource] = target
+      ? await tx
+          .select({ settings: projects.settings })
+          .from(projects)
+          .where(eq(projects.id, entry.projectId))
+      : [];
+    const replyPolicy = replyPolicyOf(policySource?.settings ?? {});
+    if (
+      target?.status === "resolved" &&
+      replyPolicy.mode === "refuse" &&
+      !entry.classification?.restored
+    )
+      return keepOut("reply_to_resolved", "rules");
     const usedAi = ai.extract?.state === "ok" && chosen !== null;
     const source = {
       from: sender.address,
@@ -455,8 +470,11 @@ export async function processIngress(
     };
     const recentlyResolved =
       target?.status === "resolved" &&
-      target.resolvedAt !== null &&
-      receivedAt.getTime() - target.resolvedAt.getTime() <= reopenWindowMs;
+      mayReopen(
+        replyPolicy.mode === "refuse" ? { ...replyPolicy, mode: "reopen" } : replyPolicy,
+        target.resolvedAt,
+        receivedAt,
+      );
     if (target && (target.status !== "resolved" || recentlyResolved)) {
       // The ticket keeps its language; the message records what it was written in.
       await insertMessage(target.id, detection.language ?? target.language);
