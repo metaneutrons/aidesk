@@ -623,6 +623,7 @@ export const auditPage = z.object({
   next: z.string().nullable().describe("The cursor for the next page, null at the end"),
 });
 export const webhookResult = textResult;
+export const cannedResult = textResult;
 export const webhookPing = z.object({ eventId: z.uuid() });
 export const translationOut = z.object({
   id: z.uuid(),

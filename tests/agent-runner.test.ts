@@ -14,6 +14,7 @@ import {
   aiRuns,
   attachments,
   audit,
+  cannedReplies,
   connections,
   jobs,
   memberships,
@@ -228,6 +229,7 @@ afterAll(async () => {
   await db().delete(audit).where(eq(audit.projectId, projectId));
   await db().delete(tickets).where(eq(tickets.projectId, projectId));
   await db().delete(projectTexts).where(eq(projectTexts.projectId, projectId));
+  await db().delete(cannedReplies).where(eq(cannedReplies.projectId, projectId));
   await db().delete(aiProfiles).where(eq(aiProfiles.projectId, projectId));
   await db().delete(connections).where(eq(connections.projectId, projectId));
   await db().delete(projects).where(eq(projects.id, projectId));
@@ -288,6 +290,7 @@ describe("what the model is given", () => {
     expect(call?.system.startsWith("You are a support agent working for a team.")).toBe(true);
     expect(Object.keys(call?.tools ?? {}).sort()).toEqual([
       "finish",
+      "list_canned_replies",
       "note",
       "read_attachment",
       "reply",
@@ -873,5 +876,51 @@ describe("the search in knowledge sources", () => {
       "You may not do that (search_knowledge)",
     );
     expect(hits).toHaveLength(0);
+  });
+});
+describe("canned replies for agents", () => {
+  it("gives the replies of the project, filled in for the ticket, and refuses an agent that may not reply", async () => {
+    await db().insert(cannedReplies).values({
+      projectId,
+      name: "Delay",
+      language: "en",
+      body: "Your order is delayed, ticket {{ticket_number}}, {{operator_name}}.",
+      createdBy: "test",
+    });
+    try {
+      const { id } = await ticket(full);
+      await queue(id, full);
+      const first = script([
+        answer([{ name: "list_canned_replies", input: {} }]),
+        answer([{ name: "finish", input: { outcome: "needs_person" } }]),
+      ]);
+      await runAgents({ projectId }, { generate: first.generate });
+      const given = JSON.stringify(first.calls[1]?.messages);
+      expect(given).toContain("Delay");
+      expect(given).toContain("Your order is delayed, ticket");
+      expect(given).toContain("Full");
+      expect(Object.keys(first.calls[0]?.tools ?? {})).toContain("list_canned_replies");
+      const bare = await ticket(narrow);
+      await queue(bare.id, narrow);
+      await db()
+        .update(agents)
+        .set({ actions: ["ticket.read"] })
+        .where(eq(agents.id, narrow));
+      const second = script([
+        answer([{ name: "list_canned_replies", input: {} }]),
+        answer([{ name: "finish", input: { outcome: "needs_person" } }]),
+      ]);
+      await runAgents({ projectId }, { generate: second.generate });
+      await db()
+        .update(agents)
+        .set({ actions: ["ticket.read", "ticket.reply"] })
+        .where(eq(agents.id, narrow));
+      expect(JSON.stringify(second.calls[1]?.messages)).toContain(
+        "You may not do that (list_canned_replies)",
+      );
+      expect(JSON.stringify(second.calls[1]?.messages)).not.toContain("Your order is delayed");
+    } finally {
+      await db().delete(cannedReplies).where(eq(cannedReplies.projectId, projectId));
+    }
   });
 });

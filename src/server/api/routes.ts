@@ -192,6 +192,14 @@ import {
   routingRuleOut,
   routingTargetsOut,
 } from "../../domain/routing";
+import {
+  cannedForTicket,
+  createCannedReply,
+  deleteCannedReply,
+  listCannedReplies,
+  updateCannedReply,
+} from "../canned";
+import { cannedForTicketOut, cannedInput, cannedOut, cannedRemoval } from "../../domain/canned";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -1462,6 +1470,91 @@ export const routes: Route[] = [
       );
       return result.outcome === "proposed" && !result.validated ? new Reply(result, 202) : result;
     },
+  },
+  {
+    id: "canned.list",
+    mcp: { tool: "canned_list" },
+    method: "GET",
+    path: "/projects/{projectId}/canned-replies",
+    tag: "Canned replies",
+    summary: "The canned replies of a project with their placeholders and the version",
+    access: "config.read",
+    response: list(cannedOut),
+    run: ({ principal, params }) => listCannedReplies(principal, params.projectId ?? ""),
+  },
+  {
+    id: "canned.create",
+    mcp: { tool: "canned_create" },
+    method: "POST",
+    path: "/projects/{projectId}/canned-replies",
+    tag: "Canned replies",
+    summary:
+      "Add a canned reply (name, language, body with {{customer_name}}, {{ticket_number}} and {{operator_name}}). Applies at once (201) or, for an agent under the review policy, becomes a proposal (202); with validate=true nothing is written (200)",
+    access: "config.write",
+    query: validateQuery,
+    body: cannedInput,
+    response: out.cannedResult,
+    status: 201,
+    alsoStatus: [200, 202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await createCannedReply(principal, params.projectId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        201,
+      ),
+  },
+  {
+    id: "canned.update",
+    mcp: { tool: "canned_update" },
+    method: "PUT",
+    path: "/projects/{projectId}/canned-replies/{replyId}",
+    tag: "Canned replies",
+    summary: "Change a canned reply; names the version that was read",
+    access: "config.write",
+    query: validateQuery,
+    body: cannedInput,
+    response: out.cannedResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await updateCannedReply(principal, params.projectId ?? "", params.replyId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        200,
+      ),
+  },
+  {
+    id: "canned.delete",
+    mcp: { tool: "canned_delete" },
+    method: "POST",
+    path: "/projects/{projectId}/canned-replies/{replyId}/delete",
+    tag: "Canned replies",
+    summary: "Remove a canned reply; names the version that was read",
+    access: "config.write",
+    query: validateQuery,
+    body: cannedRemoval,
+    response: out.cannedResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await deleteCannedReply(principal, params.projectId ?? "", params.replyId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        200,
+      ),
+  },
+  {
+    id: "canned.for_ticket",
+    mcp: { tool: "tickets_canned_replies" },
+    method: "GET",
+    path: "/tickets/{ticketId}/canned-replies",
+    tag: "Canned replies",
+    summary:
+      "The canned replies of the project of a ticket with the placeholders filled in for the ticket and the caller, the language of the ticket first",
+    access: "ticket.reply",
+    response: list(cannedForTicketOut),
+    run: ({ principal, params }) => cannedForTicket(principal, params.ticketId ?? ""),
   },
   {
     id: "tickets.status",

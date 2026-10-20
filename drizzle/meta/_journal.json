@@ -288,6 +288,13 @@
       "when": 1792478751647,
       "tag": "0040_routing_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792479348905,
+      "tag": "0041_canned_replies",
+      "breakpoints": true
     }
   ]
 }

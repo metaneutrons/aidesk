@@ -14,11 +14,17 @@ const rulesSchema = z.array(
     conditions: z.object({ subjectWords: z.array(z.string()) }),
   }),
 );
-test("adds, orders, changes and removes routing rules", async ({ page, desk, signIn, baseURL }) => {
+test("adds, orders, changes and removes routing rules", async ({
+  page,
+  desk,
+  signIn,
+  baseURL,
+  browserName,
+}) => {
   const { alpha } = desk.projects;
   const headers = { origin: baseURL ?? "" };
-  const first = `E2E first ${desk.run}`;
-  const second = `E2E second ${desk.run}`;
+  const first = `E2E first ${desk.run} ${browserName}`;
+  const second = `E2E second ${desk.run} ${browserName}`;
   await signIn();
   const rules = async () =>
     rulesSchema.parse(
@@ -53,7 +59,7 @@ test("adds, orders, changes and removes routing rules", async ({ page, desk, sig
     await secondRow.getByRole("button", { name: `Move ${second} up` }).click();
     await expect
       .poll(async () =>
-        (await rules()).map((rule) => rule.name).filter((name) => name.includes(desk.run)),
+        (await rules()).map((rule) => rule.name).filter((name) => name.endsWith(browserName)),
       )
       .toEqual([second, first]);
     // Changing a rule loads it into the form; saving replaces it.

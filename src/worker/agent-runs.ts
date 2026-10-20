@@ -26,6 +26,7 @@ import {
   tickets,
 } from "../server/db/schema";
 import { DomainError } from "../server/errors";
+import { cannedForTicket } from "../server/canned";
 import { searchKnowledge } from "../server/knowledge";
 import { readAttachment, reply } from "../server/operations";
 import { activeTexts } from "../server/texts";
@@ -167,6 +168,16 @@ async function callTool(
     } catch (error) {
       if (error instanceof DomainError) return { text: `The search was refused (${error.code}).` };
       if (error instanceof ZodError) return { text: "The query has to hold letters or digits." };
+      throw error;
+    }
+  }
+  if (name === "list_canned_replies") {
+    if (!permits(principal, ticket.projectId, "ticket.reply")) return refuse("list_canned_replies");
+    try {
+      return { text: JSON.stringify(await cannedForTicket(principal, ticket.id)).slice(0, 30_000) };
+    } catch (error) {
+      if (error instanceof DomainError)
+        return { text: `The canned replies cannot be read (${error.code}).` };
       throw error;
     }
   }

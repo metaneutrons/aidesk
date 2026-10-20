@@ -21,6 +21,7 @@ import {
   operatorGroupMembers,
   operatorGroups,
   participants,
+  cannedReplies,
   portalBranding,
   routingRules,
   senderRules,
@@ -101,6 +102,7 @@ export async function createProjectExport(
     brandingRows,
     senderRuleRows,
     routingRuleRows,
+    cannedRows,
   ] = await Promise.all([
     db().select().from(tickets).where(eq(tickets.projectId, project)).orderBy(asc(tickets.number)),
     db()
@@ -158,6 +160,7 @@ export async function createProjectExport(
     db().select().from(portalBranding).where(eq(portalBranding.projectId, project)),
     db().select().from(senderRules).where(eq(senderRules.projectId, project)),
     db().select().from(routingRules).where(eq(routingRules.projectId, project)),
+    db().select().from(cannedReplies).where(eq(cannedReplies.projectId, project)),
   ]);
   // The objects that the rows name, once each.
   const keys = [
@@ -200,6 +203,7 @@ export async function createProjectExport(
           portalBranding: brandingRows,
           senderRules: senderRuleRows,
           routingRules: routingRuleRows,
+          cannedReplies: cannedRows,
           configChanges: changeRows,
         },
         null,

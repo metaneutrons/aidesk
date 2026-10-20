@@ -2045,6 +2045,17 @@ button.danger {
     color: #fff;
 }
 
+.canned-form {
+    display: grid;
+    gap: 8px;
+    max-width: 640px;
+}
+
+.canned-form label {
+    display: grid;
+    gap: 4px;
+}
+
 .routing-form {
     display: flex;
     flex-wrap: wrap;
