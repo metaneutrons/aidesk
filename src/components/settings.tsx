@@ -17,6 +17,7 @@ import { ActionChecks, GroupsPanel } from "./groups";
 import { CannedReplies } from "./canned-replies";
 import { RoutingRules } from "./routing-rules";
 import { SenderRules } from "./sender-rules";
+import { TagAdmin } from "./tag-admin";
 import { Invite } from "./invite";
 import { PortalBranding } from "./portal-branding";
 import { Profile } from "./profile";
@@ -647,6 +648,15 @@ export function Settings({
             categories={
               projects.find((project) => project.id === grant.projectId)?.categories ?? []
             }
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("project.manage"))
+        .map((grant) => (
+          <TagAdmin
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
           />
         ))}
       {managed

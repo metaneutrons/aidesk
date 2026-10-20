@@ -44,6 +44,8 @@ import { Settings } from "./settings";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
 import { CannedPicker } from "./canned-picker";
+import { textOn } from "../domain/branding";
+import { tagStyle } from "../domain/tags";
 import { priorityKey, Triage } from "./triage";
 import { priorities, priorityOf, type Priority } from "../domain/triage";
 const ticketSchema = z.object({
@@ -220,6 +222,8 @@ interface Project {
   // The limits of the clock for each priority, and the categories that a ticket of the project can have.
   limits: Record<string, { warnHours: number; overdueHours: number }>;
   categories: string[];
+  // The colours that the project gave to tags.
+  tagColors: Record<string, string>;
 }
 interface Overview {
   projects: {
@@ -1031,6 +1035,12 @@ export function Desk({
                       <button
                         key={tag}
                         type="button"
+                        style={tagStyle(
+                          filters.length === 1
+                            ? projectById.get(filters[0] ?? "")?.tagColors[tag]
+                            : undefined,
+                          textOn,
+                        )}
                         className={`tag-chip ${tagFilter === tag ? "active" : ""}`}
                         aria-pressed={tagFilter === tag}
                         onClick={() => {
@@ -1158,7 +1168,14 @@ export function Desk({
                         {ticket.tags.length > 0 && (
                           <span className="ticket-row-tags">
                             {ticket.tags.map((tag) => (
-                              <span key={tag} className="tag-chip">
+                              <span
+                                key={tag}
+                                className="tag-chip"
+                                style={tagStyle(
+                                  projectById.get(ticket.projectId)?.tagColors[tag],
+                                  textOn,
+                                )}
+                              >
                                 {tag}
                               </span>
                             ))}
@@ -1296,6 +1313,9 @@ export function Desk({
                               ticketId={conversation.ticket.id}
                               projectId={conversation.ticket.projectId}
                               tags={tagsOf(conversation.ticket)}
+                              colors={
+                                projectById.get(conversation.ticket.projectId)?.tagColors ?? {}
+                              }
                               onChanged={() => {
                                 transition(() => {
                                   router.refresh();

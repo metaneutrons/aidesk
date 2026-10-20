@@ -244,6 +244,20 @@ export const senderRules = pgTable(
   },
   (t) => [uniqueIndex("sender_rule_value_idx").on(t.projectId, t.value)],
 );
+// The colour of a tag in one project; a tag without a row has none (see `domain/tags.ts`).
+export const projectTags = pgTable(
+  "project_tag",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    tag: text("tag").notNull(),
+    color: text("color").notNull(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("project_tag_idx").on(t.projectId, t.tag)],
+);
 // The canned replies of a project (see `domain/canned.ts`); `version` counts the changes, for the proposals of agents.
 export const cannedReplies = pgTable(
   "canned_reply",
