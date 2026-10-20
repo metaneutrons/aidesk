@@ -8,10 +8,12 @@ import {
   parseHolidays,
 } from "./business-hours";
 import { junkSensitivities } from "./junk";
+import { maxCategories, maxCategoryLength, parseCategories } from "./triage";
 import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
 // document. Connections, secrets and texts are not part of it; they follow with
 // their own rules. The slug identifies the project and cannot be changed.
+const limit = z.number().int().min(1).max(720).nullable();
 export const configDocument = z
   .object({
     name: z.string().trim().min(1).max(100),
@@ -47,6 +49,16 @@ export const configDocument = z
     // Business hours of the response clock (see `business-hours.ts`). Days are ISO weekdays such as "1,2,3,4,5";
     // null means no business hours, and the clock counts every hour. Holidays are dates, separated by commas
     // or line breaks.
+    // Limits of the response clock for the priorities low, high and urgent; null takes the limit of the project.
+    // The normal priority has the limits of the project.
+    warnHoursLow: limit,
+    overdueHoursLow: limit,
+    warnHoursHigh: limit,
+    overdueHoursHigh: limit,
+    warnHoursUrgent: limit,
+    overdueHoursUrgent: limit,
+    // The categories that a ticket can have, one name per line (see `triage.ts`).
+    categories: z.string().max(maxCategories * (maxCategoryLength + 1)),
     businessDays: z.string().max(13).nullable(),
     businessStart: z.string().max(5),
     businessEnd: z.string().max(5),
@@ -58,6 +70,26 @@ export const configDocument = z
     message: "The warning comes before the overdue limit or at the same time",
     path: ["warnHours"],
   })
+  .refine((config) => parseCategories(config.categories) !== null, {
+    message: `At most ${String(maxCategories)} names, each up to ${String(maxCategoryLength)} characters, none twice`,
+    path: ["categories"],
+  })
+  .refine(
+    (config) =>
+      [
+        ["Low", config.warnHoursLow, config.overdueHoursLow],
+        ["High", config.warnHoursHigh, config.overdueHoursHigh],
+        ["Urgent", config.warnHoursUrgent, config.overdueHoursUrgent],
+      ].every(
+        ([, warn, overdue]) =>
+          (typeof warn === "number" ? warn : config.warnHours) <=
+          (typeof overdue === "number" ? overdue : config.overdueHours),
+      ),
+    {
+      message: "For each priority the warning comes before the overdue limit or at the same time",
+      path: ["warnHours"],
+    },
+  )
   .refine((config) => parseHolidays(config.holidays) !== null, {
     message: "Dates like 2026-12-25, separated by commas or line breaks, at most 200",
     path: ["holidays"],

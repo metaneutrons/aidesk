@@ -40,6 +40,10 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await section.getByLabel("Remind the customer days before").fill("3");
     // How far the headers of a mail count for junk.
     await section.getByLabel("Junk detection by the headers of a mail").selectOption("strict");
+    // Limits by priority and the list of categories.
+    await section.getByLabel("Urgent priority: warn after").fill("1");
+    await section.getByLabel("Urgent priority: overdue after").fill("2");
+    await section.getByLabel("Categories of tickets (one per line)").fill("Billing\nSupport");
     // Business hours: the fields are open once they are switched on, and the form cannot be saved incomplete.
     await expect(section.getByLabel("Time zone of the business hours")).toBeDisabled();
     await section.getByLabel("The response clock runs only within business hours").check();
@@ -67,6 +71,9 @@ test("edits the configuration, checks it first, and approves what an agent propo
       autoResolveDays: 10,
       autoResolveReminderDays: 3,
       junkSensitivity: "strict",
+      warnHoursUrgent: 1,
+      overdueHoursUrgent: 2,
+      categories: "Billing\nSupport",
       businessDays: "1,2,3,4",
       businessStart: "08:00",
       businessEnd: "16:30",

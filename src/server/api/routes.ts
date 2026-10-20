@@ -178,6 +178,8 @@ import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../bran
 import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
 import { inviteOperator } from "../invitations";
 import { invitationInput, invitationOut } from "../../domain/invitations";
+import { setTicketTriage } from "../triage";
+import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
 import { senderRuleInput, senderRuleOut } from "../../domain/sender-rules";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
@@ -582,6 +584,8 @@ export const routes: Route[] = [
     query: z.object({
       project: projects,
       limit: z.number().int().min(1).max(2000).optional().describe("How many to load"),
+      priority: z.enum(priorities).optional().describe("Only tickets of this priority"),
+      category: z.string().max(40).optional().describe("Only tickets of this category"),
     }),
     response: list(out.ticketRow),
     run: ({ principal, query }) =>
@@ -589,6 +593,10 @@ export const routes: Route[] = [
         principal,
         query.getAll("project"),
         query.has("limit") ? Number(query.get("limit")) : undefined,
+        {
+          priority: query.get("priority") ?? undefined,
+          category: query.get("category") ?? undefined,
+        },
       ),
   },
   {
@@ -1391,6 +1399,19 @@ export const routes: Route[] = [
     body: assignInput,
     response: out.ticketAssignee,
     run: ({ principal, params, input }) => assignTicket(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "tickets.triage",
+    mcp: { tool: "tickets_set_triage" },
+    method: "POST",
+    path: "/tickets/{ticketId}/triage",
+    tag: "Tickets",
+    summary:
+      "Set the priority (low, normal, high, urgent) or the category (from the list of the project, null takes it off) of a ticket",
+    access: "ticket.assign",
+    body: triageInput,
+    response: triageOut,
+    run: ({ principal, params, input }) => setTicketTriage(principal, params.ticketId ?? "", input),
   },
   {
     id: "tickets.assignees",

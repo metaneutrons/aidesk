@@ -398,6 +398,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "tickets.triage": {
+    operation: "setTicketTriage",
+    action: "ticket.assign",
+    ui: "src/components/triage.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: "src/server/mcp.ts",
+    difference: "docs/capabilities.md",
+  },
   "tickets.tags": {
     operation: "setTicketTags",
     action: "ticket.note",

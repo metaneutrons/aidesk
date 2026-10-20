@@ -1916,6 +1916,29 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Priority and category
+
+A ticket has a priority, one of `low`, `normal` (the default), `high` and `urgent`, and at most one category.
+The categories of a project are a list in its configuration (`categories`, one name per line, at most 50 names of
+up to 40 characters, none twice in any case). A category can only be set when it is on the list, in any case, and is
+stored as the list writes it. A ticket keeps a category that the list lost; it can be taken off, but not set again.
+
+`POST /api/v1/tickets/{id}/triage` (MCP tool `tickets_set_triage`) sets the priority, the category or both; `null`
+takes the category off. It needs `ticket.assign`, does not change the revision, writes an audit entry
+(`ticket.triage`, with the old and new values) and queues the webhook event `ticket.triaged` (`priority`, `category`
+and the previous values). A change to the values the ticket has does nothing and says `changed: false`. A ticket in
+junk is not changed. `GET /api/v1/tickets` and the MCP tool `tickets_list` take `priority` and `category` as filters
+(the category is matched in any case). The ticket header has the two selects, the list shows a badge for a priority
+other than normal and the category, and the list can be filtered by both.
+
+The limits of the response clock can differ by priority. The configuration keys `warnHoursLow`, `overdueHoursLow`,
+`warnHoursHigh`, `overdueHoursHigh`, `warnHoursUrgent` and `overdueHoursUrgent` hold hours or null; the normal
+priority uses the limits of the project, and a null takes the limit of the project too. Whatever is set has to keep
+the warning at or before the overdue limit when it is combined with the limit of the project. The scan, the overview
+and the desk use the limits of the priority that the ticket has (`limitsOf(settings, priority)`); the project list
+carries them for all four as `limits` and the categories as `categories`. Routing rules that set the priority and
+the category follow with M7-A4.
+
 ## Tags
 
 Tags are the team's own labels on a ticket, for finding it again. They are not

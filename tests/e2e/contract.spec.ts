@@ -191,6 +191,8 @@ test("answers every documented route in the published shape, with real data", as
   // Ticket work.
   await call("tickets.tags", { params: { ticketId: ticket }, data: { tags: ["contract"] } });
   await call("tickets.tags", { params: { ticketId: ticket }, data: { tags: [] } });
+  await call("tickets.triage", { params: { ticketId: ticket }, data: { priority: "high" } });
+  await call("tickets.triage", { params: { ticketId: ticket }, data: { priority: "normal" } });
   await call("tickets.reminder", { params: { ticketId: ticket }, data: { remindAt: null } });
   await call("tickets.assign", {
     params: { ticketId: ticket },

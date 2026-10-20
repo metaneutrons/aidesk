@@ -31,6 +31,15 @@ const weekdayName = (day: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
     new Date(Date.UTC(2024, 0, day)),
   );
+// The limits that a priority sets for itself, and the text of each; an empty field takes the limit of the project.
+const priorityFields = [
+  ["warnHoursLow", "configWarnLow"],
+  ["overdueHoursLow", "configOverdueLow"],
+  ["warnHoursHigh", "configWarnHigh"],
+  ["overdueHoursHigh", "configOverdueHigh"],
+  ["warnHoursUrgent", "configWarnUrgent"],
+  ["overdueHoursUrgent", "configOverdueUrgent"],
+] as const;
 const show = (value: unknown) =>
   typeof value === "boolean" ? String(value) : typeof value === "string" ? value : "";
 export function Configuration({
@@ -375,6 +384,39 @@ export function Configuration({
                   ? null
                   : Math.min((draft.autoResolveDays ?? 2) - 1, Math.max(1, days || 1)),
               );
+            }}
+          />
+        </label>
+        {priorityFields.map(([key, label]) => (
+          <label key={key}>
+            {t(label)}
+            <input
+              type="number"
+              min={1}
+              max={720}
+              value={draft[key] ?? ""}
+              placeholder="–"
+              disabled={!canWrite}
+              onChange={(event) => {
+                set(
+                  key,
+                  event.target.value === ""
+                    ? null
+                    : Math.min(720, Math.max(1, Math.trunc(Number(event.target.value)) || 1)),
+                );
+              }}
+            />
+          </label>
+        ))}
+        <label>
+          {t("configCategories")}
+          <textarea
+            rows={3}
+            value={draft.categories}
+            disabled={!canWrite}
+            maxLength={2050}
+            onChange={(event) => {
+              set("categories", event.target.value);
             }}
           />
         </label>

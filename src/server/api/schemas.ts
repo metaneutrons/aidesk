@@ -5,6 +5,7 @@ import { connectionDirections, connectionKinds } from "../../domain/connections"
 import { emailDesignConfig } from "../../domain/email-design";
 import { aiWorkStates, stopLevels } from "../../domain/agent-work";
 import { actions } from "../../domain/permissions";
+import { priorities } from "../../domain/triage";
 import { translationStatuses } from "../../domain/translation";
 import { agentRuns, agents, ingress, messages, projects, tickets } from "../db/schema";
 import { isoDate, rowSchema } from "./rows";
@@ -44,6 +45,12 @@ export const projectSummary = z
       businessTimeZone: z.string().nullable(),
       holidays: z.string(),
     }),
+    // The limits of the response clock for each priority, and the categories that a ticket of the project can have.
+    limits: z.record(
+      z.enum(priorities),
+      z.object({ warnHours: z.number(), overdueHours: z.number() }),
+    ),
+    categories: z.array(z.string()),
     archivedAt: isoDate.nullable(),
   })
   .meta({ id: "ProjectSummary" });

@@ -280,6 +280,13 @@ describe("the policy in the configuration", () => {
     businessEnd: "17:00",
     businessTimeZone: null,
     holidays: "",
+    warnHoursLow: null,
+    overdueHoursLow: null,
+    warnHoursHigh: null,
+    overdueHoursHigh: null,
+    warnHoursUrgent: null,
+    overdueHoursUrgent: null,
+    categories: "",
   };
   it("takes days from 1 to 365 or none, and a reminder only with days and before them", () => {
     const ok = (change: Record<string, unknown>) =>
