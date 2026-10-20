@@ -15,6 +15,7 @@ import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
 import { CannedReplies } from "./canned-replies";
+import { EraseRequester } from "./erase-requester";
 import { Processing } from "./processing";
 import { RoutingRules } from "./routing-rules";
 import { SenderRules } from "./sender-rules";
@@ -637,6 +638,15 @@ export function Settings({
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
             canWrite={grant.actions.includes("config.write")}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("data.erase"))
+        .map((grant) => (
+          <EraseRequester
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
           />
         ))}
       {managed

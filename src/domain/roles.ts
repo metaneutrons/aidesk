@@ -14,7 +14,8 @@ export const operatorRoles = {
   none: [],
   read,
   respond,
-  manage: [...actions],
+  // Everything but the erasure of data, which no preset holds: it is granted as a single action or through a group.
+  manage: actions.filter((action) => action !== "data.erase"),
 } as const satisfies Record<string, readonly Action[]>;
 export type OperatorRole = keyof typeof operatorRoles;
 export const tokenRoles = {

@@ -44,6 +44,7 @@ import { Settings } from "./settings";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
 import { CannedPicker } from "./canned-picker";
+import { EraseTicket } from "./erase-ticket";
 import { textOn } from "../domain/branding";
 import { tagStyle } from "../domain/tags";
 import { priorityKey, Triage } from "./triage";
@@ -1289,6 +1290,20 @@ export function Desk({
                               locale={initialLocale}
                             />
                           )}
+                        {conversation.actions.includes("data.erase") && (
+                          <EraseTicket
+                            key={`${conversation.ticket.id}:erase`}
+                            ticketId={conversation.ticket.id}
+                            onErased={() => {
+                              setSelected(null);
+                              setConversation(null);
+                              window.history.replaceState(null, "", "/");
+                              transition(() => {
+                                router.refresh();
+                              });
+                            }}
+                          />
+                        )}
                         {conversation.actions.includes("ticket.assign") &&
                           !conversation.ticket.junkAt && (
                             <Triage

@@ -81,6 +81,9 @@ const notCalled: Record<string, string> = {
   "tickets.restore": "needs a ticket in the junk folder",
   "audit.export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
+  "erasure.ticket": "erases a ticket for good; covered by the erasure tests and the erase spec",
+  "erasure.requester":
+    "erases a requester for good; covered by the erasure tests and the erase spec",
   "processing.export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the processing spec",
   "audit.workspace_export":
@@ -419,6 +422,12 @@ test("answers every documented route in the published shape, with real data", as
   });
   await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
   await call("routing.delete", { params: { projectId: project, ruleId } });
+  // What an erasure would remove, for a ticket and for a requester; nothing is erased.
+  await call("erasure.ticket_preview", { params: { ticketId: ticket } });
+  await call("erasure.requester_preview", {
+    params: { projectId: project },
+    query: { email: "kim@example.test" },
+  });
   // Where the content of the tickets goes: for all projects and for this one.
   await call("processing.list");
   await call("processing.get", { params: { projectId: project } });

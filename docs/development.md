@@ -1917,6 +1917,40 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Erasing a ticket or a requester
+
+A person with `data.erase` in a project erases one ticket, or everything about one requester, from the database and the
+storage (`src/server/erasure.ts`). The action is part of no preset (the Manage preset leaves it out) and is granted as a
+single action or through a group; the owner has no access to the data of a project and erases nothing because of that
+status; an agent cannot erase. MCP does not offer it.
+
+It takes two steps. The preview (`GET /api/v1/tickets/{id}/erasure`, `GET /api/v1/projects/{id}/erasure/requester?email=`)
+names what would be removed and what cannot be reached. The erasure (`POST /api/v1/tickets/{id}/erase`,
+`POST /api/v1/projects/{id}/erasure/requester`) sends the counts of the preview back; if the counts are different now (a
+mail arrived or a record was added meanwhile) nothing is removed and the answer is `stale_version` (409). The desk shows
+the counts in words and sends them back with the confirmation.
+
+What is removed, in one transaction under a lock on the tickets:
+
+- the tickets with their messages, attachments (the rows and the extracted text), translations, links to issues and drafts
+  of issues, portal records (participants) and records of agent runs, which follow the ticket;
+- the entries of the incoming mail (`ingress`) that belong to the tickets, and for a requester also the entries of mail
+  that no ticket holds (junk, delivery reports) whose sender is the address, and the portal records of the address on
+  tickets of other requesters;
+- the jobs that name the tickets, their messages or those entries (queued mail, queued webhook events, the job that
+  read the mail);
+- the detail of audit entries that name an erased ticket or one of its messages; the entries stay as facts. AI run
+  records hold no ticket content and are not touched.
+
+The files follow after the commit: an original mail or an attached file is removed only when no other row names it,
+because files are named by their content and two messages can share one; the result counts the files removed, shared and
+failed (the sweep of the storage takes failed ones later). The audit gets `data.erase` with the counts and the out-of-reach
+numbers; for a requester it holds only the SHA-256 of the address, never the address.
+
+The result and the preview name what cannot be reached: webhook events about the tickets that were delivered (the receiver
+keeps what it got), issues that were created in a repository, exports of the project that were made earlier and hold the
+data, and, in words, copies at the providers of mail and models and backups of the installation.
+
 ## Processing of ticket content
 
 For the records of processing and for a customer who asks where their data goes, each project has an overview of the
