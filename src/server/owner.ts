@@ -6,6 +6,7 @@ import { db } from "./db";
 import { account, audit, session, twoFactor, user, verification } from "./db/schema";
 import { DomainError } from "./errors";
 import { env } from "./env";
+import { authSecrets } from "./secrets";
 // Owners are the only operators with a local credential: password plus TOTP.
 // It is the recovery path when the identity provider is unavailable. Every
 // other operator signs in through SSO.
@@ -106,7 +107,7 @@ export async function startOwnerClaim(input: unknown) {
       id: randomUUID(),
       identifier: `owner-claim-${claimId}`,
       value: await symmetricEncrypt({
-        key: env().BETTER_AUTH_SECRET,
+        key: authSecrets().config,
         data: JSON.stringify(pending),
       }),
       expiresAt: new Date(Date.now() + 10 * 60_000),
@@ -138,7 +139,7 @@ export async function confirmOwnerClaim(input: unknown) {
     .limit(1);
   if (!row) throw new DomainError("not_found", 404);
   const pending = pendingSchema.parse(
-    JSON.parse(await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: row.value })),
+    JSON.parse(await symmetricDecrypt({ key: authSecrets().config, data: row.value })),
   );
   if (!totpMatches(pending.secret, values.code)) throw new DomainError("invalid_input", 400);
   const id = randomUUID();
@@ -173,9 +174,9 @@ export async function confirmOwnerClaim(input: unknown) {
     await tx.insert(twoFactor).values({
       id: randomUUID(),
       userId: id,
-      secret: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: pending.secret }),
+      secret: await symmetricEncrypt({ key: authSecrets().config, data: pending.secret }),
       backupCodes: await symmetricEncrypt({
-        key: env().BETTER_AUTH_SECRET,
+        key: authSecrets().config,
         data: JSON.stringify(pending.backupCodes),
       }),
       verified: true,
@@ -247,7 +248,7 @@ export async function startOwnerRecovery(input: unknown) {
       id: randomUUID(),
       identifier: `owner-recovery-${recoveryId}`,
       value: await symmetricEncrypt({
-        key: env().BETTER_AUTH_SECRET,
+        key: authSecrets().config,
         data: JSON.stringify(pending),
       }),
       expiresAt: new Date(Date.now() + 10 * 60_000),
@@ -278,7 +279,7 @@ export async function confirmOwnerRecovery(input: unknown) {
     .limit(1);
   if (!row) throw new DomainError("not_found", 404);
   const pending = recoveryPendingSchema.parse(
-    JSON.parse(await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: row.value })),
+    JSON.parse(await symmetricDecrypt({ key: authSecrets().config, data: row.value })),
   );
   const refuse = async (): Promise<never> => {
     const failed = pending.failed + 1;
@@ -289,7 +290,7 @@ export async function confirmOwnerRecovery(input: unknown) {
         .update(verification)
         .set({
           value: await symmetricEncrypt({
-            key: env().BETTER_AUTH_SECRET,
+            key: authSecrets().config,
             data: JSON.stringify({ ...pending, failed }),
           }),
         })
@@ -304,13 +305,11 @@ export async function confirmOwnerRecovery(input: unknown) {
     .where(eq(twoFactor.userId, ownerId))
     .limit(1);
   if (!factor) return refuse();
-  const secret = await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: factor.secret });
+  const secret = await symmetricDecrypt({ key: authSecrets().config, data: factor.secret });
   const spare = z
     .array(z.string())
     .parse(
-      JSON.parse(
-        await symmetricDecrypt({ key: env().BETTER_AUTH_SECRET, data: factor.backupCodes }),
-      ),
+      JSON.parse(await symmetricDecrypt({ key: authSecrets().config, data: factor.backupCodes })),
     );
   const byBackup = values.code.includes("-");
   const matched = byBackup ? spare.find((code) => sameText(code, values.code)) : undefined;
@@ -338,7 +337,7 @@ export async function confirmOwnerRecovery(input: unknown) {
           ? {}
           : {
               backupCodes: await symmetricEncrypt({
-                key: env().BETTER_AUTH_SECRET,
+                key: authSecrets().config,
                 data: JSON.stringify(spare.filter((code) => code !== matched)),
               }),
             }),

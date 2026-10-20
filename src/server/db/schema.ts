@@ -13,12 +13,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { Action } from "../../domain/permissions";
-import { seal, unseal } from "../crypto";
-import { env } from "../env";
+import { sealSecret, unsealSecret } from "../secrets";
 const encryptedText = customType<{ data: string; driverData: string }>({
   dataType: () => "text",
-  toDriver: (value) => seal(value, env().ENCRYPTION_KEY),
-  fromDriver: (value) => unseal(value, env().ENCRYPTION_KEY),
+  toDriver: (value) => sealSecret(value),
+  fromDriver: (value) => unsealSecret(value),
 });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const updated = () => timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();

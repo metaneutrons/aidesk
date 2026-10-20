@@ -9,6 +9,7 @@ import { limitBounds } from "../domain/limits";
 import { db } from "./db";
 import * as schema from "./db/schema";
 import { env } from "./env";
+import { authSecrets } from "./secrets";
 import { getLimits } from "./limits";
 import { passwordSignInAllowed } from "./owner";
 import { auditSsoSignIn } from "./sso-audit";
@@ -17,7 +18,10 @@ function createAuth() {
   return betterAuth({
     appName: "aidesk",
     baseURL: env().APP_URL,
-    secret: env().BETTER_AUTH_SECRET,
+    // The current secret and, during a rotation, the previous one; values that carry no version are read with the
+    // oldest secret (see `secrets.ts`).
+    secret: authSecrets().legacy,
+    secrets: authSecrets().secrets,
     database: drizzleAdapter(db(), { provider: "pg", schema }),
     trustedOrigins: [env().APP_URL],
     // Only owners with TOTP may use a password (see hooks.before); it is their

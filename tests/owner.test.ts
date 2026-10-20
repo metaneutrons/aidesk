@@ -21,6 +21,7 @@ import {
   totp,
 } from "../src/server/owner";
 import { env } from "../src/server/env";
+import { authSecrets } from "../src/server/secrets";
 import { auth } from "../src/server/auth";
 const token = "test-owner-claim-token-not-a-real-credential";
 // The token of the environment that the tests run in (the container of the stack has its own).
@@ -160,7 +161,7 @@ describe("first owner claim", () => {
     expect(credential?.password).not.toContain("a long enough password");
     const [factor] = await db().select().from(twoFactor).where(eq(twoFactor.userId, owner.id));
     const stored = await symmetricDecrypt({
-      key: env().BETTER_AUTH_SECRET,
+      key: authSecrets().config,
       data: factor?.secret ?? "",
     });
     expect([base32Decode(first.secret), base32Decode(second.secret)]).toContain(stored);
@@ -236,7 +237,7 @@ describe("recovery of the owner password", () => {
   const backupsOf = async (): Promise<string[]> => {
     const [row] = await db().select().from(twoFactor).where(eq(twoFactor.userId, ownerId));
     const plain = await symmetricDecrypt({
-      key: env().BETTER_AUTH_SECRET,
+      key: authSecrets().config,
       data: row?.backupCodes ?? "",
     });
     return JSON.parse(plain) as string[];
@@ -271,9 +272,9 @@ describe("recovery of the owner password", () => {
       .values({
         id: randomUUID(),
         userId: ownerId,
-        secret: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: secret }),
+        secret: await symmetricEncrypt({ key: authSecrets().config, data: secret }),
         backupCodes: await symmetricEncrypt({
-          key: env().BETTER_AUTH_SECRET,
+          key: authSecrets().config,
           data: JSON.stringify(backup),
         }),
         verified: true,
@@ -380,8 +381,8 @@ describe("recovery of the owner password", () => {
       .values({
         id: randomUUID(),
         userId: other,
-        secret: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: secret }),
-        backupCodes: await symmetricEncrypt({ key: env().BETTER_AUTH_SECRET, data: "[]" }),
+        secret: await symmetricEncrypt({ key: authSecrets().config, data: secret }),
+        backupCodes: await symmetricEncrypt({ key: authSecrets().config, data: "[]" }),
       });
     const started = await start({ email: otherEmail });
     await expect(confirm(started.recoveryId, totp(secret))).rejects.toMatchObject({

@@ -998,5 +998,20 @@
   "retentionDryRunResult": "What the periods would remove now",
   "retentionWouldRemove": "{count, plural, one {# item} other {# items}}",
   "retentionNeedsDryRun": "Show the dry run of these periods before you save them.",
-  "retentionNeedsApproval": "You may not approve changes; saving makes a proposal that a person with that right decides."
+  "retentionNeedsApproval": "You may not approve changes; saving makes a proposal that a person with that right decides.",
+  "keysTitle": "Keys of the installation",
+  "keysHint": "To rotate ENCRYPTION_KEY or BETTER_AUTH_SECRET, put the new value in the variable, keep the old value in ENCRYPTION_KEY_PREVIOUS or BETTER_AUTH_SECRET_PREVIOUS, raise BETTER_AUTH_SECRET_VERSION by one when the secret changes, and restart. Then run the job below. When nothing depends on the previous key any more, remove it from the environment. Sessions that were started under the previous secret end with the change; links of the customer page that were issued under the previous encryption key end when it is removed.",
+  "keysNone": "No previous key is set and nothing is left to re-protect.",
+  "keysRotating": "A rotation is under way.",
+  "keysSettled": "Nothing depends on the previous key any more; you can remove it.",
+  "keysOpen": "Some values still depend on the previous key or on an older way of protecting them.",
+  "keysCounts": "{total} stored, {previous} on the previous key, {unreadable} not readable",
+  "keysRun": "Re-protect with the current keys",
+  "keysWorking": "Working…",
+  "keysGroup_connections": "Secrets of connections",
+  "keysGroup_webhooks": "Secrets of webhooks",
+  "keysGroup_sso": "Configuration of single sign-on",
+  "keysGroup_proposals": "Secrets in proposals that wait for approval",
+  "keysGroup_owner_factors": "Authenticator and backup codes of the owners",
+  "keysGroup_owner_claims": "Claims and recoveries of an owner that are under way"
 }

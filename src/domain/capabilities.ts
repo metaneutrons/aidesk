@@ -750,6 +750,22 @@ export const capabilities = {
     mcp: "src/server/mcp.ts",
     difference: "docs/capabilities.md",
   },
+  "keys.status": {
+    operation: "keyStatus",
+    action: "workspace.keys.manage",
+    ui: "src/components/key-rotation.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
+  "keys.rotate": {
+    operation: "rotateKeys",
+    action: "workspace.keys.manage",
+    ui: "src/components/key-rotation.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "operator.profile_get": {
     operation: "getProfile",
     action: "self.profile",

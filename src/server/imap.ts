@@ -3,10 +3,9 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { connections, ingress, syncCursors } from "./db/schema";
-import { unseal } from "./crypto";
 import { imapConfig, imapSecret } from "../domain/connections";
-import { env } from "./env";
 import { acceptInbound } from "./inbound";
+import { unsealSecret } from "./secrets";
 
 export interface PollResult {
   accepted: number;
@@ -35,9 +34,7 @@ async function openConnection(connectionId: string) {
   if (config.developmentOnly && !development) throw new Error("development_connection_not_allowed");
   if (!config.developmentOnly && !config.secure) throw new Error("imap_tls_required");
   if (!connection.secretCiphertext) throw new Error("imap_secret_missing");
-  const secret = imapSecret.parse(
-    JSON.parse(unseal(connection.secretCiphertext, env().ENCRYPTION_KEY)),
-  );
+  const secret = imapSecret.parse(JSON.parse(unsealSecret(connection.secretCiphertext)));
   const client = new ImapFlow({
     host: config.host,
     port: config.port,

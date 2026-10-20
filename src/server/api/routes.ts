@@ -228,6 +228,7 @@ import { exportRequester } from "../requester-export";
 import { requesterExportInput } from "../../domain/requester-export";
 import { previewRetention } from "../retention";
 import { retentionPreviewInput, retentionPreviewOut } from "../../domain/retention";
+import { keyStatus, keyStatusOut, rotateKeys } from "../key-rotation";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -1775,6 +1776,30 @@ export const routes: Route[] = [
     response: retentionPreviewOut,
     run: ({ principal, params, input }) =>
       previewRetention(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "keys.status",
+    mcp: { not: "The keys of the installation are the owner's" },
+    method: "GET",
+    path: "/workspace/keys",
+    tag: "Workspace",
+    summary:
+      "What still depends on the previous encryption key and the previous secret of the installation, by group of stored values; only the owner. Nothing is changed",
+    access: "owner",
+    response: keyStatusOut,
+    run: ({ principal }) => keyStatus(principal),
+  },
+  {
+    id: "keys.rotate",
+    mcp: { not: "The keys of the installation are the owner's" },
+    method: "POST",
+    path: "/workspace/keys/rotate",
+    tag: "Workspace",
+    summary:
+      "Re-protect every stored value that still depends on the previous key with the current one, one by one; only the owner, and only while a previous key is set in the environment. A value that no key opens is left as it is, and a run that stops can be repeated",
+    access: "owner",
+    response: keyStatusOut,
+    run: ({ principal }) => rotateKeys(principal),
   },
   {
     id: "tickets.status",

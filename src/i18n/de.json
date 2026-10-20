@@ -998,5 +998,20 @@
   "retentionDryRunResult": "Was die Fristen jetzt entfernen würden",
   "retentionWouldRemove": "{count, plural, one {# Eintrag} other {# Einträge}}",
   "retentionNeedsDryRun": "Zeige den Probelauf dieser Fristen, bevor du speicherst.",
-  "retentionNeedsApproval": "Du darfst Änderungen nicht freigeben; Speichern erzeugt einen Vorschlag, den eine Person mit diesem Recht entscheidet."
+  "retentionNeedsApproval": "Du darfst Änderungen nicht freigeben; Speichern erzeugt einen Vorschlag, den eine Person mit diesem Recht entscheidet.",
+  "keysTitle": "Schlüssel der Installation",
+  "keysHint": "Um ENCRYPTION_KEY oder BETTER_AUTH_SECRET zu wechseln, trage den neuen Wert in die Variable ein, behalte den alten Wert in ENCRYPTION_KEY_PREVIOUS oder BETTER_AUTH_SECRET_PREVIOUS, erhöhe BETTER_AUTH_SECRET_VERSION um eins, wenn sich das Secret ändert, und starte neu. Führe dann den Auftrag unten aus. Hängt nichts mehr am alten Schlüssel, entferne ihn aus der Umgebung. Sitzungen, die unter dem alten Secret begonnen haben, enden mit dem Wechsel; Links der Kundenseite, die unter dem alten Verschlüsselungsschlüssel ausgestellt wurden, enden, wenn er entfernt wird.",
+  "keysNone": "Es ist kein früherer Schlüssel gesetzt, und es gibt nichts neu zu schützen.",
+  "keysRotating": "Ein Wechsel ist im Gange.",
+  "keysSettled": "Nichts hängt mehr am früheren Schlüssel; du kannst ihn entfernen.",
+  "keysOpen": "Einige Werte hängen noch am früheren Schlüssel oder an einer älteren Art des Schutzes.",
+  "keysCounts": "{total} gespeichert, {previous} am früheren Schlüssel, {unreadable} nicht lesbar",
+  "keysRun": "Mit den aktuellen Schlüsseln neu schützen",
+  "keysWorking": "Läuft …",
+  "keysGroup_connections": "Geheimnisse der Verbindungen",
+  "keysGroup_webhooks": "Geheimnisse der Webhooks",
+  "keysGroup_sso": "Konfiguration der Single-Sign-on-Anbieter",
+  "keysGroup_proposals": "Geheimnisse in Vorschlägen, die auf Freigabe warten",
+  "keysGroup_owner_factors": "Authenticator und Backup-Codes der Owner",
+  "keysGroup_owner_claims": "Laufende Übernahmen und Wiederherstellungen eines Owners"
 }
