@@ -399,6 +399,24 @@ test("answers every documented route in the published shape, with real data", as
   });
   await call("senders.list", { params: { projectId: project } });
   await call("senders.remove", { params: { projectId: project, ruleId: String(rule.id) } });
+  // The routing rules: made, listed, changed, ordered and removed.
+  await call("routing.targets", { params: { projectId: project } });
+  const routing = await call("routing.create", {
+    params: { projectId: project },
+    data: {
+      name: `Contract ${desk.run}`,
+      conditions: { subjectWords: ["contract"] },
+      priority: "high",
+    },
+  });
+  const ruleId = String(routing.id);
+  await call("routing.list", { params: { projectId: project } });
+  await call("routing.update", {
+    params: { projectId: project, ruleId },
+    data: { name: `Contract ${desk.run} renamed`, priority: "low" },
+  });
+  await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
+  await call("routing.delete", { params: { projectId: project, ruleId } });
   // Archived and restored at once, so that nothing after it meets a read-only project.
   // An export is made and listed; the file itself and the deletion are covered by their own tests.
   await call("projects.export_create", { params: { projectId: project } });

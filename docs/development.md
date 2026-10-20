@@ -1916,6 +1916,35 @@ Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
 
+## Routing of new tickets
+
+A project can route each new ticket by rules (table `routing_rule`, migration 0040), managed in the settings
+("Routing of new tickets for ...") and over REST (`/api/v1/projects/{id}/routing-rules`, `.../routing-targets`,
+`.../routing-order`, with `intake.manage`; not offered to agents or over MCP, because a rule decides who gets the
+tickets of customers). At most 50 rules per project; every change is an audit entry (`routing_rule.create`, `update`,
+`delete`, `reorder`).
+
+The rules are tried in their order and the first enabled one that matches wins. A rule matches when every condition it
+names holds: the sender is one of the listed addresses or domains (a domain covers its subdomains), the language of
+the ticket is one of the listed, the subject contains one of the listed words (any case, anywhere). A rule without
+conditions matches every ticket; as the last rule it is the default. A new ticket has no tags, so tags are no
+condition. The rule hands the ticket to a person, to a group or to an agent, and can set the priority and the category
+(the category has to be on the list of the project, in any case). It has to do at least one of these.
+
+A group hands tickets to its members in turn: the members who are active and can read tickets of the project, in the
+order of their ids, taken by a counter on the rule that is advanced in the transaction of the ticket. A person has to be
+active with the right to read tickets, an agent active, not expired and allowed to read. These are checked when the
+rule is saved and again when it is applied. A rule that finds nobody leaves the ticket unassigned (the overview counts
+it with the open tickets nobody handles), still sets priority and category, and writes the audit entry
+`ticket.route_failed` with the reason (`person_unavailable`, `agent_unavailable`, `nobody_in_group`, `error`). A
+success writes `ticket.route`. An assignment by a rule is announced as `ticket.assigned` (actor `system`), and a managed
+agent that gets a ticket starts on it as for an assignment by a person.
+
+Routing runs when a ticket is created from an inbound mail, in the same transaction, after the message is stored; a
+reply to an existing ticket and a mail that is kept out as junk are not routed, a mail restored from junk creates a
+ticket that is. A failure inside the routing is rolled back to a savepoint and audited, and never fails the intake of
+the mail. The project export contains the rules under `routingRules`.
+
 ## Priority and category
 
 A ticket has a priority, one of `low`, `normal` (the default), `high` and `urgent`, and at most one category.

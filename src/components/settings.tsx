@@ -14,6 +14,7 @@ import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
 import { ActionChecks, GroupsPanel } from "./groups";
+import { RoutingRules } from "./routing-rules";
 import { SenderRules } from "./sender-rules";
 import { Invite } from "./invite";
 import { PortalBranding } from "./portal-branding";
@@ -55,6 +56,7 @@ type Token = z.infer<typeof tokenSchema>;
 interface Project {
   id: string;
   name: string;
+  categories?: string[];
 }
 const roleLabels: Record<OperatorRole | "custom", string> = {
   none: "roleNone",
@@ -622,6 +624,18 @@ export function Settings({
             key={grant.projectId}
             projectId={grant.projectId}
             name={projectName(grant.projectId)}
+          />
+        ))}
+      {managed
+        .filter((grant) => grant.actions.includes("intake.manage"))
+        .map((grant) => (
+          <RoutingRules
+            key={grant.projectId}
+            projectId={grant.projectId}
+            name={projectName(grant.projectId)}
+            categories={
+              projects.find((project) => project.id === grant.projectId)?.categories ?? []
+            }
           />
         ))}
       {managed
