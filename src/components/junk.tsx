@@ -46,6 +46,8 @@ const reasons: Record<string, string> = {
   newsletter: "junkReasonNewsletter",
   automated: "junkReasonAutomated",
   other: "junkReasonAiOther",
+  blocked_sender: "junkReasonBlockedSender",
+  bulk_mail: "junkReasonBulk",
 };
 // Junk: tickets moved there by a person and mail classified as junk on
 // arrival. Neither appears in the inbox until it is restored here.

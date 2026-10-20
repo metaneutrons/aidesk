@@ -94,6 +94,7 @@ describe("reading the configuration", () => {
         reopenDays: 30,
         autoResolveDays: null,
         autoResolveReminderDays: null,
+        junkSensitivity: "standard",
       },
     });
   });
@@ -454,6 +455,27 @@ describe("the automatic resolve of a waiting ticket", () => {
       ),
     ).toMatchObject({ outcome: "applied" });
     expect(await current()).toMatchObject({ autoResolveDays: null, autoResolveReminderDays: null });
+  });
+});
+describe("the sensitivity of the junk rules", () => {
+  it("is standard by default, takes off, standard or strict, and reads a bad value as the default", async () => {
+    await reset();
+    expect(await current()).toMatchObject({ junkSensitivity: "standard" });
+    await expect(
+      putConfig(writer, projectId, await edit({ junkSensitivity: "loud" })),
+    ).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(writer, projectId, await edit({ junkSensitivity: "strict" })),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [{ pointer: "/junkSensitivity", from: "standard", to: "strict" }],
+    });
+    expect(await current()).toMatchObject({ junkSensitivity: "strict" });
+    await db()
+      .update(projects)
+      .set({ settings: { junkSensitivity: "bogus" } })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({ junkSensitivity: "standard" });
   });
 });
 describe("the warning limit", () => {

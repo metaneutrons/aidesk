@@ -274,6 +274,7 @@ describe("the policy in the configuration", () => {
     reopenDays: 30,
     autoResolveDays: null,
     autoResolveReminderDays: null,
+    junkSensitivity: "standard",
   };
   it("takes days from 1 to 365 or none, and a reminder only with days and before them", () => {
     const ok = (change: Record<string, unknown>) =>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { junkSensitivities } from "./junk";
 import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
 // document. Connections, secrets and texts are not part of it; they follow with
@@ -33,6 +34,8 @@ export const configDocument = z
     // comes before the resolve.
     autoResolveDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
     autoResolveReminderDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
+    // How much the junk rules trust the headers of a mail (see `junk.ts`); the lists of senders come first.
+    junkSensitivity: z.enum(junkSensitivities),
   })
   .strict()
   .refine((config) => config.warnHours <= config.overdueHours, {

@@ -178,6 +178,8 @@ import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../bran
 import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
 import { inviteOperator } from "../invitations";
 import { invitationInput, invitationOut } from "../../domain/invitations";
+import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
+import { senderRuleInput, senderRuleOut } from "../../domain/sender-rules";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
 import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
@@ -790,6 +792,42 @@ export const routes: Route[] = [
     response: groupOut,
     run: ({ principal, params, input }) =>
       setGroupMember(principal, params.projectId ?? "", params.groupId ?? "", input),
+  },
+  {
+    id: "senders.list",
+    mcp: { not: "A list decides which mail reaches the inbox" },
+    method: "GET",
+    path: "/projects/{projectId}/sender-rules",
+    tag: "Junk",
+    summary: "List the senders and domains of a project that are always taken or always kept out",
+    access: "intake.manage",
+    response: z.array(senderRuleOut),
+    run: ({ principal, params }) => listSenderRules(principal, params.projectId ?? ""),
+  },
+  {
+    id: "senders.add",
+    mcp: { not: "A list decides which mail reaches the inbox" },
+    method: "POST",
+    path: "/projects/{projectId}/sender-rules",
+    tag: "Junk",
+    summary: "Always take or always keep out the mail of an address or a domain",
+    access: "intake.manage",
+    body: senderRuleInput,
+    response: senderRuleOut,
+    status: 201,
+    run: ({ principal, params, input }) => addSenderRule(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "senders.remove",
+    mcp: { not: "A list decides which mail reaches the inbox" },
+    method: "POST",
+    path: "/projects/{projectId}/sender-rules/{ruleId}/delete",
+    tag: "Junk",
+    summary: "Take an address or a domain off the lists of a project",
+    access: "intake.manage",
+    response: z.object({ removed: z.boolean() }),
+    run: ({ principal, params }) =>
+      removeSenderRule(principal, params.projectId ?? "", params.ruleId ?? ""),
   },
   {
     id: "operators.active",

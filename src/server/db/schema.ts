@@ -227,6 +227,23 @@ export const portalBranding = pgTable(
   },
   (t) => [uniqueIndex("portal_branding_project_idx").on(t.projectId)],
 );
+// The lists of senders of a project: always taken, or always kept out as junk (see `domain/sender-rules.ts`).
+export const senderRules = pgTable(
+  "sender_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    type: text("type").notNull(),
+    value: text("value").notNull(),
+    note: text("note"),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("sender_rule_value_idx").on(t.projectId, t.value)],
+);
 // A group of operators in one project with the actions that every member holds there, in addition to what each
 // holds by their own membership.
 export const operatorGroups = pgTable(
