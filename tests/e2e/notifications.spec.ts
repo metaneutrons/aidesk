@@ -28,17 +28,22 @@ test("shows a notification, opens its ticket and marks it as read", async ({
   await expect(mine).toHaveCount(1);
   await expect(mine).toContainText(desk.projects.alpha.name);
   await expect(mine).toHaveClass(/unread/);
-  const scan = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .exclude("[data-base-ui-focus-guard]")
-    .exclude(".design-frame")
-    .analyze();
-  expect(scan.violations.map((violation) => violation.id)).toEqual([]);
+  const scanned = async () =>
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .exclude("[data-base-ui-focus-guard]")
+        .exclude(".design-frame")
+        .analyze()
+    ).violations.map((violation) => violation.id);
+  expect(await scanned()).toEqual([]);
   // A click opens the ticket and the notification is read afterwards.
   await mine.getByRole("button").first().click();
   await expect(page).toHaveURL(new RegExp(`ticket=${ticket}`));
   await entry.click();
   await expect(mine).toHaveClass(/read/);
+  // A notification that was read has to be readable too (it was once shown with an opacity that failed the contrast check).
+  expect(await scanned()).toEqual([]);
   // With "Unread only" it is gone from the list.
   await section.getByLabel("Unread only").check();
   await expect(mine).toHaveCount(0);
