@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
   keepDays,
@@ -13,7 +14,15 @@ import {
 import type { Principal } from "../domain/permissions";
 import type { WebhookEvent } from "../domain/webhooks";
 import { db } from "./db";
-import { audit, notificationPreferences, notifications, projects, tickets } from "./db/schema";
+import {
+  audit,
+  connections,
+  jobs,
+  notificationPreferences,
+  notifications,
+  projects,
+  tickets,
+} from "./db/schema";
 import { DomainError } from "./errors";
 import { grantsOf, peopleWith } from "./grants";
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
@@ -25,6 +34,20 @@ const kindOfEvent: Partial<Record<WebhookEvent, NotificationKind>> = {
   "ticket.overdue": "overdue",
   "draft.created": "draft",
 };
+// The job that sends the mail of a notification (see `worker/notification-mail.ts`).
+export const mailJob = "notify.mail";
+// Whether the project can send mail now: an outgoing connection that is chosen, ready, and not paused.
+async function canMail(tx: Tx, settings: Record<string, unknown>): Promise<boolean> {
+  if (settings.pauseOutgoing === true || typeof settings.outboundConnectionId !== "string")
+    return false;
+  const [connection] = await tx
+    .select({ status: connections.status })
+    .from(connections)
+    .where(
+      and(eq(connections.id, settings.outboundConnectionId), eq(connections.direction, "outbound")),
+    );
+  return connection?.status === "ready";
+}
 export interface Notified {
   userId: string;
   kind: NotificationKind;
@@ -102,6 +125,20 @@ export async function notifyKind(
     await tx
       .insert(notifications)
       .values(wanted.map((userId) => ({ userId, projectId: project, kind, ticketId })));
+  // Mail goes to those who want it, when the project has an outgoing connection that is ready and does not pause it.
+  const byMail =
+    ticketId && (await canMail(tx, row.settings))
+      ? people.filter((userId) => prefer.get(userId)?.mail ?? preferenceDefaults.mail)
+      : [];
+  if (byMail.length > 0 && ticketId)
+    await tx.insert(jobs).values(
+      byMail.map((userId) => ({
+        projectId: project,
+        type: mailJob,
+        dedupKey: `notify-mail:${randomUUID()}`,
+        payload: { userId, kind, ticketId },
+      })),
+    );
   return people.map((userId) => ({ userId, kind, ticketId }));
 }
 function human(principal: Principal): string {

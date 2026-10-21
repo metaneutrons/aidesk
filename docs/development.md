@@ -2243,6 +2243,19 @@ written for a change that was rolled back. The list (`GET /api/v1/me/notificatio
 marks the named ones, or all, as read. A notification goes with its ticket, project and person, and the pass of the worker that
 keeps the retention removes what is older than 90 days, read or not. Nothing of this is offered over MCP.
 
+Mail. When the project has an outgoing connection that is chosen, ready and not paused, a notification also queues a job
+`notify.mail` for every person who wants mail for the kind (on until they switch it off; independent of the desk). The worker
+(`src/worker/notification-mail.ts`) sends it through the connection of the project as an automatic mail (`Auto-Submitted`). It
+holds the kind, the number and the subject of the ticket, and a link (`APP_URL/?ticket=...`), in the language of the operator
+or the default of the project. The subject is customer text: control characters and line breaks are removed, it is cut at 150
+characters, and in the body it is written as plain text, so that it adds neither a header nor a link nor a format. The checks
+are made again when the job runs, because it may wait: the project paused its mail or changed its connection, the connection
+is not ready, the person left, lost the right to read tickets or switched the mail off, or the ticket is gone. Such a job ends
+as `succeeded` with the outcome `skipped:<reason>` in the log, because a notification that comes late is worse than none. A
+failure of the transport is tried again after a growing pause (`maxAttempts` in `worker/claim.ts`), and after the last try the job
+goes to review. The processing overview lists `operator_address` among what the used outgoing connection receives while any rule
+of the project is on.
+
 ## Production image
 
 `docker build --target production .` makes the image that runs: the web server, the worker

@@ -3,6 +3,7 @@ import { runExtractions } from "./extract";
 import { runAgents } from "./agent-runs";
 import { runImageReadings } from "./read-images";
 import { runWebhooks } from "./webhooks";
+import { runNotificationMail } from "./notification-mail";
 import { runTranslations } from "./translate";
 import { scanAutoResolve } from "../server/auto-resolve";
 import { scanRetention } from "../server/retention";
@@ -47,6 +48,7 @@ export async function runPass(): Promise<boolean> {
     await runNext(),
     await runTestSend(),
     await runWebhooks(),
+    await runNotificationMail(),
     await runExtractions(),
     await runImageReadings(),
     await runAgents(),

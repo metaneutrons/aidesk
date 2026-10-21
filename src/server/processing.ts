@@ -10,6 +10,7 @@ import {
   type ProcessingOverview,
 } from "../domain/processing";
 import { retentionOf } from "../domain/retention";
+import { rulesOf } from "../domain/notifications";
 import { db } from "./db";
 import { aiProfiles, audit, configChanges, connections, projects, webhooks } from "./db/schema";
 import { DomainError } from "./errors";
@@ -46,6 +47,8 @@ async function overviewOf(projectId: string): Promise<ProcessingOverview> {
     typeof settings.outboundConnectionId === "string" ? settings.outboundConnectionId : null;
   const outbound = outboundId ? byId.get(outboundId) : undefined;
   const acknowledgements = settings.acknowledgements === true;
+  // Operators are told by mail when any rule of the project is on, through the same connection.
+  const notifying = Object.values(rulesOf(settings)).some((mode) => mode !== "off");
   // Outgoing mail: the connection that the project sends through gets the replies and acknowledgements.
   for (const row of rows.filter((entry) => entry.direction === "outbound")) {
     const used = row.id === outboundId;
@@ -66,7 +69,14 @@ async function overviewOf(projectId: string): Promise<ProcessingOverview> {
         row.kind === "cloudflare" && typeof config.accountId === "string"
           ? `account ${config.accountId}`
           : null,
-      receives: ["conversation", "subject", "customer_name", "customer_address", "template_text"],
+      receives: [
+        "conversation",
+        "subject",
+        "customer_name",
+        "customer_address",
+        "template_text",
+        ...(used && notifying ? (["operator_address"] as const) : []),
+      ],
       state: !used
         ? "unused"
         : row.status === "disabled" || settings.pauseOutgoing === true

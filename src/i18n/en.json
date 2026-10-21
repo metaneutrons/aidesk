@@ -1043,5 +1043,6 @@
   "configNotifyMembers": "Everybody who may reply",
   "configNotifyAssigneeOnly": "The assigned person",
   "configNotifyMentioned": "The person who is mentioned",
-  "notifications": "Notifications"
+  "notifications": "Notifications",
+  "processingContent_operator_address": "address of an operator"
 }
