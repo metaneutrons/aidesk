@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ArrowUpRight,
+  Bell,
   BellRing,
   Check,
   ChevronDown,
@@ -41,6 +42,8 @@ import { Knowledge } from "./knowledge";
 import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
+import { Notifications } from "./notifications";
+import { notificationPage } from "../domain/notifications";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
 import { CannedPicker } from "./canned-picker";
@@ -259,7 +262,15 @@ function applyTheme(theme: Theme): void {
   else document.documentElement.dataset.theme = theme;
 }
 type View =
-  "overview" | "inbox" | "overdue" | "reminders" | "waiting" | "resolved" | "junk" | "settings";
+  | "overview"
+  | "inbox"
+  | "overdue"
+  | "reminders"
+  | "waiting"
+  | "resolved"
+  | "notifications"
+  | "junk"
+  | "settings";
 export function Desk({
   projects,
   initialTickets,
@@ -275,6 +286,24 @@ export function Desk({
   const router = useRouter();
   const [, transition] = useTransition();
   const [view, setView] = useState<View>(initialTicketId ? "inbox" : "overview");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  // The number of unread notifications is asked for once and then every minute; the list asks again when it opens.
+  useEffect(() => {
+    const run = { current: true };
+    const ask = () =>
+      void fetch("/api/v1/me/notifications?limit=1")
+        .then(async (response) => {
+          const parsed = response.ok ? notificationPage.safeParse(await response.json()) : null;
+          if (parsed?.success && run.current) setUnreadNotifications(parsed.data.unread);
+        })
+        .catch(() => null);
+    ask();
+    const timer = window.setInterval(ask, 60_000);
+    return () => {
+      run.current = false;
+      window.clearInterval(timer);
+    };
+  }, []);
   const [filters, setFilters] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -758,6 +787,7 @@ export function Desk({
     { view: "reminders", icon: BellRing },
     { view: "waiting", icon: ArrowUpRight },
     { view: "resolved", icon: Check },
+    { view: "notifications", icon: Bell },
     { view: "junk", icon: ShieldAlert },
     { view: "settings", icon: SettingsIcon },
   ];
@@ -784,6 +814,9 @@ export function Desk({
                 {t(item.view)}
                 {item.view === "overdue" && sum("overdue") > 0 && (
                   <span className="nav-count">{sum("overdue")}</span>
+                )}
+                {item.view === "notifications" && unreadNotifications > 0 && (
+                  <span className="nav-count">{unreadNotifications}</span>
                 )}
               </button>
             ))}
@@ -907,7 +940,13 @@ export function Desk({
               )}
             </div>
           </header>
-          {view === "junk" ? (
+          {view === "notifications" ? (
+            <Notifications
+              locale={initialLocale}
+              onOpen={select}
+              onUnread={setUnreadNotifications}
+            />
+          ) : view === "junk" ? (
             <Junk
               projects={projects}
               locale={initialLocale}

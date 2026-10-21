@@ -40,6 +40,9 @@ test("edits the configuration, checks it first, and approves what an agent propo
     await section.getByLabel("Remind the customer days before").fill("3");
     // How far the headers of a mail count for junk.
     await section.getByLabel("Junk detection by the headers of a mail").selectOption("strict");
+    // Which events tell operators, and whom: the kinds that name their person offer only that person.
+    await section.getByLabel("Tell operators of a new ticket").selectOption("members");
+    await section.getByLabel("Tell operators of an overdue ticket").selectOption("members");
     // Limits by priority and the list of categories.
     await section.getByLabel("Urgent priority: warn after").fill("1");
     await section.getByLabel("Urgent priority: overdue after").fill("2");
@@ -81,6 +84,9 @@ test("edits the configuration, checks it first, and approves what an agent propo
       autoResolveDays: 10,
       autoResolveReminderDays: 3,
       junkSensitivity: "strict",
+      notifyNewTicket: "members",
+      notifyOverdue: "members",
+      notifyAssignment: "assignee",
       retentionTicketsDays: 365,
       warnHoursUrgent: 1,
       overdueHoursUrgent: 2,

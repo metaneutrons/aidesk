@@ -95,6 +95,11 @@ describe("reading the configuration", () => {
         autoResolveDays: null,
         autoResolveReminderDays: null,
         junkSensitivity: "standard",
+        notifyNewTicket: "off",
+        notifyAssignment: "assignee",
+        notifyMention: "assignee",
+        notifyOverdue: "assignee",
+        notifyDraft: "assignee",
         businessDays: null,
         businessStart: "09:00",
         businessEnd: "17:00",
@@ -493,6 +498,50 @@ describe("the sensitivity of the junk rules", () => {
       .set({ settings: { junkSensitivity: "bogus" } })
       .where(eq(projects.id, projectId));
     expect(await current()).toMatchObject({ junkSensitivity: "standard" });
+  });
+});
+describe("the rules for the notifications of operators", () => {
+  it("are off for a new ticket and on for the person in the other kinds, take only the modes of their kind and read a bad value as the default", async () => {
+    await reset();
+    expect(await current()).toMatchObject({
+      notifyNewTicket: "off",
+      notifyAssignment: "assignee",
+      notifyMention: "assignee",
+      notifyOverdue: "assignee",
+      notifyDraft: "assignee",
+    });
+    // A new ticket has nobody assigned, so "assignee" is not a mode of it; an assignment cannot go to everybody.
+    for (const bad of [
+      { notifyNewTicket: "assignee" },
+      { notifyAssignment: "members" },
+      { notifyMention: "members" },
+      { notifyOverdue: "everybody" },
+    ])
+      await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ notifyNewTicket: "members", notifyOverdue: "members", notifyDraft: "off" }),
+      ),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [
+        { pointer: "/notifyNewTicket", from: "off", to: "members" },
+        { pointer: "/notifyOverdue", from: "assignee", to: "members" },
+        { pointer: "/notifyDraft", from: "assignee", to: "off" },
+      ],
+    });
+    expect(await current()).toMatchObject({
+      notifyNewTicket: "members",
+      notifyOverdue: "members",
+      notifyDraft: "off",
+    });
+    await db()
+      .update(projects)
+      .set({ settings: { notifyNewTicket: "bogus", notifyDraft: 7 } })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({ notifyNewTicket: "off", notifyDraft: "assignee" });
   });
 });
 describe("the retention periods", () => {

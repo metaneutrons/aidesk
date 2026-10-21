@@ -14,6 +14,33 @@ import {
   type RetentionKind,
 } from "../domain/retention";
 import { configDocument, type ConfigDocument } from "../domain/configuration";
+import {
+  modesOf,
+  ruleKeys,
+  type NotificationKind,
+  type RecipientMode,
+} from "../domain/notifications";
+// The rules that say which events tell operators, with the text of each and of each mode.
+const notificationRows = [
+  { kind: "new_ticket", label: "configNotifyNewTicket" },
+  { kind: "assignment", label: "configNotifyAssignment" },
+  { kind: "mention", label: "configNotifyMention" },
+  { kind: "overdue", label: "configNotifyOverdue" },
+  { kind: "draft", label: "configNotifyDraft" },
+].map((row) => ({
+  ...row,
+  kind: row.kind as NotificationKind,
+  key: ruleKeys[row.kind as NotificationKind],
+}));
+function modeLabel(kind: NotificationKind, mode: RecipientMode): string {
+  if (mode === "off") return "configNotifyOff";
+  if (mode === "members") return "configNotifyMembers";
+  return kind === "mention"
+    ? "configNotifyMentioned"
+    : kind === "assignment"
+      ? "configNotifyAssigneeOnly"
+      : "configNotifyAssignee";
+}
 // The configuration of one project as the REST API offers it: read with its
 // version, checked or saved as a whole, and the changes waiting for approval.
 const readSchema = z.object({ version: z.number(), config: configDocument });
@@ -356,6 +383,27 @@ export function Configuration({
             <option value="strict">{t("configJunkSensitivityStrict")}</option>
           </select>
         </label>
+        <fieldset className="configuration-group">
+          <legend>{t("configNotifyTitle")}</legend>
+          {notificationRows.map((row) => (
+            <label key={row.key}>
+              {t(row.label)}
+              <select
+                value={draft[row.key]}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  set(row.key, event.target.value as (typeof draft)[typeof row.key]);
+                }}
+              >
+                {modesOf[row.kind].map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(modeLabel(row.kind, mode))}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </fieldset>
         <label>
           {t("configReopenMode")}
           <select

@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Action, Grant } from "../domain/permissions";
 import { db } from "./db";
 import { memberships, operatorGroupMembers, operatorGroups, user } from "./db/schema";
+type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
 // What an operator holds in a project: the actions of their own membership and those of every group of that project
 // that they belong to. Every place that asks what a person may do reads it here and not from the memberships alone.
 const merge = (rows: { projectId: string; actions: readonly Action[] }[]): Grant[] => {
@@ -32,15 +33,20 @@ export async function actionsOf(userId: string, projectId: string): Promise<Acti
   const found = (await grantsOf(userId)).find((grant) => grant.projectId === projectId);
   return found ? [...found.actions] : null;
 }
-// The active people who hold an action in a project, by their own membership or by a group.
-export async function peopleWith(projectId: string, action: Action) {
+// The active people who hold an action in a project, by their own membership or by a group. Inside a transaction the
+// reader is that transaction.
+export async function peopleWith(
+  projectId: string,
+  action: Action,
+  reader: Pick<Tx, "select"> = db(),
+) {
   const [own, viaGroups] = await Promise.all([
-    db()
+    reader
       .select({ id: user.id, name: user.name, actions: memberships.actions })
       .from(memberships)
       .innerJoin(user, eq(user.id, memberships.userId))
       .where(and(eq(memberships.projectId, projectId), eq(user.active, true))),
-    db()
+    reader
       .select({ id: user.id, name: user.name, actions: operatorGroups.actions })
       .from(operatorGroupMembers)
       .innerJoin(operatorGroups, eq(operatorGroups.id, operatorGroupMembers.groupId))

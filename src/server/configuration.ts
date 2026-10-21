@@ -16,6 +16,7 @@ import { limitsOf, priorityLimitKey } from "../domain/response-clock";
 import { categoriesOf, parseCategories } from "../domain/triage";
 import { retentionOf, tightens } from "../domain/retention";
 import { junkSensitivityOf } from "../domain/junk";
+import { rulesOf } from "../domain/notifications";
 import { autoResolveOf, replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
@@ -96,6 +97,7 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     ...businessSettingsOf(settings),
     ...priorityOverrides(settings, { warnHours, overdueHours }),
     ...retentionValues(settings),
+    ...rulesOf(settings),
     categories: categoriesOf(settings).join("\n"),
   });
 }
@@ -164,6 +166,11 @@ function sqlMerge(config: ConfigDocument) {
     autoResolveDays: config.autoResolveDays,
     autoResolveReminderDays: config.autoResolveReminderDays,
     junkSensitivity: config.junkSensitivity,
+    notifyNewTicket: config.notifyNewTicket,
+    notifyAssignment: config.notifyAssignment,
+    notifyMention: config.notifyMention,
+    notifyOverdue: config.notifyOverdue,
+    notifyDraft: config.notifyDraft,
     ...businessValuesOf(config),
     warnHoursLow: config.warnHoursLow,
     overdueHoursLow: config.overdueHoursLow,

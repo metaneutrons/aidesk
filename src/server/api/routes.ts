@@ -174,6 +174,7 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { getPreferences, listNotifications, markRead, setPreferences } from "../notifications";
 import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../branding";
 import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
 import { inviteOperator } from "../invitations";
@@ -236,6 +237,14 @@ import { senderRuleInput, senderRuleOut } from "../../domain/sender-rules";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
 import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
+import {
+  notificationPage,
+  notificationQuery,
+  preferenceInput,
+  preferenceOut,
+  readInput,
+  readOut,
+} from "../../domain/notifications";
 import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
@@ -1244,6 +1253,55 @@ export const routes: Route[] = [
     body: profileInput,
     response: profileOut,
     run: ({ principal, input }) => setProfile(principal, input),
+  },
+  {
+    id: "notifications.list",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/notifications",
+    tag: "Operators",
+    summary:
+      "The notifications of the signed-in operator, newest first, with the number of unread ones; the subject of the ticket and no more",
+    access: "human",
+    query: notificationQuery,
+    response: notificationPage,
+    run: ({ principal, query }) => listNotifications(principal, Object.fromEntries(query)),
+  },
+  {
+    id: "notifications.read",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/notifications/read",
+    tag: "Operators",
+    summary: "Mark some notifications, or all of them when none is named, as read",
+    access: "human",
+    body: readInput,
+    response: readOut,
+    run: ({ principal, input }) => markRead(principal, input),
+  },
+  {
+    id: "notifications.preferences_get",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/notification-preferences",
+    tag: "Operators",
+    summary:
+      "For each kind of notification, whether it reaches the signed-in operator in the desk and by mail",
+    access: "human",
+    response: preferenceOut,
+    run: ({ principal }) => getPreferences(principal),
+  },
+  {
+    id: "notifications.preferences_set",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "PUT",
+    path: "/me/notification-preferences",
+    tag: "Operators",
+    summary: "Set the channels for the named kinds of notification",
+    access: "human",
+    body: preferenceInput,
+    response: preferenceOut,
+    run: ({ principal, input }) => setPreferences(principal, input),
   },
   {
     id: "config.get",

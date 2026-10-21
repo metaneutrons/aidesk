@@ -8,6 +8,7 @@ import {
   parseHolidays,
 } from "./business-hours";
 import { junkSensitivities } from "./junk";
+import { ruleShape } from "./notifications";
 import { retentionPeriod } from "./retention";
 import { maxCategories, maxCategoryLength, parseCategories } from "./triage";
 import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
@@ -65,6 +66,9 @@ export const configDocument = z
     retentionOriginalsDays: retentionPeriod,
     retentionTranslationsDays: retentionPeriod,
     retentionAiRunsDays: retentionPeriod,
+    // Which events tell operators, and whom (see `notifications.ts`): a new ticket, an assignment, a note that names
+    // someone, an overdue ticket and a draft of an agent that waits for a person.
+    ...ruleShape,
     // The categories that a ticket can have, one name per line (see `triage.ts`).
     categories: z.string().max(maxCategories * (maxCategoryLength + 1)),
     businessDays: z.string().max(13).nullable(),

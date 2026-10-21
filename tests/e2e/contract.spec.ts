@@ -253,6 +253,11 @@ test("answers every documented route in the published shape, with real data", as
   await call("operator.locale", { data: { locale: null } });
   await call("operator.profile_get");
   await call("operator.profile_set", { data: { displayName: null, signature: null } });
+  // Notifications: the list, the choice of channels (put back as found) and the marking as read.
+  await call("notifications.list", { query: { limit: "5" } });
+  const chosen = await call("notifications.preferences_get");
+  await call("notifications.preferences_set", { data: { preferences: chosen.preferences } });
+  await call("notifications.read", { data: {} });
   // Designs, on a project that no other spec uses for designs: the designs spec counts the versions of
   // alpha and finds the one that this selects.
   const designProject = desk.projects.gamma.id;

@@ -14,6 +14,7 @@ import {
 } from "../domain/webhooks";
 import { submitChange, type ChangeOutcome, type Tx } from "./changes";
 import { db } from "./db";
+import { notifyOperators } from "./notifications";
 import { audit, jobs, webhookDeliveries, webhooks } from "./db/schema";
 import { DomainError } from "./errors";
 import { checkHost, developmentStack } from "./host-guard";
@@ -371,6 +372,8 @@ export async function emitEvent(
   type: WebhookEvent,
   data: Record<string, unknown>,
 ): Promise<void> {
+  // The operators that the rules of the project tell about the event, in the same transaction.
+  await notifyOperators(tx, projectId, type, data);
   const hooks = await tx
     .select({ id: webhooks.id, events: webhooks.events })
     .from(webhooks)
