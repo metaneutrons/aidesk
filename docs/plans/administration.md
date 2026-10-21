@@ -172,9 +172,10 @@ Decided on 2026-10-20:
 - **Routing by tags (M7-A4).** A tag is not a condition of a routing rule, because a new ticket has no tags when the
   rules run. It becomes one when a rule can set tags.
 
-Still open:
+Decided on 2026-10-21:
 
-- Which languages beyond English and German a project may use for customers (M6-A7, M7-A5).
+- **Languages (M6-A7, M7-A5).** English and German only, for the customer page, the canned replies and the texts of
+  the interface. Another language needs a new decision.
 
 ## Risks
 
@@ -182,5 +183,4 @@ Still open:
   count, and a test with controlled time has to cover both.
 - Erasure and retention (M8) are irreversible; the first version removes in steps with a dry run that lists
   counts, and the tests must prove that nothing of another project or customer goes.
-- A setting that routes or blocks mail (M7-A4, A7) can hide a customer's ticket; each has to leave a visible
-  trace (unassigned, junk with a reason) and an audit entry.
+- A setting that routes or blocks mail (M7-A4, A7) can hide a customer's ticket
