@@ -276,6 +276,19 @@ to the client through `TimeZone` (`src/components/time-zone.tsx`), and a place t
 the options of `Intl.DateTimeFormat`. The language of the interface is chosen next to it in the navigation (`POST /me/locale`).
 The customer page and the sign-in pages do not use it. Business hours of a project have a zone of their own.
 
+### Your sign-in and the open sessions
+
+"Your sign-in" in the settings shows an operator how their account can be signed in to, and where it is signed in now.
+`GET /api/v1/me/sign-in` answers whether the account has a password (only owners may use it), a confirmed authenticator app,
+how many passkeys it has and which identity providers it has been used with; nothing of a secret. `GET /api/v1/me/sessions`
+lists the live sessions of the person, newest first, with the browser as it said it (cut at 200 characters), the address the
+session began from, its end, and a mark on the session that asks (read from the cookie). `POST /api/v1/me/sessions/{id}/end`
+ends one other session (the session that asks is left by signing out and answers `409`; the session of another person or one
+that does not exist answers `404`), and `POST /api/v1/me/sessions/end-others` ends all others. Each end is the audit entry
+`operator.session_end` with the scope and the number, and no device. The same functions serve the desk and the API; an agent
+gets none of them. Passkeys are added and removed in "Passkeys" of the owner (P8), and a lost password is recovered through the
+way back of the owner; changing the password while signed in is not offered.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`

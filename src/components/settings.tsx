@@ -26,6 +26,7 @@ import { Invite } from "./invite";
 import { PortalBranding } from "./portal-branding";
 import { Profile } from "./profile";
 import { NotificationPreferences } from "./notification-preferences";
+import { SignIn } from "./sign-in";
 import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
@@ -157,6 +158,7 @@ export function Settings({
         <p className="muted">{t("settingsNoAccess")}</p>
         <Profile />
         <NotificationPreferences />
+        <SignIn locale={locale} />
       </section>
     );
   return (
@@ -168,6 +170,7 @@ export function Settings({
       )}
       <Profile />
       <NotificationPreferences />
+      <SignIn locale={locale} />
       <h2>{t("operatorsTitle")}</h2>
       {people === null ? (
         <p className="muted">{t("loading")}</p>

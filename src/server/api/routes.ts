@@ -175,6 +175,7 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { currentSession, endOtherSessions, endSession, getSignIn, listSessions } from "../sign-in";
 import { getPreferences, listNotifications, markRead, setPreferences } from "../notifications";
 import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../branding";
 import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
@@ -238,6 +239,7 @@ import { senderRuleInput, senderRuleOut } from "../../domain/sender-rules";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
 import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
+import { sessionEnded, sessionList, signInOut } from "../../domain/sign-in";
 import {
   notificationPage,
   notificationQuery,
@@ -1254,6 +1256,55 @@ export const routes: Route[] = [
     body: profileInput,
     response: profileOut,
     run: ({ principal, input }) => setProfile(principal, input),
+  },
+  {
+    id: "signin.get",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/sign-in",
+    tag: "Operators",
+    summary:
+      "How the account of the signed-in operator can be signed in to: password, authenticator app, the number of passkeys and the identity providers that were used",
+    access: "human",
+    response: signInOut,
+    run: ({ principal }) => getSignIn(principal),
+  },
+  {
+    id: "signin.sessions",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/sessions",
+    tag: "Operators",
+    summary:
+      "The open sessions of the signed-in operator, newest first; the one that asks is marked",
+    access: "human",
+    response: sessionList,
+    run: async ({ principal, request }) => listSessions(principal, await currentSession(request)),
+  },
+  {
+    id: "signin.session_end",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/sessions/{sessionId}/end",
+    tag: "Operators",
+    summary:
+      "End one of the other sessions of the signed-in operator; the session that asks is ended by signing out",
+    access: "human",
+    response: sessionEnded,
+    run: async ({ principal, params, request }) =>
+      endSession(principal, await currentSession(request), params.sessionId ?? ""),
+  },
+  {
+    id: "signin.sessions_end_others",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/sessions/end-others",
+    tag: "Operators",
+    summary: "End every other session of the signed-in operator",
+    access: "human",
+    response: sessionEnded,
+    run: async ({ principal, request }) =>
+      endOtherSessions(principal, await currentSession(request)),
   },
   {
     id: "notifications.list",
