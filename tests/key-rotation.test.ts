@@ -123,14 +123,11 @@ describe("the two keys", () => {
 });
 describe("rotating the encryption key", () => {
   it("re-seals every stored secret that depends on the previous key, one by one, and leaves what no key opens", async () => {
-    // Other tests of the same database keep secrets of their own and add more while this one runs, so the numbers are taken as
-    // differences, and all of them only as a lower bound. What this test wrote is checked value by value below.
     useKeys({ ENCRYPTION_KEY_PREVIOUS: oldKey });
-    const base = Object.fromEntries(
-      (await keyStatus(ownerPrincipal)).groups.map((entry) => [entry.name, entry]),
-    );
-    const diff = async (name: string, field: "total" | "current" | "previous" | "unreadable") =>
-      ((await group(name))?.[field] ?? 0) - (base[name]?.[field] ?? 0);
+    // Other test files of the same database add and remove secrets of their own while this one runs, so the counts of the
+    // stored values are read as what is at least there (the values of this test cannot be removed by another file).
+    const count = async (name: string, field: "total" | "current" | "previous" | "unreadable") =>
+      (await group(name))?.[field] ?? 0;
     const mine = randomUUID();
     const other = randomUUID();
     const already = randomUUID();
@@ -212,20 +209,20 @@ describe("rotating the encryption key", () => {
     const before = await keyStatus(ownerPrincipal);
     expect(before.encryptionPrevious).toBe(true);
     expect(before.settled).toBe(false);
-    expect(await diff("connections", "total")).toBeGreaterThanOrEqual(3);
-    expect(await diff("connections", "current")).toBeGreaterThanOrEqual(1);
-    expect(await diff("connections", "previous")).toBeGreaterThanOrEqual(1);
-    expect(await diff("connections", "unreadable")).toBeGreaterThanOrEqual(1);
-    expect(await diff("webhooks", "previous")).toBeGreaterThanOrEqual(1);
-    expect(await diff("sso", "previous")).toBeGreaterThanOrEqual(2);
-    expect(await diff("proposals", "previous")).toBeGreaterThanOrEqual(1);
+    expect(await count("connections", "total")).toBeGreaterThanOrEqual(3);
+    expect(await count("connections", "current")).toBeGreaterThanOrEqual(1);
+    expect(await count("connections", "previous")).toBeGreaterThanOrEqual(1);
+    expect(await count("connections", "unreadable")).toBeGreaterThanOrEqual(1);
+    expect(await count("webhooks", "previous")).toBeGreaterThanOrEqual(1);
+    expect(await count("sso", "previous")).toBeGreaterThanOrEqual(2);
+    expect(await count("proposals", "previous")).toBeGreaterThanOrEqual(1);
     const after = await rotateKeys(ownerPrincipal);
     // The value that no key opens does not keep the previous key in use.
     expect(after.settled).toBe(true);
     for (const name of ["connections", "webhooks", "sso", "proposals"])
       expect((await group(name))?.previous).toBe(0);
-    expect(await diff("connections", "current")).toBeGreaterThanOrEqual(2);
-    expect(await diff("connections", "unreadable")).toBeGreaterThanOrEqual(1);
+    expect(await count("connections", "current")).toBeGreaterThanOrEqual(2);
+    expect(await count("connections", "unreadable")).toBeGreaterThanOrEqual(1);
     // The previous key can go: everything that was readable is readable with the current key alone.
     useKeys({});
     const [rotated] = await db().select().from(connections).where(eq(connections.id, mine));
