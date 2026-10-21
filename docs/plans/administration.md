@@ -156,4 +156,31 @@ Decided on 2026-10-18:
   that has no period.
 - **Notifications (M9-A1).** In the desk and by mail through the outgoing connection of the project, with the subject
   and a link only. Messengers in two stages. First formats of the webhooks for channels (`slack`, `teams`, `discord`,
-  `matte
+  `mattermost`, `rocketchat`, `apprise`), which need no dependency. Then connections of the Chat SDK for direct
+  messages and threads, behind an interface of our own and with the version pinned (see
+  [the qualification](../qualification/chat-sdk.md)): Slack first, Teams last. The subject of a ticket goes to a
+  messenger only when a channel switches it on, which needs `config.approve`, and the overview of M8-A4 lists these
+  channels as recipients of ticket content.
+- **Priorities and categories (M7-A3).** Four fixed priorities for all projects (low, normal, high, urgent; normal
+  is the default). Categories are a free list for each project, at most one for a ticket. The limits of the response
+  clock for each priority are set per project.
+
+Decided on 2026-10-20:
+
+- **Export about a requester (M8-A3).** Needs its own action `data.export`, which no preset holds, like `data.erase`.
+  The owner has no access to the data of a project and takes out no export because of that status.
+- **Routing by tags (M7-A4).** A tag is not a condition of a routing rule, because a new ticket has no tags when the
+  rules run. It becomes one when a rule can set tags.
+
+Still open:
+
+- Which languages beyond English and German a project may use for customers (M6-A7, M7-A5).
+
+## Risks
+
+- Settings that touch the response clock (M7-A2, A3) change what "late" means; the defaults must keep today's
+  count, and a test with controlled time has to cover both.
+- Erasure and retention (M8) are irreversible; the first version removes in steps with a dry run that lists
+  counts, and the tests must prove that nothing of another project or customer goes.
+- A setting that routes or blocks mail (M7-A4, A7) can hide a customer's ticket; each has to leave a visible
+  trace (unassigned, junk with a reason) and an audit entry.
