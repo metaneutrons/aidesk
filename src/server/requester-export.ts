@@ -3,7 +3,7 @@ import { strToU8, zipSync, type Zippable } from "fflate";
 import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import { requesterExportFormat, requesterExportInput } from "../domain/requester-export";
 import type { Principal } from "../domain/permissions";
-import { managesProject } from "./archive";
+import { permits } from "../domain/permissions";
 import { db } from "./db";
 import {
   attachments,
@@ -29,7 +29,7 @@ import { z } from "zod";
 // entries of the audit that name these tickets or messages, and the mail of the address that no ticket holds. It is
 // made in memory with the same ceiling as the export of a project and is handed to the caller; nothing of it is
 // stored, so that the file cannot outlive an erasure. The export is an entry of the audit with counts and the digest
-// of the address, never the address. The people who may take out the export of a project may take this out.
+// of the address, never the address. It needs `data.export` in the project, which no preset holds.
 const id = z.uuid();
 export async function exportRequester(
   principal: Principal,
@@ -39,7 +39,7 @@ export async function exportRequester(
 ) {
   if (principal.kind !== "human" || !principal.active) throw new DomainError("forbidden", 403);
   const project = id.parse(projectId);
-  if (!(await managesProject(principal, project))) throw new DomainError("not_found", 404);
+  if (!permits(principal, project, "data.export")) throw new DomainError("not_found", 404);
   const { email } = requesterExportInput.parse(input);
   const [row] = await db().select().from(projects).where(eq(projects.id, project));
   if (!row) throw new DomainError("not_found", 404);
