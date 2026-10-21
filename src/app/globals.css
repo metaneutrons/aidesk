@@ -2164,8 +2164,8 @@ button.danger {
 .notification-list li.unread .notification-item {
     border-left: 3px solid var(--accent);
 }
-.notification-list li.read .notification-item {
-    opacity: 0.75;
+.notification-list li.read .notification-item strong {
+    font-weight: 500;
 }
 .notifications .row-actions {
     display: flex;
