@@ -43,6 +43,7 @@ import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
 import { Notifications } from "./notifications";
+import { MentionPicker, type Mention } from "./mention-picker";
 import { notificationPage } from "../domain/notifications";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
@@ -325,6 +326,8 @@ export function Desk({
   const [errorWait, setErrorWait] = useState<{ key: string; seconds: number } | null>(null);
   const [draft, setDraft] = useState("");
   const [internal, setInternal] = useState(false);
+  // The people that the note in the composer is for (see `MentionPicker`).
+  const [mentions, setMentions] = useState<Mention[]>([]);
   const [sending, setSending] = useState(false);
   // A draft that a model wrote: running, the instruction for the next one, what the
   // field held before (to undo it) and what to tell the person about it.
@@ -371,6 +374,7 @@ export function Desk({
     setError(null);
     setDraft(localStorage.getItem(`aidesk:${operator.id}:${selected}:draft`) ?? "");
     setInternal(false);
+    setMentions([]);
     setUndo(null);
     setAssistNote(null);
     void fetch(`/api/v1/tickets/${selected}`, { signal: controller.signal })
@@ -739,6 +743,9 @@ export function Desk({
         body: JSON.stringify({
           markdown: draft,
           internal,
+          ...(internal && mentions.length > 0
+            ? { mentions: mentions.map((entry) => entry.id) }
+            : {}),
           language: conversation.ticket.language,
           expectedRevision: conversation.ticket.revision,
           idempotencyKey: crypto.randomUUID(),
@@ -749,6 +756,7 @@ export function Desk({
         return;
       }
       editDraft("");
+      setMentions([]);
       setUndo(null);
       setAssistNote(null);
       const fresh = await fetch(`/api/v1/tickets/${selected}`);
@@ -1630,6 +1638,26 @@ export function Desk({
                           rows={4}
                           readOnly={assisting || translating}
                         />
+                        {internal && (
+                          <MentionPicker
+                            key={conversation.ticket.id}
+                            ticketId={conversation.ticket.id}
+                            selfId={operator.id}
+                            chosen={mentions}
+                            disabled={sending || assisting || translating}
+                            onAdd={(person) => {
+                              setMentions((current) => [...current, person]);
+                              editDraft(
+                                `${draft}${draft && !/\s$/.test(draft) ? " " : ""}@${person.name} `,
+                              );
+                            }}
+                            onRemove={(personId) => {
+                              setMentions((current) =>
+                                current.filter((entry) => entry.id !== personId),
+                              );
+                            }}
+                          />
+                        )}
                         <div className="assist-row">
                           {!internal && conversation.actions.includes("ticket.reply") && (
                             <CannedPicker

@@ -2,6 +2,7 @@ import { cancelAgentRuns, cancelRunsOfAgent, queueAgentRun, takeOver } from "./a
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { signed } from "../domain/profile";
 import { actionsOf, peopleWith } from "./grants";
+import { notifyKind } from "./notifications";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
 import { emitEvent } from "./webhooks";
@@ -455,6 +456,13 @@ export async function listAssignees(principal: Principal, ticketId: string) {
       .filter((agent) => agent.expiresAt > new Date() && agent.actions.includes("ticket.read"))
       .map(({ id, name, managed }) => ({ id, name, managed })),
   };
+}
+// The people that a note on the ticket can name: whoever may read it. For the person who writes the note.
+export async function listMentionable(principal: Principal, ticketId: string) {
+  if (principal.kind !== "human" || !principal.active) throw new DomainError("forbidden", 403);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.note")) throw new DomainError("forbidden", 403);
+  return { users: await peopleWith(ticket.projectId, "ticket.read") };
 }
 export async function assignTicket(principal: Principal, ticketId: string, input: unknown) {
   const values = assignInput.parse(input);
@@ -1244,6 +1252,8 @@ export const replyInput = z.object({
   idempotencyKey: z.uuid(),
   language: z.string().min(2).max(35),
   resolve: z.boolean().default(false),
+  // The people that an internal note names (their ids); they are told of it when the project's rules say so.
+  mentions: z.array(z.string().min(1).max(100)).max(10).default([]),
 });
 export async function reply(principal: Principal, ticketId: string, input: unknown) {
   const values = replyInput.parse(input);
@@ -1255,6 +1265,8 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
   )
     throw new DomainError("forbidden", 403);
   if (values.resolve && values.internal) throw new DomainError("invalid_input", 400);
+  // Only a note can name somebody; a reply goes to the customer.
+  if (values.mentions.length > 0 && !values.internal) throw new DomainError("invalid_input", 400);
   // A ticket in junk gets no public reply until a person restores it.
   if (!values.internal && ticket.junkAt) throw new DomainError("conflict", 409);
   const project = await db()
@@ -1397,6 +1409,14 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
       .values({ projectId: ticket.projectId, actorId: principal.id, action, targetId: messageId });
     // A person who answers a ticket that a managed agent works takes it over.
     if (principal.kind === "human" && !values.internal) await takeOver(tx, ticket.id);
+    // The people that a note names are told, in the same transaction as the note.
+    if (values.internal && values.mentions.length > 0)
+      await notifyKind(tx, ticket.projectId, "mention", {
+        ticketId: ticket.id,
+        number: ticket.number,
+        mentionedUserIds: values.mentions,
+        actorId: principal.id,
+      });
     return { id: messageId, duplicate: false, draft: false };
   });
 }

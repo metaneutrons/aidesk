@@ -766,6 +766,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "tickets.mentionable": {
+    operation: "listMentionable",
+    action: "ticket.note",
+    ui: "src/components/mention-picker.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "notifications.list": {
     operation: "listNotifications",
     action: "self.notifications",

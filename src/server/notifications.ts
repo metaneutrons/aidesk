@@ -67,6 +67,16 @@ async function recipientsOf(
   data: Record<string, unknown>,
 ): Promise<string[]> {
   if (kind === "new_ticket") return members(tx, project);
+  if (kind === "mention") {
+    // The people that a note names, as far as they may read the ticket; whoever wrote the note is not told of it.
+    const named = Array.isArray(data.mentionedUserIds)
+      ? data.mentionedUserIds.filter((entry): entry is string => typeof entry === "string")
+      : [];
+    const readers = new Set(
+      (await peopleWith(project, "ticket.read", tx)).map((person) => person.id),
+    );
+    return named.filter((userId) => userId !== text(data.actorId) && readers.has(userId));
+  }
   if (kind === "assignment") {
     const assignee = text(data.assigneeUserId);
     if (!assignee || assignee === text(data.actorId)) return [];

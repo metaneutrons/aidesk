@@ -322,6 +322,7 @@ test("answers every documented route in the published shape, with real data", as
     data: { name: `Contract managed ${desk.run}`, actions: ["ticket.read"] },
   });
   await call("tickets.assignees", { params: { ticketId: ticket } });
+  await call("tickets.mentionable", { params: { ticketId: ticket } });
   await call("tickets.assign", {
     params: { ticketId: ticket },
     data: { userId: null, agentId: String(managedAgent.id) },

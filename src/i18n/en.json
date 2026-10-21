@@ -1044,5 +1044,9 @@
   "configNotifyAssigneeOnly": "The assigned person",
   "configNotifyMentioned": "The person who is mentioned",
   "notifications": "Notifications",
-  "processingContent_operator_address": "address of an operator"
+  "processingContent_operator_address": "address of an operator",
+  "mentionLabel": "Tell a person about this note",
+  "mentionChoose": "Choose a person…",
+  "mentionList": "People who are told about this note",
+  "mentionRemove": "Do not tell {name}"
 }
