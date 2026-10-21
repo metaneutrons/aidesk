@@ -9,7 +9,7 @@
 //   github-source <projectId> gives a fixture project a repository that refuses every request
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
-import { and, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import { db, sqlClient } from "../src/server/db";
 import {
   account,
@@ -272,6 +272,17 @@ async function ssoSignIns(email: string) {
     ),
   };
 }
+// The kinds of the notifications that a fixture operator has, newest first.
+async function notificationsOf(email: string) {
+  const [person] = await db().select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (!person) return { kinds: [] as string[] };
+  const rows = await db()
+    .select({ kind: notifications.kind })
+    .from(notifications)
+    .where(eq(notifications.userId, person.id))
+    .orderBy(desc(notifications.createdAt));
+  return { kinds: rows.map((row) => row.kind) };
+}
 async function userCount(email: string) {
   return { count: (await db().select().from(user).where(eq(user.email, email))).length };
 }
@@ -344,6 +355,7 @@ try {
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
   else if (command === "github-source" && argument) write(await githubSource(argument));
   else if (command === "notify" && argument) write(await notify(argument));
+  else if (command === "notifications-of") write(await notificationsOf(fixtureEmail(argument)));
   else
     throw new Error(
       "Usage: e2e-fixture.ts setup | teardown <run> | user-count|disable|revoke-sessions <email>",

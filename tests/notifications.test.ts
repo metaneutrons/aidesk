@@ -5,6 +5,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
 import {
   audit,
+  jobs,
   memberships,
   notificationPreferences,
   notifications,
@@ -13,6 +14,7 @@ import {
   user,
 } from "../src/server/db/schema";
 import { emitEvent } from "../src/server/webhooks";
+import { listMentionable, reply } from "../src/server/operations";
 import {
   getPreferences,
   listNotifications,
@@ -106,6 +108,12 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => {
   await db().delete(audit).where(inArray(audit.actorId, people));
+  await db()
+    .delete(audit)
+    .where(inArray(audit.projectId, [projectId, otherProject]));
+  await db()
+    .delete(jobs)
+    .where(inArray(jobs.projectId, [projectId, otherProject]));
   await db()
     .delete(tickets)
     .where(inArray(tickets.projectId, [projectId, otherProject]));
@@ -441,5 +449,104 @@ describe("the notifications that are kept", () => {
     expect(await pruneNotifications()).toBeGreaterThanOrEqual(1);
     const left = await db().select().from(notifications).where(eq(notifications.userId, worker));
     expect(left.map((entry) => entry.id)).toEqual([fresh?.id]);
+  });
+});
+describe("the mention of a person in a note", () => {
+  const noting: Action[] = ["project.read", "ticket.read", "ticket.note"];
+  const writer = (held: Action[] = noting): Principal => ({
+    id: second,
+    kind: "human",
+    active: true,
+    owner: false,
+    grants: [{ projectId, actions: held }],
+  });
+  const note = (
+    row: { id: string; revision: number; language: string },
+    mentions: string[],
+    extra: Record<string, unknown> = {},
+  ) =>
+    reply(writer(), row.id, {
+      markdown: "Please look at this",
+      internal: true,
+      expectedRevision: row.revision,
+      idempotencyKey: randomUUID(),
+      language: row.language,
+      mentions,
+      ...extra,
+    });
+  it("tells the named people who may read the ticket, once, and not the author or a stranger", async () => {
+    await reset();
+    const row = await ticket();
+    await note(row, [worker, worker, second, reader, outsider, "nobody-here"]);
+    expect(await received(worker)).toEqual(["mention"]);
+    expect(await received(reader)).toEqual(["mention"]);
+    expect(await received(second)).toEqual([]);
+    expect(await received(outsider)).toEqual([]);
+    const shown = (await listNotifications(principal(worker), {})).notifications[0];
+    expect(shown).toMatchObject({ kind: "mention", ticketId: row.id, subject: row.subject });
+  });
+  it("tells nobody when the project switched the rule off, or the note names nobody", async () => {
+    await reset();
+    const row = await ticket();
+    await note(row, []);
+    expect(await received(worker)).toEqual([]);
+    await rulesSet({ notifyMention: "off" });
+    await note({ ...row, revision: row.revision + 1 }, [worker]);
+    expect(await received(worker)).toEqual([]);
+  });
+  it("is refused for a reply to the customer and for more than ten people, and writes nothing when the note fails", async () => {
+    await reset();
+    // The project can send, so that the reply would otherwise be accepted.
+    await rulesSet({ outboundConnectionId: randomUUID() });
+    const row = await ticket();
+    await expect(
+      reply(writer([...noting, "ticket.reply"]), row.id, {
+        markdown: "Answer",
+        internal: false,
+        expectedRevision: row.revision,
+        idempotencyKey: randomUUID(),
+        language: row.language,
+        mentions: [worker],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      note(
+        row,
+        Array.from({ length: 11 }, (_, index) => `p${String(index)}`),
+      ),
+    ).rejects.toThrow();
+    // A stale revision is a conflict, and nobody is told.
+    await expect(note({ ...row, revision: row.revision + 5 }, [worker])).rejects.toMatchObject({
+      code: "conflict",
+    });
+    expect(await received(worker)).toEqual([]);
+  });
+  it("is told once when the same request is repeated", async () => {
+    await reset();
+    const row = await ticket();
+    const key = randomUUID();
+    const again = () => note(row, [worker], { idempotencyKey: key });
+    expect(await again()).toMatchObject({ duplicate: false });
+    expect(await again()).toMatchObject({ duplicate: true });
+    expect(await received(worker)).toEqual(["mention"]);
+  });
+  it("lists the people who may read the ticket for a person who may write a note, and for nobody else", async () => {
+    const row = await ticket();
+    const list = await listMentionable(writer(), row.id);
+    expect(list.users.map((person) => person.id).sort()).toEqual([reader, second, worker].sort());
+    await expect(
+      listMentionable(writer(["project.read", "ticket.read"]), row.id),
+    ).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(listMentionable({ ...writer(), kind: "agent" }, row.id)).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(
+      listMentionable(
+        { ...writer(), grants: [{ projectId: otherProject, actions: noting }] },
+        row.id,
+      ),
+    ).rejects.toMatchObject({ code: "not_found" });
   });
 });

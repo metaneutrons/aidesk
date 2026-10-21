@@ -25,6 +25,7 @@ import {
   createManagedAgent,
   getTicket,
   listAssignees,
+  listMentionable,
   grantInput,
   issueAgentToken,
   issueInput,
@@ -1910,6 +1911,20 @@ export const routes: Route[] = [
       agents: z.array(z.object({ id: z.uuid(), name: z.string(), managed: z.boolean() })),
     }),
     run: ({ principal, params }) => listAssignees(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "tickets.mentionable",
+    mcp: {
+      not: "A note names a person through the desk or the API; an agent does not name people",
+    },
+    method: "GET",
+    path: "/tickets/{ticketId}/mentionable",
+    tag: "Tickets",
+    summary:
+      "The people that an internal note on the ticket can name (those who may read it). Needs ticket.note",
+    access: "ticket.note",
+    response: z.object({ users: z.array(z.object({ id: z.string(), name: z.string() })) }),
+    run: ({ principal, params }) => listMentionable(principal, params.ticketId ?? ""),
   },
   {
     id: "tickets.agent_runs",

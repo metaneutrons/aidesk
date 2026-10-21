@@ -1044,5 +1044,9 @@
   "configNotifyAssigneeOnly": "Die zugewiesene Person",
   "configNotifyMentioned": "Die genannte Person",
   "notifications": "Benachrichtigungen",
-  "processingContent_operator_address": "Adresse eines Operators"
+  "processingContent_operator_address": "Adresse eines Operators",
+  "mentionLabel": "Eine Person auf diese Notiz hinweisen",
+  "mentionChoose": "Person wählen…",
+  "mentionList": "Personen, die auf diese Notiz hingewiesen werden",
+  "mentionRemove": "{name} nicht hinweisen"
 }

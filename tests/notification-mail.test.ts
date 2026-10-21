@@ -16,6 +16,7 @@ import {
 } from "../src/server/db/schema";
 import { emitEvent } from "../src/server/webhooks";
 import { mailJob, setPreferences } from "../src/server/notifications";
+import { reply } from "../src/server/operations";
 import { runNotificationMail } from "../src/worker/notification-mail";
 import { maxAttempts } from "../src/worker/claim";
 import {
@@ -330,6 +331,35 @@ describe("the mail of a notification", () => {
     expect(await drain()).toBe(0);
     expect(smtp.messages).toHaveLength(attempted);
     expect(attempted).toBeGreaterThanOrEqual(before);
+  });
+  it('goes to a person that a note names, with the kind "mentioned"', async () => {
+    const row = await ticket();
+    await reply(
+      {
+        id: german,
+        kind: "human",
+        active: true,
+        owner: false,
+        grants: [{ projectId, actions: ["project.read", "ticket.read", "ticket.note"] }],
+      },
+      row.id,
+      {
+        markdown: "Look at this",
+        internal: true,
+        expectedRevision: row.revision,
+        idempotencyKey: randomUUID(),
+        language: row.language,
+        mentions: [worker, german],
+      },
+    );
+    expect((await queued()).map((job) => [job.payload.userId, job.payload.kind])).toEqual([
+      [worker, "mention"],
+    ]);
+    await drain();
+    expect(smtp.messages).toHaveLength(1);
+    const wire = decoded(smtp.messages[0] ?? "");
+    expect(wire).toContain(`To: ${worker}@example.test`);
+    expect(wire).toContain("You were mentioned");
   });
   it("is not sent for a ticket of another project", async () => {
     const other = randomUUID();

@@ -2222,7 +2222,7 @@ ticket are read when the list is shown (`src/server/notifications.ts`, `src/doma
 | ------------ | ------------------------------------ | ----------------------------------------------------------------- |
 | `new_ticket` | `ticket.created`                     | nobody (default) or everybody who may reply (`members`)           |
 | `assignment` | `ticket.assigned`                    | the new assignee (default) or nobody; not the person who assigned |
-| `mention`    | a note that names a person (follows) | the named person (default) or nobody                              |
+| `mention`    | an internal note that names a person | the named person (default) or nobody                              |
 | `overdue`    | `ticket.overdue`                     | the assignee (default), everybody who may reply, or nobody        |
 | `draft`      | `draft.created`                      | the assignee (default), everybody who may reply, or nobody        |
 
@@ -2242,6 +2242,14 @@ written for a change that was rolled back. The list (`GET /api/v1/me/notificatio
 `before`) shows only the notifications of projects in which the person may still read tickets. `POST /api/v1/me/notifications/read`
 marks the named ones, or all, as read. A notification goes with its ticket, project and person, and the pass of the worker that
 keeps the retention removes what is older than 90 days, read or not. Nothing of this is offered over MCP.
+
+Mentions. An internal note names people by their ids: `POST /api/v1/tickets/{id}/reply` takes `mentions` (up to ten) with
+`internal: true`, and refuses it with a reply to the customer (`400`). The desk offers the people from
+`GET /api/v1/tickets/{id}/mentionable` (everybody who may read the ticket, for a person with `ticket.note`) in the composer of a
+note, puts `@Name` into the text and sends the ids with the note. The names in the text are text only: the server tells the people
+of the list, not of what the text says, and only those who may read the ticket; the author is not told, a person that is named
+twice is told once, and a request that is repeated with the same idempotency key tells nobody again. The notifications are written
+in the transaction of the note, like those of the events. Agents do not name people (`tickets_reply` of MCP has no such field).
 
 Mail. When the project has an outgoing connection that is chosen, ready and not paused, a notification also queues a job
 `notify.mail` for every person who wants mail for the kind (on until they switch it off; independent of the desk). The worker
