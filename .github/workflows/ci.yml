@@ -217,6 +217,10 @@ jobs:
           exit 1
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm test:e2e
+      - name: List the tests that passed only on the repeat
+        if: always()
+        run: |
+          if [ -f test-results/results.json ]; then pnpm exec tsx scripts/flaky-report.ts; fi
       - name: Show the stack logs
         if: failure()
         run: sh scripts/dev.sh logs --no-color --tail 300

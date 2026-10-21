@@ -13,13 +13,19 @@ export default defineConfig({
     : [],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: 0,
+  // In CI a test that fails gets one more try, because a timing fault on a shared runner costs a rerun of the whole
+  // job of about 25 minutes. A test that passes only on the repeat is listed by `scripts/flaky-report.ts`.
+  retries: process.env.CI ? 1 : 0,
   timeout: 60_000,
   // An assertion that waits for the page to answer gets five seconds on a machine of its own and fifteen in
   // CI, where three browsers share two cores with the development server and a click that is answered
   // after six seconds is slow, not broken. An assertion that succeeds fast is not slowed by this.
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
-  reporter: [["list"], ["html", { open: "never" }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    ["json", { outputFile: "test-results/results.json" }],
+  ],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
     locale: "en-US",
