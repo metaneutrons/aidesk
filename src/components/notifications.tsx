@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { notificationPage } from "../domain/notifications";
+import { useZone } from "./time-zone";
 // What the signed-in operator was told about: a new ticket, an assignment, a note that names them, an overdue
 // ticket and a draft of an agent that waits. The entry holds the kind, the ticket number and the subject, and a click
 // opens the ticket.
@@ -17,6 +18,7 @@ export function Notifications({
   onUnread: (unread: number) => void;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const titleId = useId();
   const [items, setItems] = useState<Page["notifications"] | null>(null);
   const [next, setNext] = useState<string | null>(null);
@@ -24,7 +26,11 @@ export function Notifications({
   const [failed, setFailed] = useState(false);
   // Counts the reasons to load the first page again; the load always uses the filter that is shown now.
   const [version, setVersion] = useState(0);
-  const when = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
+  const when = new Intl.DateTimeFormat(locale, {
+    ...zone,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
   const load = useCallback(
     async (cursor: string | null, only: boolean) => {
       const query = new URLSearchParams({ limit: "30" });

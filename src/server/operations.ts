@@ -1520,9 +1520,10 @@ export async function setLocale(principal: Principal, input: unknown): Promise<v
   await db().update(user).set({ locale }).where(eq(user.id, principal.id));
 }
 export async function operatorInfo(principal: Principal) {
-  if (principal.kind !== "human") return { name: "Agent", locale: null, owner: false };
+  if (principal.kind !== "human")
+    return { name: "Agent", locale: null, owner: false, timeZone: null as string | null };
   const [operator] = await db()
-    .select({ name: user.name, locale: user.locale, owner: user.owner })
+    .select({ name: user.name, locale: user.locale, owner: user.owner, timeZone: user.timeZone })
     .from(user)
     .where(eq(user.id, principal.id));
   if (!operator) throw new DomainError("unauthenticated", 401);

@@ -1048,5 +1048,8 @@
   "mentionLabel": "Tell a person about this note",
   "mentionChoose": "Choose a person…",
   "mentionList": "People who are told about this note",
-  "mentionRemove": "Do not tell {name}"
+  "mentionRemove": "Do not tell {name}",
+  "profileTimeZone": "Time zone",
+  "profileTimeZoneDevice": "The time zone of this device",
+  "profileTimeZoneHint": "The zone in which you see times in the desk, such as Europe/Berlin. Leave it empty to use the zone of the device."
 }

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { BellRing } from "lucide-react";
+import { useZone } from "./time-zone";
 // A time at which the team wants to see this ticket again. Setting or clearing
 // it does not change the conversation. The input uses the browser's own time
 // zone; the server stores the instant.
@@ -25,6 +26,7 @@ export function Reminder({
   onChanged: () => void;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const [value, setValue] = useState(localValue(remindAt));
   const [failed, setFailed] = useState(false);
   async function save(next: string | null) {
@@ -55,6 +57,7 @@ export function Reminder({
         <span className={due ? "attention" : "muted"}>
           {t(due ? "reminderDue" : "reminderAt", {
             date: new Intl.DateTimeFormat(locale, {
+              ...zone,
               dateStyle: "medium",
               timeStyle: "short",
             }).format(new Date(remindAt)),

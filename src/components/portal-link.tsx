@@ -2,11 +2,13 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 const grantSchema = z.object({ url: z.string(), expiresAt: z.string() });
 // Gives the requester access to this one ticket. The link is shown once and
 // replaces an earlier one; disabling it ends the access.
 export function PortalLink({ ticketId, locale }: { ticketId: string; locale: string }) {
   const t = useTranslations();
+  const zone = useZone();
   const [grant, setGrant] = useState<z.infer<typeof grantSchema> | null>(null);
   const [note, setNote] = useState<"copied" | "revoked" | "error" | null>(null);
   async function create() {
@@ -65,7 +67,7 @@ export function PortalLink({ ticketId, locale }: { ticketId: string; locale: str
           </button>
           <small>
             {t("portalLinkNote", {
-              date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
+              date: new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium" }).format(
                 new Date(grant.expiresAt),
               ),
             })}

@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { identify } from "../server/principal";
 import { getOverview, listProjects, listTickets, operatorInfo } from "../server/operations";
 import { listNotifications } from "../server/notifications";
+import { TimeZone } from "../components/time-zone";
 import { listCeiling, listStep } from "../domain/paging";
 import { DomainError } from "../server/errors";
 import { effectiveLocale } from "../domain/locale";
@@ -59,20 +60,22 @@ export default async function Home({
     <NextIntlClientProvider
       locale={locale}
       messages={locale === "de" ? german : english}
-      timeZone="UTC"
+      timeZone={operator.timeZone ?? "UTC"}
     >
-      <Desk
-        projects={projectList}
-        initialTickets={initialTickets}
-        overview={overviewData}
-        listLimit={limit}
-        operator={{ ...operator, id: principal.id }}
-        initialTicketId={parameters.ticket ?? null}
-        initialLocale={locale}
-        localePreference={operator.locale}
-        serverTime={Date.now()}
-        initialUnread={notified.unread}
-      />
+      <TimeZone zone={operator.timeZone}>
+        <Desk
+          projects={projectList}
+          initialTickets={initialTickets}
+          overview={overviewData}
+          listLimit={limit}
+          operator={{ ...operator, id: principal.id }}
+          initialTicketId={parameters.ticket ?? null}
+          initialLocale={locale}
+          localePreference={operator.locale}
+          serverTime={Date.now()}
+          initialUnread={notified.unread}
+        />
+      </TimeZone>
     </NextIntlClientProvider>
   );
 }

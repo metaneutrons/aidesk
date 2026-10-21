@@ -53,6 +53,7 @@ import { textOn } from "../domain/branding";
 import { tagStyle } from "../domain/tags";
 import { priorityKey, Triage } from "./triage";
 import { priorities, priorityOf, type Priority } from "../domain/triage";
+import { useZone } from "./time-zone";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -287,6 +288,7 @@ export function Desk({
   initialUnread,
 }: Props) {
   const t = useTranslations();
+  const zone = useZone();
   const router = useRouter();
   const [, transition] = useTransition();
   const [view, setView] = useState<View>(initialTicketId ? "inbox" : "overview");
@@ -1199,6 +1201,7 @@ export function Desk({
                           <span className={reminderDue(ticket) ? "urgent-text" : "muted"}>
                             {t(reminderDue(ticket) ? "reminderDueShort" : "reminderSetShort", {
                               date: new Intl.DateTimeFormat(initialLocale, {
+                                ...zone,
                                 dateStyle: "medium",
                                 timeStyle: "short",
                               }).format(new Date(ticket.remindAt)),
@@ -1441,6 +1444,7 @@ export function Desk({
                             )}
                             <time dateTime={message.createdAt}>
                               {new Intl.DateTimeFormat(initialLocale, {
+                                ...zone,
                                 dateStyle: "medium",
                                 timeStyle: "short",
                               }).format(new Date(message.createdAt))}

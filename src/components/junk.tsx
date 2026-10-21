@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 const itemSchema = z.object({
   kind: z.enum(["ticket", "mail"]),
   id: z.uuid(),
@@ -61,6 +62,7 @@ export function Junk({
   onRestored: () => void;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const [items, setItems] = useState<Item[] | null>(null);
   const [selected, setSelected] = useState<Item | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -142,6 +144,7 @@ export function Junk({
                     <span>{item.from}</span>
                     <time dateTime={item.at}>
                       {new Intl.DateTimeFormat(locale, {
+                        ...zone,
                         dateStyle: "medium",
                         timeStyle: "short",
                       }).format(new Date(item.at))}

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { startRegistration } from "@simplewebauthn/browser";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 // The passkeys of the owner who is signed in: the second factor after the password, in the place of the
 // code of the authenticator app, which stays as the way back.
 const listSchema = z.array(
@@ -16,6 +17,7 @@ const listSchema = z.array(
 type Message = "passkeyAdded" | "passkeyAddError" | "passkeyRemoved" | null;
 export function OwnerPasskeys({ locale }: { locale: string }) {
   const t = useTranslations();
+  const zone = useZone();
   const nameId = useId();
   const [passkeys, setPasskeys] = useState<z.infer<typeof listSchema> | null>(null);
   const [name, setName] = useState("");
@@ -84,9 +86,10 @@ export function OwnerPasskeys({ locale }: { locale: string }) {
                 {entry.createdAt && (
                   <span>
                     {t("passkeyCreated", {
-                      date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
-                        new Date(entry.createdAt),
-                      ),
+                      date: new Intl.DateTimeFormat(locale, {
+                        ...zone,
+                        dateStyle: "medium",
+                      }).format(new Date(entry.createdAt)),
                     })}
                   </span>
                 )}

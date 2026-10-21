@@ -2,6 +2,7 @@
 import { useCallback, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 // The audit of one project, or of the workspace for the owner: who did what to which object and when. It is
 // read from the same list as the API, filtered by actor, action (a family when it ends with a dot), target and
 // time, and exported with the same filters. The entries hold no ticket content, secrets or customer addresses;
@@ -47,6 +48,7 @@ export function AuditLog({
   locale: string;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const titleId = useId();
   const base = projectId ? `/api/v1/projects/${projectId}/audit` : "/api/v1/audit";
   const [open, setOpen] = useState(false);
@@ -78,7 +80,11 @@ export function AuditLog({
     },
     [base],
   );
-  const when = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "medium" });
+  const when = new Intl.DateTimeFormat(locale, {
+    ...zone,
+    dateStyle: "medium",
+    timeStyle: "medium",
+  });
   const heading = projectId ? t("auditTitle", { project: name }) : t("auditTitleWorkspace");
   const field = (key: keyof Filters, label: string, type = "text", hint?: string) => (
     <label>

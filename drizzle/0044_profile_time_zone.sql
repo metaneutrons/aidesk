@@ -1,0 +1,1 @@
+ALTER TABLE "auth_user" ADD COLUMN "time_zone" text;

@@ -270,6 +270,12 @@ draft of an agent and a draft that a person sends carry neither: the person who 
 signature changed later does not change replies that were sent. Nobody sets the profile of another person, also not
 an owner or a manager. The audit entry `operator.profile` names the fields and never their text.
 
+The profile also holds a time zone (`timeZone`, an IANA name such as `Europe/Berlin`, or `null` for the zone of the device).
+The desk shows every time it formats (the lists, the audit, the reminders, the notifications) in that zone: the page gives it
+to the client through `TimeZone` (`src/components/time-zone.tsx`), and a place that formats a time spreads `useZone()` into
+the options of `Intl.DateTimeFormat`. The language of the interface is chosen next to it in the navigation (`POST /me/locale`).
+The customer page and the sign-in pages do not use it. Business hours of a project have a zone of their own.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`

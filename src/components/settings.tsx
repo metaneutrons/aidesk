@@ -30,6 +30,7 @@ import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
+import { useZone } from "./time-zone";
 import {
   operatorRoles,
   roleOf,
@@ -98,6 +99,7 @@ export function Settings({
   locale: string;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const fieldId = useId();
   const [people, setPeople] = useState<Person[] | null>(null);
   const [failure, setFailure] = useState<"settingsNoAccess" | "error" | null>(null);
@@ -385,6 +387,7 @@ export function Settings({
                             ? t("agentManagedLabel")
                             : t("tokenExpires", {
                                 date: new Intl.DateTimeFormat(locale, {
+                                  ...zone,
                                   dateStyle: "medium",
                                 }).format(new Date(token.expiresAt)),
                               })
