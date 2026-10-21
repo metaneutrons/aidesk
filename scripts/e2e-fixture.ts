@@ -19,6 +19,7 @@ import {
   jobs,
   memberships,
   messages,
+  notifications,
   projectExports,
   projects,
   session,
@@ -306,6 +307,32 @@ async function githubSource(projectId: string) {
     .returning({ id: connections.id });
   return { connectionId: row?.id };
 }
+// A notification of the kind "mention" (which the system writes on its own for nothing else in a browser test, unlike
+// "overdue") for every fixture operator of the project of a ticket, as the rules of the
+// project would have written it; the browser test looks at what the desk makes of it.
+async function notify(ticketId: string) {
+  const [ticket] = await db().select().from(tickets).where(eq(tickets.id, ticketId));
+  const [project] = ticket
+    ? await db().select().from(projects).where(eq(projects.id, ticket.projectId))
+    : [];
+  if (!ticket || !project?.slug.startsWith("e2e-")) throw new Error("Only fixture tickets.");
+  const members = await db()
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(eq(memberships.projectId, project.id));
+  if (members.length > 0)
+    await db()
+      .insert(notifications)
+      .values(
+        members.map((member) => ({
+          userId: member.userId,
+          projectId: project.id,
+          kind: "mention",
+          ticketId: ticket.id,
+        })),
+      );
+  return { notified: members.length };
+}
 const [command, argument] = process.argv.slice(2);
 const write = (value: unknown) => process.stdout.write(JSON.stringify(value) + "\n");
 try {
@@ -316,6 +343,7 @@ try {
   else if (command === "disable") write(await disable(fixtureEmail(argument)));
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
   else if (command === "github-source" && argument) write(await githubSource(argument));
+  else if (command === "notify" && argument) write(await notify(argument));
   else
     throw new Error(
       "Usage: e2e-fixture.ts setup | teardown <run> | user-count|disable|revoke-sessions <email>",

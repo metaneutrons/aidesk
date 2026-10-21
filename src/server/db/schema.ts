@@ -697,6 +697,40 @@ export const audit = pgTable(
   },
   (t) => [index("audit_project_idx").on(t.projectId)],
 );
+// What an operator is told about (see `domain/notifications.ts`). A row holds the kind, the ticket and the time; the
+// subject of the ticket is read when the list is shown. It goes with the ticket, the project and the person.
+export const notifications = pgTable(
+  "notification",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    ticketId: uuid("ticket_id").references(() => tickets.id, { onDelete: "cascade" }),
+    createdAt: created(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt)],
+);
+// The channels an operator chose for a kind of notification; without a row both are on.
+export const notificationPreferences = pgTable(
+  "notification_preference",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    desk: boolean("desk").notNull(),
+    mail: boolean("mail").notNull(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("notification_preference_idx").on(t.userId, t.kind)],
+);
 // Versioned email designs of a project. A version is never changed; a new
 // one is added and then selected, so a mail that was sent can always name the
 // design it was rendered with.

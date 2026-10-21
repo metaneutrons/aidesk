@@ -6,6 +6,7 @@ import { runWebhooks } from "./webhooks";
 import { runTranslations } from "./translate";
 import { scanAutoResolve } from "../server/auto-resolve";
 import { scanRetention } from "../server/retention";
+import { pruneNotifications } from "../server/notifications";
 import { scanResponseClock } from "../server/response-clock";
 import { reconcileIssues } from "../server/issues";
 // The work of the worker, in passes that end: one pass looks at the clock, polls the mailboxes and
@@ -38,6 +39,7 @@ export async function runPass(): Promise<boolean> {
   if (Date.now() >= nextRetention) {
     nextRetention = Date.now() + 15 * 60_000;
     await scanRetention();
+    await pruneNotifications();
   }
   await pollMailboxes();
   const done = [

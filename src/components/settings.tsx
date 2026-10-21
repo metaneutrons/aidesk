@@ -25,6 +25,7 @@ import { TagAdmin } from "./tag-admin";
 import { Invite } from "./invite";
 import { PortalBranding } from "./portal-branding";
 import { Profile } from "./profile";
+import { NotificationPreferences } from "./notification-preferences";
 import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
@@ -153,6 +154,7 @@ export function Settings({
       <section className="settings">
         <p className="muted">{t("settingsNoAccess")}</p>
         <Profile />
+        <NotificationPreferences />
       </section>
     );
   return (
@@ -163,6 +165,7 @@ export function Settings({
         </p>
       )}
       <Profile />
+      <NotificationPreferences />
       <h2>{t("operatorsTitle")}</h2>
       {people === null ? (
         <p className="muted">{t("loading")}</p>

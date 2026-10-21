@@ -2212,6 +2212,37 @@ adequate for the development scale; a trigram or full-text index is needed
 before the production scale is qualified. A single character still filters the
 loaded list.
 
+## Notifications of operators
+
+Operators are told about five kinds of events, in the desk (the entry "Notifications" in the navigation, with the number of
+unread ones). A notification holds the kind, the ticket and the time, and nothing else: the number and the subject of the
+ticket are read when the list is shown (`src/server/notifications.ts`, `src/domain/notifications.ts`).
+
+| Kind         | Event                                | Reaches (rule of the project)                                     |
+| ------------ | ------------------------------------ | ----------------------------------------------------------------- |
+| `new_ticket` | `ticket.created`                     | nobody (default) or everybody who may reply (`members`)           |
+| `assignment` | `ticket.assigned`                    | the new assignee (default) or nobody; not the person who assigned |
+| `mention`    | a note that names a person (follows) | the named person (default) or nobody                              |
+| `overdue`    | `ticket.overdue`                     | the assignee (default), everybody who may reply, or nobody        |
+| `draft`      | `draft.created`                      | the assignee (default), everybody who may reply, or nobody        |
+
+"Everybody who may reply" means the people with `ticket.reply` in the project, by their own grant or through a group
+(`peopleWith`). For `overdue` and `draft` the mode `assignee` reaches the assigned person, and everybody who may reply when
+nobody is assigned, when the ticket is assigned to an agent, or when the assignee may no longer reply, so that nothing is lost.
+
+The rules are the configuration keys `notifyNewTicket`, `notifyAssignment`, `notifyMention`, `notifyOverdue` and `notifyDraft`
+(settings of the project, "Notifications of operators"); a value that is missing or not valid reads as the default, and a mode
+that does not fit a kind is refused. Each operator chooses for every kind whether it reaches them in the desk and by mail
+(`GET/PUT /api/v1/me/notification-preferences`, in the settings "Your notifications"); both are on until the person chooses.
+A kind that an operator switched off in the desk writes no notification for them. The choice is an audit entry
+(`operator.notification_preferences`) with the kinds and not the values.
+
+The notifications are written by `emitEvent`, inside the transaction that made the event happen: they are neither lost nor
+written for a change that was rolled back. The list (`GET /api/v1/me/notifications`, newest first, `unread=true` and a cursor
+`before`) shows only the notifications of projects in which the person may still read tickets. `POST /api/v1/me/notifications/read`
+marks the named ones, or all, as read. A notification goes with its ticket, project and person, and the pass of the worker that
+keeps the retention removes what is older than 90 days, read or not. Nothing of this is offered over MCP.
+
 ## Production image
 
 `docker build --target production .` makes the image that runs: the web server, the worker
