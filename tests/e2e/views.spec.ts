@@ -33,13 +33,12 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     await page.goto("/");
     const nav = page.getByRole("navigation");
     await nav.getByRole("button", { name: "Waiting for customer" }).click();
-    await page.getByRole("button", { name: "All projects" }).click();
-    await page.getByRole("checkbox", { name: alpha.name }).check();
-    await page
-      .getByRole("button", { name: "All projects" })
-      .or(page.getByRole("button", { name: alpha.name }))
-      .first()
-      .click();
+    // The button of the project filter; a ticket row of the list can carry the name of the project too.
+    const filter = page.locator("button.filter-trigger");
+    await filter.click();
+    await page.getByRole("checkbox", { name: alpha.name, exact: true }).check();
+    await filter.click();
+    await expect(filter).toHaveText(alpha.name);
     // Saving needs a name.
     await page.getByRole("button", { name: "Save the filters as a view" }).click();
     const save = page.getByRole("button", { name: "Save view", exact: true });
@@ -84,7 +83,7 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     await expect(
       page.getByRole("heading", { level: 1, name: "Waiting for customer" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: alpha.name })).toBeVisible();
+    await expect(page.locator("button.filter-trigger")).toHaveText(alpha.name);
     // A link to a ticket opens that ticket and not the view.
     await page.goto(`/?ticket=${alpha.tickets[0]}`);
     await expect(page.getByRole("region", { name: "Ticket" })).toBeVisible();
