@@ -736,7 +736,7 @@ export const capabilities = {
   },
   "requester.export": {
     operation: "exportRequester",
-    action: "project.manage",
+    action: "data.export",
     ui: "src/components/requester-export.tsx",
     api: "src/server/api/routes.ts",
     mcp: null,
