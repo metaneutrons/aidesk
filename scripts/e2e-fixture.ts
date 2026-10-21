@@ -283,6 +283,23 @@ async function notificationsOf(email: string) {
     .orderBy(desc(notifications.createdAt));
   return { kinds: rows.map((row) => row.kind) };
 }
+// A second session of a fixture operator, as a sign-in from another browser would have made it.
+async function addSession(email: string) {
+  const [person] = await db().select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (!person) throw new Error("No such fixture user.");
+  const id = randomUUID();
+  await db()
+    .insert(session)
+    .values({
+      id,
+      userId: person.id,
+      token: randomBytes(24).toString("hex"),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      userAgent: "E2E Other Browser",
+      ipAddress: "192.0.2.44",
+    });
+  return { id };
+}
 async function userCount(email: string) {
   return { count: (await db().select().from(user).where(eq(user.email, email))).length };
 }
@@ -355,6 +372,7 @@ try {
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
   else if (command === "github-source" && argument) write(await githubSource(argument));
   else if (command === "notify" && argument) write(await notify(argument));
+  else if (command === "add-session") write(await addSession(fixtureEmail(argument)));
   else if (command === "notifications-of") write(await notificationsOf(fixtureEmail(argument)));
   else
     throw new Error(

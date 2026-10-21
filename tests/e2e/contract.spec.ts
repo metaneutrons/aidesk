@@ -58,6 +58,8 @@ const publishedDefinition = async (request: APIRequestContext) =>
 // What is not exercised with a success answer, and why. A route that is not here
 // and not called below fails the test that counts them.
 const notCalled: Record<string, string> = {
+  "signin.session_end":
+    "ends a session of the person and needs a second one; covered by the sign-in tests and the sign-in spec",
   "projects.create": "creates a project of the instance; the shape is checked by the invalid call",
   "operators.create":
     "creates an operator of the instance; the shape is checked by the invalid call",
@@ -258,6 +260,9 @@ test("answers every documented route in the published shape, with real data", as
   const chosen = await call("notifications.preferences_get");
   await call("notifications.preferences_set", { data: { preferences: chosen.preferences } });
   await call("notifications.read", { data: {} });
+  await call("signin.get");
+  await call("signin.sessions");
+  await call("signin.sessions_end_others", { data: {} });
   // Designs, on a project that no other spec uses for designs: the designs spec counts the versions of
   // alpha and finds the one that this selects.
   const designProject = desk.projects.gamma.id;
