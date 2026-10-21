@@ -250,6 +250,8 @@ interface Props {
   initialLocale: Locale;
   localePreference: string | null;
   serverTime: number;
+  // The number of unread notifications when the page was made; the desk asks again every minute.
+  initialUnread: number;
 }
 type Theme = "system" | "light" | "dark";
 const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
@@ -281,13 +283,16 @@ export function Desk({
   initialLocale,
   localePreference,
   serverTime,
+  initialUnread,
 }: Props) {
   const t = useTranslations();
   const router = useRouter();
   const [, transition] = useTransition();
   const [view, setView] = useState<View>(initialTicketId ? "inbox" : "overview");
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  // The number of unread notifications is asked for once and then every minute; the list asks again when it opens.
+  const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
+  // The number of unread notifications comes with the page and is asked for again every minute; the list asks again
+  // when it opens. Nothing is asked for while the page loads, because a request that a navigation cuts off is reported
+  // as an error by WebKit.
   useEffect(() => {
     const run = { current: true };
     const ask = () =>
@@ -297,7 +302,6 @@ export function Desk({
           if (parsed?.success && run.current) setUnreadNotifications(parsed.data.unread);
         })
         .catch(() => null);
-    ask();
     const timer = window.setInterval(ask, 60_000);
     return () => {
       run.current = false;
