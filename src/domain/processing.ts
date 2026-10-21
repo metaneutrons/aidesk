@@ -14,6 +14,8 @@ export const contentClasses = [
   "subject",
   "customer_name",
   "customer_address",
+  // The address of an operator, which the outgoing connection gets when the project tells operators by mail.
+  "operator_address",
   // The first part of a mail or the text of one message.
   "mail_text",
   "message_text",

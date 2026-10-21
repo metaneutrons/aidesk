@@ -207,6 +207,29 @@ describe("the overview of a project", () => {
     expect(used?.receives).toEqual(
       expect.arrayContaining(["conversation", "customer_address", "subject"]),
     );
+    // The connection also gets the addresses of operators while any rule of the project tells them by mail; with every
+    // rule off it does not, and a connection that is not in use gets none.
+    expect(used?.receives).toContain("operator_address");
+    const off = {
+      outboundConnectionId: outboundId,
+      acknowledgements: true,
+      notifyNewTicket: "off",
+      notifyAssignment: "off",
+      notifyMention: "off",
+      notifyOverdue: "off",
+      notifyDraft: "off",
+    };
+    await db().update(projects).set({ settings: off }).where(eq(projects.id, projectId));
+    expect((await entryOf("mail_out", outboundId))?.receives).not.toContain("operator_address");
+    await db()
+      .update(projects)
+      .set({ settings: { ...off, notifyOverdue: "members" } })
+      .where(eq(projects.id, projectId));
+    expect((await entryOf("mail_out", outboundId))?.receives).toContain("operator_address");
+    await db()
+      .update(projects)
+      .set({ settings: { outboundConnectionId: outboundId, acknowledgements: true } })
+      .where(eq(projects.id, projectId));
     const spare = (await getProcessing(reader, projectId)).entries.find(
       (entry) => entry.name === "Spare",
     );
