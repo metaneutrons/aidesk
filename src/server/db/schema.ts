@@ -35,6 +35,8 @@ export const user = pgTable("auth_user", {
   // The name that customers read on a reply, and the text under it; the name of the account is used when there is none.
   displayName: text("display_name"),
   signature: text("signature"),
+  // The time zone in which this person sees times in the desk; none means the one of the device.
+  timeZone: text("time_zone"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
 });
 export const session = pgTable(

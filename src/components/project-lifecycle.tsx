@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 // The life of the projects: a project that a person manages is archived here, and an archived project is restored.
 // An archived project keeps its data and is read-only: it takes no mail and is left out of the lists.
 const archivedSchema = z.object({ id: z.string(), name: z.string(), archivedAt: z.string() });
@@ -25,6 +26,7 @@ export function ProjectLifecycle({
   owner: boolean;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const router = useRouter();
   const titleId = useId();
   const [archived, setArchived] = useState<z.infer<typeof archivedSchema>[] | null>(null);
@@ -90,7 +92,7 @@ export function ProjectLifecycle({
     setBusy(false);
   }
   if (archived === null || (manageable.length === 0 && archived.length === 0)) return null;
-  const when = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
+  const when = new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium" });
   return (
     <section className="connections project-lifecycle" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("projectLifecycleTitle")}</h3>

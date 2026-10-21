@@ -1048,5 +1048,8 @@
   "mentionLabel": "Eine Person auf diese Notiz hinweisen",
   "mentionChoose": "Person wählen…",
   "mentionList": "Personen, die auf diese Notiz hingewiesen werden",
-  "mentionRemove": "{name} nicht hinweisen"
+  "mentionRemove": "{name} nicht hinweisen",
+  "profileTimeZone": "Zeitzone",
+  "profileTimeZoneDevice": "Die Zeitzone dieses Geräts",
+  "profileTimeZoneHint": "Die Zone, in der du Zeiten im Desk siehst, etwa Europe/Berlin. Leer lassen, um die Zone des Geräts zu verwenden."
 }

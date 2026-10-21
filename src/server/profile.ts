@@ -12,7 +12,12 @@ function human(principal: Principal): string {
 }
 export async function getProfile(principal: Principal) {
   const [row] = await db()
-    .select({ name: user.name, displayName: user.displayName, signature: user.signature })
+    .select({
+      name: user.name,
+      displayName: user.displayName,
+      signature: user.signature,
+      timeZone: user.timeZone,
+    })
     .from(user)
     .where(eq(user.id, human(principal)));
   if (!row) throw new DomainError("not_found", 404);
@@ -27,6 +32,7 @@ export async function setProfile(principal: Principal, input: unknown) {
       .set({
         ...(values.displayName !== undefined ? { displayName: values.displayName } : {}),
         ...(values.signature !== undefined ? { signature: values.signature } : {}),
+        ...(values.timeZone !== undefined ? { timeZone: values.timeZone } : {}),
         updatedAt: new Date(),
       })
       .where(eq(user.id, id));

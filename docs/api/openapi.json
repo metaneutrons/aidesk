@@ -7487,12 +7487,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "timeZone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "name",
                     "displayName",
-                    "signature"
+                    "signature",
+                    "timeZone"
                   ],
                   "additionalProperties": false
                 }
@@ -7557,6 +7564,18 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "timeZone": {
+                    "description": "The time zone in which this operator sees times, such as Europe/Berlin; null uses the device",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -7586,12 +7605,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "timeZone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "name",
                     "displayName",
-                    "signature"
+                    "signature",
+                    "timeZone"
                   ],
                   "additionalProperties": false
                 }

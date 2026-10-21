@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 // The webhooks of one project: where events are sent, what happened to the last
 // delivery, a test event and disabling. Defining a webhook, with its signing
 // secret, is done through the API; the page never shows a secret.
@@ -33,6 +34,7 @@ export function Webhooks({
   locale: string;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const titleId = useId();
   const [rows, setRows] = useState<Hook[] | null>(null);
   const [message, setMessage] = useState<"error" | "webhookProposed" | "webhookPinged" | null>(
@@ -82,6 +84,7 @@ export function Webhooks({
                   : row.lastDelivery
                     ? t(`webhookDelivery_${row.lastDelivery.outcome}`, {
                         date: new Intl.DateTimeFormat(locale, {
+                          ...zone,
                           dateStyle: "medium",
                           timeStyle: "short",
                         }).format(new Date(row.lastDelivery.at)),

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 const designSchema = z.object({
   version: z.number(),
   active: z.boolean(),
@@ -80,6 +81,7 @@ export function Designs({
   locale: string;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const fieldId = useId();
   // The list of projects arrives after the first render, so the choice is
   // kept apart and falls back to the first project.
@@ -170,7 +172,7 @@ export function Designs({
   }
   if (projects.length === 0) return null;
   const date = (value: string) =>
-    new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium", timeStyle: "short" }).format(
       new Date(value),
     );
   const label = (version: number) =>

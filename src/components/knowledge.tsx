@@ -2,6 +2,7 @@
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 // Search in the sources of knowledge of the ticket's project: what was found with its source and
 // the time it was fetched, and which sources could not be read. Nothing is filled in for a source
 // that does not answer. The text comes from outside and is shown as text.
@@ -31,6 +32,7 @@ const link = (reference: string): string | null =>
   /^https?:\/\//.test(reference) ? reference : null;
 export function Knowledge({ ticketId, locale }: { ticketId: string; locale: string }) {
   const t = useTranslations();
+  const zone = useZone();
   const id = useId();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -47,7 +49,11 @@ export function Knowledge({ ticketId, locale }: { ticketId: string; locale: stri
     else setFailed(true);
     setWorking(false);
   }
-  const format = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
+  const format = new Intl.DateTimeFormat(locale, {
+    ...zone,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
   return (
     <div className="knowledge">
       <form
