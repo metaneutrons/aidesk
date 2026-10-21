@@ -2121,7 +2121,8 @@
                           "config.approve",
                           "github.publish",
                           "audit.read",
-                          "data.erase"
+                          "data.erase",
+                          "data.export"
                         ]
                       }
                     },
@@ -3181,7 +3182,7 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
                   "actions": {
-                    "maxItems": 18,
+                    "maxItems": 19,
                     "type": "array",
                     "items": {
                       "type": "string"
@@ -3833,7 +3834,7 @@
                     "maxLength": 100
                   },
                   "actions": {
-                    "maxItems": 18,
+                    "maxItems": 19,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -3855,7 +3856,8 @@
                         "config.approve",
                         "github.publish",
                         "audit.read",
-                        "data.erase"
+                        "data.erase",
+                        "data.export"
                       ]
                     }
                   },
@@ -4106,7 +4108,7 @@
                     "maxLength": 60
                   },
                   "actions": {
-                    "maxItems": 18,
+                    "maxItems": 19,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -4128,7 +4130,8 @@
                         "config.approve",
                         "github.publish",
                         "audit.read",
-                        "data.erase"
+                        "data.erase",
+                        "data.export"
                       ]
                     }
                   }
@@ -4271,7 +4274,7 @@
                     "maxLength": 60
                   },
                   "actions": {
-                    "maxItems": 18,
+                    "maxItems": 19,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -4293,7 +4296,8 @@
                         "config.approve",
                         "github.publish",
                         "audit.read",
-                        "data.erase"
+                        "data.erase",
+                        "data.export"
                       ]
                     }
                   }
@@ -14325,7 +14329,7 @@
           "Privacy"
         ],
         "summary": "What the system holds about one requester of the project (tickets with their messages and notes, files, original mails, translations, portal records, mail that no ticket holds, entries of the audit about their tickets) as a .zip file for a request for information. The file is made for the request and kept nowhere; the export is an entry of the audit with the digest of the address",
-        "x-required-access": "project.manage",
+        "x-required-access": "data.export",
         "parameters": [
           {
             "name": "projectId",
