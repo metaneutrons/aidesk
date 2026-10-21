@@ -23,7 +23,8 @@ import { acceptInbound, processIngress } from "../src/server/inbound";
 import { exportRequester } from "../src/server/requester-export";
 import { initializeStorage } from "../src/server/storage";
 import { requesterExportInput } from "../src/domain/requester-export";
-import type { Action, Principal } from "../src/domain/permissions";
+import { actions, type Action, type Principal } from "../src/domain/permissions";
+import { operatorRoles } from "../src/domain/roles";
 const run = randomUUID().slice(0, 8);
 const projectId = randomUUID();
 const otherProject = randomUUID();
@@ -34,9 +35,9 @@ const person = (held: Action[], project = projectId, id = `export-${run}`): Prin
   owner: false,
   grants: [{ projectId: project, actions: held }],
 });
-const manager = person(["project.read", "project.manage", "ticket.read"]);
+const manager = person(["project.read", "data.export", "ticket.read"]);
 const reader = person(["project.read", "ticket.read"], projectId, `export-reader-${run}`);
-const outsider = person(["project.manage"], otherProject, `export-outsider-${run}`);
+const outsider = person(["data.export"], otherProject, `export-outsider-${run}`);
 async function arrive(
   from: string,
   subject: string,
@@ -263,11 +264,22 @@ describe("the export about a requester", () => {
     const files = unzip(file.content);
     expect(rows(files, "tickets.ndjson")).toEqual([]);
     expect(Object.keys(files).some((name) => name.startsWith("objects/"))).toBe(false);
+    // Managing the project is not enough, no preset holds the action, and the owner holds no right to project data.
+    const managerOnly = person(
+      ["project.read", "project.manage", "ticket.read"],
+      projectId,
+      `export-m-${run}`,
+    );
+    const owner: Principal = { ...manager, id: `export-owner-${run}`, owner: true, grants: [] };
     for (const call of [
       () => exportRequester(reader, projectId, { email: "lee@example.test" }),
       () => exportRequester(outsider, projectId, { email: "lee@example.test" }),
+      () => exportRequester(managerOnly, projectId, { email: "lee@example.test" }),
+      () => exportRequester(owner, projectId, { email: "lee@example.test" }),
     ])
       await expect(call()).rejects.toMatchObject({ code: "not_found" });
+    expect(actions).toContain("data.export");
+    for (const preset of Object.values(operatorRoles)) expect(preset).not.toContain("data.export");
     for (const call of [
       () =>
         exportRequester({ ...manager, kind: "agent" }, projectId, { email: "lee@example.test" }),
