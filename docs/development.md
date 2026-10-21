@@ -1980,8 +1980,8 @@ the actor is `system`. A project that has no period at all is listed by the proc
 
 ## Export about a requester
 
-For a request for information, a person who manages a project (`project.manage`, the same people who may take out the
-export of a project) takes out what the system holds about one address (`POST /api/v1/projects/{id}/requester-export`
+For a request for information, a person with `data.export` in the project (an action that no preset holds, granted as a
+single action or through a group, like `data.erase`) takes out what the system holds about one address (`POST /api/v1/projects/{id}/requester-export`
 with `{ "email": ... }`; in the settings "Export about a requester in ..."; not offered over MCP). The answer is the file
 itself, a zip (`src/server/requester-export.ts`): the rows as lines of JSON (`tickets`, `messages`, `participants`,
 `attachments`, `attachment-texts`, `translations`, `ticket-issues`, `issue-drafts`, `ingress`, `audit`), the files that the rows

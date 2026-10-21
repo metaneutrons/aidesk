@@ -1804,7 +1804,7 @@ export const routes: Route[] = [
     tag: "Privacy",
     summary:
       "What the system holds about one requester of the project (tickets with their messages and notes, files, original mails, translations, portal records, mail that no ticket holds, entries of the audit about their tickets) as a .zip file for a request for information. The file is made for the request and kept nowhere; the export is an entry of the audit with the digest of the address",
-    access: "project.manage",
+    access: "data.export",
     body: requesterExportInput,
     binary: true,
     run: async ({ principal, params, input }) => {

@@ -724,6 +724,7 @@
   "actionGithubPublish": "Issues auf GitHub veröffentlichen",
   "actionAuditRead": "Das Audit-Protokoll lesen",
   "actionDataErase": "Tickets und Anfragende löschen",
+  "actionDataExport": "Auskunft über Anfragende als Datei erstellen",
   "rightsOf": "Rechte von {name} in {project}",
   "rightsSummary": "Einzelne Rechte",
   "rightsViaGroups": "Zusätzlich durch die Gruppen: {groups}",

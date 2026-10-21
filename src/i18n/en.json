@@ -724,6 +724,7 @@
   "actionGithubPublish": "Publish issues to GitHub",
   "actionAuditRead": "Read the audit log",
   "actionDataErase": "Erase tickets and requesters",
+  "actionDataExport": "Export what is held about a requester",
   "rightsOf": "Rights of {name} in {project}",
   "rightsSummary": "Single rights",
   "rightsViaGroups": "Also through the groups: {groups}",

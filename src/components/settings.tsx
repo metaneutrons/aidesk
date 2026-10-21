@@ -646,7 +646,7 @@ export function Settings({
           />
         ))}
       {managed
-        .filter((grant) => grant.actions.includes("project.manage"))
+        .filter((grant) => grant.actions.includes("data.export"))
         .map((grant) => (
           <RequesterExport
             key={grant.projectId}
