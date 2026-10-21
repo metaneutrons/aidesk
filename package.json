@@ -61,7 +61,7 @@
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sanitize-html": "2.18.0",
+    "sanitize-html": "2.18.1",
     "tsx": "4.23.15",
     "turndown": "7.2.4",
     "uqr": "^0.1.3",
