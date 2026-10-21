@@ -260,6 +260,26 @@ test("answers every documented route in the published shape, with real data", as
   const chosen = await call("notifications.preferences_get");
   await call("notifications.preferences_set", { data: { preferences: chosen.preferences } });
   await call("notifications.read", { data: {} });
+  // Views: save the current filters, list, change, make it the start, take that away and delete it.
+  const saved = await call("views.create", {
+    data: {
+      name: `Contract view ${desk.run}`,
+      list: "inbox",
+      projects: [],
+      tag: null,
+      priority: null,
+      category: null,
+    },
+  });
+  const viewId =
+    (saved.views as { id: string; name: string }[]).find(
+      (view) => view.name === `Contract view ${desk.run}`,
+    )?.id ?? "";
+  await call("views.list");
+  await call("views.update", { params: { viewId }, data: { priority: "high" } });
+  await call("views.start", { params: { viewId }, data: { start: true } });
+  await call("views.start", { params: { viewId }, data: { start: false } });
+  await call("views.delete", { params: { viewId } });
   await call("signin.get");
   await call("signin.sessions");
   await call("signin.sessions_end_others", { data: {} });

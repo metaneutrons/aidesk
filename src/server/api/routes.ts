@@ -175,6 +175,7 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { createView, deleteView, listViews, setStartView, updateView } from "../views";
 import { currentSession, endOtherSessions, endSession, getSignIn, listSessions } from "../sign-in";
 import { getPreferences, listNotifications, markRead, setPreferences } from "../notifications";
 import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../branding";
@@ -239,6 +240,7 @@ import { senderRuleInput, senderRuleOut } from "../../domain/sender-rules";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
 import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
+import { viewCreate, viewListOut, viewStart, viewUpdate } from "../../domain/views";
 import { sessionEnded, sessionList, signInOut } from "../../domain/sign-in";
 import {
   notificationPage,
@@ -1256,6 +1258,68 @@ export const routes: Route[] = [
     body: profileInput,
     response: profileOut,
     run: ({ principal, input }) => setProfile(principal, input),
+  },
+  {
+    id: "views.list",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/views",
+    tag: "Operators",
+    summary:
+      "The saved views of the inbox of the signed-in operator, by name; the projects of a view are those that the person may read now",
+    access: "human",
+    response: viewListOut,
+    run: ({ principal }) => listViews(principal),
+  },
+  {
+    id: "views.create",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/views",
+    tag: "Operators",
+    summary:
+      "Save the filters of the inbox as a view with a name (at most 20 views; a name is used once, in any case); the projects must be readable by the person",
+    access: "human",
+    body: viewCreate,
+    response: viewListOut,
+    status: 201,
+    run: ({ principal, input }) => createView(principal, input),
+  },
+  {
+    id: "views.update",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "PUT",
+    path: "/me/views/{viewId}",
+    tag: "Operators",
+    summary: "Rename a saved view or replace some of its filters; the other fields stay",
+    access: "human",
+    body: viewUpdate,
+    response: viewListOut,
+    run: ({ principal, params, input }) => updateView(principal, params.viewId ?? "", input),
+  },
+  {
+    id: "views.delete",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/views/{viewId}/delete",
+    tag: "Operators",
+    summary: "Delete a saved view of the signed-in operator",
+    access: "human",
+    response: viewListOut,
+    run: ({ principal, params }) => deleteView(principal, params.viewId ?? ""),
+  },
+  {
+    id: "views.start",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/views/{viewId}/start",
+    tag: "Operators",
+    summary:
+      "Make a saved view the one that the desk opens with (the earlier one stops being it), or take that away",
+    access: "human",
+    body: viewStart,
+    response: viewListOut,
+    run: ({ principal, params, input }) => setStartView(principal, params.viewId ?? "", input),
   },
   {
     id: "signin.get",

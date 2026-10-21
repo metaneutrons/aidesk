@@ -1,0 +1,115 @@
+import AxeBuilder from "@axe-core/playwright";
+import { z } from "zod";
+import { expect, test } from "./fixtures";
+// Saved views of the inbox: the filters are saved under a name, applied with one choice, updated, made the start of the
+// desk, and deleted. The fixture operator is the only one who has views, and they are removed at the end.
+test.describe.configure({ mode: "serial" });
+const listSchema = z.object({
+  views: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      list: z.string(),
+      projects: z.array(z.string()),
+      start: z.boolean(),
+      restricted: z.boolean(),
+    }),
+  ),
+});
+test("saves the filters of the inbox as a view, applies it, opens the desk with it and deletes it", async ({
+  page,
+  desk,
+  signIn,
+  baseURL,
+  browserName,
+}) => {
+  const { alpha } = desk.projects;
+  const headers = { origin: baseURL ?? "" };
+  const name = `E2E view ${desk.run} ${browserName}`;
+  const read = async () =>
+    listSchema.parse(await (await page.request.get("/api/v1/me/views")).json()).views;
+  await signIn();
+  try {
+    await page.goto("/");
+    const nav = page.getByRole("navigation");
+    await nav.getByRole("button", { name: "Waiting for customer" }).click();
+    await page.getByRole("button", { name: "All projects" }).click();
+    await page.getByRole("checkbox", { name: alpha.name }).check();
+    await page
+      .getByRole("button", { name: "All projects" })
+      .or(page.getByRole("button", { name: alpha.name }))
+      .first()
+      .click();
+    // Saving needs a name.
+    await page.getByRole("button", { name: "Save the filters as a view" }).click();
+    const save = page.getByRole("button", { name: "Save view", exact: true });
+    await expect(save).toBeDisabled();
+    await page.getByLabel("Name of the view").fill(name);
+    await save.click();
+    const choose = page.getByLabel("Saved views");
+    await expect(choose.locator("option", { hasText: name })).toHaveCount(1);
+    const saved = (await read()).find((view) => view.name === name);
+    expect(saved).toMatchObject({
+      list: "waiting",
+      projects: [alpha.id],
+      start: false,
+      restricted: false,
+    });
+    // The same name again is refused.
+    await page.getByRole("button", { name: "Save the filters as a view" }).click();
+    await page.getByLabel("Name of the view").fill(name.toUpperCase());
+    await page.getByRole("button", { name: "Save view", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "already" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    // Another list first, then the view brings the filters back.
+    await nav.getByRole("button", { name: "Resolved" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Resolved" })).toBeVisible();
+    await choose.selectOption({ label: name });
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Waiting for customer" }),
+    ).toBeVisible();
+    // Start with it: the desk opens with the view and not with the overview.
+    await page.getByRole("button", { name: "Open the desk with this view" }).click();
+    await expect(
+      page.getByRole("button", { name: "Do not open the desk with this view" }),
+    ).toBeVisible();
+    expect((await read()).find((view) => view.id === saved?.id)?.start).toBe(true);
+    const scan = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .exclude("[data-base-ui-focus-guard]")
+      .exclude(".design-frame")
+      .analyze();
+    expect(scan.violations.map((violation) => violation.id)).toEqual([]);
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Waiting for customer" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: alpha.name })).toBeVisible();
+    // A link to a ticket opens that ticket and not the view.
+    await page.goto(`/?ticket=${alpha.tickets[0]}`);
+    await expect(page.getByRole("region", { name: "Ticket" })).toBeVisible();
+    // Without the start the desk opens with the overview again.
+    await page.goto("/");
+    await page.getByLabel("Saved views").selectOption({ label: `${name} (start)` });
+    const ended = page.waitForResponse((response) => response.url().endsWith("/start"));
+    await page.getByRole("button", { name: "Do not open the desk with this view" }).click();
+    const answer = await ended;
+    expect(answer.request().postData()).toBe('{"start":false}');
+    expect(answer.status()).toBe(200);
+    await expect(page.getByRole("button", { name: "Open the desk with this view" })).toBeVisible();
+    expect((await read()).find((view) => view.id === saved?.id)?.start).toBe(false);
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    // Deleting removes it from the list.
+    await page.getByLabel("Saved views").selectOption({ label: name });
+    await page.getByRole("button", { name: "Delete the view" }).click();
+    await expect(page.getByLabel("Saved views").locator("option", { hasText: name })).toHaveCount(
+      0,
+    );
+    expect((await read()).some((view) => view.name === name)).toBe(false);
+  } finally {
+    for (const view of await read())
+      if (view.name === name)
+        await page.request.post(`/api/v1/me/views/${view.id}/delete`, { headers, data: {} });
+  }
+});

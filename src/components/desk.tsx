@@ -43,6 +43,8 @@ import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
 import { Settings } from "./settings";
 import { Notifications } from "./notifications";
+import { SavedViews } from "./saved-views";
+import type { SavedView } from "../domain/views";
 import { MentionPicker, type Mention } from "./mention-picker";
 import { notificationPage } from "../domain/notifications";
 import { Junk } from "./junk";
@@ -254,6 +256,8 @@ interface Props {
   serverTime: number;
   // The number of unread notifications when the page was made; the desk asks again every minute.
   initialUnread: number;
+  // The saved views of the operator; the one that is the start is applied when the desk opens without a ticket.
+  initialViews: SavedView[];
 }
 type Theme = "system" | "light" | "dark";
 const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
@@ -286,12 +290,18 @@ export function Desk({
   localePreference,
   serverTime,
   initialUnread,
+  initialViews,
 }: Props) {
   const t = useTranslations();
   const zone = useZone();
   const router = useRouter();
   const [, transition] = useTransition();
-  const [view, setView] = useState<View>(initialTicketId ? "inbox" : "overview");
+  // The view that the desk opens with, unless it was opened for a ticket; a view with no readable project is left out.
+  const start = initialTicketId
+    ? undefined
+    : initialViews.find((entry) => entry.start && !entry.restricted);
+  const [views, setViews] = useState(initialViews);
+  const [view, setView] = useState<View>(initialTicketId ? "inbox" : (start?.list ?? "overview"));
   const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
   // The number of unread notifications comes with the page and is asked for again every minute; the list asks again
   // when it opens. Nothing is asked for while the page loads, because a request that a navigation cuts off is reported
@@ -311,12 +321,12 @@ export function Desk({
       window.clearInterval(timer);
     };
   }, []);
-  const [filters, setFilters] = useState<string[]>([]);
+  const [filters, setFilters] = useState<string[]>(start?.projects ?? []);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState<string | null>(start?.tag ?? null);
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "">(start?.priority ?? "");
+  const [categoryFilter, setCategoryFilter] = useState(start?.category ?? "");
   // The server's answer for a text of two or more characters; it covers all
   // tickets of the authorized projects, not only the loaded list.
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -947,6 +957,24 @@ export function Desk({
                   </div>
                 )}
               </div>
+              <SavedViews
+                views={views}
+                current={{
+                  list: view,
+                  projects: filters,
+                  tag: tagFilter,
+                  priority: priorityFilter,
+                  category: categoryFilter,
+                }}
+                onChange={setViews}
+                onApply={(saved) => {
+                  setView(saved.list);
+                  setFilters(saved.projects);
+                  setTagFilter(saved.tag);
+                  setPriorityFilter(saved.priority ?? "");
+                  setCategoryFilter(saved.category ?? "");
+                }}
+              />
               {operator.owner && (
                 <Dialog.Trigger className="icon-button" aria-label={t("newProject")}>
                   <Plus size={20} />

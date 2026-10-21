@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { identify } from "../server/principal";
 import { getOverview, listProjects, listTickets, operatorInfo } from "../server/operations";
 import { listNotifications } from "../server/notifications";
+import { listViews } from "../server/views";
 import { TimeZone } from "../components/time-zone";
 import { listCeiling, listStep } from "../domain/paging";
 import { DomainError } from "../server/errors";
@@ -34,12 +35,13 @@ export default async function Home({
   const limit = Number.isInteger(requested)
     ? Math.min(Math.max(requested, listStep), listCeiling)
     : listStep;
-  const [projectList, ticketList, overview, operator, notified] = await Promise.all([
+  const [projectList, ticketList, overview, operator, notified, saved] = await Promise.all([
     listProjects(principal),
     listTickets(principal, [], limit),
     getOverview(principal),
     operatorInfo(principal),
     listNotifications(principal, { limit: "1" }),
+    listViews(principal),
   ]);
   const locale = effectiveLocale(operator.locale, requestHeaders.get("accept-language"));
   const serialize = (ticket: (typeof ticketList)[number]) => ({
@@ -74,6 +76,7 @@ export default async function Home({
           localePreference={operator.locale}
           serverTime={Date.now()}
           initialUnread={notified.unread}
+          initialViews={saved.views}
         />
       </TimeZone>
     </NextIntlClientProvider>
