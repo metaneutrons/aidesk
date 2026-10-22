@@ -1,6 +1,9 @@
 # Notifications in messengers: the milestone M10
 
-Initiative of 2026-10-21 at the request of the product owner. It continues the decision of 2026-10-18 on
+Initiative of 2026-10-21 at the request of the product owner. This plan is about the **internal side**: the team that
+works in aidesk is told in the messenger it uses. The **external side**, customers who write to a project in a
+messenger and get their answers there, is a different undertaking with its own plan ([customer-messengers.md](customer-messengers.md),
+M12); nothing in M10 prepares it or depends on it. It continues the decision of 2026-10-18 on
 notifications ([administration plan](administration.md), "Decisions of the product owner"): notifications go out in
 the desk and by mail (M9-A1, built); messengers follow in two stages. The milestones M1 to M9 and their criteria stay
 as they are. Acceptance authority is this plan. The milestone has an issue, and it is accepted when its criteria have
@@ -40,9 +43,10 @@ An operator or a team learns of a ticket in the messenger they work in. Two stag
    interface of our own, with the version pinned and only the adapters that are installed for a connection that is in
    use.
 
-Non-goals: answering a ticket or pressing a button in a messenger (the second stage of the SDK, with the signature
-checks of incoming requests, is a separate decision); tickets that start in a messenger; Discord, Telegram and Google
-Chat as direct-message connections; a messenger for customers.
+Non-goals: working from the messenger (answering, assigning or pressing a button in a message; that is a further stage of
+the SDK with the signature checks of incoming requests and the question who the person behind a messenger account is, and
+it needs its own decision and criteria before it is built); tickets that start in a messenger and every use of a
+messenger by customers (M12); Discord, Telegram and Google Chat as direct-message connections.
 
 ## Design decisions
 
