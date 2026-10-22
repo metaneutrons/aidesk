@@ -216,7 +216,10 @@ describe("renaming and merging", () => {
     expect((await listTagAdmin(manager, projectId)).find((entry) => entry.tag === "d")?.color).toBe(
       "#0000cc",
     );
-    expect((await auditOf("tag.merge"))[0]?.detail).toMatchObject({
+    // The entries come in no fixed order, and this test made two merges: the one of "a" and "b" is found by its target.
+    expect(
+      (await auditOf("tag.merge")).find((entry) => entry.detail.into === "c")?.detail,
+    ).toMatchObject({
       from: ["a", "b"],
       into: "c",
       tickets: 3,
