@@ -83,7 +83,8 @@ test("shows times in the time zone of the profile and refuses one that does not 
       .getByRole("navigation")
       .getByRole("button", { name: /^Notifications/ })
       .click();
-    return page.locator("section.notifications").getByRole("listitem").first();
+    // Not the first entry: the worker can add a newer one (an overdue ticket) while the test runs.
+    return page.locator("section.notifications");
   };
   try {
     for (const name of ["Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
