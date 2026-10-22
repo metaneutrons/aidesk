@@ -78,6 +78,9 @@ test("exports an archived project and deletes it for good, as the owner", async 
     .getByRole("listitem")
     .filter({ hasText: "Archived on" })
     .filter({ hasText: name });
+  await expect(entry).toBeVisible();
+  // The project is not listed twice. A row that went away later would shift the page under the click below.
+  expect(await section.getByRole("button", { name: `Archive ${name}` }).count()).toBe(0);
   // The deletion is not offered before there is an export that was made after the archive.
   const remove = entry.getByRole("button", { name: `Delete ${name} for good` });
   await entry.getByLabel(`To delete ${name} for good, type its name`).fill(name);
