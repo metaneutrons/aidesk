@@ -28,6 +28,16 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
   const name = `E2E view ${desk.run} ${browserName}`;
   const read = async () =>
     listSchema.parse(await (await page.request.get("/api/v1/me/views")).json()).views;
+  // The page is shown before its scripts run, and a choice that is made in that moment is lost; so a choice is made again
+  // until the controls that belong to a chosen view are there.
+  const choose = async (label: string) => {
+    await expect(async () => {
+      await page.getByLabel("Saved views").selectOption({ label }, { timeout: 5_000 });
+      await expect(page.getByRole("button", { name: "Delete the view" })).toBeVisible({
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 30_000 });
+  };
   await signIn();
   try {
     await page.goto("/");
@@ -45,8 +55,8 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     await expect(save).toBeDisabled();
     await page.getByLabel("Name of the view").fill(name);
     await save.click();
-    const choose = page.getByLabel("Saved views");
-    await expect(choose.locator("option", { hasText: name })).toHaveCount(1);
+    const options = page.getByLabel("Saved views");
+    await expect(options.locator("option", { hasText: name })).toHaveCount(1);
     const saved = (await read()).find((view) => view.name === name);
     expect(saved).toMatchObject({
       list: "waiting",
@@ -63,7 +73,7 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     // Another list first, then the view brings the filters back.
     await nav.getByRole("button", { name: "Resolved" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Resolved" })).toBeVisible();
-    await choose.selectOption({ label: name });
+    await choose(name);
     await expect(
       page.getByRole("heading", { level: 1, name: "Waiting for customer" }),
     ).toBeVisible();
@@ -89,7 +99,7 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     await expect(page.getByRole("region", { name: "Ticket" })).toBeVisible();
     // Without the start the desk opens with the overview again.
     await page.goto("/");
-    await page.getByLabel("Saved views").selectOption({ label: `${name} (start)` });
+    await choose(`${name} (start)`);
     const ended = page.waitForResponse((response) => response.url().endsWith("/start"));
     await page.getByRole("button", { name: "Do not open the desk with this view" }).click();
     const answer = await ended;
@@ -100,7 +110,7 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     // Deleting removes it from the list.
-    await page.getByLabel("Saved views").selectOption({ label: name });
+    await choose(name);
     await page.getByRole("button", { name: "Delete the view" }).click();
     await expect(page.getByLabel("Saved views").locator("option", { hasText: name })).toHaveCount(
       0,
