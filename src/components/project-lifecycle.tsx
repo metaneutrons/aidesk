@@ -91,15 +91,19 @@ export function ProjectLifecycle({
     router.refresh();
     setBusy(false);
   }
-  if (archived === null || (manageable.length === 0 && archived.length === 0)) return null;
+  // A project that was just archived leaves the list of the managed ones in the same render in which it appears
+  // under the archived ones. The parent reloads its projects later, and a row that disappears then shifts the page.
+  const archivedIds = new Set((archived ?? []).map((project) => project.id));
+  const active = manageable.filter((project) => !archivedIds.has(project.id));
+  if (archived === null || (active.length === 0 && archived.length === 0)) return null;
   const when = new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium" });
   return (
     <section className="connections project-lifecycle" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("projectLifecycleTitle")}</h3>
       <p className="muted">{t("projectLifecycleHint")}</p>
-      {manageable.length > 0 && (
+      {active.length > 0 && (
         <ul className="connection-list">
-          {manageable.map((project) => (
+          {active.map((project) => (
             <li key={project.id}>
               <strong>{project.name}</strong>
               <span className="connection-actions">
