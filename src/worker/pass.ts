@@ -22,38 +22,63 @@ let nextClockScan = 0;
 let nextIssueRefresh = 0;
 let nextAutoResolve = 0;
 let nextRetention = 0;
+// A pass that takes long holds back every job that waits for the next one (a test mail, a webhook, a reply), so the pass
+// says where the time went when it took five seconds or more: the stages that took a quarter of a second or more.
+export const slowPassMs = 5_000;
+export function slowStages(stages: Record<string, number>, ceiling = slowPassMs) {
+  const total = Object.values(stages).reduce((sum, ms) => sum + ms, 0);
+  if (total < ceiling) return null;
+  return {
+    event: "worker.pass_slow",
+    ms: total,
+    stages: Object.fromEntries(Object.entries(stages).filter(([, ms]) => ms >= 250)),
+  };
+}
 export async function runPass(): Promise<boolean> {
+  const spent: Record<string, number> = {};
+  const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
+    const at = Date.now();
+    try {
+      return await run();
+    } finally {
+      spent[name] = Date.now() - at;
+    }
+  };
   if (Date.now() >= nextClockScan) {
     nextClockScan = Date.now() + 30_000;
-    await scanResponseClock();
+    await timed("clock", scanResponseClock);
   }
   if (Date.now() >= nextIssueRefresh) {
     nextIssueRefresh = Date.now() + 5 * 60_000;
-    await reconcileIssues();
+    await timed("issues", reconcileIssues);
   }
   // The reminders and the automatic resolve are counted in days, so every five minutes is often enough.
   if (Date.now() >= nextAutoResolve) {
     nextAutoResolve = Date.now() + 5 * 60_000;
-    await scanAutoResolve();
+    await timed("autoResolve", scanAutoResolve);
   }
   // What a retention period has made due is removed in steps; a quarter of an hour between passes is enough.
   if (Date.now() >= nextRetention) {
     nextRetention = Date.now() + 15 * 60_000;
-    await scanRetention();
-    await pruneNotifications();
+    await timed("retention", async () => {
+      await scanRetention();
+      await pruneNotifications();
+    });
   }
-  await pollMailboxes();
+  await timed("mailboxes", pollMailboxes);
   const done = [
-    await runIngest(),
-    await runNext(),
-    await runTestSend(),
-    await runWebhooks(),
-    await runNotificationMail(),
-    await runExtractions(),
-    await runImageReadings(),
-    await runAgents(),
-    await runTranslations(),
+    await timed("ingest", runIngest),
+    await timed("replies", runNext),
+    await timed("testMail", runTestSend),
+    await timed("webhooks", runWebhooks),
+    await timed("notificationMail", runNotificationMail),
+    await timed("extractions", runExtractions),
+    await timed("imageReadings", runImageReadings),
+    await timed("agents", runAgents),
+    await timed("translations", runTranslations),
   ];
+  const slow = slowStages(spent);
+  if (slow) console.log(JSON.stringify(slow));
   return done.some(Boolean);
 }
 // Passes until one finds nothing to do or the time is up; the time is checked between passes, so
