@@ -82,8 +82,42 @@ export async function openSection(section: Locator, heading: string | RegExp): P
     await expect(details).toHaveJSProperty("open", true, { timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
 }
+// The pages are rendered on the server and take their handlers only when the scripts have run, which in a development
+// build can be seconds after the load event. A click or a selection before that is lost without a trace: the control
+// takes the focus and nothing happens. In CI the traces of a test that waited a minute for a view showed the overview
+// with the focused menu button. React marks each control it has taken over, so a page counts as ready when every
+// control carries that mark once the document is parsed. A page that does not get there in time is used as it is.
+export async function hydrated(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () =>
+        document.readyState !== "loading" &&
+        [...document.querySelectorAll("button, select, input, textarea, summary")]
+          .filter((control) => !control.closest("nextjs-portal"))
+          .every((control) => Object.keys(control).some((key) => key.startsWith("__reactProps$"))),
+      undefined,
+      { timeout: 15_000 },
+    )
+    .catch(() => undefined);
+}
 export const mailpit = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
 export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>({
+  // Each navigation of the page waits until the page has taken its handlers.
+  page: async ({ page }, use) => {
+    const goto = page.goto.bind(page);
+    const reload = page.reload.bind(page);
+    page.goto = async (url, options) => {
+      const response = await goto(url, options);
+      await hydrated(page);
+      return response;
+    };
+    page.reload = async (options) => {
+      const response = await reload(options);
+      await hydrated(page);
+      return response;
+    };
+    await use(page);
+  },
   desk: [
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the destructuring form.
     async ({}, use) => {
