@@ -38,6 +38,8 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
       });
     }).toPass({ timeout: 30_000 });
   };
+  // A window of a laptop and the wider letters of another system: the controls of the top bar do not fit in one line.
+  await page.setViewportSize({ width: 1100, height: 700 });
   await signIn();
   try {
     await page.goto("/");
@@ -49,6 +51,14 @@ test("saves the filters of the inbox as a view, applies it, opens the desk with 
     await page.getByRole("checkbox", { name: alpha.name, exact: true }).check();
     await filter.click();
     await expect(filter).toHaveText(alpha.name);
+    // Every control of the top bar is inside it, also when it wraps, so that it can be clicked.
+    const bar = await page.locator("header.topbar").boundingBox();
+    for (const control of await page.locator("header.topbar").getByRole("button").all()) {
+      const box = await control.boundingBox();
+      expect(box && bar && box.y >= bar.y && box.y + box.height <= bar.y + bar.height + 1).toBe(
+        true,
+      );
+    }
     // Saving needs a name.
     await page.getByRole("button", { name: "Save the filters as a view" }).click();
     const save = page.getByRole("button", { name: "Save view", exact: true });
