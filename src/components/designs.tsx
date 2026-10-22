@@ -95,9 +95,12 @@ export function Designs({
   const [language, setLanguage] = useState<Language>("en");
   // The version shown in the preview: 0 is the built-in design, "draft" the form.
   const [shown, setShown] = useState<number | "draft">(0);
-  const [preview, setPreview] = useState<{ version: number; html: string; text: string } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<{
+    version: number;
+    html: string;
+    text: string;
+    request: number;
+  } | null>(null);
   const [test, setTest] = useState<"idle" | "queued" | "sent" | "failed">("idle");
   const [testCode, setTestCode] = useState<string | null>(null);
   // Only the newest request may apply its answer.
@@ -130,7 +133,7 @@ export function Designs({
       const parsed = response?.ok ? previewSchema.safeParse(await response.json()) : null;
       if (request !== previewRequest.current) return;
       if (parsed?.success) {
-        setPreview(parsed.data);
+        setPreview({ ...parsed.data, request });
         setFailure(false);
       } else setFailure(true);
     },
@@ -305,7 +308,9 @@ export function Designs({
         </select>
         {preview && (
           <>
+            {/* A new frame for each answer: a changed srcdoc on a frame that still loads can leave it blank. */}
             <iframe
+              key={preview.request}
               className="design-frame"
               title={t("designPreview")}
               sandbox=""
