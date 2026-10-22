@@ -160,7 +160,7 @@ Decided on 2026-10-18:
   messages and threads, behind an interface of our own and with the version pinned (see
   [the qualification](../qualification/chat-sdk.md)): Slack first, Teams last. The subject of a ticket goes to a
   messenger only when a channel switches it on, which needs `config.approve`, and the overview of M8-A4 lists these
-  channels as recipients of ticket content.
+  channels as recipients of ticket content. The two stages are planned in [messengers.md](messengers.md) (M10).
 - **Priorities and categories (M7-A3).** Four fixed priorities for all projects (low, normal, high, urgent; normal
   is the default). Categories are a free list for each project, at most one for a ticket. The limits of the response
   clock for each priority are set per project.
