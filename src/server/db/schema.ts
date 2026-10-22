@@ -245,6 +245,32 @@ export const senderRules = pgTable(
   },
   (t) => [uniqueIndex("sender_rule_value_idx").on(t.projectId, t.value)],
 );
+// A saved view of the inbox of one operator (see `domain/views.ts`): a name and the filters that the desk applies. At most
+// one view of a person is the one that the desk opens with.
+export const savedViews = pgTable(
+  "saved_view",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    list: text("list").notNull(),
+    projects: jsonb("projects").$type<string[]>().notNull().default([]),
+    tag: text("tag"),
+    priority: text("priority"),
+    category: text("category"),
+    isStart: boolean("is_start").notNull().default(false),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [
+    uniqueIndex("saved_view_name_idx").on(t.userId, sql`lower(${t.name})`),
+    uniqueIndex("saved_view_start_idx")
+      .on(t.userId)
+      .where(sql`${t.isStart}`),
+  ],
+);
 // The colour of a tag in one project; a tag without a row has none (see `domain/tags.ts`).
 export const projectTags = pgTable(
   "project_tag",

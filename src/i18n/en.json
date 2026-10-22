@@ -1069,5 +1069,20 @@
   "sessionEnd": "End this session",
   "sessionsEndOthers": "End all other sessions",
   "sessionsEnded": "The session was ended.",
-  "sessionsError": "The session could not be ended."
+  "sessionsError": "The session could not be ended.",
+  "viewsChoose": "Saved views",
+  "viewsNone": "Views…",
+  "viewsStartMark": "(start)",
+  "viewsNoAccess": "(no access)",
+  "viewsName": "Name of the view",
+  "viewsSave": "Save view",
+  "viewsCancel": "Cancel",
+  "viewsSaveCurrent": "Save the filters as a view",
+  "viewsUpdate": "Update the view with the filters",
+  "viewsStartOn": "Open the desk with this view",
+  "viewsStartOff": "Do not open the desk with this view",
+  "viewsDelete": "Delete the view",
+  "viewsNameUsed": "You have a view with this name already.",
+  "viewsLimit": "You can keep 20 views. Delete one first.",
+  "viewsError": "The view could not be saved."
 }

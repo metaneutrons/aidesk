@@ -1069,5 +1069,20 @@
   "sessionEnd": "Diese Sitzung beenden",
   "sessionsEndOthers": "Alle anderen Sitzungen beenden",
   "sessionsEnded": "Die Sitzung wurde beendet.",
-  "sessionsError": "Die Sitzung konnte nicht beendet werden."
+  "sessionsError": "Die Sitzung konnte nicht beendet werden.",
+  "viewsChoose": "Gespeicherte Ansichten",
+  "viewsNone": "Ansichten…",
+  "viewsStartMark": "(Start)",
+  "viewsNoAccess": "(kein Zugriff)",
+  "viewsName": "Name der Ansicht",
+  "viewsSave": "Ansicht speichern",
+  "viewsCancel": "Abbrechen",
+  "viewsSaveCurrent": "Filter als Ansicht speichern",
+  "viewsUpdate": "Ansicht mit den Filtern aktualisieren",
+  "viewsStartOn": "Desk mit dieser Ansicht öffnen",
+  "viewsStartOff": "Desk nicht mit dieser Ansicht öffnen",
+  "viewsDelete": "Ansicht löschen",
+  "viewsNameUsed": "Du hast schon eine Ansicht mit diesem Namen.",
+  "viewsLimit": "Du kannst 20 Ansichten behalten. Lösche zuerst eine.",
+  "viewsError": "Die Ansicht konnte nicht gespeichert werden."
 }

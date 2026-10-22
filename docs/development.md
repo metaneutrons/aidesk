@@ -289,6 +289,24 @@ that does not exist answers `404`), and `POST /api/v1/me/sessions/end-others` en
 gets none of them. Passkeys are added and removed in "Passkeys" of the owner (P8), and a lost password is recovered through the
 way back of the owner; changing the password while signed in is not offered.
 
+### Saved views of the inbox
+
+An operator saves the filters of the inbox as a view: a name, the list (`inbox`, `overdue`, `reminders`, `waiting` or
+`resolved`), projects, a tag, a priority and a category (`src/domain/views.ts`, `src/server/views.ts`, the choice "Views…" in the
+top bar of the desk). A choice applies the filters; "Save the filters as a view" saves the current ones; a chosen view can be
+updated with the current filters, made the view that the desk opens with, or deleted. The desk opens with that view when it is
+opened without a link to a ticket (a link to a ticket always shows the ticket). REST: `GET/POST /api/v1/me/views`,
+`PUT /me/views/{id}`, `POST /me/views/{id}/delete` and `POST /me/views/{id}/start` with `{ "start": true|false }`; every answer is
+the whole list. At most 20 views for a person, and a name is used once for a person in any case (`409`). The views are the
+person's own: nobody sees or changes those of another (`404`), agents have none, and nothing is audited.
+
+A view is a filter of what the person may read anyway, never a grant. A project that is named when saving must be one that the
+person may read (`400` otherwise, the same for one that does not exist). What a view shows is read through the grants of that
+moment: a project that the person may not read any more is left out of `projects`, and a view that named projects and has none
+left says `restricted: true`, shows nothing and is not applied (it cannot be chosen, and as the start it is skipped). The stored
+projects are not changed, so the view works again when the access comes back. A view of no projects is every project that the
+person may read.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`

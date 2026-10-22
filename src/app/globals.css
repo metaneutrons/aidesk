@@ -277,11 +277,12 @@ label {
     flex-direction: column;
 }
 .topbar {
-    height: 76px;
+    min-height: 76px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    padding: 0 32px;
+    padding: 12px 32px;
     border-bottom: 1px solid var(--line);
     flex-shrink: 0;
     gap: 16px;
@@ -292,7 +293,9 @@ label {
 }
 .topbar-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
 }
 .project-filter {
@@ -2245,4 +2248,16 @@ button.danger {
 .sign-in-methods {
     margin: 8px 0 16px;
     padding-left: 18px;
+}
+.saved-views {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.saved-view-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
