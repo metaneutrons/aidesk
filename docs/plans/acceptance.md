@@ -30,8 +30,8 @@ record. The sheets that exist stay valid as the starting point; the acceptance u
 
 In scope: the evidence, the open items of M1 to M5, the walk-through of the product owner, and the recorded decisions
 about what is accepted, waived or cancelled. Out of scope: new functions (what a walk-through finds is a new item in
-the plan of the milestone it belongs to, or a decision to accept it as a limit), publication of a release, and the
-messengers beyond what M10 delivers.
+the plan of the milestone it belongs to, or a decision to accept it as a limit), publication of a release, the
+messengers beyond what M10 delivers, and the customer channel in messengers (M12, accepted by its own plan after this one).
 
 ## Milestone M11: Acceptance
 
