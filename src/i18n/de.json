@@ -373,6 +373,7 @@
   "webhookDelivery_succeeded": "Zugestellt {date}",
   "webhookDelivery_retry": "Fehlgeschlagen {date} ({code}), neuer Versuch folgt",
   "webhookDelivery_failed": "Fehlgeschlagen {date} ({code}), aufgegeben",
+  "webhookDelivery_skipped": "Nicht gesendet {date} ({code})",
   "webhookPing": "Testereignis an {name} senden",
   "webhookDisable": "{name} deaktivieren",
   "webhookPinged": "Ein Testereignis wurde eingereiht; das Ergebnis erscheint hier, sobald die Adresse geantwortet hat.",

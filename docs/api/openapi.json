@@ -22203,13 +22203,31 @@
                         "type": "string"
                       },
                       "url": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The address of the endpoint; for a channel only its scheme and host, because the rest carries a key"
                       },
                       "events": {
                         "type": "array",
                         "items": {
                           "type": "string"
                         }
+                      },
+                      "format": {
+                        "type": "string",
+                        "enum": [
+                          "aidesk",
+                          "slack",
+                          "teams",
+                          "discord",
+                          "mattermost",
+                          "rocketchat",
+                          "apprise"
+                        ],
+                        "description": "aidesk is the signed JSON body of the event; any other format is a channel of a messenger"
+                      },
+                      "withSubject": {
+                        "type": "boolean",
+                        "description": "A channel names the subject of the ticket in its message; always false for the format aidesk"
                       },
                       "developmentOnly": {
                         "type": "boolean"
@@ -22226,7 +22244,7 @@
                       },
                       "secretSet": {
                         "type": "boolean",
-                        "description": "The signing secret is stored; it is never returned"
+                        "description": "The signing secret (for a channel: the address) is stored; it is never returned"
                       },
                       "lastDelivery": {
                         "anyOf": [
@@ -22246,7 +22264,8 @@
                                 "enum": [
                                   "succeeded",
                                   "retry",
-                                  "failed"
+                                  "failed",
+                                  "skipped"
                                 ]
                               },
                               "responseStatus": {
@@ -22293,6 +22312,8 @@
                       "name",
                       "url",
                       "events",
+                      "format",
+                      "withSubject",
                       "developmentOnly",
                       "status",
                       "version",
@@ -22391,6 +22412,23 @@
                       ]
                     }
                   },
+                  "format": {
+                    "default": "aidesk",
+                    "type": "string",
+                    "enum": [
+                      "aidesk",
+                      "slack",
+                      "teams",
+                      "discord",
+                      "mattermost",
+                      "rocketchat",
+                      "apprise"
+                    ]
+                  },
+                  "withSubject": {
+                    "default": false,
+                    "type": "boolean"
+                  },
                   "secret": {
                     "type": "string",
                     "minLength": 16,
@@ -22409,8 +22447,7 @@
                 "required": [
                   "name",
                   "url",
-                  "events",
-                  "secret"
+                  "events"
                 ],
                 "additionalProperties": false
               }
@@ -22747,6 +22784,9 @@
                     "type": "string",
                     "minLength": 16,
                     "maxLength": 200
+                  },
+                  "withSubject": {
+                    "type": "boolean"
                   },
                   "developmentOnly": {
                     "type": "boolean"
@@ -23305,7 +23345,8 @@
                         "enum": [
                           "succeeded",
                           "retry",
-                          "failed"
+                          "failed",
+                          "skipped"
                         ]
                       },
                       "responseStatus": {
