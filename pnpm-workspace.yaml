@@ -10,6 +10,8 @@ allowBuilds:
 # Remove vulnerable esbuild pulled through Drizzle's legacy loader.
 overrides:
   "@esbuild-kit/core-utils>esbuild": 0.28.2
+  # Quadratic time in the zone identifier of an IPv6 address (GHSA-rxp7-6hxx-x8q5); express-rate-limit and socks ask for ^10.
+  ip-address: 10.7.4
 
 # pdf.js can draw pages with a native canvas; the product only reads text, so the
 # native packages stay out.
