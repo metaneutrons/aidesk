@@ -181,9 +181,10 @@ jobs:
   browser:
     name: Browser tests
     runs-on: ubuntu-24.04
-    # The suite takes 20 to 26 minutes on a runner of normal speed and went past 30 on a slow one, where the job was
-    # cancelled with every test green so far and the pull request waited for a rerun of 25 minutes.
-    timeout-minutes: 45
+    # The suite grew with the milestones M6 to M9 and takes 33 to 42 minutes now (the last five runs); the earlier
+    # limit of 45 cancelled a run on 23 October with 315 tests green and none failed. The limit leaves room for a slow
+    # runner; the next step is to split the suite over runners.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
