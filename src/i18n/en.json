@@ -373,6 +373,7 @@
   "webhookDelivery_succeeded": "Delivered {date}",
   "webhookDelivery_retry": "Failed {date} ({code}), trying again",
   "webhookDelivery_failed": "Failed {date} ({code}), given up",
+  "webhookDelivery_skipped": "Not sent {date} ({code})",
   "webhookPing": "Send a test event to {name}",
   "webhookDisable": "Disable {name}",
   "webhookPinged": "A test event was queued; the result appears here once the endpoint answered.",

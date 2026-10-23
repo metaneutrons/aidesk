@@ -6,6 +6,9 @@ import { z, ZodError } from "zod";
 import type { ConfigDiffEntry } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
 import {
+  channelEvents,
+  eventsOfChannel,
+  isChannel,
   webhookCreate,
   webhookDisable,
   webhookUpdate,
@@ -18,7 +21,7 @@ import { notifyOperators } from "./notifications";
 import { audit, jobs, webhookDeliveries, webhooks } from "./db/schema";
 import { DomainError } from "./errors";
 import { checkHost, developmentStack } from "./host-guard";
-import { sealSecret } from "./secrets";
+import { sealSecret, unsealSecret } from "./secrets";
 const id = z.uuid();
 type Row = typeof webhooks.$inferSelect;
 function manageable(principal: Principal, project: string): void {
@@ -69,6 +72,8 @@ export async function listWebhooks(principal: Principal, projectId: string) {
       name: row.name,
       url: row.url,
       events: row.events,
+      format: row.format,
+      withSubject: row.withSubject,
       developmentOnly: row.developmentOnly,
       status: row.status,
       version: row.version,
@@ -140,6 +145,8 @@ export async function applyWebhookPayload(
         name: String(payload.name),
         url: String(payload.url),
         events: payload.events as string[],
+        format: typeof payload.format === "string" ? payload.format : "aidesk",
+        withSubject: payload.withSubject === true,
         developmentOnly: payload.developmentOnly === true,
         secretCiphertext: String(payload.secret),
       })
@@ -167,6 +174,7 @@ export async function applyWebhookPayload(
           ...(typeof payload.developmentOnly === "boolean"
             ? { developmentOnly: payload.developmentOnly }
             : {}),
+          ...(typeof payload.withSubject === "boolean" ? { withSubject: payload.withSubject } : {}),
           ...(typeof payload.secret === "string" ? { secretCiphertext: payload.secret } : {}),
         };
   const [changed] = await tx
@@ -207,7 +215,12 @@ async function submit(
     kind: "webhook.create" | "webhook.update" | "webhook.disable";
     expectedVersion: number | null;
     idempotencyKey: string | undefined;
-    build: (row: Row | null) => { payload: Record<string, unknown>; diff: ConfigDiffEntry[] };
+    build: (row: Row | null) => {
+      payload: Record<string, unknown>;
+      diff: ConfigDiffEntry[];
+      // Sets what a change needs to be applied by a person with config.approve (it widens what leaves the system).
+      approval?: boolean;
+    };
   },
   options: { validate?: boolean },
 ): Promise<ChangeOutcome> {
@@ -246,6 +259,9 @@ async function submit(
     options,
   );
 }
+// What a channel shows of its address: the host, with the scheme. The address itself carries the key of the messenger
+// and is kept sealed in the place of the signing secret.
+const hostOnly = (address: string): string => new URL(address).origin;
 export async function createWebhook(
   principal: Principal,
   projectId: string,
@@ -254,6 +270,7 @@ export async function createWebhook(
 ) {
   const request = webhookCreate.parse(input);
   await checkEndpoint(request.url, request.developmentOnly);
+  const channel = isChannel(request.format);
   return submit(
     principal,
     projectId,
@@ -265,18 +282,27 @@ export async function createWebhook(
       build: () => ({
         payload: {
           name: request.name,
-          url: request.url,
+          url: channel ? hostOnly(request.url) : request.url,
           events: request.events,
+          format: request.format,
+          withSubject: request.withSubject,
           developmentOnly: request.developmentOnly,
-          secret: sealed(request.secret),
+          // The address of a channel, or the signing secret of the format `aidesk`.
+          secret: sealed(channel ? request.url : (request.secret ?? "")),
         },
         diff: [
           { pointer: "/name", from: null, to: request.name },
-          { pointer: "/url", from: null, to: request.url },
+          { pointer: "/url", from: null, to: channel ? hostOnly(request.url) : request.url },
           { pointer: "/events", from: null, to: request.events },
+          { pointer: "/format", from: null, to: request.format },
+          ...(channel ? [{ pointer: "/withSubject", from: null, to: request.withSubject }] : []),
           { pointer: "/developmentOnly", from: null, to: request.developmentOnly },
-          { pointer: "/secret", from: "unset", to: "set" },
+          channel
+            ? { pointer: "/address", from: "unset", to: "set" }
+            : { pointer: "/secret", from: "unset", to: "set" },
         ],
+        // The subject of a ticket leaves the system: a person with config.approve decides.
+        approval: request.withSubject,
       }),
     },
     options,
@@ -297,10 +323,18 @@ export async function updateWebhook(
     .from(webhooks)
     .where(and(eq(webhooks.id, id.parse(webhookId)), eq(webhooks.projectId, project)));
   if (!existing) throw new DomainError("not_found", 404);
+  const channel = isChannel(existing.format);
+  // What belongs to the other format is refused, not ignored: the format is fixed when the webhook is made.
+  if (channel && request.secret !== undefined)
+    invalid(["secret"], "A channel is not signed and has no secret");
+  if (!channel && request.withSubject !== undefined)
+    invalid(["withSubject"], "Only a channel names the subject");
+  if (channel && request.events !== undefined && !eventsOfChannel(request.events))
+    invalid(["events"], `A channel receives only ${channelEvents.join(", ")}`);
   // The endpoint is checked as it will be after the change, before the write
   // starts, because resolving a host takes a moment.
   await checkEndpoint(
-    request.url ?? existing.url,
+    request.url ?? (channel ? unsealSecret(existing.secretCiphertext) : existing.url),
     request.developmentOnly ?? existing.developmentOnly,
   );
   return submit(
@@ -315,21 +349,35 @@ export async function updateWebhook(
         if (!row) throw new DomainError("not_found", 404);
         const wanted: Record<string, unknown> = {
           ...(request.name !== undefined ? { name: request.name } : {}),
-          ...(request.url !== undefined ? { url: request.url } : {}),
+          ...(request.url !== undefined
+            ? { url: channel ? hostOnly(request.url) : request.url }
+            : {}),
           ...(request.events !== undefined ? { events: request.events } : {}),
+          ...(request.withSubject !== undefined ? { withSubject: request.withSubject } : {}),
           ...(request.developmentOnly !== undefined
             ? { developmentOnly: request.developmentOnly }
             : {}),
         };
+        // The secret, or the address of a channel, is never shown: the entry says that it was replaced.
+        const replaced = channel ? request.url !== undefined : request.secret !== undefined;
         const diff = [
           ...fieldDiff(row, wanted),
-          ...(request.secret !== undefined
-            ? [{ pointer: "/secret", from: "set", to: "replaced" }]
+          ...(replaced
+            ? [{ pointer: channel ? "/address" : "/secret", from: "set", to: "replaced" }]
             : []),
         ];
+        const sealedNew = channel
+          ? request.url !== undefined
+            ? sealed(request.url)
+            : null
+          : request.secret
+            ? sealed(request.secret)
+            : null;
         return {
-          payload: { ...wanted, ...(request.secret ? { secret: sealed(request.secret) } : {}) },
+          payload: { ...wanted, ...(sealedNew ? { secret: sealedNew } : {}) },
           diff,
+          // Switching the subject on widens what leaves the system.
+          approval: request.withSubject === true && !row.withSubject,
         };
       },
     },

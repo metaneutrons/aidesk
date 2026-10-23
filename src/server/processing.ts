@@ -11,6 +11,7 @@ import {
 } from "../domain/processing";
 import { retentionOf } from "../domain/retention";
 import { rulesOf } from "../domain/notifications";
+import { isChannel } from "../domain/webhooks";
 import { db } from "./db";
 import { aiProfiles, audit, configChanges, connections, projects, webhooks } from "./db/schema";
 import { DomainError } from "./errors";
@@ -191,7 +192,8 @@ async function overviewOf(projectId: string): Promise<ProcessingOverview> {
       task: null,
       host: hostOf(hook.url),
       detail: hook.events.join(", "),
-      receives: hook.events.includes("ticket.created")
+      // A channel names the subject only when it is set to; the format `aidesk` carries it in `ticket.created`.
+      receives: (isChannel(hook.format) ? hook.withSubject : hook.events.includes("ticket.created"))
         ? ["event_facts", "subject"]
         : ["event_facts"],
       state: hook.status === "active" ? "active" : "off",

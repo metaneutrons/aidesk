@@ -860,6 +860,13 @@ export const webhooks = pgTable(
     events: jsonb("events").$type<string[]>().notNull(),
     // Allows a plain or local endpoint on a development stack only.
     developmentOnly: boolean("development_only").notNull().default(false),
+    // How a delivery is written: `aidesk` is the signed JSON body of the event, any other format is a channel of a
+    // messenger. Fixed when the webhook is made.
+    format: text("format").notNull().default("aidesk"),
+    // A channel names the subject of the ticket only when this is on. It needs config.approve to switch it on.
+    withSubject: boolean("with_subject").notNull().default(false),
+    // The signing secret; for a channel it holds the address, which carries the key of the messenger, and `url` shows
+    // the host only.
     secretCiphertext: text("secret_ciphertext").notNull(),
     // active or disabled
     status: text("status").notNull().default("active"),

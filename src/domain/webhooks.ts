@@ -29,6 +29,36 @@ export const webhookDescriptions: Record<WebhookEvent, string> = {
   "ai.budget_low":
     "The use of the daily budget of an AI task reached 80 percent; sent once for a task and a day",
 };
+// How a delivery is written. `aidesk` is the signed JSON body of the event for a receiver of our own. Any other format
+// is a channel of a messenger: the address of its incoming webhook carries its key, so it is stored sealed, never
+// returned, and a delivery is not signed. The format is fixed when the webhook is made.
+export const webhookFormats = [
+  "aidesk",
+  "slack",
+  "teams",
+  "discord",
+  "mattermost",
+  "rocketchat",
+  "apprise",
+] as const;
+export type WebhookFormat = (typeof webhookFormats)[number];
+export type ChannelFormat = Exclude<WebhookFormat, "aidesk">;
+export const channelFormats = webhookFormats.filter(
+  (format): format is ChannelFormat => format !== "aidesk",
+);
+export const isChannel = (format: string): format is ChannelFormat =>
+  format !== "aidesk" && (webhookFormats as readonly string[]).includes(format);
+// The events that a channel can subscribe to: those that tell people about a ticket. The others carry facts that make
+// no sense as a line of text and stay with the format `aidesk`.
+export const channelEvents = [
+  "ticket.created",
+  "ticket.assigned",
+  "ticket.overdue",
+  "draft.created",
+  "ticket.status_changed",
+] as const satisfies readonly WebhookEvent[];
+export const eventsOfChannel = (values: readonly string[]): boolean =>
+  values.every((value) => (channelEvents as readonly string[]).includes(value));
 const name = z.string().trim().min(1).max(100);
 const url = z.url().max(2000);
 const events = z
@@ -41,14 +71,32 @@ const secret = z.string().min(16).max(200);
 export const webhookCreate = z
   .object({
     name,
+    // The address of the endpoint; for a channel it carries the key of the messenger.
     url,
     events,
-    secret,
+    format: z.enum(webhookFormats).default("aidesk"),
+    // Only a channel: the subject of the ticket is part of the message. Needs config.approve to switch it on.
+    withSubject: z.boolean().default(false),
+    // Only the format `aidesk`: a channel does not sign.
+    secret: secret.optional(),
     // Allows a plain or local endpoint, on a development stack only.
     developmentOnly: z.boolean().default(false),
     idempotencyKey: z.uuid().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const issue = (path: string, message: string) => {
+      context.addIssue({ code: "custom", path: [path], message });
+    };
+    if (value.format === "aidesk") {
+      if (value.secret === undefined) issue("secret", "A signing secret is required");
+      if (value.withSubject) issue("withSubject", "Only a channel names the subject");
+      return;
+    }
+    if (value.secret !== undefined) issue("secret", "A channel is not signed and has no secret");
+    if (!eventsOfChannel(value.events))
+      issue("events", `A channel receives only ${channelEvents.join(", ")}`);
+  });
 export const webhookUpdate = z
   .object({
     expectedVersion: z.number().int().positive(),
@@ -56,6 +104,7 @@ export const webhookUpdate = z
     url: url.optional(),
     events: events.optional(),
     secret: secret.optional(),
+    withSubject: z.boolean().optional(),
     developmentOnly: z.boolean().optional(),
     idempotencyKey: z.uuid().optional(),
   })
