@@ -84,14 +84,14 @@ Execution: M10 issue.
   offer the format and the switch; the REST API takes both; the overview of M8-A4 lists the channel with the content
   that it receives. The existing guards (private addresses, development-only addresses, retries, the log of deliveries)
   apply unchanged, and a webhook with the format `aidesk` behaves as before.
-- M10-A2: A project can have a connection to Slack (the bot token, sealed), and an operator can choose "messenger" as a
+- M10-A2 (deferred, see the decisions): A project can have a connection to Slack (the bot token, sealed), and an operator can choose "messenger" as a
   channel for each kind of notification. The notification reaches them as a direct message, found by their address,
   with the kind, the number, the subject and a link, and with the same checks at send time as the mail (rights, choice
   of the person, ticket exists, project not paused). An operator whose address is not known to the workspace gets
   nothing and the desk says why. The Chat SDK is pinned and used only through the interface of our own; only the Slack
   adapter is installed; its state lives in PostgreSQL through a migration of ours, not through auto-created tables.
   Qualified against a real workspace, with the scopes that were needed written down.
-- M10-A3: The same for Microsoft Teams, with the set-up that Teams needs (a bot that is installed in the tenant and an
+- M10-A3 (deferred, see the decisions): The same for Microsoft Teams, with the set-up that Teams needs (a bot that is installed in the tenant and an
   endpoint that the service can reach), qualified against a real tenant. Teams is the last piece; it is built only when
   the product owner provides a tenant, and the milestone can be accepted without it only through a decision recorded in
   this plan.
@@ -114,8 +114,37 @@ product owner). M10-A3 last. M10-A2 and A3 use the preferences and the checks of
   every change of the lockfile, and the adapter of a messenger is installed only with its connection kind.
 - Teams needs infrastructure that a small team may not want to run; hence last, and optional by decision.
 
-## Decisions needed from the product owner
+## Decisions of the product owner
 
-- Which messengers are used in practice. This decides the order of the formats and whether A2 and A3 are built.
-- A Slack workspace (or an account of another messenger) for the qualification of M10-A2, and a Teams tenant for M10-A3.
-- Whether the subject of a ticket may go to a channel at all (the switch exists, the default is off).
+Taken on 2026-10-23:
+
+- **Teams first, over a webhook.** M10-A1 builds all six formats, because each is a small JSON body. The first target is
+  a Teams channel through a workflow (the trigger "When a Teams webhook request is received"), which needs no bot in the
+  tenant. Whether the team uses Teams in practice is for the product owner to confirm.
+- **Direct messages wait.** M10-A2 (Slack) and M10-A3 (Teams) are not built until there is a concrete need. A channel,
+  the desk and mail serve a single operator or a small team. If direct messages are wanted, Slack is the easier way (a
+  free workspace is enough for the qualification), and Teams stays last and needs a tenant of the product owner.
+- **The subject stays out of a channel by default.** A channel gets the kind of event, the number of the ticket and a
+  link. The subject is sent only when it is switched on for that channel, which needs `config.approve` and shows in the
+  overview of the processing. A subject can hold data of customers and mandates, and a channel in a third party's system
+  is a processing by a processor that the controller has to settle first.
+
+## Design of M10-A1
+
+- **A channel keeps its address secret.** The address of an incoming webhook of a messenger carries its key. For a channel
+  the address is stored sealed (in the place of the signing secret, which a channel does not use) and is never returned,
+  never written to the audit and not shown in a proposal; the list shows the host only. A change of the address is
+  written to the audit as "replaced".
+- **The format is fixed when the webhook is made.** A webhook of another format is a new webhook; this keeps the meaning
+  of the stored address and of the signing secret unambiguous.
+- **A channel gets fewer events.** `ticket.created`, `ticket.assigned`, `ticket.overdue`, `draft.created` and
+  `ticket.status_changed`. The others carry facts that make no sense as a line of text and stay with the format `aidesk`.
+- **The text of a customer cannot act in the channel.** The subject is cut and cleaned like in the mail of a notification,
+  marks of the format of the messenger are written as text, and a mention in it is broken (`@` followed by a zero-width
+  space), so that a subject cannot call a person or a whole channel. Discord gets `allowed_mentions` with an empty `parse`.
+- **A ticket that is gone is not announced.** The delivery ends as skipped, as the mail of a notification does.
+
+## Open for the product owner
+
+- A Slack workspace for the qualification of M10-A2 and a Teams tenant for M10-A3, if direct messages are wanted.
+- Whether the team uses Teams (see above).
