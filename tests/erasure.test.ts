@@ -474,16 +474,27 @@ describe("erasing everything about a requester", () => {
         language: "en",
       })
       .returning({ id: tickets.id });
+    // The portal record of the same address in the other project is not counted and not removed either.
+    await db()
+      .insert(participants)
+      .values({ ticketId: theirs?.id ?? "", email: "kim@example.test" });
     const preview = await previewRequesterErasure(canErase, projectId, {
       email: "kim@example.test",
     });
     expect(preview.counts.tickets).toBe(1);
+    expect(preview.counts.portalRecords).toBe(0);
     await eraseRequester(canErase, projectId, {
       email: "kim@example.test",
       expected: preview.counts,
     });
     expect(await countOf(tickets, eq(tickets.id, mine.ticketId))).toBe(0);
     expect(await countOf(tickets, eq(tickets.id, theirs?.id ?? ""))).toBe(1);
+    expect(
+      await db()
+        .select()
+        .from(participants)
+        .where(eq(participants.ticketId, theirs?.id ?? "")),
+    ).toHaveLength(1);
     await db().delete(tickets).where(eq(tickets.projectId, otherProject));
   });
 });

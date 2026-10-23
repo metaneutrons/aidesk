@@ -75,7 +75,9 @@ const clear = async () => {
   await db().delete(jobs).where(eq(jobs.projectId, projectId));
   await db().delete(audit).where(eq(audit.projectId, projectId));
   await db().delete(ingress).where(eq(ingress.projectId, projectId));
-  await db().delete(tickets).where(eq(tickets.projectId, projectId));
+  await db()
+    .delete(tickets)
+    .where(inArray(tickets.projectId, [projectId, otherProject]));
 };
 beforeAll(async () => {
   await migrate(db(), { migrationsFolder: "drizzle" });
@@ -143,6 +145,20 @@ describe("the export about a requester", () => {
       .delete(participants)
       .where(inArray(participants.ticketId, [mine.ticketId, other.ticketId]));
     await db().insert(participants).values({ ticketId: other.ticketId, email: "kim@example.test" });
+    // The same address has a portal record in another project; the export of this project does not hold it.
+    const [foreign] = await db()
+      .insert(tickets)
+      .values({
+        projectId: otherProject,
+        subject: "Elsewhere",
+        requesterEmail: "kim@example.test",
+        requesterName: "Kim",
+        language: "en",
+      })
+      .returning({ id: tickets.id });
+    await db()
+      .insert(participants)
+      .values({ ticketId: foreign?.id ?? "", email: "kim@example.test" });
     await db()
       .insert(audit)
       .values([
@@ -200,6 +216,9 @@ describe("the export about a requester", () => {
     expect(messageRows.some((message) => message.internal === true)).toBe(true);
     expect(rows(files, "participants.ndjson").map((entry) => entry.email)).toContain(
       "kim@example.test",
+    );
+    expect(rows(files, "participants.ndjson").map((entry) => entry.ticketId)).not.toContain(
+      foreign?.id,
     );
     expect(rows(files, "ingress.ndjson").map((entry) => entry.id)).toContain(junk.ingressId);
     expect(rows(files, "audit.ndjson").map((entry) => entry.action)).toEqual(["ticket.tags"]);

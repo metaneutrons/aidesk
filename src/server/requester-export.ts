@@ -65,7 +65,13 @@ export async function exportRequester(
         .where(
           or(
             ticketIds.length ? inArray(participants.ticketId, ticketIds) : undefined,
-            sql`lower(${participants.email}) = ${email}`,
+            and(
+              sql`lower(${participants.email}) = ${email}`,
+              inArray(
+                participants.ticketId,
+                db().select({ id: tickets.id }).from(tickets).where(eq(tickets.projectId, project)),
+              ),
+            ),
           ),
         ),
       messageIds.length
