@@ -113,7 +113,15 @@ async function measure(tx: Reader, scope: Scope) {
       .where(
         or(
           ids.length ? inArray(participants.ticketId, ids) : undefined,
-          email ? sql`lower(${participants.email}) = ${email}` : undefined,
+          email
+            ? and(
+                sql`lower(${participants.email}) = ${email}`,
+                inArray(
+                  participants.ticketId,
+                  tx.select({ id: tickets.id }).from(tickets).where(eq(tickets.projectId, project)),
+                ),
+              )
+            : undefined,
         ),
       ),
   );
@@ -285,8 +293,19 @@ async function run(
         .update(audit)
         .set({ detail: {} })
         .where(and(eq(audit.projectId, project), inArray(audit.targetId, named)));
+    // The portal records of the address in this project only; the address may be a requester elsewhere as well.
     if (scope.email)
-      await tx.delete(participants).where(sql`lower(${participants.email}) = ${scope.email}`);
+      await tx
+        .delete(participants)
+        .where(
+          and(
+            sql`lower(${participants.email}) = ${scope.email}`,
+            inArray(
+              participants.ticketId,
+              tx.select({ id: tickets.id }).from(tickets).where(eq(tickets.projectId, project)),
+            ),
+          ),
+        );
     if (measured.ingressIds.length)
       await tx.delete(ingress).where(inArray(ingress.id, measured.ingressIds));
     // The rest follows the tickets: messages with their files and translations, links to issues, participants, runs.
