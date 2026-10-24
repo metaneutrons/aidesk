@@ -19,6 +19,7 @@ import { pollImapConnection } from "../server/imap";
 import { pollCloudflareConnection } from "../server/cloudflare";
 import { env } from "../server/env";
 import { claimSlot } from "../server/schedule";
+import { eachLimited } from "./limited";
 import { deliver } from "./transport";
 import { invitationMarkdown, invitationSubject } from "../domain/invitations";
 const payloadSchema = z.object({
@@ -479,6 +480,10 @@ export async function runIngest(): Promise<boolean> {
 const imapPollMs = Math.max(5, Number(process.env.IMAP_POLL_SECONDS) || 60) * 1000;
 let nextImapPoll = 0;
 type Poller = (connectionId: string) => Promise<object>;
+// The mailboxes of a deployment are independent of each other and a poll mostly waits for the network, so a few are
+// polled at once. One after the other, a deployment with many mailboxes (a development stack with the remains of many
+// test runs has dozens) spent more than ten seconds in one pass and held back every job that waited for the next one.
+export const pollConcurrency = 8;
 // The pollers are a parameter so that a test can count the calls. The limit holds across processes (`claimSlot`): a
 // platform that calls the worker every minute with a new process each time polls a mailbox as often as
 // IMAP_POLL_SECONDS says, and not on every call.
@@ -504,7 +509,7 @@ export async function pollMailboxes(
         inArray(connections.status, ["ready", "degraded"]),
       ),
     );
-  for (const connection of inbound) {
+  await eachLimited(inbound, pollConcurrency, async (connection) => {
     try {
       const result =
         connection.kind === "imap"
@@ -532,5 +537,5 @@ export async function pollMailboxes(
         JSON.stringify({ event: `${connection.kind}.failed`, connectionId: connection.id, code }),
       );
     }
-  }
+  });
 }

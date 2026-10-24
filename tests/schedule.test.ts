@@ -59,6 +59,42 @@ describe("the slot of a periodic job", () => {
   });
 });
 describe("polling the mailboxes", () => {
+  it("polls the mailboxes of a deployment a few at a time, not one after the other", async () => {
+    await db().delete(workspaceSettings).where(eq(workspaceSettings.key, "schedule:mailboxes"));
+    await db().delete(connections).where(eq(connections.projectId, projectId));
+    await db()
+      .insert(connections)
+      .values(
+        Array.from({ length: 24 }, (_, index) => ({
+          projectId,
+          kind: "imap" as const,
+          name: `Mailbox ${String(index)}`,
+          direction: "inbound" as const,
+          status: "ready" as const,
+          config: {},
+        })),
+      );
+    let running = 0;
+    let most = 0;
+    const pollers = {
+      imap: async () => {
+        running += 1;
+        most = Math.max(most, running);
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 15);
+        });
+        running -= 1;
+        return {};
+      },
+      cloudflare: () => Promise.resolve({}),
+    };
+    vi.resetModules();
+    const jobs = await import("../src/worker/jobs");
+    await jobs.pollMailboxes(pollers);
+    // The mailboxes of other projects of the shared database are polled too, so the least is what this test adds.
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(jobs.pollConcurrency);
+  });
   it("polls a mailbox once per interval even when a new process makes each call", async () => {
     await db().delete(workspaceSettings).where(eq(workspaceSettings.key, "schedule:mailboxes"));
     await db().insert(connections).values({
