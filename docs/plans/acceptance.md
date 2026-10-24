@@ -66,10 +66,17 @@ M10. M11-A4 is last.
 - A real service can fail for reasons that are not ours (limits of a free tier, a closed account); the evidence says
   which run it is and what it did not cover.
 
-## Decisions needed from the product owner
+## Decisions of the product owner
 
-- Whether M1 to M5 are in this acceptance as they are (with the open items above), or whether some of them are waived
-  or cancelled by a decision now.
-- Which revision is the one under acceptance, and whether M10 is built by then.
-- Which deployment is the one for A3 (the instance on Vercel, or a Docker deployment with TLS), and when it may be
-  brought to the revision.
+Taken on 2026-10-24:
+
+- **M1 to M5 are in the acceptance**, each with its open items, and every open item is decided one by one: done with
+  evidence, or waived with a reason and its consequence under M11-A2. A table of the open items with a proposal for
+  each (do it, or waive it) is kept in the M11 issue; the product owner strikes through what is not wanted.
+- **M10 is accepted with M10-A1.** M10-A2 and M10-A3 (direct messages) are deferred by the decision of 2026-10-23 and are
+  taken out of the milestone by this decision, so that the milestone can close on what it delivers. The revision under
+  acceptance is named after the first try of a channel against a real Teams channel.
+- **The deployment for M11-A3 is the instance on Vercel**, the working installation of the product owner, which runs
+  `main`. It runs the application on Node 24 through a copy that differs from the repository only in `engines` and the
+  ignore file, while production is the Docker deployment on Node 26, so the evidence is weaker than that of a Docker
+  deployment. The Docker deployment with TLS stays an open item of M5, to be decided under M11-A2.
