@@ -120,7 +120,7 @@ Taken on 2026-10-23:
 
 - **Teams first, over a webhook.** M10-A1 builds all six formats, because each is a small JSON body. The first target is
   a Teams channel through a workflow (the trigger "When a Teams webhook request is received"), which needs no bot in the
-  tenant. Whether the team uses Teams in practice is for the product owner to confirm.
+  tenant. The product owner confirmed on 2026-10-24 that the team uses Teams.
 - **Direct messages wait.** M10-A2 (Slack) and M10-A3 (Teams) are not built until there is a concrete need. A channel,
   the desk and mail serve a single operator or a small team. If direct messages are wanted, Slack is the easier way (a
   free workspace is enough for the qualification), and Teams stays last and needs a tenant of the product owner.
@@ -147,4 +147,5 @@ Taken on 2026-10-23:
 ## Open for the product owner
 
 - A Slack workspace for the qualification of M10-A2 and a Teams tenant for M10-A3, if direct messages are wanted.
-- Whether the team uses Teams (see above).
+- Which Teams channel receives the first messages, and the address of a workflow with the trigger \"When a Teams
+  webhook request is received\" for the first try against the real service.
