@@ -1,0 +1,12 @@
+// Deploy with: pnpm dlx wrangler@4.149.0 deploy --config cloudflare/worker-tick/wrangler.jsonc
+// then set its two secrets: TICK_URL (the address of /api/worker/tick of the deployment) and CRON_SECRET (the same
+// value as in the deployment). See "The worker on a platform with schedules" in docs/development.md.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "aidesk-worker-tick",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": { "crons": ["* * * * *"] },
+}
