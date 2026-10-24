@@ -98,10 +98,17 @@ owner decides so; it is not part of M11.
 - The public endpoint that receives messages is a new surface; it checks every signature, answers quickly and does its work
   in a job, like the inbound mail.
 
-## Decisions needed from the product owner
+## Decisions of the product owner
 
-- Which messenger is the first, and an account of it for the qualification (with the cost that it brings).
-- Whether a customer may be written to first by the project, or only answered.
-- The legal basis and the text of the notice (with legal advice).
-- Whether an agent may answer in the channel, and under which approval policy.
-- Whether M12 starts in parallel to M11 or after it.
+Taken on 2026-10-24:
+
+- **The first messenger is not fixed yet; the focus is WhatsApp** (the business platform of Meta). The choice and the
+  account for the qualification follow M12-A1. What this plan says about the cost, the templates and the time window of
+  WhatsApp is to be verified against the documentation of the provider and an account.
+- **The project only answers.** A customer writes first; the project does not write to a customer who did not, so there
+  is no first contact, no template for one and no consent to collect for one.
+- **The legal basis and the text of the notice** are proposed in M12-A1 and decided by the product owner with legal
+  advice; nothing is written to a customer before that.
+- **An agent may answer in the channel only when the project is configured so.** It is off by default, and an agent
+  answers under the approval policy of the project, as it does for mail.
+- **M12 starts in parallel to M11.** It is not part of the acceptance in M11, which stays on its named revision.
