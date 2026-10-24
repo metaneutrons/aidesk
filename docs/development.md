@@ -1443,6 +1443,13 @@ answers 404, with a wrong or missing header 401. A job is claimed under a lease,
 cut off leaves its job to the next one. `vercel.json` has the daily call that the free plan allows;
 a plan with shorter intervals, or any scheduler that can send the header, calls it more often.
 
+The repository has such a scheduler for Cloudflare: `cloudflare/worker-tick` is a Worker with a Cron Trigger that
+calls the route every minute. Deploy it with `wrangler deploy --config cloudflare/worker-tick/wrangler.jsonc` and give
+it the two secrets `TICK_URL` (the address of `/api/worker/tick` of the deployment) and `CRON_SECRET` (the same value as
+in the deployment); they are secrets of the Worker and stay out of the repository. A refusal makes the run fail, which
+the log of the Worker shows. A new Cron Trigger can take several minutes to run for the first time. The daily call of
+`vercel.json` can stay as a second way.
+
 What this does not make equal to Docker: mail is polled and jobs are taken only when the route is
 called, so a reply or an acknowledgement waits for the next call (with the daily schedule, up to a
 day); the reading of PDF and Office files runs in a closed process that is built from the sources at
