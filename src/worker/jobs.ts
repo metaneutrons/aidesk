@@ -18,6 +18,7 @@ import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
 import { pollCloudflareConnection } from "../server/cloudflare";
 import { env } from "../server/env";
+import { claimSlot } from "../server/schedule";
 import { deliver } from "./transport";
 import { invitationMarkdown, invitationSubject } from "../domain/invitations";
 const payloadSchema = z.object({
@@ -477,9 +478,19 @@ export async function runIngest(): Promise<boolean> {
 // connection status.
 const imapPollMs = Math.max(5, Number(process.env.IMAP_POLL_SECONDS) || 60) * 1000;
 let nextImapPoll = 0;
-export async function pollMailboxes(): Promise<void> {
+type Poller = (connectionId: string) => Promise<object>;
+// The pollers are a parameter so that a test can count the calls. The limit holds across processes (`claimSlot`): a
+// platform that calls the worker every minute with a new process each time polls a mailbox as often as
+// IMAP_POLL_SECONDS says, and not on every call.
+export async function pollMailboxes(
+  pollers: { imap: Poller; cloudflare: Poller } = {
+    imap: pollImapConnection,
+    cloudflare: pollCloudflareConnection,
+  },
+): Promise<void> {
   if (Date.now() < nextImapPoll) return;
   nextImapPoll = Date.now() + imapPollMs;
+  if (!(await claimSlot("mailboxes", imapPollMs))) return;
   const inbound = await db()
     .select({ id: connections.id, kind: connections.kind })
     .from(connections)
@@ -497,8 +508,8 @@ export async function pollMailboxes(): Promise<void> {
     try {
       const result =
         connection.kind === "imap"
-          ? await pollImapConnection(connection.id)
-          : await pollCloudflareConnection(connection.id);
+          ? await pollers.imap(connection.id)
+          : await pollers.cloudflare(connection.id);
       await db()
         .update(connections)
         .set({ status: "ready", lastErrorCode: null, updatedAt: new Date() })
