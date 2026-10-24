@@ -1447,7 +1447,11 @@ What this does not make equal to Docker: mail is polled and jobs are taken only 
 called, so a reply or an acknowledgement waits for the next call (with the daily schedule, up to a
 day); the reading of PDF and Office files runs in a closed process that is built from the sources at
 run time and does not exist in a function bundle, so those files are reported as not readable there;
-the response clock and the refresh of issues run on every call. The Node version of the platform is
+the response clock, the refresh of issues, the automatic resolve, the retention and the poll of the mailboxes keep a limit
+that holds across processes (the time of the last claim is in the table of the workspace settings, one statement decides),
+so a scheduler that calls every minute does not look more often than the long-lived worker: the clock every half minute, the
+issues and the automatic resolve every five minutes, the retention every quarter of an hour and the mailboxes every
+`IMAP_POLL_SECONDS` seconds (60 by default; a deployment with many mailboxes sets a longer time). The Node version of the platform is
 at most 24, while the repository asks for 26: a deployment sets its own version. A deployment on such a platform has not been made or qualified yet.
 
 ### Stopping agents and outgoing mail

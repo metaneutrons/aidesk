@@ -10,14 +10,15 @@ import { scanRetention } from "../server/retention";
 import { pruneNotifications } from "../server/notifications";
 import { scanResponseClock } from "../server/response-clock";
 import { reconcileIssues } from "../server/issues";
+import { claimSlot } from "../server/schedule";
 // The work of the worker, in passes that end: one pass looks at the clock, polls the mailboxes and
 // takes the next job of each kind once. The same pass serves the worker of the Docker stack, which
 // repeats it without end, and a platform that runs a function for a limited time and calls it from
 // a schedule (`/api/worker/tick`), which repeats it until nothing is left or the time is up. A job
 // is claimed under a lease, so a pass that is cut off leaves its job to the next one.
 // The response clock is looked at about every half minute and the issues every five minutes; the
-// limits they watch are counted in hours and days. A process that lives only for one call looks at
-// both on every call.
+// limits they watch are counted in hours and days. Each limit holds across processes (`claimSlot`), so
+// a platform that starts a new process for each call does not look more often than a long-lived worker.
 let nextClockScan = 0;
 let nextIssueRefresh = 0;
 let nextAutoResolve = 0;
@@ -46,24 +47,25 @@ export async function runPass(): Promise<boolean> {
   };
   if (Date.now() >= nextClockScan) {
     nextClockScan = Date.now() + 30_000;
-    await timed("clock", scanResponseClock);
+    if (await claimSlot("clock", 30_000)) await timed("clock", scanResponseClock);
   }
   if (Date.now() >= nextIssueRefresh) {
     nextIssueRefresh = Date.now() + 5 * 60_000;
-    await timed("issues", reconcileIssues);
+    if (await claimSlot("issues", 5 * 60_000)) await timed("issues", reconcileIssues);
   }
   // The reminders and the automatic resolve are counted in days, so every five minutes is often enough.
   if (Date.now() >= nextAutoResolve) {
     nextAutoResolve = Date.now() + 5 * 60_000;
-    await timed("autoResolve", scanAutoResolve);
+    if (await claimSlot("autoResolve", 5 * 60_000)) await timed("autoResolve", scanAutoResolve);
   }
   // What a retention period has made due is removed in steps; a quarter of an hour between passes is enough.
   if (Date.now() >= nextRetention) {
     nextRetention = Date.now() + 15 * 60_000;
-    await timed("retention", async () => {
-      await scanRetention();
-      await pruneNotifications();
-    });
+    if (await claimSlot("retention", 15 * 60_000))
+      await timed("retention", async () => {
+        await scanRetention();
+        await pruneNotifications();
+      });
   }
   await timed("mailboxes", pollMailboxes);
   const done = [
