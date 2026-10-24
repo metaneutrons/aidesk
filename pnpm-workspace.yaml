@@ -12,6 +12,13 @@ overrides:
   "@esbuild-kit/core-utils>esbuild": 0.28.2
   # Quadratic time in the zone identifier of an IPv6 address (GHSA-rxp7-6hxx-x8q5); express-rate-limit and socks ask for ^10.
   ip-address: 10.7.4
+  # Advisories of 24 October 2026 in packages that other packages ask for: Zod and undici through the AI SDK, body-parser
+  # and fast-uri through the MCP SDK, and the nodemailer that mailparser carries.
+  zod: 4.6.6
+  undici: 7.30.1
+  body-parser: 2.4.0
+  fast-uri: 3.1.9
+  nodemailer: 10.1.4
 
 # pdf.js can draw pages with a native canvas; the product only reads text, so the
 # native packages stay out.
