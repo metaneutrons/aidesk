@@ -2466,6 +2466,13 @@ external network `coolify` that the Traefik of the instance reads, under the ali
 - **Certificates:** a router asks the resolver of the instance named in the file to issue for each name. An instance
   whose Traefik publishes no port 80 needs one that works with the DNS challenge, and the token of that resolver has
   to cover the zone of every name, including those of the customer pages.
+- **An identity provider without a public name:** the sign-in reads the documents of the provider and exchanges the
+  code on the server, so the web server has to resolve the provider's name. `IDP_HOSTNAME` and `IDP_ADDRESS` map one
+  name to one address for the web server only (`extra_hosts`; the default maps `idp.invalid`, so nothing is mapped
+  without them). The plugin of the sign-in reads from public hosts only unless the origin is in
+  `BETTER_AUTH_TRUSTED_ORIGINS` (passed on, none by default); set it to the origin of the provider if the plugin
+  refuses the discovery address. The provider is entered under "Identity providers" by the owner, with the callback
+  `<APP_URL>/api/auth/sso/callback/<identifier>`.
 - **Names on a shared network:** the web server shares the network `coolify` with every resource of the instance, and
   Docker resolves a bare `postgres` there to the database of Coolify itself (its alias). The services therefore are
   `aidesk-postgres` and `aidesk-storage`, and the test keeps generic names out.

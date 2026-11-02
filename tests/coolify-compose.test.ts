@@ -132,3 +132,14 @@ describe("the names that the web server reaches in compose.coolify.yaml", () => 
       expect(names, generic).not.toContain(generic);
   });
 });
+describe("an identity provider without a public name in compose.coolify.yaml", () => {
+  it("is mapped for the web server only, and by default to a name that does not exist", () => {
+    expect(compose).toContain('- "${IDP_HOSTNAME:-idp.invalid}:${IDP_ADDRESS:-127.0.0.1}"');
+    expect(compose.match(/^\s+extra_hosts:/gm)).toHaveLength(1);
+    const app = compose.slice(compose.indexOf("\n  app:"), compose.indexOf("\n  worker:"));
+    expect(app).toContain("extra_hosts:");
+  });
+  it("passes the trusted origins of Better Auth on to the web server and defaults to none", () => {
+    expect(compose).toContain("BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}");
+  });
+});
