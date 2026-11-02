@@ -2436,6 +2436,60 @@ through the proxy, and a body of 45 MB refused with 413 where one of 30 MB reach
 works while the body is read, so it is tested on the sign-in, which reads it before it answers). A container that is killed by hand (`docker kill`) stays down under the policy
 `unless-stopped`, as it does for any manual stop; one that crashes is started again.
 
+### Coolify
+
+`compose.coolify.yaml` is the same product for a Coolify instance: a resource of type Docker Compose, built from
+this repository, with the file at `/compose.coolify.yaml` and no domain entered in Coolify. Each service that uses
+the image builds it, so no service depends on the order of the builds; the later builds come from the layer cache.
+The database and the storage always come with it, nothing is published on a port, and the web server joins the
+external network `coolify` that the Traefik of the instance reads, under the alias `aidesk-app`.
+
+- **Variables of the resource:** `APP_URL` (the address of the desk), `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`,
+  `POSTGRES_PASSWORD`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, and `OWNER_CLAIM_TOKEN` until the first owner is claimed.
+  The address of the database and the storage are fixed in the file, so that Coolify does not store them as variables.
+  Keep the two keys outside of Coolify too: a variable that Coolify hides cannot be read back, and without
+  `ENCRYPTION_KEY` the sealed values (the secrets of connections and webhooks, the two-factor secrets) cannot be
+  opened again.
+- **Routing is a file of Traefik, not labels:** Coolify rewrites the labels of a Compose file and puts no variables
+  into them, and the names of an installation do not belong in this repository. `config/traefik/aidesk.example.yml` is
+  the template: copy it to the directory that the Traefik of the instance watches (`/data/coolify/proxy/dynamic/` on a
+  standard Coolify), replace the names and the resolver, and Traefik reads it without a restart.
+- **The desk and the customer pages:** the desk router matches one name and lets only the ranges of its middleware
+  through (the private ranges and the loopback in the template), so a name that resolves to a private address stays
+  private when the Traefik is reachable from the internet, and any other source, also with a forged `Host` header,
+  gets 403. The customer router matches the names that the product has proved and passes `/portal`, `/portal/…`,
+  `/api/portal/…`, `/_next/…`, `/favicon.ico`, `/icon.svg` and `/robots.txt`. The application checks the same list by
+  itself (`src/proxy.ts`), and `tests/coolify-compose.test.ts` fails when the template and the list differ, when the
+  desk loses its middleware, when a public range enters the template, when the template holds a name that is not an
+  example, or when the Compose file routes by labels again. The names of the customer pages are entered in the product
+  and proved by a TXT record as before; the file only decides what reaches it.
+- **Certificates:** a router asks the resolver of the instance named in the file to issue for each name. An instance
+  whose Traefik publishes no port 80 needs one that works with the DNS challenge, and the token of that resolver has
+  to cover the zone of every name, including those of the customer pages.
+- **Names on a shared network:** the web server shares the network `coolify` with every resource of the instance, and
+  Docker resolves a bare `postgres` there to the database of Coolify itself (its alias). The services therefore are
+  `aidesk-postgres` and `aidesk-storage`, and the test keeps generic names out.
+- **Limits:** 1 GiB for the web server, the worker and the database, 512 MiB for the storage and the migration, so
+  that the product cannot take the memory of the other resources of a shared instance. These are first values and not
+  measurements.
+- **Proxy headers:** the template sends `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` and
+  `X-Frame-Options` as the Caddy of the other file does, and compresses. It does not limit the body (a buffering
+  middleware would also hold back the streaming of MCP); the route of a reply reads at most the limit of the settings
+  plus 1 MiB. A client address in `X-Forwarded-For` is replaced by the address of the connection, because no proxy in
+  front of Traefik is declared.
+
+Checked: the Compose file renders with the required values and refuses to render without a key (CI job "Production
+image"), and the tests above. On 2026-11-02 the file was deployed to a Coolify instance with four vCPUs and 8 GB that
+also runs other resources: the migration ended with code 0, the web server became healthy and `/api/health/ready`
+answered ready, and the first deployment showed the name collision described above (the web server was not healthy
+until the services were renamed). With the Traefik file from the template, a resolver with the DNS challenge issued a
+certificate from Let's Encrypt for the desk name; the desk answered 200 with the four headers from a private address
+and 403 from a public IPv4 and a public IPv6 address, also with `X-Forwarded-For`, `X-Real-IP` and `Forwarded` set
+to a private address. At rest the web server held 135 MiB, the worker 150 MiB, the database 35 MiB and the storage
+86 MiB. Not checked: a customer router with real names, load, restart and recovery times.
+`scripts/production-backup.sh` and `scripts/check-production.sh` work with `compose.production.yaml`; a backup of this
+setup has to dump the database and copy the objects the same way, which nothing here does yet.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside

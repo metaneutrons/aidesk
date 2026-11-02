@@ -1,0 +1,153 @@
+# The product on a Coolify instance (resource type Docker Compose, built from this repository),
+# behind the Traefik of that instance. It differs from compose.production.yaml in three ways: the
+# web server is not published on a port but reached through Traefik on the external network
+# `coolify` under the alias `aidesk-app`, the routing and the certificates are a file of the Traefik
+# of the instance (config/traefik/aidesk.example.yml is the template), and the database and the storage
+# always come with it. Nothing secret is in this file; every value is a variable of the Coolify resource.
+#
+# The routing is not in labels because Coolify rewrites the labels of a Compose file and does not put
+# variables into them, and because the host names of an installation do not belong in this repository.
+# The desk (the operators' interface, the API and the sign-in) is routed from the address ranges of
+# the operator only, the customer pages by their names and only for the paths that
+# src/domain/portal-domains.ts lists; tests/coolify-compose.test.ts keeps the template and that list equal.
+#
+# Required: APP_URL (the address of the desk), BETTER_AUTH_SECRET (32 characters or more), ENCRYPTION_KEY
+# (64 hex characters), POSTGRES_PASSWORD, S3_ACCESS_KEY and S3_SECRET_KEY. OWNER_CLAIM_TOKEN (32
+# characters or more) is needed once, to claim the first owner at /setup; remove it afterwards.
+name: aidesk
+x-image: &image
+  # Built by every service that uses it, so that no service depends on the order of the builds; the
+  # layers are the same and the later builds are taken from the cache.
+  image: aidesk-production
+  pull_policy: never
+  build:
+    context: .
+    target: production
+x-environment: &environment
+  NODE_ENV: production
+  APP_URL: ${APP_URL:?The address of the desk, for example https://desk.example.org}
+  # The database of this file; not a variable, because Coolify would turn the default into a stored value.
+  # The service names carry the prefix `aidesk-` because the web server joins the shared network `coolify`,
+  # where Docker resolves a bare `postgres` to the database of Coolify itself.
+  DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@aidesk-postgres:5432/aidesk
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?32 characters or more}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?64 hexadecimal characters}
+  # The storage of this file, fixed for the same reason as the database address.
+  S3_ENDPOINT: http://aidesk-storage:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: aidesk
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?}
+  OWNER_CLAIM_TOKEN: ${OWNER_CLAIM_TOKEN:-}
+  OWNER_RECOVERY_TOKEN: ${OWNER_RECOVERY_TOKEN:-}
+  ENCRYPTION_KEY_PREVIOUS: ${ENCRYPTION_KEY_PREVIOUS:-}
+  BETTER_AUTH_SECRET_PREVIOUS: ${BETTER_AUTH_SECRET_PREVIOUS:-}
+  BETTER_AUTH_SECRET_VERSION: ${BETTER_AUTH_SECRET_VERSION:-}
+services:
+  aidesk-postgres:
+    image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aidesk
+      POSTGRES_USER: aidesk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ["postgres-data:/var/lib/postgresql"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aidesk -d aidesk"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+  aidesk-storage:
+    # PGSTY Silo (S3-compatible, AGPL-3.0, a separate service). The S3 API stays on the network of this
+    # project and nothing is published.
+    image: pgsty/silo@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
+    restart: unless-stopped
+    command: ["silo", "server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?}
+    volumes: ["silo-data:/data"]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+  # Applies the migrations and creates the bucket of the storage, then ends. The web server and the
+  # worker start after it.
+  migrate:
+    <<: *image
+    command: ["node_modules/.bin/tsx", "scripts/migrate.ts"]
+    restart: "no"
+    healthcheck: { disable: true }
+    read_only: true
+    tmpfs: ["/tmp"]
+    environment: *environment
+    networks: [backend]
+    depends_on:
+      aidesk-postgres: { condition: service_healthy }
+      aidesk-storage: { condition: service_healthy }
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+  app:
+    <<: *image
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    environment:
+      <<: *environment
+      # Longer than the idle time of the Traefik in front, which closes connections itself.
+      KEEP_ALIVE_TIMEOUT: ${KEEP_ALIVE_TIMEOUT:-65000}
+    expose: ["3000"]
+    networks:
+      backend: {}
+      # The alias is what the file of Traefik names; it is not a name that another resource would have.
+      coolify:
+        aliases: [aidesk-app]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      aidesk-storage: { condition: service_healthy }
+    # Nothing is routed by labels; the Traefik of the instance reads its file.
+    labels:
+      - traefik.enable=false
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+  worker:
+    <<: *image
+    command: ["node_modules/.bin/tsx", "src/worker/index.ts"]
+    restart: unless-stopped
+    # The check of the image asks the web server, which the worker does not run.
+    healthcheck: { disable: true }
+    read_only: true
+    # The reader of documents is built here when the worker starts.
+    tmpfs: ["/tmp"]
+    environment: *environment
+    networks: [backend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      aidesk-storage: { condition: service_healthy }
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+networks:
+  backend: {}
+  coolify:
+    name: coolify
+    external: true
+volumes:
+  postgres-data:
+  silo-data:
