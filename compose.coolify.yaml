@@ -31,12 +31,15 @@ x-environment: &environment
   NODE_ENV: production
   APP_URL: ${APP_URL:?The address of the desk, for example https://desk.example.org}
   # The database of this file; not a variable, because Coolify would turn the default into a stored value.
-  DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/aidesk
+  # The service names carry the prefix `aidesk-` because the web server joins the shared network `coolify`,
+  # where Docker resolves a bare `postgres` to the database of Coolify itself.
+  DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@aidesk-postgres:5432/aidesk
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?32 characters or more}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?64 hexadecimal characters}
-  S3_ENDPOINT: ${S3_ENDPOINT:-http://storage:9000}
-  S3_REGION: ${S3_REGION:-us-east-1}
-  S3_BUCKET: ${S3_BUCKET:-aidesk}
+  # The storage of this file, fixed for the same reason as the database address.
+  S3_ENDPOINT: http://aidesk-storage:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: aidesk
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
   S3_SECRET_KEY: ${S3_SECRET_KEY:?}
   OWNER_CLAIM_TOKEN: ${OWNER_CLAIM_TOKEN:-}
@@ -45,7 +48,7 @@ x-environment: &environment
   BETTER_AUTH_SECRET_PREVIOUS: ${BETTER_AUTH_SECRET_PREVIOUS:-}
   BETTER_AUTH_SECRET_VERSION: ${BETTER_AUTH_SECRET_VERSION:-}
 services:
-  postgres:
+  aidesk-postgres:
     image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
     restart: unless-stopped
     environment:
@@ -63,7 +66,7 @@ services:
       resources:
         limits:
           memory: 1G
-  storage:
+  aidesk-storage:
     # PGSTY Silo (S3-compatible, AGPL-3.0, a separate service). The S3 API stays on the network of this
     # project and nothing is published.
     image: pgsty/silo@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
@@ -95,8 +98,8 @@ services:
     environment: *environment
     networks: [backend]
     depends_on:
-      postgres: { condition: service_healthy }
-      storage: { condition: service_healthy }
+      aidesk-postgres: { condition: service_healthy }
+      aidesk-storage: { condition: service_healthy }
     deploy:
       resources:
         limits:
@@ -114,7 +117,7 @@ services:
     networks: [backend, coolify]
     depends_on:
       migrate: { condition: service_completed_successfully }
-      storage: { condition: service_healthy }
+      aidesk-storage: { condition: service_healthy }
     labels:
       - traefik.enable=true
       - traefik.docker.network=coolify
@@ -160,7 +163,7 @@ services:
     networks: [backend]
     depends_on:
       migrate: { condition: service_completed_successfully }
-      storage: { condition: service_healthy }
+      aidesk-storage: { condition: service_healthy }
     deploy:
       resources:
         limits:

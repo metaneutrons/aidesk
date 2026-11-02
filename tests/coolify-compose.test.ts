@@ -94,3 +94,27 @@ describe("the services in compose.coolify.yaml", () => {
     expect(compose).toContain("target: production");
   });
 });
+describe("the names that the web server reaches in compose.coolify.yaml", () => {
+  // The web server joins the network `coolify`, which every resource of the instance shares; Docker resolves a
+  // bare `postgres` there to the database of Coolify itself, so the web server and the worker asked it for a
+  // login with the credentials of this product. The names carry a prefix that no other resource has.
+  const services = compose.slice(compose.indexOf("\nservices:"), compose.indexOf("\nnetworks:"));
+  const names = [...services.matchAll(/^ {2}([a-z][a-z0-9-]*):\s*$/gm)].map(
+    (found) => found[1] ?? "",
+  );
+  const hostOf = (pattern: RegExp): string => pattern.exec(compose)?.[1] ?? "";
+  it("are services of this file with a prefix", () => {
+    const hosts = [
+      hostOf(/@([a-z0-9-]+):5432\//),
+      hostOf(/S3_ENDPOINT: http:\/\/([a-z0-9-]+):9000/),
+    ];
+    for (const host of hosts) {
+      expect(host).toMatch(/^aidesk-/);
+      expect(names).toContain(host);
+    }
+  });
+  it("are not names that other resources of an instance commonly have", () => {
+    for (const generic of ["postgres", "storage", "db", "database", "redis", "minio", "mysql"])
+      expect(names, generic).not.toContain(generic);
+  });
+});
