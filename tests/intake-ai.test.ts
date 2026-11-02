@@ -720,12 +720,13 @@ describe("the steps through the job of the intake", () => {
         payload: { ingressId },
       })
       .onConflictDoNothing();
-    // The queue is shared with the other test files that run beside this one: take jobs until ours
-    // has been taken.
+    // The queue is shared with the other test files that run beside this one, and a job of theirs
+    // that this test takes would be lost to them (the IMAP test found its message already done).
+    // Only the jobs of this project are taken, until ours has been taken.
     for (let turn = 0; turn < 50; turn += 1) {
       const [state] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
       if (state?.state !== "queued") break;
-      await runIngest();
+      await runIngest({ projectId });
     }
     const [entry] = await db().select().from(ingress).where(eq(ingress.id, ingressId));
     expect(entry?.state).toBe("processed");
