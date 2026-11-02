@@ -1,17 +1,28 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { portalHostMayServe } from "../src/domain/portal-domains";
-// The Traefik labels of compose.coolify.yaml route the customer pages by path, and the application checks the
-// same list again. A path that the application serves on a customer name but that the labels do not pass would
-// be a page that never loads, and a path that the labels pass but the application refuses is only a second
-// line of defence that no longer is one. The desk must stay behind its address ranges.
+// The routing of compose.coolify.yaml is the file config/traefik/aidesk.example.yml. It routes the customer pages
+// by path and the application checks the same list again. A path that the application serves on a customer name but
+// that the file does not pass would be a page that never loads, and a path that the file passes but the application
+// refuses is only a second line of defence that no longer is one. The desk must stay behind its address ranges.
 const compose = readFileSync(new URL("../compose.coolify.yaml", import.meta.url), "utf8");
-const label = (key: string): string => {
-  const line = compose.split("\n").find((entry) => entry.trim().startsWith(`- ${key}=`));
-  if (line === undefined) throw new Error(`no label ${key}`);
-  return line.trim().slice(`- ${key}=`.length);
+const routing = readFileSync(
+  new URL("../config/traefik/aidesk.example.yml", import.meta.url),
+  "utf8",
+);
+const rule = (router: string): string => {
+  const found = new RegExp(`^ {4}${router}:\\n(?: {6}.*\\n)*? {6}rule: "(.*)"$`, "m").exec(routing);
+  if (found?.[1] === undefined) throw new Error(`no rule for ${router}`);
+  return found[1];
 };
-const portalRule = label("traefik.http.routers.aidesk-portal.rule");
+const middlewaresOf = (router: string): string[] => {
+  const found = new RegExp(
+    `^ {4}${router}:\\n(?: {6}.*\\n)*? {6}middlewares: \\[(.*)\\]$`,
+    "m",
+  ).exec(routing);
+  return (found?.[1] ?? "").split(",").map((name) => name.trim());
+};
+const portalRule = rule("aidesk-portal");
 const matchers = [...portalRule.matchAll(/(PathPrefix|Path)\(`([^`]+)`\)/g)].map((found) => ({
   kind: found[1] ?? "",
   value: found[2] ?? "",
@@ -41,42 +52,34 @@ const refused = [
   "/api/portalx",
   "/icon.png",
 ];
-describe("the routes of the customer pages in compose.coolify.yaml", () => {
+describe("the routes of the customer pages in the Traefik file", () => {
   it("find at least one matcher", () => {
     expect(matchers.length).toBeGreaterThan(0);
   });
   it("pass what the application serves on a customer name", () => {
     for (const path of served) {
       expect(portalHostMayServe(path), `application: ${path}`).toBe(true);
-      expect(passes(path), `labels: ${path}`).toBe(true);
+      expect(passes(path), `file: ${path}`).toBe(true);
     }
   });
   it("refuse what the application refuses on a customer name", () => {
     for (const path of refused) {
       expect(portalHostMayServe(path), `application: ${path}`).toBe(false);
-      expect(passes(path), `labels: ${path}`).toBe(false);
+      expect(passes(path), `file: ${path}`).toBe(false);
     }
   });
-  it("route nothing without a rule of the operator", () => {
-    expect(portalRule).toContain("${PORTAL_HOST_RULE:-Host(`portal.invalid`)}");
-  });
 });
-describe("the route of the desk in compose.coolify.yaml", () => {
-  it("is one name from the variable and goes through the address ranges, and the customer pages do not", () => {
-    expect(label("traefik.http.routers.aidesk-desk.rule")).toMatch(
-      /^Host\(`\$\{DESK_HOST:\?[^}]*\}`\)$/,
-    );
-    expect(label("traefik.http.routers.aidesk-desk.middlewares")).toContain(
-      "aidesk-desk-only@docker",
-    );
-    expect(label("traefik.http.routers.aidesk-portal.middlewares")).not.toContain(
-      "aidesk-desk-only",
-    );
+describe("the route of the desk in the Traefik file", () => {
+  it("is one name and goes through the address ranges, and the customer pages do not", () => {
+    expect(rule("aidesk-desk")).toMatch(/^Host\(`[^`]+`\)$/);
+    expect(middlewaresOf("aidesk-desk")).toContain("aidesk-desk-only");
+    expect(middlewaresOf("aidesk-portal")).not.toContain("aidesk-desk-only");
   });
-  it("allows private and local ranges by default and no public one", () => {
-    const ranges = /\$\{DESK_ALLOWED_RANGES:-([^}]*)\}/
-      .exec(label("traefik.http.middlewares.aidesk-desk-only.ipallowlist.sourcerange"))?.[1]
-      ?.split(",");
+  it("allows private and local ranges and no public one", () => {
+    const ranges = /aidesk-desk-only:\n {6}ipAllowList:\n {8}sourceRange:\s*\[([^\]]*)\]/
+      .exec(routing)?.[1]
+      ?.split(",")
+      .map((entry) => entry.trim().replaceAll('"', ""));
     expect(ranges).toEqual([
       "10.0.0.0/8",
       "172.16.0.0/12",
@@ -86,9 +89,20 @@ describe("the route of the desk in compose.coolify.yaml", () => {
       "::1/128",
     ]);
   });
+  it("uses names that belong to the examples and not to an installation", () => {
+    const names = [...routing.matchAll(/Host\(`([^`]+)`\)/g)].map((found) => found[1] ?? "");
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) expect(name).toMatch(/\.(example\.(org|net|com)|test|invalid)$/);
+  });
 });
-describe("the services in compose.coolify.yaml", () => {
-  it("build the image themselves and publish no port", () => {
+describe("compose.coolify.yaml", () => {
+  it("reaches the web server under the alias that the Traefik file names, and routes nothing by labels", () => {
+    expect(routing).toContain("http://aidesk-app:3000");
+    expect(compose).toContain("aliases: [aidesk-app]");
+    expect(compose).toContain("- traefik.enable=false");
+    expect(compose).not.toMatch(/traefik\.http\./);
+  });
+  it("builds the image itself and publishes no port", () => {
     expect(compose).not.toMatch(/^\s+ports:/m);
     expect(compose).toContain("pull_policy: never");
     expect(compose).toContain("target: production");
