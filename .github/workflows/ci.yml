@@ -268,6 +268,19 @@ jobs:
         run: docker run --rm aidesk-production:ci node_modules/.bin/tsx scripts/smoke.ts
       - name: The process is not root and cannot write the application files
         run: docker run --rm aidesk-production:ci sh -c 'test "$(id -u)" != 0 && ! test -w /app'
+      # The Compose file for Coolify needs its host name, and renders with the required values.
+      - name: The Compose file for Coolify renders and needs a desk host
+        run: |
+          set -euo pipefail
+          BETTER_AUTH_SECRET="$(openssl rand -hex 24)"
+          ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          export APP_URL=https://desk.example.test POSTGRES_PASSWORD=ci S3_ACCESS_KEY=ci S3_SECRET_KEY=ci
+          export BETTER_AUTH_SECRET ENCRYPTION_KEY
+          if env -u DESK_HOST docker compose -f compose.coolify.yaml config --quiet 2>/dev/null; then
+            echo "rendered without DESK_HOST" >&2
+            exit 1
+          fi
+          DESK_HOST=desk.example.test docker compose -f compose.coolify.yaml config --quiet
       # The Compose setup from a clean state: ready, a restart, a backup, the loss of the
       # volumes and the restore, with throwaway values that exist only for this run.
       - name: The Compose setup starts, is backed up and is restored

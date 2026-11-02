@@ -2436,6 +2436,48 @@ through the proxy, and a body of 45 MB refused with 413 where one of 30 MB reach
 works while the body is read, so it is tested on the sign-in, which reads it before it answers). A container that is killed by hand (`docker kill`) stays down under the policy
 `unless-stopped`, as it does for any manual stop; one that crashes is started again.
 
+### Coolify
+
+`compose.coolify.yaml` is the same product for a Coolify instance: a resource of type Docker Compose, built from
+this repository, with the file at `/compose.coolify.yaml` and no domain entered in Coolify (the labels route).
+Each service that uses the image builds it, so no service depends on the order of the builds; the later builds
+come from the layer cache. The database and the storage always come with it, nothing is published on a port, and
+the web server joins the external network `coolify` that the Traefik of the instance reads.
+
+- **Variables of the resource:** `APP_URL` (`https://<DESK_HOST>`), `DESK_HOST`, `BETTER_AUTH_SECRET`,
+  `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, and `OWNER_CLAIM_TOKEN` until the first
+  owner is claimed. Optional: `PORTAL_HOST_RULE`, `DESK_ALLOWED_RANGES`, `TRAEFIK_CERT_RESOLVER`. Keep the two
+  keys outside of Coolify too: a variable that Coolify hides cannot be read back, and without `ENCRYPTION_KEY` the
+  sealed values (the secrets of connections and webhooks, the two-factor secrets) cannot be opened again.
+- **The desk and the customer pages:** the desk router matches `DESK_HOST` and lets only the ranges of
+  `DESK_ALLOWED_RANGES` through (the private ranges and the loopback by default), so a name that resolves to a
+  private address stays private when the Traefik of the instance is reachable from the internet, and a request
+  that carries the name in a forged `Host` header gets 403. The customer router matches `PORTAL_HOST_RULE`, a
+  Traefik rule such as ``Host(`help.example.org`) || Host(`desk.example.net`)``, and passes `/portal`,
+  `/portal/…`, `/api/portal/…`, `/_next/…`, `/favicon.ico`, `/icon.svg` and `/robots.txt`. The application checks the
+  same list by itself (`src/proxy.ts`), and `tests/coolify-compose.test.ts` fails when the two lists differ, when
+  the desk loses its middleware or when a public range enters the default. Without a rule, the customer router
+  matches a name that does not exist and routes nothing. The names of the customer pages are entered in the product
+  and proved by a TXT record as before; the labels only decide what reaches it.
+- **Certificates:** the router asks the resolver `TRAEFIK_CERT_RESOLVER` (`letsencrypt`, the default of Coolify) to
+  issue for each name. An instance whose Traefik publishes no port 80 has to name a resolver that works with the
+  DNS challenge, and the token of that resolver has to cover the zone of every name, including those of the
+  customer pages.
+- **Limits:** 1 GiB for the web server, the worker and the database, 512 MiB for the storage and the migration,
+  so that the product cannot take the memory of the other resources of a shared instance. These are first values and
+  not measurements.
+- **Proxy headers:** Traefik sends `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` and
+  `X-Frame-Options` as the Caddy of the other file does, and compresses. It does not limit the body (a buffering
+  middleware would also hold back the streaming of MCP); the route of a reply reads at most the limit of the settings
+  plus 1 MiB. A client address in `X-Forwarded-For` is replaced by the address of the connection, because no proxy in
+  front of Traefik is declared.
+
+Checked: the file renders with the required values and fails without `DESK_HOST` (CI job "Production image"), and the
+test above. Not checked yet: a deployment on an instance, the issue of a certificate, the allowlist against a client
+outside the ranges, and the load. `scripts/production-backup.sh` and `scripts/check-production.sh` work with
+`compose.production.yaml`; a backup of this setup has to dump the database and copy the objects the same way, which
+nothing here does yet.
+
 ## Reproduce the local check
 
 Start the stack with the README command. Run its quality commands inside
