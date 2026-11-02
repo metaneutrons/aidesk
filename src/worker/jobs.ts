@@ -469,8 +469,8 @@ export async function runTestSend(scope?: { projectId: string }): Promise<boolea
   }
   return true;
 }
-export async function runIngest(): Promise<boolean> {
-  const ran = await runIdempotentJob();
+export async function runIngest(scope?: { projectId: string }): Promise<boolean> {
+  const ran = await runIdempotentJob(scope);
   if (ran) console.log(JSON.stringify({ event: `${ran.type}.ran`, outcome: ran.outcome }));
   return ran !== null;
 }
