@@ -30,7 +30,8 @@ x-image: &image
 x-environment: &environment
   NODE_ENV: production
   APP_URL: ${APP_URL:?The address of the desk, for example https://desk.example.org}
-  DATABASE_URL: ${DATABASE_URL:-postgresql://aidesk:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/aidesk}
+  # The database of this file; not a variable, because Coolify would turn the default into a stored value.
+  DATABASE_URL: postgresql://aidesk:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/aidesk
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?32 characters or more}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?64 hexadecimal characters}
   S3_ENDPOINT: ${S3_ENDPOINT:-http://storage:9000}
