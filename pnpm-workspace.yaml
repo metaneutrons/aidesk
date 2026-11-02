@@ -19,6 +19,8 @@ overrides:
   body-parser: 2.4.0
   fast-uri: 3.1.9
   nodemailer: 10.1.4
+  # qs.stringify with arrayFormat 'comma' (GHSA-6pq8-jhm2-2vcw), through express of the MCP SDK; patched from 6.16.1.
+  qs: 6.16.1
 
 # pdf.js can draw pages with a native canvas; the product only reads text, so the
 # native packages stay out.
