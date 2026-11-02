@@ -2469,9 +2469,11 @@ external network `coolify` that the Traefik of the instance reads, under the ali
 - **An identity provider without a public name:** the sign-in reads the documents of the provider and exchanges the
   code on the server, so the web server has to resolve the provider's name. `IDP_HOSTNAME` and `IDP_ADDRESS` map one
   name to one address for the web server only (`extra_hosts`; the default maps `idp.invalid`, so nothing is mapped
-  without them). The plugin of the sign-in reads from public hosts only unless the origin is in
-  `BETTER_AUTH_TRUSTED_ORIGINS` (passed on, none by default); set it to the origin of the provider if the plugin
-  refuses the discovery address. The provider is entered under "Identity providers" by the owner, with the callback
+  without them). The origin of the provider has to be in `BETTER_AUTH_TRUSTED_ORIGINS` (passed on, none by default),
+  for a provider on a private address and for any other: the plugin of the sign-in refuses a discovery address whose
+  origin is not trusted (`discovery_untrusted_origin`, read in the code of the plugin 1.7.7), and a name that resolves
+  to a private address unless it is trusted (`discovery_private_host`). Without it the registration fails before
+  anything is saved. The provider is entered under "Identity providers" by the owner, with the callback
   `<APP_URL>/api/auth/sso/callback/<identifier>`.
 - **Names on a shared network:** the web server shares the network `coolify` with every resource of the instance, and
   Docker resolves a bare `postgres` there to the database of Coolify itself (its alias). The services therefore are
