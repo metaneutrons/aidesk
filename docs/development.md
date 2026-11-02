@@ -2479,9 +2479,16 @@ external network `coolify` that the Traefik of the instance reads, under the ali
   front of Traefik is declared.
 
 Checked: the Compose file renders with the required values and refuses to render without a key (CI job "Production
-image"), and the tests above. `scripts/production-backup.sh` and `scripts/check-production.sh` work with
-`compose.production.yaml`; a backup of this setup has to dump the database and copy the objects the same way, which
-nothing here does yet.
+image"), and the tests above. On 2026-11-02 the file was deployed to a Coolify instance with four vCPUs and 8 GB that
+also runs other resources: the migration ended with code 0, the web server became healthy and `/api/health/ready`
+answered ready, and the first deployment showed the name collision described above (the web server was not healthy
+until the services were renamed). With the Traefik file from the template, a resolver with the DNS challenge issued a
+certificate from Let's Encrypt for the desk name; the desk answered 200 with the four headers from a private address
+and 403 from a public IPv4 and a public IPv6 address, also with `X-Forwarded-For`, `X-Real-IP` and `Forwarded` set
+to a private address. At rest the web server held 135 MiB, the worker 150 MiB, the database 35 MiB and the storage
+86 MiB. Not checked: a customer router with real names, load, restart and recovery times.
+`scripts/production-backup.sh` and `scripts/check-production.sh` work with `compose.production.yaml`; a backup of this
+setup has to dump the database and copy the objects the same way, which nothing here does yet.
 
 ## Reproduce the local check
 
