@@ -109,6 +109,14 @@ services:
       <<: *environment
       # Longer than the idle time of the Traefik in front, which closes connections itself.
       KEEP_ALIVE_TIMEOUT: ${KEEP_ALIVE_TIMEOUT:-65000}
+      # The origins that Better Auth may read from although they are not public hosts (an identity provider on a
+      # private address needs its origin here, as the development stack does for Keycloak); none by default.
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+    # An identity provider that has no public name: the name is mapped here, for the web server only (the sign-in
+    # reads the documents of the provider and exchanges the code on the server). The default maps a name that
+    # does not exist, so nothing is mapped without the two variables.
+    extra_hosts:
+      - "${IDP_HOSTNAME:-idp.invalid}:${IDP_ADDRESS:-127.0.0.1}"
     expose: ["3000"]
     networks:
       backend: {}
