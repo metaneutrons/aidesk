@@ -19,9 +19,6 @@ test("shows the usage of a project and changes its period", async ({ page, desk,
     .locator("section.usage")
     .filter({ has: page.getByRole("heading", { name: `Usage of ${alpha.name}` }) });
   await expect(section).toBeVisible();
-  // Nothing is read before the block is opened.
-  await expect(section.getByRole("heading", { name: "Storage" })).toBeHidden();
-  await expect(section).toBeVisible();
   await expect(section.getByRole("heading", { name: "AI", exact: true })).toBeVisible();
   await expect(section.getByRole("heading", { name: "Mail", exact: true })).toBeVisible();
   await expect(

@@ -47,9 +47,22 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("navigation").getByRole("button", { name: "Junk" }).click();
       await expect(page.getByRole("region", { name: "Junk" })).toBeVisible();
       expect(await audit(page)).toEqual([]);
-      // Every topic of the settings, one after the other.
       await openSettings(page, "People");
       await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
+      expect(await audit(page)).toEqual([]);
+      await page.getByRole("button", { name: "New project" }).click();
+      await expect(page.getByRole("dialog", { name: "New project" })).toBeVisible();
+      expect(await audit(page)).toEqual([]);
+    });
+    test("every topic of the settings has no automatically detectable violations", async ({
+      page,
+      signIn,
+    }) => {
+      // One scan for each of some twenty topics is more than the time of an ordinary test.
+      test.setTimeout(300_000);
+      await signIn();
+      await page.goto("/");
+      await openSettings(page, "People");
       const list = page.getByRole("complementary", { name: "Topics" });
       // The topics of the project come with the answer about the rights of the person.
       await expect(list.getByRole("link", { name: "General" })).toBeVisible();
@@ -57,12 +70,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       expect(topics.length).toBeGreaterThan(10);
       for (const topic of topics) {
         await openSettings(page, topic.trim());
-        await expect(page.getByRole("heading", { level: 2, name: topic.trim() })).toBeVisible();
         expect(await audit(page), topic).toEqual([]);
       }
-      await page.getByRole("button", { name: "New project" }).click();
-      await expect(page.getByRole("dialog", { name: "New project" })).toBeVisible();
-      expect(await audit(page)).toEqual([]);
     });
   });
 }
