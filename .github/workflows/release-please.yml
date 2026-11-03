@@ -1,0 +1,61 @@
+name: Release Please
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    # The credentials of the GitHub App live in the protected environment `release`, not as repository secrets;
+    # deployments there are restricted to main and the release tags.
+    environment: release
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Require the app credentials
+        env:
+          CLIENT_ID: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}
+          PRIVATE_KEY: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+        run: |
+          missing=
+          [ -n "$CLIENT_ID" ] || missing="$missing RELEASE_PLEASE_CLIENT_ID"
+          [ -n "$PRIVATE_KEY" ] || missing="$missing RELEASE_PLEASE_APP_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing from the 'release' environment:$missing. Refusing to create a release whose pull request cannot run CI."
+            exit 1
+          fi
+
+      # An installation token is a real actor: the release pull request starts CI, and the dispatch below starts the
+      # image workflow. Events that GITHUB_TOKEN creates do not start workflows.
+      - name: Mint an installation token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_PLEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # The tag is the only automatic trigger of the image workflow, which has no trigger of its own.
+      - name: Start the image workflow for the new tag
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run release-image.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
