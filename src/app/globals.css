@@ -2964,3 +2964,196 @@ select:not([multiple]) {
         font-size: 16px;
     }
 }
+
+/* The header of a ticket: the title with its sender and status, and under it the tools in groups with a small title
+   each, the destructive actions last and in the colour of a warning. On a narrow screen the tools open with Details. */
+.conversation-header {
+    gap: 12px 18px;
+    padding: 22px 28px 18px;
+}
+.inspector-toggle {
+    display: none;
+}
+.ticket-tools {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px 28px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+}
+.inspector-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    align-items: center;
+    gap: 8px;
+}
+.inspector-title {
+    flex: 1 1 100%;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+/* A group without a tool shows no title. */
+.inspector-group:not(:has(> :not(.inspector-title))) {
+    display: none;
+}
+.inspector-danger {
+    grid-column: 1 / -1;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+.inspector-danger button {
+    color: var(--danger);
+    background: none;
+}
+.inspector-danger button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+}
+.reminder-custom summary {
+    cursor: pointer;
+    padding: 5px 9px;
+    border-radius: 8px;
+    font-weight: 600;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    list-style: none;
+}
+.reminder-custom summary::-webkit-details-marker {
+    display: none;
+}
+.reminder-custom[open] {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.reminder-custom[open] summary {
+    flex: 0 0 auto;
+}
+/* On a narrow or a low screen the tools would take the room of the conversation; they open with Details. */
+@media (max-width: 760px), (max-height: 820px) {
+    .inspector-toggle {
+        display: inline-flex;
+        margin-left: auto;
+    }
+    .ticket-tools {
+        display: none;
+        flex: 1 1 100%;
+    }
+    .ticket-tools.open {
+        display: grid;
+    }
+}
+
+/* The composer: two tabs that read as a choice, one line of helpers, and a footer that names sender and recipient
+   in a size that can be read. */
+.composer {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px #10102008;
+}
+.compose-tabs {
+    gap: 4px;
+    padding: 8px 12px;
+}
+.compose-tabs button {
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.compose-tabs button.active {
+    background: var(--panel);
+    box-shadow: 0 1px 3px #10102018;
+    font-weight: 600;
+}
+.composer textarea {
+    font-size: 15px;
+    min-height: 110px;
+}
+.assist-row {
+    padding: 8px 12px;
+}
+.assist-row input {
+    font-size: 13px;
+}
+.assist-row button {
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 600;
+}
+.assist-row button:disabled {
+    background: var(--control);
+    color: var(--muted);
+    opacity: 1;
+}
+.assist-knowledge {
+    font-size: 12px;
+    color: var(--muted);
+}
+.compose-footer {
+    padding: 10px 12px 12px;
+}
+.compose-footer small {
+    font-size: 12px;
+}
+.compose-footer .primary {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+.compose-identity {
+    flex-direction: column;
+}
+.triage-filter {
+    padding: 0 16px 12px;
+    gap: 6px 14px;
+}
+.triage-filter label {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+}
+.triage-filter select {
+    min-height: 30px;
+    padding-block: 3px;
+    font-size: 12px;
+}
+.ticket-knowledge summary,
+.message-translate summary {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+.ticket-knowledge summary::-webkit-details-marker,
+.message-translate summary::-webkit-details-marker {
+    display: none;
+}
+.message-translate {
+    margin-top: 6px;
+}
+.ticket-tools button,
+.ticket-tools select,
+.ticket-tools input,
+.reminder-custom summary {
+    min-height: 30px;
+}
+.inspector-danger button {
+    min-height: 32px;
+    padding-inline: 12px;
+}

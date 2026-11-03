@@ -64,26 +64,6 @@ export function Reminder({
           })}
         </span>
       )}
-      <label>
-        <span className="visually-hidden">{t("reminderSet")}</span>
-        <input
-          type="datetime-local"
-          value={value}
-          onChange={(event) => {
-            setValue(event.target.value);
-          }}
-        />
-      </label>
-      <button
-        type="button"
-        className="secondary"
-        disabled={!value}
-        onClick={() => {
-          void save(new Date(value).toISOString());
-        }}
-      >
-        {t("reminderSet")}
-      </button>
       <button
         type="button"
         className="secondary"
@@ -102,6 +82,29 @@ export function Reminder({
       >
         {t("reminderNextWeek")}
       </button>
+      <details className="reminder-custom">
+        <summary>{t("reminderCustom")}</summary>
+        <label>
+          <span className="visually-hidden">{t("reminderSet")}</span>
+          <input
+            type="datetime-local"
+            value={value}
+            onChange={(event) => {
+              setValue(event.target.value);
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="secondary"
+          disabled={!value}
+          onClick={() => {
+            void save(new Date(value).toISOString());
+          }}
+        >
+          {t("reminderSet")}
+        </button>
+      </details>
       {remindAt && (
         <button
           type="button"

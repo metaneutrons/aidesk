@@ -311,6 +311,8 @@ export function Desk({
   const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
   // On a narrow screen the part of the menu below the tabs is closed until the last tab opens it.
   const [more, setMore] = useState(false);
+  // On a narrow screen the details of a ticket (assignee, tags, reminder, link) are closed until asked for.
+  const [inspector, setInspector] = useState(false);
   // The settings have an address of their own (the topic is part of it, see settings.tsx); another view has none.
   useEffect(() => {
     const named = new URLSearchParams(window.location.search).has("settings");
@@ -1383,131 +1385,152 @@ export function Desk({
                       <span className="status-badge">
                         {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
                       </span>
-                      <div className="ticket-tools">
-                        {!conversation.ticket.junkAt && (
-                          <details className="ticket-knowledge">
-                            <summary>{t("knowledgeToggle")}</summary>
-                            <Knowledge
-                              key={conversation.ticket.id}
+                      <button
+                        type="button"
+                        className="secondary inspector-toggle"
+                        aria-expanded={inspector}
+                        onClick={() => {
+                          setInspector(!inspector);
+                        }}
+                      >
+                        {t("ticketDetails")}
+                      </button>
+                      <div className={`ticket-tools${inspector ? " open" : ""}`}>
+                        <div className="inspector-group">
+                          <span className="inspector-title">{t("ticketGroupHandling")}</span>
+                          {!conversation.ticket.junkAt && (
+                            <Assignment
+                              key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
                               ticketId={conversation.ticket.id}
-                              locale={initialLocale}
-                            />
-                          </details>
-                        )}
-                        {!conversation.ticket.junkAt && (
-                          <Issues
-                            key={`${conversation.ticket.id}:issues`}
-                            ticketId={conversation.ticket.id}
-                            canNote={conversation.actions.includes("ticket.note")}
-                            canPublish={conversation.actions.includes("github.publish")}
-                          />
-                        )}
-                        {!conversation.ticket.junkAt && (
-                          <Assignment
-                            key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
-                            ticketId={conversation.ticket.id}
-                            revision={conversation.ticket.revision}
-                            assignee={conversation.assignee}
-                            aiWork={conversation.aiWork}
-                            canAssign={conversation.actions.includes("ticket.assign")}
-                            onChanged={() => {
-                              void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
-                                .then(async (response) => {
-                                  if (response.ok)
-                                    setConversation(
-                                      conversationSchema.parse(await response.json()),
-                                    );
-                                })
-                                .catch(() => undefined);
-                              transition(() => {
-                                router.refresh();
-                              });
-                            }}
-                          />
-                        )}
-                        {conversation.actions.includes("ticket.reply") &&
-                          !conversation.ticket.junkAt && (
-                            <PortalLink
-                              key={`${conversation.ticket.id}:portal`}
-                              ticketId={conversation.ticket.id}
-                              locale={initialLocale}
-                            />
-                          )}
-                        {conversation.actions.includes("data.erase") && (
-                          <EraseTicket
-                            key={`${conversation.ticket.id}:erase`}
-                            ticketId={conversation.ticket.id}
-                            onErased={() => {
-                              setSelected(null);
-                              setConversation(null);
-                              window.history.replaceState(null, "", "/");
-                              transition(() => {
-                                router.refresh();
-                              });
-                            }}
-                          />
-                        )}
-                        {conversation.actions.includes("ticket.assign") &&
-                          !conversation.ticket.junkAt && (
-                            <Triage
-                              key={`${conversation.ticket.id}:triage:${triageOf(conversation.ticket).priority}:${triageOf(conversation.ticket).category ?? ""}`}
-                              ticketId={conversation.ticket.id}
-                              priority={triageOf(conversation.ticket).priority}
-                              category={triageOf(conversation.ticket).category}
-                              categories={
-                                projectById.get(conversation.ticket.projectId)?.categories ?? []
-                              }
+                              revision={conversation.ticket.revision}
+                              assignee={conversation.assignee}
+                              aiWork={conversation.aiWork}
+                              canAssign={conversation.actions.includes("ticket.assign")}
                               onChanged={() => {
+                                void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
+                                  .then(async (response) => {
+                                    if (response.ok)
+                                      setConversation(
+                                        conversationSchema.parse(await response.json()),
+                                      );
+                                  })
+                                  .catch(() => undefined);
                                 transition(() => {
                                   router.refresh();
                                 });
                               }}
                             />
                           )}
-                        {conversation.actions.includes("ticket.note") &&
-                          !conversation.ticket.junkAt && (
-                            <Tags
-                              key={`${conversation.ticket.id}:tags`}
+                          {conversation.actions.includes("ticket.assign") &&
+                            !conversation.ticket.junkAt && (
+                              <Triage
+                                key={`${conversation.ticket.id}:triage:${triageOf(conversation.ticket).priority}:${triageOf(conversation.ticket).category ?? ""}`}
+                                ticketId={conversation.ticket.id}
+                                priority={triageOf(conversation.ticket).priority}
+                                category={triageOf(conversation.ticket).category}
+                                categories={
+                                  projectById.get(conversation.ticket.projectId)?.categories ?? []
+                                }
+                                onChanged={() => {
+                                  transition(() => {
+                                    router.refresh();
+                                  });
+                                }}
+                              />
+                            )}
+                        </div>
+                        <div className="inspector-group">
+                          <span className="inspector-title">{t("ticketGroupOrganise")}</span>
+                          {conversation.actions.includes("ticket.note") &&
+                            !conversation.ticket.junkAt && (
+                              <Tags
+                                key={`${conversation.ticket.id}:tags`}
+                                ticketId={conversation.ticket.id}
+                                projectId={conversation.ticket.projectId}
+                                tags={tagsOf(conversation.ticket)}
+                                colors={
+                                  projectById.get(conversation.ticket.projectId)?.tagColors ?? {}
+                                }
+                                onChanged={() => {
+                                  transition(() => {
+                                    router.refresh();
+                                  });
+                                }}
+                              />
+                            )}
+                          {conversation.actions.includes("ticket.note") &&
+                            !conversation.ticket.junkAt && (
+                              <Reminder
+                                key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
+                                ticketId={conversation.ticket.id}
+                                remindAt={reminderOf(conversation.ticket)}
+                                now={now}
+                                locale={initialLocale}
+                                onChanged={() => {
+                                  transition(() => {
+                                    router.refresh();
+                                  });
+                                }}
+                              />
+                            )}
+                        </div>
+                        <div className="inspector-group">
+                          <span className="inspector-title">{t("ticketGroupShare")}</span>
+                          {conversation.actions.includes("ticket.reply") &&
+                            !conversation.ticket.junkAt && (
+                              <PortalLink
+                                key={`${conversation.ticket.id}:portal`}
+                                ticketId={conversation.ticket.id}
+                                locale={initialLocale}
+                              />
+                            )}
+                          {!conversation.ticket.junkAt && (
+                            <details className="ticket-knowledge">
+                              <summary>{t("knowledgeToggle")}</summary>
+                              <Knowledge
+                                key={conversation.ticket.id}
+                                ticketId={conversation.ticket.id}
+                                locale={initialLocale}
+                              />
+                            </details>
+                          )}
+                          {!conversation.ticket.junkAt && (
+                            <Issues
+                              key={`${conversation.ticket.id}:issues`}
                               ticketId={conversation.ticket.id}
-                              projectId={conversation.ticket.projectId}
-                              tags={tagsOf(conversation.ticket)}
-                              colors={
-                                projectById.get(conversation.ticket.projectId)?.tagColors ?? {}
-                              }
-                              onChanged={() => {
+                              canNote={conversation.actions.includes("ticket.note")}
+                              canPublish={conversation.actions.includes("github.publish")}
+                            />
+                          )}
+                        </div>
+                        <div className="inspector-group inspector-danger">
+                          {conversation.actions.includes("ticket.junk") &&
+                            !conversation.ticket.junkAt && (
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => {
+                                  void moveToJunk();
+                                }}
+                              >
+                                {t("moveToJunk")}
+                              </button>
+                            )}
+                          {conversation.actions.includes("data.erase") && (
+                            <EraseTicket
+                              key={`${conversation.ticket.id}:erase`}
+                              ticketId={conversation.ticket.id}
+                              onErased={() => {
+                                setSelected(null);
+                                setConversation(null);
+                                window.history.replaceState(null, "", "/");
                                 transition(() => {
                                   router.refresh();
                                 });
                               }}
                             />
                           )}
-                        {conversation.actions.includes("ticket.note") &&
-                          !conversation.ticket.junkAt && (
-                            <Reminder
-                              key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
-                              ticketId={conversation.ticket.id}
-                              remindAt={reminderOf(conversation.ticket)}
-                              now={now}
-                              locale={initialLocale}
-                              onChanged={() => {
-                                transition(() => {
-                                  router.refresh();
-                                });
-                              }}
-                            />
-                          )}
-                        {conversation.actions.includes("ticket.junk") &&
-                          !conversation.ticket.junkAt && (
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() => {
-                                void moveToJunk();
-                              }}
-                            >
-                              {t("moveToJunk")}
-                            </button>
-                          )}
+                        </div>
                       </div>
                     </header>
                     <div

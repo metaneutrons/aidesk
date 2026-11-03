@@ -1157,5 +1157,10 @@
   "textsBuiltIn": "Standardwortlaut",
   "textsLanguage": "Sprache des Textes",
   "more": "Mehr",
-  "notificationsShort": "Hinweise"
+  "notificationsShort": "Hinweise",
+  "ticketDetails": "Details",
+  "ticketGroupHandling": "Bearbeitung",
+  "ticketGroupOrganise": "Ordnen",
+  "ticketGroupShare": "Teilen und Quellen",
+  "reminderCustom": "Datum wählen…"
 }

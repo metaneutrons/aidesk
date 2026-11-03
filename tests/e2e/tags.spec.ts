@@ -17,6 +17,8 @@ test("tags a ticket, filters the list by tag and keeps the open draft", async ({
   await page.getByRole("navigation").getByRole("button", { name: "Inbox" }).click();
   await list.getByRole("button", { name: new RegExp(`${alpha.name} request 1`) }).click();
   const panel = page.getByRole("region", { name: "Ticket" });
+  // The window is low, so the tools of the ticket are closed behind Details.
+  await panel.getByRole("button", { name: "Details", exact: true }).click();
   await panel.getByRole("textbox", { name: "Write your reply in Markdown…" }).fill("Draft stays");
   // The input shows what is accepted: a spelling is normalized, not refused.
   await panel.getByRole("combobox", { name: "Add tag" }).fill("Needs Review");
