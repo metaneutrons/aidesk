@@ -121,16 +121,17 @@ export function SavedViews({
         </form>
       ) : (
         <>
-          <button
-            type="button"
-            className="secondary"
-            disabled={list === null}
-            onClick={() => {
-              setNaming(true);
-            }}
-          >
-            {t("viewsSaveCurrent")}
-          </button>
+          {list !== null && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setNaming(true);
+              }}
+            >
+              {t("viewsSaveCurrent")}
+            </button>
+          )}
           {picked && (
             <>
               <button

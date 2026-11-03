@@ -16,6 +16,22 @@ test("shows the list of topics, then a topic, and goes back; the menu is a bar o
   await signIn();
   await page.goto("/");
   const tabs = page.getByRole("navigation");
+  // The header of the view is inside the window (the column of the desk must not push it out at the top).
+  const header = await page.getByRole("heading", { level: 1 }).boundingBox();
+  expect(header?.y ?? -1).toBeGreaterThanOrEqual(0);
+  // Everything in the header lies inside it, in the overview and in the inbox: the tools wrap into a row of their own
+  // and are not cut off.
+  const inside = async () => {
+    const topbar = await page.locator(".topbar").boundingBox();
+    for (const control of await page.locator(".topbar").locator("button, select").all()) {
+      const box = await control.boundingBox();
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual((topbar?.height ?? 0) + 1);
+    }
+  };
+  await inside();
+  await tabs.getByRole("button", { name: "Inbox" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Inbox" })).toBeVisible();
+  await inside();
   const bar = await tabs.boundingBox();
   // The bar of tabs lies at the lower edge and spans the width.
   expect(bar?.width).toBeGreaterThan(380);

@@ -15,6 +15,8 @@ async function audit(page: Page) {
     .exclude("[data-base-ui-focus-guard]")
     .exclude(".design-frame")
     .exclude(".original-frame")
+    // The development indicator of Next.js lies over the first tab on a narrow screen; it is not part of the product.
+    .exclude("nextjs-portal")
     .analyze();
   return result.violations.map((violation) => ({
     rule: violation.id,
@@ -123,7 +125,12 @@ test.describe("a narrow window and zoom", () => {
       const details = page.getByRole("button", { name: "Details", exact: true });
       const portalButton = page.getByRole("button", { name: "Create portal link" });
       await expect(details.or(portalButton)).toBeVisible();
-      if (await details.isVisible()) await details.click();
+      // A click before the page has taken its handlers is lost, so the button is clicked until it is open.
+      await expect(async () => {
+        if ((await details.isVisible()) && (await details.getAttribute("aria-expanded")) !== "true")
+          await details.click();
+        await expect(portalButton).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
       await portalButton.click();
       const url = await page.getByLabel("Link to the customer's view").inputValue();
       const context = await browser.newContext({ locale: "de-DE", viewport: { width, height } });
