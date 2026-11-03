@@ -189,7 +189,8 @@ test("the desk can be used with the keyboard alone", async ({
   await field.focus();
   await page.keyboard.type("A note written with the keyboard");
   await expect(field).toHaveValue("A note written with the keyboard");
-  // The dialog of a new project traps the focus and gives it back.
+  // The dialog of a new project (in the settings) traps the focus and gives it back.
+  await openSettings(page, "Projects");
   await page.getByRole("button", { name: "New project" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "New project" })).toBeVisible();
@@ -204,9 +205,7 @@ test("the desk can be used with the keyboard alone", async ({
   }
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? "")).toBe(
-    "New project",
-  );
+  expect(await page.evaluate(() => document.activeElement?.textContent ?? "")).toBe("New project");
   expect(desk.run).toBeTruthy();
 });
 test("the desk and the customer page log no error in the console", async ({

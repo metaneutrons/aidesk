@@ -257,7 +257,11 @@ one topic at a time, as in the system settings of a Mac; on a narrow screen the 
 and the topic follow each other. A topic has an address (`/?settings=<topic>`, with
 `&project=<id>` for a project topic), so it can be linked and the back button works.
 The project is chosen once for all topics of the group Project instead of repeating
-every section for every project.
+every section for every project. A project is made by the owner in the topic Projects
+(a project is made rarely, and the settings are where projects are managed), not by a
+button in the header of the desk. A desk without a project says on the overview what to
+do first: the owner is led to that topic, and everybody else is told that the owner
+creates projects.
 Permissions have project and function granularity. Role presets start simple,
 with advanced per-function settings and an effective-permissions view available.
 Operators see authorized projects only. Capability availability comes from the

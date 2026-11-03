@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
-import { expect, mailpit, openPasswordSignIn, remote, test } from "./fixtures";
+import { expect, mailpit, openPasswordSignIn, openSettings, remote, test } from "./fixtures";
 import { totp } from "./totp";
 const conversation = (page: Page) => page.getByRole("region", { name: "Ticket" });
 async function openInbox(page: Page) {
@@ -235,6 +235,9 @@ test("keeps drafts per ticket across navigation and reload", async ({ page, desk
 test("moves focus into the new-project dialog and back", async ({ page, desk, signIn }) => {
   await signIn();
   await page.goto("/");
+  // A project is made in the settings, where projects are managed; the header has no button for it.
+  await expect(page.getByRole("button", { name: "New project" })).toHaveCount(0);
+  await openSettings(page, "Projects");
   const trigger = page.getByRole("button", { name: "New project" });
   await trigger.focus();
   await page.keyboard.press("Enter");
@@ -252,6 +255,11 @@ test("moves focus into the new-project dialog and back", async ({ page, desk, si
   await dialog.getByLabel("Project address").fill(`${desk.prefix}-created`);
   await dialog.getByRole("button", { name: "Create project" }).click();
   await expect(dialog).toBeHidden();
+  // The project is in the list of the topic and in the filter of the lists.
+  await expect(
+    page.locator("section.project-lifecycle li").filter({ hasText: name }),
+  ).toBeVisible();
+  await page.getByRole("navigation").getByRole("button", { name: "Inbox" }).click();
   await page.getByRole("button", { name: "All projects" }).click();
   await expect(page.getByRole("checkbox", { name })).toBeVisible();
 });

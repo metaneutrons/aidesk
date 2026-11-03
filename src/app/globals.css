@@ -3265,8 +3265,8 @@ section.notifications {
         overflow: visible;
     }
 }
-/* The header of a list view on a phone: the title with "New project" in the first row, and in the second the project
-   filter, the views and the button that saves the filters, which shows its icon only. */
+/* The header of a list view on a phone: the title in the first row, and in the second the project filter, the views and
+   the button that saves the filters, which shows its icon only. */
 @media (max-width: 760px) {
     .topbar {
         flex-wrap: wrap;
@@ -3278,9 +3278,6 @@ section.notifications {
     }
     .topbar-actions {
         display: contents;
-    }
-    .topbar-actions > .icon-button {
-        order: 2;
     }
     .topbar-actions > .project-filter {
         order: 3;
@@ -3301,4 +3298,24 @@ section.notifications {
     .saved-views .secondary {
         padding-inline: 10px;
     }
+}
+
+/* A desk without a project: what to do first. */
+.start-note {
+    display: grid;
+    justify-items: start;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.start-note h2,
+.start-note p {
+    margin: 0;
+}
+.start-note a.primary {
+    margin-top: 4px;
+    text-decoration: none;
 }

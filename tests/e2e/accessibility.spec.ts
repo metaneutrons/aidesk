@@ -50,6 +50,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await openSettings(page, "People");
       await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
       expect(await audit(page)).toEqual([]);
+      await openSettings(page, "Projects");
+      expect(await audit(page)).toEqual([]);
       await page.getByRole("button", { name: "New project" }).click();
       await expect(page.getByRole("dialog", { name: "New project" })).toBeVisible();
       expect(await audit(page)).toEqual([]);
