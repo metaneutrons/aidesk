@@ -1,5 +1,5 @@
 "use client";
-import type { ComponentType, ReactNode } from "react";
+import { useEffect, useRef, type ComponentType, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 // The frame of the settings: a list of topics on the left, one topic on the right, and on a narrow screen the list and
@@ -38,6 +38,11 @@ export function SettingsShell({
   children: ReactNode;
 }) {
   const t = useTranslations();
+  // A topic opens at its top, whatever the one before was scrolled to.
+  const detail = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    detail.current?.scrollTo({ top: 0 });
+  }, [active, level]);
   return (
     <div className="settings-layout" data-level={level}>
       <aside className="settings-list" aria-label={t("settingsTopics")}>
@@ -74,12 +79,12 @@ export function SettingsShell({
           </section>
         ))}
       </aside>
-      <div className="settings-detail">
+      <div className="settings-detail" ref={detail}>
         <button type="button" className="settings-back" onClick={onBack}>
           <ChevronLeft size={18} aria-hidden />
           {t("settings")}
         </button>
-        <div className="settings-detail-body">
+        <div className="settings-detail-body" data-topic={active}>
           <header className="settings-detail-head">{heading}</header>
           {children}
         </div>

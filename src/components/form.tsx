@@ -146,14 +146,20 @@ export function Segmented<T extends string>({
 export function Disclosure({
   title,
   hint,
+  groupName,
   children,
 }: {
   title: ReactNode;
   hint?: ReactNode;
+  // Names the block as a group, for a block that holds a form of its own.
+  groupName?: string;
   children: ReactNode;
 }) {
   return (
-    <details className="disclosure">
+    <details
+      className="disclosure"
+      {...(groupName ? { role: "group", "aria-label": groupName } : {})}
+    >
       <summary>
         <span className="row-label">
           <span>{title}</span>

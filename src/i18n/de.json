@@ -1152,5 +1152,9 @@
   "actionTest": "Testen",
   "actionEdit": "Bearbeiten",
   "actionDisable": "Deaktivieren",
-  "actionRemove": "Entfernen"
+  "actionRemove": "Entfernen",
+  "textsCustomized": "Eigener Wortlaut: {languages}",
+  "textsBuiltIn": "Standardwortlaut",
+  "textsLanguage": "Sprache des Textes",
+  "more": "Mehr"
 }

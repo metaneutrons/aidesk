@@ -21,6 +21,7 @@ import {
   Languages,
   Sparkles,
   Undo2,
+  Ellipsis,
   Settings as SettingsIcon,
   ShieldAlert,
   Sun,
@@ -308,6 +309,8 @@ export function Desk({
     initialTicketId ? "inbox" : initialSettings ? "settings" : (start?.list ?? "overview"),
   );
   const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
+  // On a narrow screen the part of the menu below the tabs is closed until the last tab opens it.
+  const [more, setMore] = useState(false);
   // The settings have an address of their own (the topic is part of it, see settings.tsx); another view has none.
   useEffect(() => {
     const named = new URLSearchParams(window.location.search).has("settings");
@@ -831,7 +834,7 @@ export function Desk({
   return (
     <Dialog.Root open={creating} onOpenChange={setCreating}>
       <div className="desk-shell">
-        <aside className="sidebar">
+        <aside className={`sidebar${more ? " more" : ""}`}>
           <a className="brand" href="/">
             <span className="brand-mark">
               <Layers3 size={20} />
@@ -844,6 +847,7 @@ export function Desk({
                 key={item.view}
                 className={`nav-item ${view === item.view ? "active" : ""}`}
                 onClick={() => {
+                  setMore(false);
                   setView(item.view);
                 }}
               >
@@ -857,6 +861,17 @@ export function Desk({
                 )}
               </button>
             ))}
+            <button
+              type="button"
+              className="nav-item nav-more"
+              aria-expanded={more}
+              onClick={() => {
+                setMore(!more);
+              }}
+            >
+              <Ellipsis size={18} />
+              {t("more")}
+            </button>
           </nav>
           <div className="sidebar-bottom">
             <label className="locale-select">

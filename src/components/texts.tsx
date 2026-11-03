@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Disclosure, Group, Row, Segmented } from "./form";
 // The wording a project sets for itself: the acknowledgement, the line before
 // the ticket link and the texts of the customer page. Each text has built-in
 // wording in English and German; saving sets the project's own, and returning
@@ -36,6 +37,8 @@ export function Texts({
   const [message, setMessage] = useState<Message | null>(null);
   // The text that is being translated, and why a suggestion could not be made.
   const [working, setWorking] = useState<string | null>(null);
+  // The language that each text shows; a text opens in English.
+  const [shownLanguage, setShownLanguage] = useState<Record<string, Lang>>({});
   const [suggestFailed, setSuggestFailed] = useState<string | null>(null);
   // Drafts are cleared only after a save, so a slower load never takes away what
   // a person has typed.
@@ -92,39 +95,64 @@ export function Texts({
     <section className="texts" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("textsTitle", { project: name })}</h3>
       <p className="muted">{t("textsHint")}</p>
-      {entries.map((entry) => (
-        <fieldset key={entry.key} className="text-entry">
-          <legend>{entry.description}</legend>
-          {entry.placeholders.length > 0 && (
-            <p className="muted">
-              {t("textsPlaceholders", {
-                list: entry.placeholders.map((placeholder) => `{${placeholder}}`).join(", "),
-              })}
-            </p>
-          )}
-          {(Object.keys(languageNames) as Lang[]).map((lang) => {
-            const state = entry.languages[lang];
-            const id = `${entry.key}:${lang}`;
-            const shown = drafts[id] ?? state.own ?? state.default;
-            const changed = shown !== (state.own ?? state.default);
-            return (
-              <div key={lang} className="text-language">
-                <label>
-                  <span>
-                    {entry.description} ({languageNames[lang]})
-                  </span>
-                  <textarea
-                    rows={3}
-                    value={shown}
-                    disabled={!canWrite}
-                    maxLength={2000}
-                    onChange={(event) => {
-                      setDrafts({ ...drafts, [id]: event.target.value });
-                    }}
-                  />
-                </label>
+      <Group>
+        {entries.map((entry) => {
+          const lang = shownLanguage[entry.key] ?? "en";
+          const state = entry.languages[lang];
+          const id = `${entry.key}:${lang}`;
+          const shown = drafts[id] ?? state.own ?? state.default;
+          const changed = shown !== (state.own ?? state.default);
+          const own = (Object.keys(languageNames) as Lang[]).filter(
+            (code) => entry.languages[code].own !== null,
+          );
+          return (
+            <Disclosure
+              key={entry.key}
+              title={entry.description}
+              groupName={entry.description}
+              hint={
+                own.length > 0
+                  ? t("textsCustomized", {
+                      languages: own.map((code) => languageNames[code]).join(", "),
+                    })
+                  : t("textsBuiltIn")
+              }
+            >
+              <div className="text-body">
+                <Segmented
+                  label={t("textsLanguage")}
+                  value={lang}
+                  options={(Object.keys(languageNames) as Lang[]).map((code) => ({
+                    value: code,
+                    label: languageNames[code],
+                  }))}
+                  onChange={(next) => {
+                    setShownLanguage({ ...shownLanguage, [entry.key]: next });
+                  }}
+                />
+                <Row label={`${entry.description} (${languageNames[lang]})`} stacked>
+                  {(props) => (
+                    <textarea
+                      {...props}
+                      rows={3}
+                      value={shown}
+                      disabled={!canWrite}
+                      maxLength={2000}
+                      onChange={(event) => {
+                        setDrafts({ ...drafts, [id]: event.target.value });
+                      }}
+                    />
+                  )}
+                </Row>
+                {entry.placeholders.length > 0 && (
+                  <p className="row-hint">
+                    {t("textsPlaceholders", {
+                      list: entry.placeholders.map((placeholder) => `{${placeholder}}`).join(", "),
+                    })}
+                  </p>
+                )}
                 {canWrite && (
-                  <span className="configuration-actions">
+                  <div className="text-actions">
                     <button
                       type="button"
                       className="primary"
@@ -157,13 +185,13 @@ export function Texts({
                     >
                       {t("textReset", { language: languageNames[lang] })}
                     </button>
-                  </span>
+                  </div>
                 )}
               </div>
-            );
-          })}
-        </fieldset>
-      ))}
+            </Disclosure>
+          );
+        })}
+      </Group>
       {suggestFailed && (
         <p className="error" role="alert">
           {t("textsTranslateFailed", { code: suggestFailed })}
