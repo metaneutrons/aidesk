@@ -368,7 +368,7 @@ label {
 }
 .metric-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 18px;
     margin: 16px 0 44px;
 }
@@ -1004,6 +1004,7 @@ label {
         font-size: 25px;
     }
     .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
     }
     .metric {
@@ -3156,4 +3157,16 @@ select:not([multiple]) {
 .inspector-danger button {
     min-height: 32px;
     padding-inline: 12px;
+}
+/* The notifications are a page of their own: a column with room around it, not a card that touches the edges. */
+section.notifications {
+    width: calc(100% - 48px);
+    max-width: 760px;
+    margin: 24px auto;
+}
+@media (max-width: 760px) {
+    section.notifications {
+        width: calc(100% - 24px);
+        margin: 12px auto;
+    }
 }
