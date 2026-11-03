@@ -30,7 +30,6 @@ test("brands the customer page and takes the branding away again", async ({
     .locator("section.portal-branding")
     .filter({ has: page.getByRole("heading", { name: `Customer page of ${alpha.name}` }) });
   await expect(section).toBeVisible();
-  await section.getByRole("heading", { name: `Customer page of ${alpha.name}` }).click();
   try {
     await section.getByLabel("Name", { exact: true }).fill("Example Support");
     await section.getByLabel("Line of text").fill("We answer within a day.");

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 :root {
+    --control: light-dark(#eceef5, #262a39);
+    --accent-text: light-dark(#3f4fd0, #9daaff);
     --bg: light-dark(#f6f7fb, #151720);
     --panel: light-dark(#fff, #1d202c);
     --sidebar: light-dark(#f1f2f7, #181b25);
@@ -116,17 +118,27 @@ label {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 9px 14px;
-    border-radius: 9px;
+    min-height: 32px;
+    padding: 6px 14px;
+    border-radius: 8px;
     font-weight: 600;
 }
 .primary {
     background: var(--accent);
     color: var(--panel);
 }
+.primary:disabled {
+    background: var(--control);
+    color: var(--muted);
+    opacity: 1;
+}
 .secondary {
-    background: var(--panel);
-    border: 1px solid var(--line);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border: 0;
+}
+.secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel));
 }
 .icon-button {
     display: inline-flex;
@@ -1195,9 +1207,24 @@ label {
     font-weight: 700;
     letter-spacing: -0.03em;
 }
-.settings-detail-body > section h2 {
-    margin: 0;
-    font-size: 18px;
+.settings-detail-body > section > h3 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+/* A topic with one section names it already in its heading. */
+.settings-detail-body > section:only-of-type > h3:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+.settings-detail-body > section {
+    display: grid;
+    gap: 16px;
+    align-content: start;
 }
 @media (max-width: 760px) {
     .settings-list {
@@ -1581,12 +1608,7 @@ li.tag-chip button {
 
 .configuration {
     display: grid;
-    gap: 12px;
-    margin: 16px 0;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel);
+    gap: 20px;
 }
 
 .configuration-fields {
@@ -2405,4 +2427,425 @@ button.danger {
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+/* The parts of the forms in the settings (src/components/form.tsx): a group, its rows, a switch, a number with its unit,
+   a segmented choice and the bar that saves a form. */
+:root {
+    --danger: light-dark(#c4302b, #ff9a92);
+    --control-line: light-dark(#d6d9e4, #43485d);
+    --radius: 12px;
+    --radius-small: 8px;
+}
+.group {
+    display: grid;
+    gap: 6px;
+}
+.group-title {
+    margin: 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.group-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    overflow: hidden;
+}
+.group-note {
+    margin: 0 4px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.group-card > * + * {
+    border-top: 1px solid var(--line);
+}
+.row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 16px;
+    min-height: 46px;
+    padding: 8px 16px;
+    font-weight: 400;
+}
+.row-label {
+    display: grid;
+    gap: 2px;
+}
+.row-label > label,
+.row-label > span {
+    font-weight: 500;
+}
+.row-hint {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+}
+.row-control {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+.row.stacked {
+    grid-template-columns: minmax(0, 1fr);
+}
+.row.stacked .row-control {
+    justify-content: stretch;
+}
+.row.stacked .row-control > * {
+    width: 100%;
+}
+.row-control input:not([type="checkbox"], [type="radio"], [type="color"]),
+.row-control select {
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-small);
+    background: var(--control);
+}
+.row-control input[type="number"] {
+    width: 96px;
+    text-align: right;
+}
+.row-control select {
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b90a5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+.row-control textarea {
+    width: 100%;
+}
+.unit {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.unit-name {
+    min-width: 2.5em;
+    color: var(--muted);
+}
+input.switch {
+    appearance: none;
+    position: relative;
+    flex-shrink: 0;
+    width: 42px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 13px;
+    background: var(--control-line);
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+input.switch::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px #0003;
+    transition: transform 0.15s;
+}
+input.switch:checked {
+    background: var(--accent);
+}
+input.switch:checked::before {
+    transform: translateX(16px);
+}
+input.switch:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--control);
+}
+.segmented label {
+    position: relative;
+    display: inline-flex;
+    flex-direction: row;
+    padding: 4px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+}
+.segmented label.selected {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 1px 3px #10102018;
+}
+.segmented input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    margin: 0;
+    cursor: pointer;
+}
+.segmented label:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+}
+.disclosure summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 46px;
+    padding: 8px 16px;
+    cursor: pointer;
+    list-style: none;
+}
+.disclosure summary::-webkit-details-marker {
+    display: none;
+}
+.disclosure-chevron {
+    flex-shrink: 0;
+    color: var(--muted);
+    transition: transform 0.15s;
+}
+.disclosure[open] .disclosure-chevron {
+    transform: rotate(90deg);
+}
+.disclosure-body {
+    border-top: 1px solid var(--line);
+}
+.disclosure-body > * + * {
+    border-top: 1px solid var(--line);
+}
+.actions-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 0 6px;
+    background: linear-gradient(to top, var(--bg) 75%, transparent);
+}
+.actions-status {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 13px;
+}
+.weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+}
+.chip {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--control);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+}
+.chip:has(input:checked) {
+    background: var(--accent);
+    color: var(--panel);
+}
+.chip {
+    position: relative;
+}
+.chip input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+}
+.chip:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.chip:has(input:disabled) {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Sections of a topic have no frame of their own; what they hold is drawn as groups, list cards and form cards. */
+.settings-detail-body > section {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+}
+.settings-detail-body > section > .muted:not(.error),
+.settings-detail-body > section > p.muted {
+    font-size: 13px;
+}
+.settings-detail-body .settings-form {
+    max-width: none;
+}
+.settings-detail-body .settings-form,
+.settings-detail-body ul.connection-list,
+.settings-detail-body ul.token-list,
+.settings-detail-body ul.sign-in-methods,
+.settings-detail-body ul.session-list {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.settings-detail-body .settings-form {
+    padding: 16px;
+}
+.settings-detail-body ul.connection-list,
+.settings-detail-body ul.token-list,
+.settings-detail-body ul.sign-in-methods,
+.settings-detail-body ul.session-list {
+    gap: 0;
+    overflow: hidden;
+}
+.settings-detail-body ul.connection-list > li,
+.settings-detail-body ul.token-list > li,
+.settings-detail-body ul.sign-in-methods > li,
+.settings-detail-body ul.session-list > li {
+    min-height: 46px;
+    padding: 8px 16px;
+}
+.settings-detail-body ul.connection-list > li + li,
+.settings-detail-body ul.token-list > li + li,
+.settings-detail-body ul.sign-in-methods > li + li,
+.settings-detail-body ul.session-list > li + li {
+    border-top: 1px solid var(--line);
+}
+input:not([type="checkbox"], [type="radio"], [type="color"]),
+select,
+textarea {
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border-color: var(--control-line);
+}
+form.stack {
+    display: grid;
+    gap: 20px;
+}
+.inline-switch {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    color: var(--muted);
+}
+fieldset.plain {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.settings-detail-body > section > fieldset.plain + fieldset.plain {
+    margin-top: 8px;
+}
+/* A button in a form of a topic that has no class of its own looks like a secondary one. */
+.settings-detail-body button:not([class], [role], [aria-haspopup], summary) {
+    min-height: 32px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-weight: 600;
+}
+.settings-detail-body button:not([class], [role], [aria-haspopup], summary):disabled {
+    background: var(--control);
+    color: var(--muted);
+    opacity: 1;
+}
+.color-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.row-control input[type="file"] {
+    max-width: 100%;
+    padding: 4px;
+    background: none;
+    border: 0;
+}
+/* The forms that add an entry to a list are cards like the lists above them. */
+.settings-detail-body .sender-rules form,
+.settings-detail-body form.routing-form,
+.settings-detail-body form.canned-form,
+.settings-detail-body form.form-row {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.settings-detail-body .sender-rules form label,
+.settings-detail-body form.routing-form label,
+.settings-detail-body form.form-row label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+}
+.settings-detail-body h4 {
+    margin: 4px 4px 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.settings-detail-body input[type="checkbox"]:not(.switch) {
+    accent-color: var(--accent);
+    width: 24px;
+    height: 24px;
+    margin: 0;
+}
+label.checkbox,
+label.configuration-check,
+label.inline-check {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+}
+.settings-detail-body form.routing-form fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.settings-detail-body form.routing-form legend {
+    padding: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+}
+.settings-detail-body > section > details > summary,
+.settings-detail-body details.sso-register > summary {
+    padding: 8px 4px;
+    font-weight: 500;
+    cursor: pointer;
 }

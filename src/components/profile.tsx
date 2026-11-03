@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 // The name and the signature that the replies of the signed-in operator carry. Each person sets their own.
 const profileSchema = z.object({
   name: z.string(),
@@ -48,7 +49,7 @@ export function Profile() {
       <h3 id={`${titleId}-title`}>{t("profileTitle")}</h3>
       <p className="muted">{t("profileHint")}</p>
       <form
-        className="settings-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void (async () => {
@@ -72,54 +73,68 @@ export function Profile() {
           })();
         }}
       >
-        <label>
-          {t("profileDisplayName")}
-          <input
-            value={displayName}
-            maxLength={100}
-            placeholder={stored.name}
-            onChange={(event) => {
-              setDisplayName(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("profileSignature")}
-          <textarea
-            value={signature}
-            maxLength={2000}
-            rows={4}
-            onChange={(event) => {
-              setSignature(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("profileTimeZone")}
-          <input
-            list={`${titleId}-zones`}
-            value={timeZone}
-            maxLength={64}
-            placeholder={t("profileTimeZoneDevice")}
-            onChange={(event) => {
-              setTimeZone(event.target.value);
-            }}
-          />
-          <datalist id={`${titleId}-zones`}>
-            {Intl.supportedValuesOf("timeZone").map((zone) => (
-              <option key={zone} value={zone} />
-            ))}
-          </datalist>
-          <small className="muted">{t("profileTimeZoneHint")}</small>
-        </label>
-        <button className="primary" type="submit" disabled={!changed}>
-          {t("profileSave")}
-        </button>
-        {message && (
-          <p className={message === "error" ? "error" : "muted"} role="status">
-            {t(message === "saved" ? "profileSaved" : "profileError")}
-          </p>
-        )}
+        <Group>
+          <Row label={t("profileDisplayName")}>
+            {(props) => (
+              <input
+                {...props}
+                value={displayName}
+                maxLength={100}
+                placeholder={stored.name}
+                onChange={(event) => {
+                  setDisplayName(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <Row label={t("profileSignature")} stacked>
+            {(props) => (
+              <textarea
+                {...props}
+                value={signature}
+                maxLength={2000}
+                rows={4}
+                onChange={(event) => {
+                  setSignature(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <Row label={t("profileTimeZone")} hint={t("profileTimeZoneHint")}>
+            {(props) => (
+              <>
+                <input
+                  {...props}
+                  list={`${titleId}-zones`}
+                  value={timeZone}
+                  maxLength={64}
+                  placeholder={t("profileTimeZoneDevice")}
+                  onChange={(event) => {
+                    setTimeZone(event.target.value);
+                  }}
+                />
+                <datalist id={`${titleId}-zones`}>
+                  {Intl.supportedValuesOf("timeZone").map((zone) => (
+                    <option key={zone} value={zone} />
+                  ))}
+                </datalist>
+              </>
+            )}
+          </Row>
+        </Group>
+        <Actions
+          status={
+            message && (
+              <span className={message === "error" ? "error" : undefined}>
+                {t(message === "saved" ? "profileSaved" : "profileError")}
+              </span>
+            )
+          }
+        >
+          <button className="primary" type="submit" disabled={!changed}>
+            {t("profileSave")}
+          </button>
+        </Actions>
       </form>
     </section>
   );

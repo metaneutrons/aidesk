@@ -2,6 +2,7 @@
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Group } from "./form";
 import { notificationKinds, preferenceOut } from "../domain/notifications";
 // For each kind of notification, whether it reaches the signed-in operator in the desk and by mail. A project decides
 // first which events notify at all (see the configuration of the project); this is the choice of each person.
@@ -54,26 +55,31 @@ export function NotificationPreferences() {
     <section className="connections notification-preferences" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("notificationPrefsTitle")}</h3>
       <p className="muted">{t("notificationPrefsHint")}</p>
-      <ul className="preference-list">
+      <Group>
         {rows.map((row) => (
-          <li key={row.kind}>
-            <strong>{t(`notificationKind_${row.kind}`)}</strong>
-            {(["desk", "mail"] as const).map((channel) => (
-              <label key={channel} className="inline-check">
-                <input
-                  type="checkbox"
-                  checked={row[channel]}
-                  aria-label={`${t(`notificationKind_${row.kind}`)}: ${t(channel === "desk" ? "notificationPrefsDesk" : "notificationPrefsMail")}`}
-                  onChange={(event) => {
-                    void change(row.kind, channel, event.target.checked);
-                  }}
-                />
-                {t(channel === "desk" ? "notificationPrefsDesk" : "notificationPrefsMail")}
-              </label>
-            ))}
-          </li>
+          <div className="row" key={row.kind}>
+            <div className="row-label">
+              <span>{t(`notificationKind_${row.kind}`)}</span>
+            </div>
+            <div className="row-control">
+              {(["desk", "mail"] as const).map((channel) => (
+                <label key={channel} className="inline-switch">
+                  {t(channel === "desk" ? "notificationPrefsDesk" : "notificationPrefsMail")}
+                  <input
+                    type="checkbox"
+                    className="switch"
+                    checked={row[channel]}
+                    aria-label={`${t(`notificationKind_${row.kind}`)}: ${t(channel === "desk" ? "notificationPrefsDesk" : "notificationPrefsMail")}`}
+                    onChange={(event) => {
+                      void change(row.kind, channel, event.target.checked);
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
         ))}
-      </ul>
+      </Group>
       {message && (
         <p className={message === "error" ? "error" : "muted"} role="status">
           {t(message === "saved" ? "notificationPrefsSaved" : "notificationPrefsError")}

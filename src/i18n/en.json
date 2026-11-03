@@ -1139,5 +1139,18 @@
   "topicWebhooks": "Webhooks",
   "topicData": "Data and privacy",
   "topicUsage": "Usage",
-  "topicAudit": "Audit log"
+  "topicAudit": "Audit log",
+  "configGroupCustomers": "Customers",
+  "configGroupTimes": "Response times",
+  "configGroupHours": "Business hours",
+  "configPriorityGroup": "Limits by priority",
+  "configPriorityGroupHint": "Warning and overdue times for single priorities",
+  "unitHours": "hours",
+  "unitDays": "days",
+  "aiMore": "Fallback and limits",
+  "aiMoreHint": "Second model, time limit and budget",
+  "actionTest": "Test",
+  "actionEdit": "Edit",
+  "actionDisable": "Disable",
+  "actionRemove": "Remove"
 }
