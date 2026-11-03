@@ -1,5 +1,6 @@
 "use client";
 import { useId, useState } from "react";
+import { BookmarkPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { viewListOut, viewLists, type SavedView, type ViewList } from "../domain/views";
 import type { Priority } from "../domain/triage";
@@ -125,11 +126,13 @@ export function SavedViews({
             <button
               type="button"
               className="secondary"
+              aria-label={t("viewsSaveCurrent")}
               onClick={() => {
                 setNaming(true);
               }}
             >
-              {t("viewsSaveCurrent")}
+              <BookmarkPlus size={16} aria-hidden />
+              <span className="label-wide">{t("viewsSaveCurrent")}</span>
             </button>
           )}
           {picked && (
