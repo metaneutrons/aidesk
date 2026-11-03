@@ -967,7 +967,7 @@ export function Desk({
           <header className="topbar">
             <h1>{t(view)}</h1>
             <div className="topbar-actions">
-              {view !== "settings" && (
+              {view !== "settings" && view !== "notifications" && (
                 <>
                   <div className="project-filter">
                     <button
