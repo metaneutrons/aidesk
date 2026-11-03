@@ -119,8 +119,14 @@ services:
     profiles: [proxy]
     image: caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     restart: unless-stopped
+    # Compose resolves `${SITE_ADDRESS:?}` for a service of an inactive profile too, which would
+    # stop every installation without the proxy. The check is made here, where the profile is on.
+    command:
+      - sh
+      - -c
+      - 'test -n "$$SITE_ADDRESS" || { echo "SITE_ADDRESS is required for the proxy profile: the host name that the product is reached at, for example desk.example.org" >&2; exit 1; }; exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile'
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:?The host name that the product is reached at, for example desk.example.org}
+      SITE_ADDRESS: ${SITE_ADDRESS:-}
       TLS_DIRECTIVE: ${TLS_DIRECTIVE:-}
       CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
     ports:
