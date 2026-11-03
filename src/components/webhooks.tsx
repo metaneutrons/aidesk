@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState, type SyntheticEvent } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row, Switch } from "./form";
 import { useZone } from "./time-zone";
 // The webhooks of one project: where events are sent, what happened to the last
 // delivery, a test event and disabling. A channel of a messenger is added here,
@@ -65,6 +66,7 @@ export function Webhooks({
   const t = useTranslations();
   const zone = useZone();
   const titleId = useId();
+  const eventsId = useId();
   const [rows, setRows] = useState<Hook[] | null>(null);
   const [message, setMessage] = useState<
     "error" | "webhookProposed" | "webhookPinged" | "channelCreated" | null
@@ -192,22 +194,24 @@ export function Webhooks({
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("webhookPing", { name: row.name })}
                   disabled={row.status === "disabled"}
                   onClick={() => {
                     void run(row, "ping");
                   }}
                 >
-                  {t("webhookPing", { name: row.name })}
+                  {t("actionTest")}
                 </button>
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("webhookDisable", { name: row.name })}
                   disabled={row.status === "disabled"}
                   onClick={() => {
                     void run(row, "disable");
                   }}
                 >
-                  {t("webhookDisable", { name: row.name })}
+                  {t("actionDisable")}
                 </button>
               </span>
             </li>
@@ -216,81 +220,88 @@ export function Webhooks({
       )}
       {adding ? (
         <form
-          className="connection-form"
+          className="connection-form stack"
           onSubmit={(event) => {
             void addChannel(event);
           }}
         >
           <h4>{t("channelTitle")}</h4>
           <p className="muted">{t("channelHint")}</p>
-          <label>
-            {t("channelName")}
-            <input
-              required
-              maxLength={100}
-              value={channelName}
-              onChange={(event) => {
-                setChannelName(event.target.value);
-              }}
-            />
-          </label>
-          <label>
-            {t("channelFormat")}
-            <select
-              value={format}
-              onChange={(event) => {
-                setFormat(event.target.value as (typeof channelFormats)[number]);
-              }}
-            >
-              {channelFormats.map((entry) => (
-                <option key={entry} value={entry}>
-                  {t(`webhookFormat_${entry}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("channelAddress")}
-            <input
-              required
-              type="password"
-              autoComplete="off"
-              value={address}
-              onChange={(event) => {
-                setAddress(event.target.value);
-              }}
-            />
-          </label>
-          <fieldset>
-            <legend>{t("channelEvents")}</legend>
-            {channelEvents.map((entry) => (
-              <label key={entry} className="configuration-check">
+          <Group>
+            <Row label={t("channelName")}>
+              {(props) => (
                 <input
-                  type="checkbox"
-                  checked={events.includes(entry)}
+                  {...props}
+                  required
+                  maxLength={100}
+                  value={channelName}
                   onChange={(event) => {
-                    setEvents(
-                      event.target.checked
-                        ? [...events, entry]
-                        : events.filter((value) => value !== entry),
-                    );
+                    setChannelName(event.target.value);
                   }}
                 />
-                {t(`channelEvent_${entry.replace(".", "_")}`)}
-              </label>
-            ))}
-          </fieldset>
-          <label className="configuration-check">
-            <input
-              type="checkbox"
+              )}
+            </Row>
+            <Row label={t("channelFormat")}>
+              {(props) => (
+                <select
+                  {...props}
+                  value={format}
+                  onChange={(event) => {
+                    setFormat(event.target.value as (typeof channelFormats)[number]);
+                  }}
+                >
+                  {channelFormats.map((entry) => (
+                    <option key={entry} value={entry}>
+                      {t(`webhookFormat_${entry}`)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Row>
+            <Row label={t("channelAddress")}>
+              {(props) => (
+                <input
+                  {...props}
+                  required
+                  type="password"
+                  autoComplete="off"
+                  value={address}
+                  onChange={(event) => {
+                    setAddress(event.target.value);
+                  }}
+                />
+              )}
+            </Row>
+            <div className="row stacked">
+              <div className="row-label">
+                <span id={eventsId}>{t("channelEvents")}</span>
+              </div>
+              <div className="row-control weekdays" role="group" aria-labelledby={eventsId}>
+                {channelEvents.map((entry) => (
+                  <label key={entry} className="chip">
+                    <input
+                      type="checkbox"
+                      checked={events.includes(entry)}
+                      onChange={(event) => {
+                        setEvents(
+                          event.target.checked
+                            ? [...events, entry]
+                            : events.filter((value) => value !== entry),
+                        );
+                      }}
+                    />
+                    {t(`channelEvent_${entry.replace(".", "_")}`)}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Switch
+              label={t("channelSubject")}
+              hint={t("channelSubjectHint")}
               checked={withSubject}
-              onChange={(event) => {
-                setWithSubject(event.target.checked);
-              }}
+              onChange={setWithSubject}
             />
-            {t("channelSubject")}
-          </label>
-          <small className="muted">{t("channelSubjectHint")}</small>
+          </Group>
           {failed && (
             <div className="error" role="alert">
               {t("channelError")}
@@ -303,14 +314,7 @@ export function Webhooks({
               )}
             </div>
           )}
-          <div className="configuration-actions">
-            <button
-              type="submit"
-              className="primary"
-              disabled={working || !channelName.trim() || !address.trim() || events.length === 0}
-            >
-              {t("channelCreate")}
-            </button>
+          <Actions>
             <button
               type="button"
               className="secondary"
@@ -321,7 +325,14 @@ export function Webhooks({
             >
               {t("channelCancel")}
             </button>
-          </div>
+            <button
+              type="submit"
+              className="primary"
+              disabled={working || !channelName.trim() || !address.trim() || events.length === 0}
+            >
+              {t("channelCreate")}
+            </button>
+          </Actions>
         </form>
       ) : (
         <button

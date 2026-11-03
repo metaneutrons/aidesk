@@ -2,6 +2,7 @@
 import { useTranslations } from "next-intl";
 import type { Action } from "../domain/permissions";
 import { ActionChecks } from "./groups";
+import { Actions, Group, Row } from "./form";
 import { Invite } from "./invite";
 import { operatorRoles, roleOf, within, type OperatorRole } from "../domain/roles";
 import { useState } from "react";
@@ -198,7 +199,7 @@ export function People({
       />
       {owner && (
         <form
-          className="settings-form"
+          className="stack"
           onSubmit={(event) => {
             event.preventDefault();
             void act(send("/operators", { name, email }), async () => {
@@ -209,31 +210,38 @@ export function People({
           }}
         >
           <h3>{t("operatorAdd")}</h3>
-          <label>
-            {t("name")}
-            <input
-              value={name}
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-              required
-            />
-          </label>
-          <label>
-            {t("email")}
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              required
-            />
-          </label>
-          <p className="muted">{t("operatorAddHint")}</p>
-          <button className="primary" type="submit">
-            {t("operatorAdd")}
-          </button>
+          <Group note={t("operatorAddHint")}>
+            <Row label={t("name")}>
+              {(props) => (
+                <input
+                  {...props}
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                  }}
+                  required
+                />
+              )}
+            </Row>
+            <Row label={t("email")}>
+              {(props) => (
+                <input
+                  {...props}
+                  type="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                  }}
+                  required
+                />
+              )}
+            </Row>
+          </Group>
+          <Actions>
+            <button className="primary" type="submit">
+              {t("operatorAdd")}
+            </button>
+          </Actions>
         </form>
       )}
     </>

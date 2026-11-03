@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 import { cannedLanguages, cannedOut, cannedPlaceholders, maxCannedBody } from "../domain/canned";
 // The canned replies of a project: the list, and a form to add one or change one. A reply is a text with
 // placeholders that is filled in for a ticket when it is used in the composer, by the draft button or by an agent.
@@ -132,64 +133,78 @@ export function CannedReplies({
       )}
       {canWrite && (
         <form
-          className="canned-form"
+          className="stack"
           aria-label={t(editing ? "cannedEditForm" : "cannedAddForm")}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <label>
-            {t("cannedName")}
-            <input
-              value={draft.name}
-              maxLength={60}
-              onChange={(event) => {
-                setDraft({ ...draft, name: event.target.value });
-              }}
-            />
-          </label>
-          <label>
-            {t("cannedLanguage")}
-            <select
-              value={draft.language}
-              onChange={(event) => {
-                setDraft({ ...draft, language: event.target.value });
-              }}
-            >
-              {cannedLanguages.map((entry) => (
-                <option key={entry} value={entry}>
-                  {entry === "de" ? "Deutsch" : "English"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("cannedBody")}
-            <textarea
-              rows={5}
-              value={draft.body}
-              maxLength={maxCannedBody}
-              onChange={(event) => {
-                setDraft({ ...draft, body: event.target.value });
-              }}
-            />
-          </label>
-          <button type="submit" disabled={draft.name.trim() === "" || draft.body.trim() === ""}>
-            {t(editing ? "cannedSave" : "cannedAdd")}
-          </button>
-          {editing && (
+          <Group>
+            <Row label={t("cannedName")}>
+              {(props) => (
+                <input
+                  {...props}
+                  value={draft.name}
+                  maxLength={60}
+                  onChange={(event) => {
+                    setDraft({ ...draft, name: event.target.value });
+                  }}
+                />
+              )}
+            </Row>
+            <Row label={t("cannedLanguage")}>
+              {(props) => (
+                <select
+                  {...props}
+                  value={draft.language}
+                  onChange={(event) => {
+                    setDraft({ ...draft, language: event.target.value });
+                  }}
+                >
+                  {cannedLanguages.map((entry) => (
+                    <option key={entry} value={entry}>
+                      {entry === "de" ? "Deutsch" : "English"}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Row>
+            <Row label={t("cannedBody")} stacked>
+              {(props) => (
+                <textarea
+                  {...props}
+                  rows={5}
+                  value={draft.body}
+                  maxLength={maxCannedBody}
+                  onChange={(event) => {
+                    setDraft({ ...draft, body: event.target.value });
+                  }}
+                />
+              )}
+            </Row>
+          </Group>
+          <Actions>
+            {editing && (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setEditing(null);
+                  setDraft(empty);
+                }}
+              >
+                {t("cannedCancel")}
+              </button>
+            )}
             <button
-              type="button"
-              className="secondary"
-              onClick={() => {
-                setEditing(null);
-                setDraft(empty);
-              }}
+              type="submit"
+              className="primary"
+              disabled={draft.name.trim() === "" || draft.body.trim() === ""}
             >
-              {t("cannedCancel")}
+              {t(editing ? "cannedSave" : "cannedAdd")}
             </button>
-          )}
+          </Actions>
         </form>
       )}
     </section>

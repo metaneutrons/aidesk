@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { normalizePattern, senderRuleKinds } from "../domain/sender-rules";
+import { Actions, Group, Row } from "./form";
 // The lists of senders of a project: addresses and domains whose mail is always taken or always kept out.
 const ruleSchema = z.object({
   id: z.string(),
@@ -105,45 +106,57 @@ export function SenderRules({ projectId, name }: { projectId: string; name: stri
         </ul>
       )}
       <form
-        className="form-row"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void add();
         }}
       >
-        <label>
-          {t("senderRulesValue")}
-          <input
-            value={value}
-            maxLength={320}
-            onChange={(event) => {
-              setValue(event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("senderRulesKind")}
-          <select
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value === "allow" ? "allow" : "block");
-            }}
-          >
-            <option value="block">{t("senderRulesBlock")}</option>
-            <option value="allow">{t("senderRulesAllow")}</option>
-          </select>
-        </label>
-        <label>
-          {t("senderRulesNote")}
-          <input
-            value={note}
-            maxLength={200}
-            onChange={(event) => {
-              setNote(event.target.value);
-            }}
-          />
-        </label>
-        <button type="submit">{t("senderRulesAdd")}</button>
+        <Group>
+          <Row label={t("senderRulesValue")}>
+            {(props) => (
+              <input
+                {...props}
+                value={value}
+                maxLength={320}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <Row label={t("senderRulesKind")}>
+            {(props) => (
+              <select
+                {...props}
+                value={kind}
+                onChange={(event) => {
+                  setKind(event.target.value === "allow" ? "allow" : "block");
+                }}
+              >
+                <option value="block">{t("senderRulesBlock")}</option>
+                <option value="allow">{t("senderRulesAllow")}</option>
+              </select>
+            )}
+          </Row>
+          <Row label={t("senderRulesNote")}>
+            {(props) => (
+              <input
+                {...props}
+                value={note}
+                maxLength={200}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+        </Group>
+        <Actions>
+          <button type="submit" className="primary">
+            {t("senderRulesAdd")}
+          </button>
+        </Actions>
       </form>
     </section>
   );

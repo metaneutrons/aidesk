@@ -2,6 +2,7 @@
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row, Switch } from "./form";
 // The form of a connection: the fields of each kind and its secret. A secret is typed here and is
 // never shown again; on a change, a secret that is left empty stays as it is. The server checks
 // every field and says which one is wrong.
@@ -262,92 +263,107 @@ export function ConnectionForm({
     `${t(secretField ? `connSecret_${field.name}` : `connField_${field.name}`)}${field.optional ? ` ${t("connOptional")}` : ""}`;
   return (
     <form
-      className="connection-form"
+      className="connection-form stack"
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      {!existing && (
-        <label>
-          {t("connType")}
-          <select
-            value={key}
-            onChange={(event) => {
-              choose(event.target.value);
-            }}
-          >
-            {definitions.map((entry) => (
-              <option key={entry.key} value={entry.key}>
-                {t(`connectionKind_${entry.kind}`)} · {t(`connection_${entry.direction}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <label>
-        {t("connName")}
-        <input
-          required
-          maxLength={100}
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
-        />
-      </label>
-      {definition.config.map((field) => (
-        <label
-          key={field.name}
-          className={field.type === "boolean" ? "configuration-check" : undefined}
-        >
-          {field.type === "boolean" ? null : label(field, false)}
-          {field.type === "boolean" ? (
+      <Group>
+        {!existing && (
+          <Row label={t("connType")}>
+            {(props) => (
+              <select
+                {...props}
+                value={key}
+                onChange={(event) => {
+                  choose(event.target.value);
+                }}
+              >
+                {definitions.map((entry) => (
+                  <option key={entry.key} value={entry.key}>
+                    {t(`connectionKind_${entry.kind}`)} · {t(`connection_${entry.direction}`)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Row>
+        )}
+        <Row label={t("connName")}>
+          {(props) => (
             <input
-              type="checkbox"
-              checked={values[field.name] === "true"}
+              {...props}
+              required
+              maxLength={100}
+              value={name}
               onChange={(event) => {
-                setValues({ ...values, [field.name]: String(event.target.checked) });
+                setName(event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        {definition.config.map((field) =>
+          field.type === "boolean" ? (
+            <Switch
+              key={field.name}
+              label={label(field, false)}
+              checked={values[field.name] === "true"}
+              onChange={(checked) => {
+                setValues({ ...values, [field.name]: String(checked) });
               }}
             />
           ) : field.type === "lines" || field.type === "pages" ? (
-            <textarea
-              rows={4}
-              value={values[field.name] ?? ""}
-              onChange={(event) => {
-                setValues({ ...values, [field.name]: event.target.value });
-              }}
-            />
+            <Row
+              key={field.name}
+              label={label(field, false)}
+              hint={t(`connHint_${field.name}`)}
+              stacked
+            >
+              {(props) => (
+                <textarea
+                  {...props}
+                  rows={4}
+                  value={values[field.name] ?? ""}
+                  onChange={(event) => {
+                    setValues({ ...values, [field.name]: event.target.value });
+                  }}
+                />
+              )}
+            </Row>
           ) : (
-            <input
-              type={field.type === "number" ? "number" : "text"}
-              value={values[field.name] ?? ""}
-              onChange={(event) => {
-                setValues({ ...values, [field.name]: event.target.value });
-              }}
-            />
-          )}
-          {field.type === "boolean" ? label(field, false) : null}
-          {(field.type === "lines" || field.type === "pages") && (
-            <small className="muted">{t(`connHint_${field.name}`)}</small>
-          )}
-        </label>
-      ))}
-      {definition.secret.map((field) => (
-        <label key={`${id}:${field.name}`}>
-          {label(field, true)}
-          <input
-            type="password"
-            autoComplete="off"
-            value={secrets[field.name] ?? ""}
-            placeholder={existing?.secretSet ? t("connSecretKept") : ""}
-            onChange={(event) => {
-              setSecrets({ ...secrets, [field.name]: event.target.value });
-            }}
-          />
-        </label>
-      ))}
-      <p className="muted">{t("connSecretNote")}</p>
+            <Row key={field.name} label={label(field, false)}>
+              {(props) => (
+                <input
+                  {...props}
+                  type={field.type === "number" ? "number" : "text"}
+                  value={values[field.name] ?? ""}
+                  onChange={(event) => {
+                    setValues({ ...values, [field.name]: event.target.value });
+                  }}
+                />
+              )}
+            </Row>
+          ),
+        )}
+      </Group>
+      <Group note={t("connSecretNote")}>
+        {definition.secret.map((field) => (
+          <Row key={`${id}:${field.name}`} label={label(field, true)}>
+            {(props) => (
+              <input
+                {...props}
+                type="password"
+                autoComplete="off"
+                value={secrets[field.name] ?? ""}
+                placeholder={existing?.secretSet ? t("connSecretKept") : ""}
+                onChange={(event) => {
+                  setSecrets({ ...secrets, [field.name]: event.target.value });
+                }}
+              />
+            )}
+          </Row>
+        ))}
+      </Group>
       {failed && (
         <div className="error" role="alert">
           {t(failed === "stale" ? "connStale" : "connError")}
@@ -360,14 +376,14 @@ export function ConnectionForm({
           )}
         </div>
       )}
-      <div className="configuration-actions">
-        <button type="submit" className="primary" disabled={working || !name.trim()}>
-          {t(existing ? "connSave" : "connCreate")}
-        </button>
+      <Actions>
         <button type="button" className="secondary" onClick={onCancel}>
           {t("connCancel")}
         </button>
-      </div>
+        <button type="submit" className="primary" disabled={working || !name.trim()}>
+          {t(existing ? "connSave" : "connCreate")}
+        </button>
+      </Actions>
     </form>
   );
 }

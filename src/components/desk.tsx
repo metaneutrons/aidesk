@@ -820,6 +820,8 @@ export function Desk({
       setSending(false);
     }
   }
+  // On a narrow screen these views are in the panel of the last tab; the others have a tab.
+  const secondary: View[] = ["reminders", "waiting", "resolved", "junk"];
   const navigation: { view: View; icon: typeof Inbox }[] = [
     { view: "overview", icon: LayoutDashboard },
     { view: "inbox", icon: Inbox },
@@ -845,7 +847,7 @@ export function Desk({
             {navigation.map((item) => (
               <button
                 key={item.view}
-                className={`nav-item ${view === item.view ? "active" : ""}`}
+                className={`nav-item ${view === item.view ? "active" : ""}${secondary.includes(item.view) ? " nav-secondary" : ""}`}
                 onClick={() => {
                   setMore(false);
                   setView(item.view);
@@ -874,6 +876,24 @@ export function Desk({
             </button>
           </nav>
           <div className="sidebar-bottom">
+            <div className="more-views">
+              {navigation
+                .filter((item) => secondary.includes(item.view))
+                .map((item) => (
+                  <button
+                    key={item.view}
+                    type="button"
+                    className={`nav-item ${view === item.view ? "active" : ""}`}
+                    onClick={() => {
+                      setMore(false);
+                      setView(item.view);
+                    }}
+                  >
+                    <item.icon size={18} />
+                    {t(item.view)}
+                  </button>
+                ))}
+            </div>
             <label className="locale-select">
               {t("language")}
               <select

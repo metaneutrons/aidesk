@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { erasurePreview, erasureResult } from "../domain/erasure";
 import { ErasureSummary } from "./erasure-summary";
+import { Actions, Group, Row } from "./form";
 // Erases everything about one requester in a project: asks for the address, shows what goes, and sends the numbers
 // back with the confirmation.
 export function EraseRequester({ projectId, name }: { projectId: string; name: string }) {
@@ -57,26 +58,37 @@ export function EraseRequester({ projectId, name }: { projectId: string; name: s
         </p>
       )}
       <form
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void show();
         }}
       >
-        <label>
-          {t("eraseRequesterAddress")}
-          <input
-            type="email"
-            value={email}
-            maxLength={320}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setPreview(null);
-            }}
-          />
-        </label>
-        <button type="submit" className="secondary" disabled={email.trim() === ""}>
-          {t("eraseRequesterShow")}
-        </button>
+        <Group>
+          <Row label={t("eraseRequesterAddress")}>
+            {(props) => (
+              <input
+                {...props}
+                type="email"
+                value={email}
+                maxLength={320}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setPreview(null);
+                }}
+              />
+            )}
+          </Row>
+        </Group>
+        <Actions
+          status={
+            done && t("eraseDone", { tickets: done.counts.tickets, messages: done.counts.messages })
+          }
+        >
+          <button type="submit" className="secondary" disabled={email.trim() === ""}>
+            {t("eraseRequesterShow")}
+          </button>
+        </Actions>
       </form>
       {preview && (
         <div role="group" aria-label={t("eraseRequesterGroup", { email: preview.email })}>
@@ -103,11 +115,6 @@ export function EraseRequester({ projectId, name }: { projectId: string; name: s
             {t("eraseConfirm")}
           </button>
         </div>
-      )}
-      {done && (
-        <p role="status">
-          {t("eraseDone", { tickets: done.counts.tickets, messages: done.counts.messages })}
-        </p>
       )}
     </section>
   );
