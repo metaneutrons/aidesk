@@ -3323,3 +3323,39 @@ section.notifications {
         padding-inline: 10px;
     }
 }
+
+/* The updates of the installation: what is said about the update and the steps it goes through. */
+.update-state {
+    margin: 6px 4px 8px;
+}
+.update-error {
+    margin: 0 4px;
+}
+.update-steps {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.update-steps li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 40px;
+    padding: 8px 16px;
+}
+.update-steps li + li {
+    border-top: 1px solid var(--line);
+}
+.update-steps li[data-state="running"] span {
+    font-weight: 600;
+}
+.update-steps li[data-state="failed"] span {
+    color: var(--danger);
+}
+.update-note {
+    margin: 0;
+    padding: 8px 16px;
+    border-top: 1px solid var(--line);
+}

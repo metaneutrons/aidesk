@@ -16,6 +16,7 @@ import {
   PanelsTopLeft,
   Palette,
   Plug,
+  RefreshCw,
   ScrollText,
   Settings2,
   SlidersHorizontal,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { OwnerPasskeys } from "./owner-passkeys";
+import { UpdatesPanel } from "./updates";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { ProjectAgentControls, WorkspaceControls } from "./agent-controls";
 import { Configuration } from "./configuration";
@@ -218,6 +220,7 @@ export function Settings({
               topic$("sso", LogIn),
               topic$("domains", Globe),
               topic$("keys", Lock),
+              topic$("updates", RefreshCw),
               topic$("workspace-audit", ScrollText),
             ]
           : []),
@@ -322,6 +325,8 @@ export function Settings({
         return <PortalDomains projectId={null} name="" />;
       case "keys":
         return <KeyRotation />;
+      case "updates":
+        return <UpdatesPanel locale={locale} />;
       case "workspace-audit":
         return <AuditLog projectId={null} name="" locale={locale} />;
       case "projects":

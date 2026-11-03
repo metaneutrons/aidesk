@@ -85,6 +85,11 @@ const notCalled: Record<string, string> = {
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "keys.rotate":
     "needs a previous key in the environment of the installation; covered by the key rotation tests",
+  "updates.check": "asks the updater of the installation; covered by the updates tests and spec",
+  "updates.apply":
+    "replaces the containers of the installation; covered by the updates tests and spec",
+  "updates.schedule":
+    "sets the maintenance window of the installation; covered by the updates tests and spec",
   "requester.export":
     "answers a zip file and not JSON, and the export is an entry of the audit; covered by the export tests and the requester export spec",
   "erasure.ticket": "erases a ticket for good; covered by the erasure tests and the erase spec",
@@ -459,6 +464,7 @@ test("answers every documented route in the published shape, with real data", as
   await call("routing.delete", { params: { projectId: project, ruleId } });
   // What still depends on a previous key; nothing is changed.
   await call("keys.status");
+  await call("updates.status");
   // What the periods of a retention would remove now; nothing is changed.
   await call("retention.preview", {
     params: { projectId: project },

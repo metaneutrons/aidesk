@@ -80,6 +80,22 @@ services:
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
     environment:
       MP_MAX_MESSAGES: 500
+  # Stands in for the updater (deploy/updater) so that the settings page can be worked on and tested; the paths under /__stub
+  # reset it and choose how an update ends.
+  updater-stub:
+    image: node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567
+    command: ["node", "/stub/updater-stub.mjs"]
+    restart: unless-stopped
+    environment:
+      UPDATER_TOKEN: ${UPDATER_TOKEN}
+    volumes: ["./scripts/updater-stub.mjs:/stub/updater-stub.mjs:ro"]
+    ports: ["127.0.0.1:8099:8080"]
+    read_only: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/__stub/status',{method:'POST',body:'{}'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   app:
     build:
       context: .
@@ -101,6 +117,9 @@ services:
       S3_BUCKET: aidesk
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
+      # The settings page asks this stand-in for the updater of a Compose installation (scripts/updater-stub.mjs).
+      UPDATER_URL: http://updater-stub:8080
+      UPDATER_TOKEN: ${UPDATER_TOKEN}
       DEV_BOOTSTRAP: "true"
       DEV_OWNER_EMAIL: owner@aidesk.local
       DEV_OWNER_PASSWORD: ${DEV_OWNER_PASSWORD}
@@ -137,6 +156,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      updater-stub:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
