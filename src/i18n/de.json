@@ -1156,5 +1156,6 @@
   "textsCustomized": "Eigener Wortlaut: {languages}",
   "textsBuiltIn": "Standardwortlaut",
   "textsLanguage": "Sprache des Textes",
-  "more": "Mehr"
+  "more": "Mehr",
+  "notificationsShort": "Hinweise"
 }

@@ -78,3 +78,20 @@ test("the last tab opens language, appearance and sign-out above the bar", async
   await page.getByRole("navigation").getByRole("button", { name: "Inbox" }).click();
   await expect(language).toBeHidden();
 });
+// The German names are longer; all six tabs still lie inside the window and none is cut off.
+test.describe("in German", () => {
+  test.use({ locale: "de-DE" });
+  test("shows every tab whole", async ({ page, signIn }) => {
+    await signIn();
+    await page.goto("/");
+    const tabs = page.getByRole("navigation").getByRole("button");
+    await expect(tabs).toHaveCount(6);
+    for (const tab of await tabs.all()) {
+      const box = await tab.boundingBox();
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(391);
+      expect(await tab.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
+        true,
+      );
+    }
+  });
+});
