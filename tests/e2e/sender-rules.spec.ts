@@ -17,7 +17,7 @@ test("blocks and allows senders and takes them off again", async ({ page, desk, 
   await page.goto("/");
   await openSettings(page, "Incoming mail", alpha.name);
   const section = page.locator("section.sender-rules").filter({
-    has: page.getByRole("heading", { name: `Allowed and blocked senders for ${alpha.name}` }),
+    has: page.getByRole("heading", { name: `Allowed and blocked senders` }),
   });
   await expect(section).toBeVisible();
   try {

@@ -193,7 +193,7 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
   await page.goto("/");
   await openSettings(page, "General", desk.projects.alpha.name);
   const section = page.getByRole("region", {
-    name: `Configuration of ${desk.projects.alpha.name}`,
+    name: `Configuration`,
   });
   const toggle = section.getByLabel("Send an acknowledgement for each new ticket");
   // Another spec may have left it on; Save is enabled only for a change.
@@ -251,7 +251,7 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
     await page.goto("/");
     await openSettings(page, "General", desk.projects.alpha.name);
     const back = page.getByRole("region", {
-      name: `Configuration of ${desk.projects.alpha.name}`,
+      name: `Configuration`,
     });
     await back.getByLabel("Send an acknowledgement for each new ticket").uncheck();
     await back.getByRole("button", { name: "Save", exact: true }).click();

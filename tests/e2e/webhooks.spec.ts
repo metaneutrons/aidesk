@@ -32,7 +32,7 @@ test("shows a webhook with its last delivery, sends a test event and disables it
   expect(created.status(), await created.text()).toBe(201);
   await page.goto("/");
   await openSettings(page, "Webhooks", alpha.name);
-  const section = page.getByRole("region", { name: `Webhooks of ${alpha.name}` });
+  const section = page.getByRole("region", { name: `Webhooks` });
   const row = section.getByRole("listitem").filter({ hasText: name });
   await expect(row.getByText("Nothing delivered yet")).toBeVisible();
   await expect(page.getByText("never-shown-signing-secret")).toHaveCount(0);

@@ -2933,3 +2933,35 @@ label.inline-check {
         padding-bottom: 12px;
     }
 }
+.settings-detail-body .table-scroll {
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.settings-detail-body .settings-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+.settings-detail-body .settings-table th {
+    padding-top: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.settings-detail-body > section > button.secondary,
+.settings-detail-body > section > button.primary {
+    justify-self: start;
+}
+.action-checks {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+.action-checks legend {
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.action-checks label.check {
+    flex-direction: row;
+    font-weight: 400;
+}

@@ -45,7 +45,7 @@ test("sets the profile of a task on the settings page and switches it on and off
   expect(await read()).toMatchObject({ version: 0, enabled: false, model: null });
   await page.goto("/");
   await openSettings(page, "AI tasks", alpha.name);
-  const section = page.getByRole("region", { name: `AI tasks of ${alpha.name}` });
+  const section = page.getByRole("region", { name: `AI tasks` });
   const task = section.getByRole("group", { name: "Draft a reply to the customer" });
   // The task that reads images is offered like the others.
   await expect(

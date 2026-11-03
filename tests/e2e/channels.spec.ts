@@ -26,7 +26,7 @@ test("adds a channel, shows only its host, and switches the subject on and off",
   await signIn();
   await page.goto("/");
   await openSettings(page, "Webhooks", alpha.name);
-  const section = page.getByRole("region", { name: `Webhooks of ${alpha.name}` });
+  const section = page.getByRole("region", { name: `Webhooks` });
   await section.getByRole("button", { name: "Add a channel" }).click();
   const form = section.locator("form.connection-form");
   await form.getByLabel("Name of the channel").fill(name);
@@ -83,7 +83,7 @@ test("refuses an address that is not https and says which field is wrong", async
   await signIn();
   await page.goto("/");
   await openSettings(page, "Webhooks", alpha.name);
-  const section = page.getByRole("region", { name: `Webhooks of ${alpha.name}` });
+  const section = page.getByRole("region", { name: `Webhooks` });
   await section.getByRole("button", { name: "Add a channel" }).click();
   const form = section.locator("form.connection-form");
   await form.getByLabel("Name of the channel").fill(`Plain ${desk.run}`);

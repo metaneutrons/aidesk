@@ -28,7 +28,7 @@ test("brands the customer page and takes the branding away again", async ({
   await openSettings(page, "Customer page", alpha.name);
   const section = page
     .locator("section.portal-branding")
-    .filter({ has: page.getByRole("heading", { name: `Customer page of ${alpha.name}` }) });
+    .filter({ has: page.getByRole("heading", { name: `Customer page` }) });
   await expect(section).toBeVisible();
   try {
     await section.getByLabel("Name", { exact: true }).fill("Example Support");

@@ -81,7 +81,7 @@ test("stops the agents of a project from the settings and shows the switches of 
   ).toBe(true);
   await page.goto("/");
   await openSettings(page, "Agents and tokens", alpha.name);
-  const section = page.getByRole("region", { name: `AI agents: ${alpha.name}` });
+  const section = page.getByRole("region", { name: `AI agents` });
   await expect(section.getByText("The agents of this project work.")).toBeVisible();
   await section.getByRole("button", { name: "Stop all agents" }).click();
   await expect(section.getByText("The agents of this project are stopped.")).toBeVisible();

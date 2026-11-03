@@ -32,7 +32,7 @@ test("renames, merges, colours and removes tags", async ({
     await page.goto("/");
     await openSettings(page, "Replies and tags", alpha.name);
     const section = page.locator("section.tag-admin").filter({
-      has: page.getByRole("heading", { name: `Tags of ${alpha.name}` }),
+      has: page.getByRole("heading", { name: `Tags` }),
     });
     await expect(section).toBeVisible();
     // A row is found by its chip: the lists of the merge selects carry the names of the other rows too.

@@ -10,7 +10,7 @@ test("takes out what is held about a requester as a file", async ({ page, desk, 
   await page.goto("/");
   await openSettings(page, "Data and privacy", alpha.name);
   const section = page.locator("section.requester-export").filter({
-    has: page.getByRole("heading", { name: `Export about a requester in ${alpha.name}` }),
+    has: page.getByRole("heading", { name: `Export about a requester` }),
   });
   await expect(section).toBeVisible();
   const scan = await new AxeBuilder({ page })

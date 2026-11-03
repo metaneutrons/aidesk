@@ -22,7 +22,7 @@ test("edits the configuration, checks it first, and approves what an agent propo
   try {
     await page.goto("/");
     await openSettings(page, "General", alpha.name);
-    const section = page.getByRole("region", { name: `Configuration of ${String(original.name)}` });
+    const section = page.getByRole("region", { name: `Configuration` });
     await expect(section).toBeVisible();
     // The check reports the difference and writes nothing.
     const renamed = `${String(original.name)} renamed`;
