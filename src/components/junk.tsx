@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { useZone } from "./time-zone";
@@ -117,7 +118,10 @@ export function Junk({
   }
   const projectName = (id: string) => projects.find((project) => project.id === id)?.name ?? "";
   return (
-    <section className="junk" aria-label={t("junk")}>
+    <section
+      className={`junk${items !== null && items.length === 0 ? " junk-none" : ""}`}
+      aria-label={t("junk")}
+    >
       <div className="junk-list">
         {failed && (
           <p className="error" role="alert">
@@ -128,7 +132,10 @@ export function Junk({
         {items === null ? (
           <p className="muted">{t("junkLoading")}</p>
         ) : items.length === 0 ? (
-          <p className="muted">{t("junkEmpty")}</p>
+          <div className="junk-empty">
+            <ShieldCheck size={32} aria-hidden />
+            <p>{t("junkEmpty")}</p>
+          </div>
         ) : (
           <ul>
             {items.map((item) => (

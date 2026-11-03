@@ -3170,3 +3170,98 @@ section.notifications {
         margin: 12px auto;
     }
 }
+/* Nothing in junk: the empty state has the width of the view and the preview is not shown. */
+.junk-none .junk-preview {
+    display: none;
+}
+.junk-none .junk-list {
+    width: 100%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 8px;
+    border-right: 0;
+    padding: 24px;
+    text-align: center;
+}
+.junk-none .junk-list > p {
+    max-width: 520px;
+    padding: 0;
+}
+.junk-empty {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    color: var(--muted);
+}
+@media (max-width: 760px) {
+    /* The column of the desk is as high as the window; a column taller than that would push its header out of the
+       window (the tabs are below it, so the column grows upward). */
+    .desk-main {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+}
+@media (max-width: 760px) {
+    /* The small heading above the tiles keeps its small size (the rule for the headings of the overview is for the titles). */
+    .overview h2.eyebrow {
+        font-size: 11px;
+    }
+}
+.junk-none .junk-list {
+    flex: 1;
+    align-self: stretch;
+}
+.junk-none .junk-list > p {
+    order: 2;
+}
+.junk-none .junk-empty {
+    order: 1;
+}
+@media (max-width: 760px) {
+    /* The tools of the header wrap into a second row; a fixed height would cut them off. */
+    .topbar {
+        height: auto;
+        min-height: 56px;
+        padding: 10px 16px;
+        row-gap: 8px;
+    }
+    .topbar-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+}
+/* Opened on a narrow or a low screen, the header with its tools is at most as high as half the window and scrolls inside
+   itself, so that the conversation and the composer stay in reach. */
+@media (max-width: 760px), (max-height: 820px) {
+    .conversation-header {
+        max-height: 55dvh;
+        overflow-y: auto;
+        flex-shrink: 0;
+    }
+}
+@media (max-width: 760px) {
+    /* The six tabs share the width, so the bar does not scroll; a scroll container made a browser report the tabs as
+       partly covered. */
+    .sidebar nav {
+        overflow: visible;
+    }
+}
+@media (max-width: 760px) {
+    /* On a phone the ticket (header, messages, composer) is higher than the window; the column scrolls as a whole, so
+       that the composer is not cut at the lower edge and does not lie over the tabs. */
+    .conversation {
+        overflow-y: auto;
+    }
+    .conversation .message-list {
+        flex: none;
+        overflow: visible;
+    }
+    .conversation .composer {
+        flex-shrink: 0;
+    }
+    .conversation-header {
+        max-height: none;
+        overflow: visible;
+    }
+}
