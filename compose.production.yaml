@@ -175,6 +175,8 @@ services:
       # false when the database is yours: the updater can only dump the bundled one.
       BACKUP_ENABLED: ${UPDATER_BACKUP_ENABLED:-true}
       BACKUP_RETENTION_DAYS: ${UPDATER_BACKUP_RETENTION_DAYS:-14}
+      # false keeps the updater as it is when the product is updated (see docs/updating.md).
+      AUTO_UPDATE_UPDATER: ${UPDATER_SELF_UPDATE:-true}
       # Raises the limit of the GitHub API for the check of the release; not needed otherwise.
       GITHUB_TOKEN:
     volumes:
