@@ -17,7 +17,7 @@ test("shows the usage of a project and changes its period", async ({ page, desk,
   await openSettings(page, "Usage", alpha.name);
   const section = page
     .locator("section.usage")
-    .filter({ has: page.getByRole("heading", { name: `Usage of ${alpha.name}` }) });
+    .filter({ has: page.getByRole("heading", { name: `Usage` }) });
   await expect(section).toBeVisible();
   await expect(section.getByRole("heading", { name: "AI", exact: true })).toBeVisible();
   await expect(section.getByRole("heading", { name: "Mail", exact: true })).toBeVisible();

@@ -28,7 +28,7 @@ test("filters the audit of a project, shows the detail of an entry and exports w
   await openSettings(page, "Audit log", alpha.name);
   const section = page
     .locator("section.audit-log")
-    .filter({ has: page.getByRole("heading", { name: `Audit of ${alpha.name}` }) });
+    .filter({ has: page.getByRole("heading", { name: `Audit log` }) });
   await expect(section).toBeVisible();
   // Newest first: the removal of the tags, then the entry that set them.
   const rows = section.getByRole("row").filter({ hasText: "ticket.tags" });

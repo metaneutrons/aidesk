@@ -78,7 +78,7 @@ test("erases a ticket and a requester after showing what goes", async ({ page, d
   await page.goto("/");
   await openSettings(page, "Data and privacy", alpha.name);
   const section = page.locator("section.erase-requester").filter({
-    has: page.getByRole("heading", { name: `Erase a requester in ${alpha.name}` }),
+    has: page.getByRole("heading", { name: `Erase a requester` }),
   });
   await section.getByLabel("Address of the requester").fill(customer.toUpperCase());
   await section.getByRole("button", { name: "Show what would be erased" }).click();

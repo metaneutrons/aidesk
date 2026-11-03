@@ -38,7 +38,7 @@ test("tests a connection, shows why a failing one fails and disables one", async
   expect((await define(bad, 1)).status()).toBe(201);
   await page.goto("/");
   await openSettings(page, "Connections", alpha.name);
-  const section = page.getByRole("region", { name: `Connections of ${alpha.name}` });
+  const section = page.getByRole("region", { name: `Connections` });
   const row = (name: string) => section.getByRole("listitem").filter({ hasText: name });
   await expect(row(good).getByText("Not tested")).toBeVisible();
   await section.getByRole("button", { name: `Test ${good}` }).click();
@@ -59,7 +59,7 @@ test("tests a connection, shows why a failing one fails and disables one", async
   // The configuration offers the new outgoing connection (not saved here, so
   // the project keeps sending through its own).
   await openSettings(page, "General", alpha.name);
-  const config = page.getByRole("region", { name: `Configuration of ${alpha.name}` });
+  const config = page.getByRole("region", { name: `Configuration` });
   await expect(
     config.getByLabel("Outgoing connection").locator("option", { hasText: good }),
   ).toHaveCount(1);
@@ -85,7 +85,7 @@ test("defines and changes connections in a form, and never shows the credentials
   await signIn();
   await page.goto("/");
   await openSettings(page, "Connections", gamma.name);
-  const section = page.getByRole("region", { name: `Connections of ${gamma.name}` });
+  const section = page.getByRole("region", { name: `Connections` });
   const docs = `Guide ${desk.run}`;
   await section.getByRole("button", { name: "Add connection" }).click();
   const form = section.locator("form.connection-form");

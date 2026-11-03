@@ -13,7 +13,7 @@ test("shows where the content of the tickets goes and exports it", async ({
   await page.goto("/");
   await openSettings(page, "Data and privacy", alpha.name);
   const section = page.locator("section.processing").filter({
-    has: page.getByRole("heading", { name: `Processing of ticket content for ${alpha.name}` }),
+    has: page.getByRole("heading", { name: `Processing of ticket content` }),
   });
   await expect(section).toBeVisible();
   // Every task of a model is listed, whether it is set up or not.

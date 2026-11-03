@@ -34,7 +34,7 @@ test("ticks a single right, and makes a group with a member", async ({ page, des
   const rights = row.locator("details.rights").filter({ hasText: `in ${alpha.name}` });
   const section = page
     .locator("section.groups")
-    .filter({ has: page.getByRole("heading", { name: `Groups of ${alpha.name}` }) });
+    .filter({ has: page.getByRole("heading", { name: `Groups` }) });
   try {
     // A single right.
     await rights.locator("summary").click();

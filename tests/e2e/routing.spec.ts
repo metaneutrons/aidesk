@@ -33,7 +33,7 @@ test("adds, orders, changes and removes routing rules", async ({
   await page.goto("/");
   await openSettings(page, "Incoming mail", alpha.name);
   const section = page.locator("section.routing-rules").filter({
-    has: page.getByRole("heading", { name: `Routing of new tickets for ${alpha.name}` }),
+    has: page.getByRole("heading", { name: `Routing of new tickets` }),
   });
   await expect(section).toBeVisible();
   try {

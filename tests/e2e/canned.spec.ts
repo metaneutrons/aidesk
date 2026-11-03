@@ -23,7 +23,7 @@ test("writes a canned reply and uses it in the composer", async ({
   await page.goto("/");
   await openSettings(page, "Replies and tags", alpha.name);
   const section = page.locator("section.canned-replies").filter({
-    has: page.getByRole("heading", { name: `Canned replies for ${alpha.name}` }),
+    has: page.getByRole("heading", { name: `Canned replies` }),
   });
   await expect(section).toBeVisible();
   try {

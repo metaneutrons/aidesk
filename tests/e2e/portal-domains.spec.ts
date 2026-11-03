@@ -16,7 +16,7 @@ test("claims a name for the customer page, shows the record to create and remove
   await openSettings(page, "Customer page", alpha.name);
   const section = page
     .locator("section.portal-domains")
-    .filter({ has: page.getByRole("heading", { name: `Customer page names of ${alpha.name}` }) });
+    .filter({ has: page.getByRole("heading", { name: `Customer page names` }) });
   await expect(section).toBeVisible();
   await expect(section.getByText("No name yet.")).toBeVisible();
   // Something that is not a name is refused and nothing is added.
