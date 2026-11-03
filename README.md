@@ -80,6 +80,7 @@ curl -H "Authorization: Bearer $TOKEN" https://desk.example.test/api/v1/overview
 | Document | Contents |
 |----------|----------|
 | [Development notes](docs/development.md) | Configuration, every feature in detail, evidence and known gaps |
+| [Updating a Compose installation](docs/updating.md) | Signed releases, the updater, what a failed update leaves behind, restoring the dump |
 | [API definition](docs/api/openapi.json) | OpenAPI 3.1 document, also served at `/api/v1/openapi.json` |
 | [Guide for agents](docs/api/agent-guide.md) | What an agent reads first, and how versions, validation and proposals work; also served at `/api/v1/guide.md` |
 | [Capability ledger](docs/capabilities.md) | Which surface offers which operation, and the reasons for differences |
