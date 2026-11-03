@@ -1156,5 +1156,6 @@
   "textsCustomized": "Own wording: {languages}",
   "textsBuiltIn": "Built-in wording",
   "textsLanguage": "Language of the text",
-  "more": "More"
+  "more": "More",
+  "notificationsShort": "Alerts"
 }

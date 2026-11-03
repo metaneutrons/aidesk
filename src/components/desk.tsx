@@ -854,7 +854,14 @@ export function Desk({
                 }}
               >
                 <item.icon size={18} />
-                {t(item.view)}
+                {item.view === "notifications" ? (
+                  <>
+                    <span className="label-full">{t(item.view)}</span>
+                    <span className="label-short">{t("notificationsShort")}</span>
+                  </>
+                ) : (
+                  t(item.view)
+                )}
                 {item.view === "overdue" && sum("overdue") > 0 && (
                   <span className="nav-count">{sum("overdue")}</span>
                 )}
