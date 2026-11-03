@@ -36,6 +36,7 @@ const status = (changes: Record<string, unknown> = {}) => ({
   updaterVersion: "0.1.0",
   updaterUpdateAvailable: true,
   updaterSelfUpdateEnabled: true,
+  managedBy: null,
   updateMode: "manual",
   maintenanceTime: "02:00",
   timezone: "Europe/Berlin",
@@ -73,11 +74,20 @@ function handle(request: IncomingMessage, response: ServerResponse) {
     else json(404, { error: "not_found" })(response);
   });
 }
-const original = { token: process.env.UPDATER_TOKEN, url: process.env.UPDATER_URL };
-function use(values: { token?: string | undefined; url?: string | undefined }) {
+const original = {
+  token: process.env.UPDATER_TOKEN,
+  url: process.env.UPDATER_URL,
+  coolify: process.env.COOLIFY_RESOURCE_UUID,
+};
+function use(values: {
+  token?: string | undefined;
+  url?: string | undefined;
+  coolify?: string | undefined;
+}) {
   for (const [name, value] of [
     ["UPDATER_TOKEN", values.token],
     ["UPDATER_URL", values.url],
+    ["COOLIFY_RESOURCE_UUID", values.coolify],
   ] as const) {
     if (value === undefined) Reflect.deleteProperty(process.env, name);
     else process.env[name] = value;
@@ -102,7 +112,7 @@ beforeEach(() => {
   use({ token, url: address() });
 });
 afterEach(() => {
-  use({ token: original.token, url: original.url });
+  use({ token: original.token, url: original.url, coolify: original.coolify });
 });
 afterAll(async () => {
   await new Promise((resolve) => updater.close(resolve));
@@ -113,32 +123,60 @@ describe("the status", () => {
   it("passes the token and shows what the updater reports, in the shape of its definition", async () => {
     answers["GET /v1/status"] = json(200, status());
     const updates = await updateStatus(owner);
-    expect(updatesOut.parse(updates)).toEqual({ availability: "ok", status: status() });
+    expect(updatesOut.parse(updates)).toEqual({
+      availability: "ok",
+      status: status(),
+      managedBy: null,
+    });
     expect(seen).toEqual([
       { method: "GET", url: "/v1/status", authorization: `Bearer ${token}`, body: "" },
     ]);
   });
   it("says that there is no updater when no token is set, and asks nobody", async () => {
     use({ token: undefined, url: address() });
-    expect(await updateStatus(owner)).toEqual({ availability: "not-configured", status: null });
-    expect(await checkUpdates(owner)).toEqual({ availability: "not-configured", status: null });
+    expect(await updateStatus(owner)).toEqual({
+      availability: "not-configured",
+      status: null,
+      managedBy: null,
+    });
+    expect(await checkUpdates(owner)).toEqual({
+      availability: "not-configured",
+      status: null,
+      managedBy: null,
+    });
     expect(seen).toEqual([]);
   });
   it("says that the token is not the updater's when it answers 401", async () => {
     answers["GET /v1/status"] = json(401, { error: "unauthorized" });
-    expect(await updateStatus(owner)).toEqual({ availability: "unauthorized", status: null });
+    expect(await updateStatus(owner)).toEqual({
+      availability: "unauthorized",
+      status: null,
+      managedBy: null,
+    });
   });
   it("says that the updater does not answer when nothing listens, and when something else does", async () => {
     use({ token, url: "http://127.0.0.1:1" });
-    expect(await updateStatus(owner)).toEqual({ availability: "unreachable", status: null });
+    expect(await updateStatus(owner)).toEqual({
+      availability: "unreachable",
+      status: null,
+      managedBy: null,
+    });
     use({ token, url: address() });
     answers["GET /v1/status"] = json(200, { hello: "another service" });
-    expect(await updateStatus(owner)).toEqual({ availability: "unreachable", status: null });
+    expect(await updateStatus(owner)).toEqual({
+      availability: "unreachable",
+      status: null,
+      managedBy: null,
+    });
     answers["GET /v1/status"] = (response) => {
       response.writeHead(200, { "content-type": "text/html" });
       response.end("<html></html>");
     };
-    expect(await updateStatus(owner)).toEqual({ availability: "unreachable", status: null });
+    expect(await updateStatus(owner)).toEqual({
+      availability: "unreachable",
+      status: null,
+      managedBy: null,
+    });
   });
   it("does not follow a redirect, so that the token goes to the updater and nowhere else", async () => {
     const elsewhere: Seen[] = [];
@@ -157,7 +195,11 @@ describe("the status", () => {
       response.writeHead(302, { location: target });
       response.end();
     };
-    expect(await updateStatus(owner)).toEqual({ availability: "unreachable", status: null });
+    expect(await updateStatus(owner)).toEqual({
+      availability: "unreachable",
+      status: null,
+      managedBy: null,
+    });
     await new Promise((resolve) => other.close(resolve));
     expect(elsewhere).toEqual([]);
   });
@@ -272,6 +314,56 @@ describe("the maintenance window", () => {
     answers["POST /v1/config"] = json(409, { error: "operation_in_progress" });
     await expect(setUpdateSchedule(owner, input)).rejects.toThrow();
     expect(await entries("updates.schedule")).toEqual([]);
+  });
+});
+describe("a platform that deploys the installation itself", () => {
+  const coolify = `coolify-app-${run}`;
+  const input = { mode: "automatic", maintenanceTime: "03:30", timezone: "Europe/Berlin" };
+  it("is recognised by the environment of the application, even with a token, and asks nobody", async () => {
+    use({ token, url: address(), coolify });
+    answers["GET /v1/status"] = json(200, status());
+    const expected = { availability: "not-configured", status: null, managedBy: "coolify" };
+    expect(updatesOut.parse(await updateStatus(owner))).toEqual(expected);
+    expect(await checkUpdates(owner)).toEqual(expected);
+    expect(seen).toEqual([]);
+  });
+  it("offers neither an installation nor a maintenance window", async () => {
+    use({ token, url: address(), coolify });
+    answers["GET /v1/status"] = json(200, status());
+    await expect(applyUpdate(owner)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    await expect(setUpdateSchedule(owner, input)).rejects.toMatchObject({
+      code: "conflict",
+      status: 409,
+    });
+    expect(seen).toEqual([]);
+    expect(await entries("updates.apply")).toEqual([]);
+    expect(await entries("updates.schedule")).toEqual([]);
+  });
+  it("is not assumed from an empty variable or from its absence", async () => {
+    use({ token, url: address(), coolify: "" });
+    answers["GET /v1/status"] = json(200, status());
+    expect((await updateStatus(owner)).managedBy).toBeNull();
+    expect(seen).toHaveLength(1);
+  });
+  it("is shown when the updater found it, and no installation is started then", async () => {
+    answers["GET /v1/status"] = json(200, status({ managedBy: "coolify", updateAvailable: true }));
+    const updates = await updateStatus(owner);
+    expect(updatesOut.parse(updates)).toMatchObject({ availability: "ok", managedBy: "coolify" });
+    expect(updates.status?.managedBy).toBe("coolify");
+    seen = [];
+    await expect(applyUpdate(owner)).rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect(seen.some((entry) => entry.url === "/v1/apply")).toBe(false);
+  });
+  it("is told to the person who is not the owner nowhere: they are refused first", async () => {
+    use({ token, url: address(), coolify });
+    const plain: Principal = { ...owner, id: `updates-person-${run}`, owner: false };
+    await expect(updateStatus(plain)).rejects.toMatchObject({ status: 403 });
+  });
+  it("accepts an updater that does not report the platform yet", async () => {
+    const old: Record<string, unknown> = status();
+    Reflect.deleteProperty(old, "managedBy");
+    answers["GET /v1/status"] = json(200, old);
+    expect(await updateStatus(owner)).toMatchObject({ availability: "ok", managedBy: null });
   });
 });
 describe("who may ask", () => {

@@ -2419,7 +2419,7 @@ export const routes: Route[] = [
     path: "/workspace/updates",
     tag: "Workspace",
     summary:
-      "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Nothing is changed",
+      "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Where Coolify runs the installation, `managedBy` is `coolify`, no updater is asked, and nothing can be installed or scheduled: it is updated there by deploying again. Nothing is changed",
     access: "owner",
     response: updatesOut,
     run: ({ principal }) => updateStatus(principal),

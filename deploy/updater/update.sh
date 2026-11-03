@@ -121,6 +121,44 @@ service_container_id() {
     --filter "label=com.docker.compose.service=${1}" | head -n1
 }
 
+# Coolify deploys the product itself: it builds the containers from its own file and replaces them
+# on every deployment, so an update made here would be undone by the next one. It labels every
+# container of an application with coolify.managed=true and names the Compose project after the
+# application, not after COMPOSE_PROJECT. So the labels of this updater's own container and of the
+# containers of the project are looked at. Other containers of the host do not count: a host that
+# runs Coolify for other applications can still have a Compose installation of its own.
+# Prints the platform ("coolify") or nothing.
+managed_platform() {
+  local own project
+  own="$(docker inspect --format '{{index .Config.Labels "coolify.managed"}}' "${HOSTNAME:-}" 2>/dev/null)" || own=""
+  project="$(docker ps --all --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+    --format '{{.Label "coolify.managed"}}' 2>/dev/null)" || project=""
+  if printf '%s\n%s\n' "$own" "$project" | grep -Fxq true; then
+    printf 'coolify\n'
+  fi
+}
+
+# Whether this installation can be updated here at all. Nothing is pulled, backed up or replaced
+# before this has said yes. The reason of a refusal is left in REFUSAL.
+REFUSAL=""
+check_platform() {
+  local containers
+  REFUSAL=""
+  if [[ "$(managed_platform)" == "coolify" ]]; then
+    REFUSAL="this installation is run by Coolify, which replaces the containers on every deployment and would undo an update made here; update it in Coolify by deploying again, and do not run the updater there"
+    return 1
+  fi
+  if ! containers="$(docker ps --all --quiet \
+      --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" 2>/dev/null)"; then
+    REFUSAL="could not list the containers; the Docker socket must be mounted into the updater"
+    return 1
+  fi
+  if [[ -z "$containers" ]]; then
+    REFUSAL="no container of the Compose project \"${COMPOSE_PROJECT}\" exists; COMPOSE_PROJECT must be the project name of this installation (docker compose ls shows it)"
+    return 1
+  fi
+}
+
 github_curl() {
   local -a headers=(
     -H "Accept: application/vnd.github+json"
@@ -511,6 +549,14 @@ schedule_updater_swap() {
 
 update_once() {
   local tag candidate current
+  # Before anything is asked of the network or the daemon: an installation that this updater
+  # must not touch is refused with the reason, and the journal says so.
+  PHASE_STARTED_AT="${PHASE_STARTED_AT:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}"
+  if ! check_platform; then
+    die "$REFUSAL" || true
+    set_phase "failed" "$REFUSAL"
+    return 1
+  fi
   if [[ -n "$TARGET_VERSION" ]]; then
     if [[ ! "$TARGET_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       die "target version is invalid"
@@ -570,6 +616,9 @@ main() {
     update_once
     return
   fi
+  # Watching for releases on an installation that must not be updated here would only fail every
+  # cycle: stop with the reason instead.
+  check_platform || { die "$REFUSAL"; return 1; }
 
   log "watching releases every ${POLL_INTERVAL_SECONDS}s"
   while true; do

@@ -4,7 +4,8 @@ import { z } from "zod";
 import { expect, openSettings, remote, test } from "./fixtures";
 // The updates in the settings, as the owner uses them, against the stand-in for the updater of the development stack
 // (scripts/updater-stub.mjs): the version and the release, an update step by step with the restart of the desk in the
-// middle, one that is put back, the maintenance window, and what the page says when there is no updater. The stand-in
+// middle, one that is put back, the maintenance window, what the page says when there is no updater, and what it says
+// when Coolify runs the installation. The stand-in
 // is one process for the whole installation, so one browser runs this and the tests follow each other.
 test.describe.configure({ mode: "serial" });
 test.skip(remote, "The stand-in for the updater belongs to the development stack.");
@@ -221,4 +222,70 @@ test("says what is wrong when there is no updater, when it does not answer and w
     expect((await scan(page)).violations.map((violation) => violation.id)).toEqual([]);
     await page.unroute("**/api/v1/workspace/updates");
   }
+});
+test("says that Coolify runs the installation and offers no check, no installation and no schedule", async ({
+  page,
+  signIn,
+  baseURL,
+}) => {
+  await signIn();
+  // The updater found the labels of Coolify and reports it: the status is there, the page offers nothing of it.
+  expect((await page.request.post(`${stub}/status`, { data: { managedBy: "coolify" } })).ok()).toBe(
+    true,
+  );
+  await page.goto("/");
+  await openSettings(page, "Updates");
+  const updates = section(page);
+  await expect(updates).toContainText("This installation is run by Coolify");
+  await expect(updates).toContainText("by deploying the application again");
+  await expect(updates.getByRole("button")).toHaveCount(0);
+  await expect(updates.getByRole("radio")).toHaveCount(0);
+  await expect(value(page, "Installed")).toHaveCount(0);
+  expect((await scan(page)).violations.map((violation) => violation.id)).toEqual([]);
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect((await scan(page)).violations.map((violation) => violation.id)).toEqual([]);
+  // The API says the same and refuses to install or to schedule, although a release is waiting.
+  const read = (await (await page.request.get("/api/v1/workspace/updates")).json()) as {
+    managedBy: string;
+    status: { updateAvailable: boolean };
+  };
+  expect(read.managedBy).toBe("coolify");
+  expect(read.status.updateAvailable).toBe(true);
+  const headers = { origin: baseURL ?? "" };
+  const count = async () =>
+    z
+      .object({ entries: z.array(z.object({ action: z.string() })) })
+      .parse(await (await page.request.get("/api/v1/audit?action=updates.")).json()).entries.length;
+  const before = await count();
+  expect((await page.request.post("/api/v1/workspace/updates/apply", { headers })).status()).toBe(
+    409,
+  );
+  expect(
+    (
+      await page.request.put("/api/v1/workspace/updates/schedule", {
+        headers,
+        data: { mode: "automatic", maintenanceTime: "03:00", timezone: "UTC" },
+      })
+    ).status(),
+  ).toBe(409);
+  // Nothing was written down as an installation or a schedule by these two requests.
+  expect(await count()).toBe(before);
+  // Without the updater being asked at all: the application knows it from its own environment.
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.route("**/api/v1/workspace/updates", (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({
+          json: { availability: "not-configured", status: null, managedBy: "coolify" },
+        })
+      : route.continue(),
+  );
+  await page.goto("/");
+  await openSettings(page, "Updates");
+  await expect(section(page)).toContainText("This installation is run by Coolify");
+  await expect(section(page)).not.toContainText("has no updater");
+  await expect(section(page).getByRole("button")).toHaveCount(0);
+  expect((await scan(page)).violations.map((violation) => violation.id)).toEqual([]);
+  await page.emulateMedia({ colorScheme: "dark" });
+  expect((await scan(page)).violations.map((violation) => violation.id)).toEqual([]);
+  await page.unroute("**/api/v1/workspace/updates");
 });

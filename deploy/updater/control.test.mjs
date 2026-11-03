@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
@@ -10,8 +10,27 @@ process.env.UPDATER_TOKEN = "a".repeat(64);
 const testDirectory = mkdtempSync(join(tmpdir(), "aidesk-updater-control-"));
 const progressFile = join(testDirectory, "progress.json");
 process.env.PROGRESS_FILE = progressFile;
+process.env.CONTROL_PORT = "0";
+// A `docker` that answers from the environment, so that the real control API and the real commands run without a daemon. It
+// writes down every call, which shows what was and was not asked of the daemon.
+const dockerLog = join(testDirectory, "docker.log");
+writeFileSync(
+  join(testDirectory, "docker"),
+  `#!/bin/sh
+printf '%s\\n' "$*" >>"${dockerLog}"
+case "$1" in
+  inspect) case "$*" in *coolify.managed*) printf '%s\\n' "$FAKE_OWN_LABEL" ;; esac ;;
+  ps) case "$*" in *--format*coolify.managed*) printf '%s\\n' "$FAKE_PROJECT_LABELS" ;; *--format*) ;; *) printf 'abc123\\n' ;; esac ;;
+esac
+`
+);
+chmodSync(join(testDirectory, "docker"), 0o755);
+process.env.PATH = `${testDirectory}:${process.env.PATH}`;
 after(() => rmSync(testDirectory, { recursive: true, force: true }));
 const {
+  apply,
+  check,
+  detectManagedBy,
   equalToken,
   fetchReleaseVersion,
   latestReleaseTag,
@@ -21,6 +40,8 @@ const {
   releaseDecision,
   retryAtFromHeaders,
   startProgressJournal,
+  startServer,
+  status,
   validateConfig,
   zonedClock,
 } = await import("./control.mjs");
@@ -196,4 +217,127 @@ test("honors GitHub rate-limit reset metadata without busy retrying", async () =
     (error) => error?.code === "rate-limited" && error?.retryAt === retryAt
   );
   assert.equal(attempts, 1);
+});
+
+// Coolify labels every container of an application with coolify.managed=true and names the Compose project after the
+// application. The labels are the answer of the daemon; what is asked, and what is made of the answer, is tested here.
+test("recognises Coolify by the label of the own container or of a container of the project", async () => {
+  const asked = [];
+  const answers = (own, project) => async (_name, args) => {
+    asked.push(args);
+    return args[0] === "inspect" ? own : project;
+  };
+  assert.equal(await detectManagedBy(answers("true", "")), "coolify");
+  assert.equal(await detectManagedBy(answers("", "true\ntrue")), "coolify");
+  assert.equal(await detectManagedBy(answers("", "\ntrue")), "coolify");
+  // No labels, other values, and a label of something else: not managed.
+  assert.equal(await detectManagedBy(answers("", "")), null);
+  assert.equal(await detectManagedBy(answers("false", "\n\n")), null);
+  assert.equal(await detectManagedBy(answers("", "truely")), null);
+  // A daemon that cannot be asked is not a sign of Coolify.
+  assert.equal(
+    await detectManagedBy(async () => {
+      throw new Error("no daemon");
+    }),
+    null
+  );
+  // Only the project of the installation is asked about, never the whole host.
+  assert.ok(asked.some((args) => args[0] === "inspect" && args.join(" ").includes("coolify.managed")));
+  const lists = asked.filter((args) => args[0] === "ps");
+  for (const args of lists) assert.ok(args.join(" ").includes("coolify.managed"));
+  assert.ok(lists.length > 0);
+  for (const args of lists) assert.ok(args.includes("label=com.docker.compose.project=aidesk"));
+});
+
+test("refuses to check and to install under Coolify without asking for a release or touching a container", async () => {
+  const requests = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    throw new Error("the release API must not be asked");
+  };
+  try {
+    writeFileSync(dockerLog, "");
+    rmSync(progressFile, { force: true });
+    process.env.FAKE_OWN_LABEL = "";
+    process.env.FAKE_PROJECT_LABELS = "true\ntrue";
+    await check();
+    assert.equal(status.managedBy, "coolify");
+    assert.equal(status.state, "failed");
+    assert.equal(status.updateAvailable, false);
+    assert.match(status.lastError, /Coolify/);
+    assert.equal(publicStatus().managedBy, "coolify");
+    // An update that was possible before the labels were seen is refused when it is started.
+    Object.assign(status, {
+      state: "available",
+      updateAvailable: true,
+      availableVersion: "v9.9.9",
+      lastError: null,
+      managedBy: null,
+    });
+    assert.equal(await apply(), true);
+    assert.equal(status.state, "failed");
+    assert.equal(status.managedBy, "coolify");
+    assert.match(status.lastError, /Coolify/);
+    assert.deepEqual(requests, []);
+    // Only labels were read: no image, no exec, no compose.
+    const calls = readFileSync(dockerLog, "utf8").trim().split("\n");
+    assert.ok(calls.every((call) => /^(inspect|ps) /.test(call)), calls.join("\n"));
+    // No journal of an update was started.
+    assert.throws(() => readFileSync(progressFile, "utf8"), { code: "ENOENT" });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("lets an installation without the labels through to the release check and the update", async () => {
+  process.env.FAKE_OWN_LABEL = "";
+  process.env.FAKE_PROJECT_LABELS = "";
+  Object.assign(status, {
+    state: "available",
+    updateAvailable: true,
+    availableVersion: "v9.9.9",
+    lastError: null,
+    managedBy: "coolify",
+  });
+  // The command of the worker does not exist here, so the update fails for its own reason, not for Coolify.
+  assert.equal(await apply(), true);
+  assert.equal(status.state, "failed");
+  assert.doesNotMatch(status.lastError ?? "", /Coolify/);
+  assert.equal(JSON.parse(readFileSync(progressFile, "utf8")).phase, "verifying");
+});
+
+test("answers the control API with managedBy and refuses to install or to schedule under Coolify", async () => {
+  process.env.FAKE_OWN_LABEL = "true";
+  process.env.FAKE_PROJECT_LABELS = "";
+  const server = startServer();
+  await new Promise((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const ask = (path, method = "GET", body) =>
+    fetch(`${base}${path}`, {
+      method,
+      headers: { authorization: `Bearer ${"a".repeat(64)}`, "content-type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  try {
+    await check();
+    const reported = await (await ask("/v1/status")).json();
+    assert.equal(reported.managedBy, "coolify");
+    assert.match(reported.lastError, /Coolify/);
+    writeFileSync(dockerLog, "");
+    const apply = await ask("/v1/apply", "POST");
+    assert.equal(apply.status, 409);
+    assert.equal((await apply.json()).error, "managed_by_platform");
+    const schedule = await ask("/v1/config", "POST", {
+      mode: "automatic",
+      maintenanceTime: "03:00",
+      timezone: "UTC",
+    });
+    assert.equal(schedule.status, 409);
+    assert.equal(readFileSync(dockerLog, "utf8"), "");
+    // Not without the token.
+    assert.equal((await fetch(`${base}/v1/status`)).status, 401);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

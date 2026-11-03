@@ -63,6 +63,12 @@ const schema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  // Set by Coolify in the containers of an application that it deploys itself. Such an installation is updated by
+  // deploying it again there, and the updates of the settings do not apply (see src/server/updates.ts).
+  COOLIFY_RESOURCE_UUID: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().optional(),
+  ),
 });
 let cached: z.infer<typeof schema> | undefined;
 // The values are read once; a test that changes the environment reads them again.
