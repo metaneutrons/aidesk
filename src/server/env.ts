@@ -52,6 +52,17 @@ const schema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  // The updater of a Compose installation (profile `updater` of compose.production.yaml), which the owner talks to on the
+  // settings page. Without a token there is no updater and the page says so; the address is the service of the same
+  // project. The token is the one the updater was started with. An empty value is none.
+  UPDATER_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url().default("http://updater:8080"),
+  ),
+  UPDATER_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
 });
 let cached: z.infer<typeof schema> | undefined;
 // The values are read once; a test that changes the environment reads them again.

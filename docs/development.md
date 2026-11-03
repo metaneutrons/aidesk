@@ -1994,6 +1994,29 @@ under the previous encryption key stay valid while it is set, and end when it is
 customer who holds it. Better Auth reads the owner's authenticator with the versioned secrets (`secrets`) and the oldest secret
 for values that carry no version.
 
+## Updates of a Compose installation
+
+The owner opens "Updates" in the settings. The page shows the version that runs, the latest release, the steps of an update that is
+under way and the maintenance window. The work is done by the updater of the profile `updater` in `compose.production.yaml`
+(`deploy/updater`); the product asks it through `UPDATER_URL` (default `http://updater:8080`) with `UPDATER_TOKEN`, the token the
+updater was started with. Without a token the page says that there is no updater, and with a token the updater does not answer or
+refuses, it says that too. The token never reaches the browser.
+
+- `GET /api/v1/workspace/updates` is the status. `POST .../check` asks the updater to look for a release now. `POST .../apply`
+  installs the release that the updater found (the version is the updater's to name, so the page cannot ask for another one); it is
+  refused with 409 when nothing is waiting or an operation runs. `PUT .../schedule` sets the maintenance window (`manual` or
+  `automatic`, a time of day and a time zone); it is refused with 409 while an operation runs. All four are for the owner only.
+- `apply` and `schedule` are entries of the audit of the workspace (`updates.apply` with the version that ran and the one that was
+  installed, `updates.schedule` with the values). Nothing of the token is in them.
+- While the containers are replaced the product does not answer for a short time. The page keeps asking every two seconds, says
+  that the desk restarts, and loads itself again when the update is done.
+
+The development stack has no images to install, so `scripts/updater-stub.mjs` (the service `updater-stub`, published on
+`127.0.0.1:8099`) answers like the control API with a version that does not really change. `POST /__stub/reset` sets it back,
+`POST /__stub/scenario` with `{"outcome":"success"|"rollback","stepMs":600}` chooses how the next update ends and how long each
+step takes. Its token is `UPDATER_TOKEN` of `.env.development`, which `scripts/dev.sh` adds when it is missing. The tests are
+`tests/updates.test.ts` (the way to the updater, against a server of the test) and `tests/e2e/updates.spec.ts` (the page).
+
 ## Retention
 
 A project can limit how long it keeps what it holds. Every period is **off** (null, kept for good) until the project sets
