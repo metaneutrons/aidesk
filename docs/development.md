@@ -2008,13 +2008,26 @@ refuses, it says that too. The token never reaches the browser.
   `automatic`, a time of day and a time zone); it is refused with 409 while an operation runs. All four are for the owner only.
 - `apply` and `schedule` are entries of the audit of the workspace (`updates.apply` with the version that ran and the one that was
   installed, `updates.schedule` with the values). Nothing of the token is in them.
+- Where Coolify runs the installation, the updates of the settings do not apply. Coolify builds the containers from
+  `compose.coolify.yaml` and replaces them on every deployment, so an update made by the updater would be undone by the next
+  deployment, and the page says so instead: this installation is run by Coolify, update it there by deploying again. It offers
+  no check, no installation and no maintenance window, and `managedBy` of the status is `coolify`. Two signs are read, and
+  nothing else. The application recognises Coolify by `COOLIFY_RESOURCE_UUID`, which Coolify sets in the containers of an
+  application; then no updater is asked, also when `UPDATER_TOKEN` is set, and `apply` and `schedule` are refused with 409. The
+  updater recognises it by the label `coolify.managed=true` on its own container or on a container of `COMPOSE_PROJECT` (on
+  Coolify the project is named after the application, so the own container is the one that shows it). It then refuses, before it
+  asks for a release, pulls an image, backs up the database or touches a container: the phase is `failed` with a message that
+  names Coolify, and the control API reports `managedBy: "coolify"`. A host that runs Coolify for other applications is not
+  Coolify's installation: only the containers of the project count. Other platforms that deploy the product themselves are not
+  recognised. An updater that finds no container of its `COMPOSE_PROJECT` at all says so (the project name is wrong) and does not
+  report a missing database.
 - While the containers are replaced the product does not answer for a short time. The page keeps asking every two seconds, says
   that the desk restarts, and loads itself again when the update is done.
 
 The development stack has no images to install, so `scripts/updater-stub.mjs` (the service `updater-stub`, published on
 `127.0.0.1:8099`) answers like the control API with a version that does not really change. `POST /__stub/reset` sets it back,
 `POST /__stub/scenario` with `{"outcome":"success"|"rollback","stepMs":600}` chooses how the next update ends and how long each
-step takes. Its token is `UPDATER_TOKEN` of `.env.development`, which `scripts/dev.sh` adds when it is missing. The tests are
+step takes, and `POST /__stub/status` with `{"managedBy":"coolify"}` makes it report a platform that deploys the product itself. Its token is `UPDATER_TOKEN` of `.env.development`, which `scripts/dev.sh` adds when it is missing. The tests are
 `tests/updates.test.ts` (the way to the updater, against a server of the test) and `tests/e2e/updates.spec.ts` (the page).
 
 ## Retention

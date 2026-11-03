@@ -1130,6 +1130,7 @@
   "updatesTitle": "Updates",
   "updatesHint": "Der Updater der Compose-Installation spielt ein neues Release ein: Er prüft die Signatur des Images, sichert die Datenbank, ersetzt Webserver und Worker und stellt die vorige Version wieder her, wenn die neue nicht startet.",
   "updatesNotConfigured": "Diese Installation hat keinen Updater. Der Updater ist der Dienst mit dem Profil updater in compose.production.yaml; setze UPDATER_TOKEN für ihn und für die Anwendung. Installationen auf einer anderen Plattform werden dort aktualisiert, wo sie bereitgestellt sind.",
+  "updatesManagedByCoolify": "Diese Installation wird von Coolify betrieben. Aktualisiere sie dort, indem du die Anwendung erneut bereitstellst. Der Updater funktioniert unter Coolify nicht, daher bietet diese Seite weder eine Prüfung noch eine Installation noch ein Wartungsfenster.",
   "updatesUnreachable": "Der Updater antwortet nicht. Prüfe, ob sein Container läuft und UPDATER_URL auf ihn zeigt.",
   "updatesUnauthorized": "Der Updater hat das Token abgelehnt. UPDATER_TOKEN muss für die Anwendung und den Updater gleich sein.",
   "updatesVersion": "Version",

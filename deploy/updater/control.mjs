@@ -118,6 +118,8 @@ const status = {
   updaterVersion,
   updaterUpdateAvailable: false,
   updaterSelfUpdateEnabled,
+  // The platform that runs the containers and replaces them itself ("coolify"), or null.
+  managedBy: null,
 };
 let active = false;
 
@@ -315,6 +317,52 @@ async function currentVersion() {
     image,
   ]);
 }
+// Coolify deploys the product itself and replaces its containers on every deployment, so an update made here would be undone.
+// It labels every container of an application with coolify.managed=true and names the Compose project after the application,
+// so the labels of this updater's own container and of the containers of COMPOSE_PROJECT are read (update.sh does the same).
+// The other containers of the host do not count. A daemon that cannot be asked counts as not managed: the steps that follow
+// need it and fail with their own message.
+const MANAGED_MESSAGES = {
+  coolify:
+    "This installation is run by Coolify, which replaces the containers on every deployment and would undo an update made here. Update it in Coolify by deploying again, and do not run the updater there.",
+};
+async function detectManagedBy(run = command) {
+  const quiet = { quietStderr: true };
+  const labels = await Promise.all([
+    run(
+      "docker",
+      ["inspect", "--format", '{{index .Config.Labels "coolify.managed"}}', process.env.HOSTNAME ?? ""],
+      quiet
+    ).catch(() => ""),
+    run(
+      "docker",
+      [
+        "ps",
+        "--all",
+        "--filter",
+        `label=com.docker.compose.project=${composeProject}`,
+        "--format",
+        '{{.Label "coolify.managed"}}',
+      ],
+      quiet
+    ).catch(() => ""),
+  ]);
+  return labels
+    .join("\n")
+    .split("\n")
+    .some((line) => line.trim() === "true")
+    ? "coolify"
+    : null;
+}
+// The status of an installation that must not be updated here: nothing was asked of the release API.
+function markManaged(managedBy) {
+  clearReleaseCheckRetry();
+  status.managedBy = managedBy;
+  status.updateAvailable = false;
+  status.state = "failed";
+  status.lastError = MANAGED_MESSAGES[managedBy];
+}
+
 const RELEASE_CHECK_ATTEMPTS = 3;
 const RELEASE_CHECK_DELAYS_MS = [500, 1_500];
 const INLINE_RATE_LIMIT_WAIT_MS = 5_000;
@@ -439,6 +487,12 @@ async function check() {
   status.state = "checking";
   status.lastCheckAttemptAt = new Date().toISOString();
   try {
+    const managedBy = await detectManagedBy();
+    if (managedBy) {
+      markManaged(managedBy);
+      return;
+    }
+    status.managedBy = null;
     const [current, available] = await Promise.all([currentVersion(), fetchReleaseVersion()]);
     status.lastError = null;
     status.currentVersion = current || null;
@@ -485,6 +539,12 @@ async function apply() {
   status.state = "updating";
   status.lastError = null;
   try {
+    // Looked at again, not taken from the last check: the labels are the truth at the moment of the replacement.
+    const managedBy = await detectManagedBy();
+    if (managedBy) {
+      markManaged(managedBy);
+      return true;
+    }
     const targetVersion = status.availableVersion;
     startProgressJournal(targetVersion);
     // The release was resolved and checked above. The worker is given exactly that one, so an
@@ -559,6 +619,8 @@ function startServer() {
       if (request.method === "POST" && request.url === "/v1/apply") {
         if (active)
           return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+        if (status.managedBy)
+          return send(response, 409, { error: "managed_by_platform", status: publicStatus() });
         if (!status.updateAvailable) return send(response, 200, publicStatus());
         void apply();
         return send(response, 202, publicStatus());
@@ -566,6 +628,8 @@ function startServer() {
       if (request.method === "POST" && request.url === "/v1/config") {
         if (active)
           return send(response, 409, { error: "operation_in_progress", status: publicStatus() });
+        if (status.managedBy)
+          return send(response, 409, { error: "managed_by_platform", status: publicStatus() });
         const input = await readJson(request);
         if (!validateConfig(input)) return send(response, 400, { error: "invalid_config" });
         config = {
@@ -602,6 +666,9 @@ if (process.env.AIDESK_UPDATER_TEST !== "true") {
 }
 
 export {
+  apply,
+  check,
+  detectManagedBy,
   equalToken,
   fetchReleaseVersion,
   latestReleaseTag,
@@ -611,6 +678,8 @@ export {
   releaseDecision,
   retryAtFromHeaders,
   startProgressJournal,
+  startServer,
+  status,
   validateConfig,
   zonedClock,
 };

@@ -23,6 +23,8 @@ const initial = () => ({
   updaterVersion: "0.1.0",
   updaterUpdateAvailable: true,
   updaterSelfUpdateEnabled: true,
+  // POST /__stub/status {"managedBy":"coolify"} makes it report, and refuse, like an updater that found Coolify.
+  managedBy: null,
   updateMode: "manual",
   maintenanceTime: "02:00",
   timezone: "UTC",
@@ -154,6 +156,8 @@ createServer(async (request, response) => {
     );
     return send(response, 202, { ...status });
   }
+  if (status.managedBy && request.method === "POST" && ["/v1/apply", "/v1/config"].includes(request.url))
+    return send(response, 409, { error: "managed_by_platform", status: body });
   if (request.method === "POST" && request.url === "/v1/apply") {
     if (running) return send(response, 409, { error: "operation_in_progress", status: body });
     if (!status.updateAvailable) return send(response, 200, body);

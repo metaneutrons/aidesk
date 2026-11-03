@@ -26,6 +26,7 @@ const statusSchema = z.object({
   releaseCheckStatus: z.enum(["ok", "degraded"]),
   releaseCheckError: z.string().nullable(),
   updaterVersion: z.string().nullable(),
+  managedBy: z.enum(["coolify"]).nullable().default(null),
   updateMode: z.enum(["manual", "automatic"]),
   maintenanceTime: z.string(),
   timezone: z.string(),
@@ -47,6 +48,7 @@ const statusSchema = z.object({
 const updatesSchema = z.object({
   availability: z.enum(["not-configured", "unreachable", "unauthorized", "ok"]),
   status: statusSchema.nullable(),
+  managedBy: z.enum(["coolify"]).nullable().default(null),
 });
 type Updates = z.infer<typeof updatesSchema>;
 type Status = z.infer<typeof statusSchema>;
@@ -140,6 +142,16 @@ export function UpdatesPanel({ locale }: { locale: string }) {
       unauthorized: "updatesUnauthorized",
       ok: "",
     })[kind];
+  // A platform that deploys the installation itself is where it is updated: nothing here checks, installs or schedules.
+  if (updates.managedBy)
+    return (
+      <section className="connections updates" aria-labelledby={`${titleId}-title`}>
+        <h3 id={`${titleId}-title`}>{t("updatesTitle")}</h3>
+        <p className="muted" data-managed-by={updates.managedBy}>
+          {t("updatesManagedByCoolify")}
+        </p>
+      </section>
+    );
   if (status === null)
     return (
       <section className="connections updates" aria-labelledby={`${titleId}-title`}>

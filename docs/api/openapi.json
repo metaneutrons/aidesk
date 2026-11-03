@@ -20058,7 +20058,7 @@
         "tags": [
           "Workspace"
         ],
-        "summary": "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Nothing is changed",
+        "summary": "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Where Coolify runs the installation, `managedBy` is `coolify`, no updater is asked, and nothing can be installed or scheduled: it is updated there by deploying again. Nothing is changed",
         "x-required-access": "owner",
         "parameters": [],
         "responses": {
@@ -20157,6 +20157,20 @@
                             },
                             "updaterSelfUpdateEnabled": {
                               "type": "boolean"
+                            },
+                            "managedBy": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coolify"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "updateMode": {
                               "type": "string",
@@ -20297,6 +20311,7 @@
                             "updaterVersion",
                             "updaterUpdateAvailable",
                             "updaterSelfUpdateEnabled",
+                            "managedBy",
                             "updateMode",
                             "maintenanceTime",
                             "timezone",
@@ -20309,11 +20324,25 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "managedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coolify"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "availability",
-                    "status"
+                    "status",
+                    "managedBy"
                   ],
                   "additionalProperties": false
                 }
@@ -20447,6 +20476,20 @@
                             "updaterSelfUpdateEnabled": {
                               "type": "boolean"
                             },
+                            "managedBy": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coolify"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "updateMode": {
                               "type": "string",
                               "enum": [
@@ -20586,6 +20629,7 @@
                             "updaterVersion",
                             "updaterUpdateAvailable",
                             "updaterSelfUpdateEnabled",
+                            "managedBy",
                             "updateMode",
                             "maintenanceTime",
                             "timezone",
@@ -20598,11 +20642,25 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "managedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coolify"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "availability",
-                    "status"
+                    "status",
+                    "managedBy"
                   ],
                   "additionalProperties": false
                 }
@@ -20736,6 +20794,20 @@
                             "updaterSelfUpdateEnabled": {
                               "type": "boolean"
                             },
+                            "managedBy": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coolify"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "updateMode": {
                               "type": "string",
                               "enum": [
@@ -20875,6 +20947,7 @@
                             "updaterVersion",
                             "updaterUpdateAvailable",
                             "updaterSelfUpdateEnabled",
+                            "managedBy",
                             "updateMode",
                             "maintenanceTime",
                             "timezone",
@@ -20887,11 +20960,25 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "managedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coolify"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "availability",
-                    "status"
+                    "status",
+                    "managedBy"
                   ],
                   "additionalProperties": false
                 }
@@ -21059,6 +21146,20 @@
                             "updaterSelfUpdateEnabled": {
                               "type": "boolean"
                             },
+                            "managedBy": {
+                              "default": null,
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coolify"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "updateMode": {
                               "type": "string",
                               "enum": [
@@ -21198,6 +21299,7 @@
                             "updaterVersion",
                             "updaterUpdateAvailable",
                             "updaterSelfUpdateEnabled",
+                            "managedBy",
                             "updateMode",
                             "maintenanceTime",
                             "timezone",
@@ -21210,11 +21312,25 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "managedBy": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coolify"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "availability",
-                    "status"
+                    "status",
+                    "managedBy"
                   ],
                   "additionalProperties": false
                 }

@@ -9,7 +9,8 @@ import { env } from "./env";
 // web server and the worker and puts the old image back if the new one does not become ready. This file is the way from
 // the settings page to its control API: the page never sees the token, and what the owner starts here is an entry of the
 // audit. The product does not know how an update is done; it asks, shows what the updater says and passes on what the
-// owner chooses.
+// owner chooses. Where a platform deploys the product itself (Coolify) the updates are made there, by deploying again: the
+// installation says so, asks no updater and offers nothing, even when a token is set.
 const phases = [
   "verifying",
   "backing-up",
@@ -19,6 +20,8 @@ const phases = [
   "rolling-back",
   "failed",
 ] as const;
+// The platforms that are recognised as the one that runs the installation. Only Coolify is; another platform is not.
+const platforms = ["coolify"] as const;
 const progressOut = z.object({
   phase: z.enum(phases),
   detail: z.string().nullable(),
@@ -44,6 +47,9 @@ export const updaterStatusOut = z.object({
   updaterVersion: z.string().nullable(),
   updaterUpdateAvailable: z.boolean(),
   updaterSelfUpdateEnabled: z.boolean(),
+  // The platform that the updater found to run the containers, which then refuses to work; an updater that does not look
+  // reports none.
+  managedBy: z.enum(platforms).nullable().default(null),
   updateMode: z.enum(["manual", "automatic"]),
   maintenanceTime: z.string(),
   timezone: z.string(),
@@ -59,8 +65,12 @@ export const updaterStatusOut = z.object({
 });
 export const updatesOut = z.object({
   // Without a token there is no updater; the others say what the product found when it asked.
+  // `not-configured` is also what a platform that runs the installation itself gets: no updater is asked.
   availability: z.enum(["not-configured", "unreachable", "unauthorized", "ok"]),
   status: updaterStatusOut.nullable(),
+  // The platform that deploys this installation, so that it is updated there: found by the product (environment of the
+  // application) or reported by the updater (labels of the containers). Then there is nothing to check, install or schedule.
+  managedBy: z.enum(platforms).nullable(),
 });
 export type Updates = z.infer<typeof updatesOut>;
 const validTimezone = (value: string) => {
@@ -111,7 +121,17 @@ async function call(path: string, method: "GET" | "POST", body?: unknown): Promi
   }
 }
 const configured = () => env().UPDATER_TOKEN !== undefined;
-const none = (availability: Updates["availability"]): Updates => ({ availability, status: null });
+// Coolify puts the uuid of the application into the environment of its containers. Nothing else is a sign of it here.
+const platform = (): Updates["managedBy"] =>
+  env().COOLIFY_RESOURCE_UUID === undefined ? null : "coolify";
+const none = (
+  availability: Updates["availability"],
+  managedBy: Updates["managedBy"] = null,
+): Updates => ({
+  availability,
+  status: null,
+  managedBy,
+});
 // The status in an answer: a request that was refused because another operation runs carries it as well.
 function statusOf(answer: Answer): Updates {
   if (answer.kind === "unauthorized") return none("unauthorized");
@@ -123,7 +143,9 @@ function statusOf(answer: Answer): Updates {
       : body,
   );
   // An answer that is not the control API's (another service at the address) counts as no answer.
-  return parsed.success ? { availability: "ok", status: parsed.data } : none("unreachable");
+  return parsed.success
+    ? { availability: "ok", status: parsed.data, managedBy: parsed.data.managedBy }
+    : none("unreachable");
 }
 const record = (principal: Principal, action: string, detail: Record<string, unknown>) =>
   db().insert(audit).values({
@@ -135,12 +157,14 @@ const record = (principal: Principal, action: string, detail: Record<string, unk
   });
 export async function updateStatus(principal: Principal): Promise<Updates> {
   owner(principal);
+  if (platform()) return none("not-configured", platform());
   if (!configured()) return none("not-configured");
   return statusOf(await call("/v1/status", "GET"));
 }
 // Asks the updater to look at the releases now; the result is read with the next status.
 export async function checkUpdates(principal: Principal): Promise<Updates> {
   owner(principal);
+  if (platform()) return none("not-configured", platform());
   if (!configured()) return none("not-configured");
   return statusOf(await call("/v1/check", "POST"));
 }
@@ -148,9 +172,10 @@ export async function checkUpdates(principal: Principal): Promise<Updates> {
 // waiting and nothing else is running: the version is the updater's to name, so that the page cannot ask for another one.
 export async function applyUpdate(principal: Principal): Promise<Updates> {
   owner(principal);
-  if (!configured()) throw new DomainError("conflict", 409);
+  if (platform() || !configured()) throw new DomainError("conflict", 409);
   const now = statusOf(await call("/v1/status", "GET"));
   if (now.status === null) throw new DomainError("source_unavailable", 502);
+  if (now.status.managedBy !== null) throw new DomainError("conflict", 409);
   if (!now.status.updateAvailable || ["updating", "checking"].includes(now.status.state))
     throw new DomainError("conflict", 409);
   const answer = await call("/v1/apply", "POST");
@@ -167,7 +192,7 @@ export async function applyUpdate(principal: Principal): Promise<Updates> {
 export async function setUpdateSchedule(principal: Principal, input: unknown): Promise<Updates> {
   owner(principal);
   const values = scheduleInput.parse(input);
-  if (!configured()) throw new DomainError("conflict", 409);
+  if (platform() || !configured()) throw new DomainError("conflict", 409);
   const answer = await call("/v1/config", "POST", values);
   if (answer.kind !== "answered") throw new DomainError("source_unavailable", 502);
   if (answer.code === 409) throw new DomainError("conflict", 409);

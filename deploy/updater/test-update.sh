@@ -147,6 +147,93 @@ refute backup_database v1.8.3
 assert test -z "$(ls -A "$BACKUP_DIR")"
 unset -f docker
 
+# ── Platform that deploys the product itself (Coolify) ────────────────
+# Coolify labels every container of an application with coolify.managed=true and names the Compose
+# project after the application. The labels of the own container and of the containers of the
+# project are read; the answer of the daemon is replaced here. Each case runs in its own shell,
+# because the settings of update.sh are readonly once it is sourced.
+export CALLS="${test_directory}/calls.log"
+platform_probe() {
+  # The body is single-quoted on purpose, those variables expand in the inner shell.
+  # shellcheck disable=SC2016
+  env COMPOSE_FILE="$COMPOSE_FILE" STACK_ENV_FILE="$STACK_ENV_FILE" HOST_STACK_DIR="$test_directory" \
+    PROGRESS_FILE="$PROGRESS_FILE" UPDATE_SH="$update_sh" UPDATE_ONCE="${ONCE:-true}" AUTO_UPDATE_UPDATER=false \
+    OWN="${OWN:-}" LABELS="${LABELS:-}" CONTAINERS="${CONTAINERS-abc123}" DOCKER_FAILS="${DOCKER_FAILS:-0}" \
+    CALLS="$CALLS" bash -c '
+    source "$UPDATE_SH"
+    docker() {
+      printf "%s\n" "$*" >>"$CALLS"
+      [[ "$DOCKER_FAILS" == "1" ]] && return 1
+      case "$1" in
+        inspect) case "$*" in *coolify.managed*) printf "%s\n" "$OWN" ;; esac ;;
+        ps) case "$*" in *--format*coolify.managed*) printf "%s\n" "$LABELS" ;; *--format*) ;; *) printf "%s" "$CONTAINERS" ;; esac ;;
+      esac
+    }
+    # What an update does after the platform is cleared: each step writes itself down.
+    latest_release_tag() { printf "step latest_release_tag\n" >>"$CALLS"; printf "v1.9.0\n"; }
+    current_version() { printf "1.8.1\n"; }
+    verify_image() { printf "step verify_image\n" >>"$CALLS"; }
+    backup_database() { printf "step backup_database\n" >>"$CALLS"; }
+    deploy_with_rollback() { printf "step deploy_with_rollback\n" >>"$CALLS"; }
+    schedule_updater_swap() { :; }
+    validate_config() { :; }
+    refusal() { check_platform || true; printf "%s" "$REFUSAL"; }
+    "$@"
+  ' _ "$@"
+}
+: >"$CALLS"
+assert test "$(OWN=true platform_probe managed_platform)" = coolify
+assert test "$(LABELS=$'\ntrue' platform_probe managed_platform)" = coolify
+assert test -z "$(OWN="" LABELS="" platform_probe managed_platform)"
+assert test -z "$(OWN=false LABELS=$'false\n' platform_probe managed_platform)"
+assert test -z "$(LABELS=truely platform_probe managed_platform)"
+# Only the project of the installation is asked about, never the whole host.
+assert grep -Fq 'ps --all --filter label=com.docker.compose.project=aidesk' "$CALLS"
+assert test -z "$(grep -E '^ps ' "$CALLS" | grep -v 'label=com.docker.compose.project=aidesk' || true)"
+# The refusal names Coolify; an installation without the labels and with its containers is let through.
+refuse_reason() { platform_probe refusal; }
+assert test -z "$(OWN="" LABELS="" refuse_reason)"
+assert test "$(OWN=true refuse_reason | grep -c Coolify)" = 1
+assert test "$(LABELS=true refuse_reason | grep -c Coolify)" = 1
+# No container of the project at all: said as that, and not as a missing database.
+assert test "$(CONTAINERS="" refuse_reason | grep -c 'no container of the Compose project')" = 1
+refute test -n "$(CONTAINERS="" refuse_reason | grep -i database)"
+# A daemon that cannot be asked is said as that.
+assert test "$(DOCKER_FAILS=1 refuse_reason | grep -c 'could not list the containers')" = 1
+
+# An update under Coolify stops before the network, the signature, the backup and the containers,
+# and the journal says why.
+: >"$CALLS"
+rm -f "$PROGRESS_FILE"
+# shellcheck disable=SC2030,SC2031
+( export OWN=true; refute platform_probe update_once )
+assert jq -e '.phase == "failed" and (.detail | contains("Coolify"))' "$PROGRESS_FILE" >/dev/null
+refute grep -Fq 'step ' "$CALLS"
+refute grep -E '^(compose|exec|pull|image|run) ' "$CALLS"
+: >"$CALLS"
+rm -f "$PROGRESS_FILE"
+( export LABELS=true; refute platform_probe update_once )
+assert jq -e '.phase == "failed" and (.detail | contains("Coolify"))' "$PROGRESS_FILE" >/dev/null
+refute grep -Fq 'step ' "$CALLS"
+# No container of the project: the same, with its own message.
+: >"$CALLS"
+rm -f "$PROGRESS_FILE"
+( export CONTAINERS=; refute platform_probe update_once )
+assert jq -e '.phase == "failed" and (.detail | contains("no container of the Compose project"))' "$PROGRESS_FILE" >/dev/null
+refute grep -Fq 'step ' "$CALLS"
+# Without the labels the update runs its steps.
+: >"$CALLS"
+rm -f "$PROGRESS_FILE"
+assert platform_probe update_once
+assert grep -Fxq 'step verify_image' "$CALLS"
+assert grep -Fxq 'step backup_database' "$CALLS"
+assert grep -Fxq 'step deploy_with_rollback' "$CALLS"
+# Watching for releases is not started under Coolify either.
+# shellcheck disable=SC2030,SC2031
+( export OWN=true ONCE=false; refute platform_probe main )
+
+printf 'platform assertions passed\n'
+
 printf 'updater shell tests passed\n'
 
 # ── Readiness ─────────────────────────────────────────────────────────
