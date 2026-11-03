@@ -233,6 +233,14 @@ import { requesterExportInput } from "../../domain/requester-export";
 import { previewRetention } from "../retention";
 import { retentionPreviewInput, retentionPreviewOut } from "../../domain/retention";
 import { keyStatus, keyStatusOut, rotateKeys } from "../key-rotation";
+import {
+  applyUpdate,
+  checkUpdates,
+  scheduleInput,
+  setUpdateSchedule,
+  updateStatus,
+  updatesOut,
+} from "../updates";
 import { setTicketTriage } from "../triage";
 import { triageInput, triageOut, priorities } from "../../domain/triage";
 import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
@@ -2403,6 +2411,55 @@ export const routes: Route[] = [
     body: limitsInput,
     response: out.workspaceLimits,
     run: ({ principal, input }) => setLimits(principal, input),
+  },
+  {
+    id: "updates.status",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "GET",
+    path: "/workspace/updates",
+    tag: "Workspace",
+    summary:
+      "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Nothing is changed",
+    access: "owner",
+    response: updatesOut,
+    run: ({ principal }) => updateStatus(principal),
+  },
+  {
+    id: "updates.check",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "POST",
+    path: "/workspace/updates/check",
+    tag: "Workspace",
+    summary:
+      "Ask the updater to look for a new release now. The result is in the status that follows; only the owner",
+    access: "owner",
+    response: updatesOut,
+    run: ({ principal }) => checkUpdates(principal),
+  },
+  {
+    id: "updates.apply",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "POST",
+    path: "/workspace/updates/apply",
+    tag: "Workspace",
+    summary:
+      "Install the release that the updater found: the image is checked by its signature, the database is backed up, the web server and the worker are replaced, and the previous image comes back if the new one does not become ready. The desk is unavailable for a short time. Only the owner, only when a release is waiting and nothing else runs; audited",
+    access: "owner",
+    response: updatesOut,
+    run: ({ principal }) => applyUpdate(principal),
+  },
+  {
+    id: "updates.schedule",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "PUT",
+    path: "/workspace/updates/schedule",
+    tag: "Workspace",
+    summary:
+      "Set whether a release that is waiting is installed by itself, and the time of day and the time zone of that maintenance window. Only the owner, not while an operation runs; audited",
+    access: "owner",
+    body: scheduleInput,
+    response: updatesOut,
+    run: ({ principal, input }) => setUpdateSchedule(principal, input),
   },
   {
     id: "translations.request",

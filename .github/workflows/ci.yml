@@ -257,7 +257,7 @@ jobs:
   image:
     name: Production image
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build the image that runs
@@ -319,6 +319,10 @@ jobs:
             echo "ENCRYPTION_KEY=$(openssl rand -hex 32)"
           } > .env.check
           ENV_FILE=.env.check sh scripts/check-production.sh
+      # The updater against real containers: a good release is installed, and an image whose web server dies and one with a
+      # migration that fails are put back (see docs/updating.md).
+      - name: The updater installs a release and puts a broken one back
+        run: bash deploy/updater/test-rollback.sh aidesk-production:ci
 
   updater:
     name: Updater
@@ -334,7 +338,7 @@ jobs:
       # The updater of the Compose installation (deploy/updater) is outside the application's
       # lint and test run: its tests use the runner of Node and a replaced `docker`.
       - name: ShellCheck
-        run: shellcheck -x deploy/updater/update.sh deploy/updater/test-update.sh
+        run: shellcheck -x deploy/updater/update.sh deploy/updater/test-update.sh deploy/updater/test-rollback.sh
       - name: Control API tests
         run: node --test deploy/updater/control.test.mjs
       - name: Worker tests (docker replaced, no daemon needed)

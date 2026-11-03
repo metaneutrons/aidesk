@@ -20052,6 +20052,1196 @@
         }
       }
     },
+    "/workspace/updates": {
+      "get": {
+        "operationId": "updates.status",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Nothing is changed",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "not-configured",
+                        "unreachable",
+                        "unauthorized",
+                        "ok"
+                      ]
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "starting",
+                                "checking",
+                                "current",
+                                "available",
+                                "updating",
+                                "failed"
+                              ]
+                            },
+                            "currentVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "availableVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updateAvailable": {
+                              "type": "boolean"
+                            },
+                            "lastCheckedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastUpdatedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ok",
+                                "degraded"
+                              ]
+                            },
+                            "releaseCheckError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckRetryAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterUpdateAvailable": {
+                              "type": "boolean"
+                            },
+                            "updaterSelfUpdateEnabled": {
+                              "type": "boolean"
+                            },
+                            "updateMode": {
+                              "type": "string",
+                              "enum": [
+                                "manual",
+                                "automatic"
+                              ]
+                            },
+                            "maintenanceTime": {
+                              "type": "string"
+                            },
+                            "timezone": {
+                              "type": "string"
+                            },
+                            "updaterSwap": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "outcome": {
+                                      "type": "string",
+                                      "enum": [
+                                        "succeeded",
+                                        "failed",
+                                        "rolled-back"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "outcome",
+                                    "detail",
+                                    "at"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "progress": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "phase": {
+                                      "type": "string",
+                                      "enum": [
+                                        "verifying",
+                                        "backing-up",
+                                        "deploying",
+                                        "waiting-for-health",
+                                        "done",
+                                        "rolling-back",
+                                        "failed"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "startedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "failedPhase": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "verifying",
+                                            "backing-up",
+                                            "deploying",
+                                            "waiting-for-health",
+                                            "done",
+                                            "rolling-back",
+                                            "failed"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "rollbackAttempted": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "phase",
+                                    "detail",
+                                    "at",
+                                    "startedAt",
+                                    "failedPhase",
+                                    "rollbackAttempted"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "currentVersion",
+                            "availableVersion",
+                            "updateAvailable",
+                            "lastCheckedAt",
+                            "lastUpdatedAt",
+                            "lastError",
+                            "releaseCheckStatus",
+                            "releaseCheckError",
+                            "releaseCheckRetryAt",
+                            "updaterVersion",
+                            "updaterUpdateAvailable",
+                            "updaterSelfUpdateEnabled",
+                            "updateMode",
+                            "maintenanceTime",
+                            "timezone",
+                            "updaterSwap",
+                            "progress"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "availability",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/workspace/updates/check": {
+      "post": {
+        "operationId": "updates.check",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Ask the updater to look for a new release now. The result is in the status that follows; only the owner",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "not-configured",
+                        "unreachable",
+                        "unauthorized",
+                        "ok"
+                      ]
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "starting",
+                                "checking",
+                                "current",
+                                "available",
+                                "updating",
+                                "failed"
+                              ]
+                            },
+                            "currentVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "availableVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updateAvailable": {
+                              "type": "boolean"
+                            },
+                            "lastCheckedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastUpdatedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ok",
+                                "degraded"
+                              ]
+                            },
+                            "releaseCheckError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckRetryAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterUpdateAvailable": {
+                              "type": "boolean"
+                            },
+                            "updaterSelfUpdateEnabled": {
+                              "type": "boolean"
+                            },
+                            "updateMode": {
+                              "type": "string",
+                              "enum": [
+                                "manual",
+                                "automatic"
+                              ]
+                            },
+                            "maintenanceTime": {
+                              "type": "string"
+                            },
+                            "timezone": {
+                              "type": "string"
+                            },
+                            "updaterSwap": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "outcome": {
+                                      "type": "string",
+                                      "enum": [
+                                        "succeeded",
+                                        "failed",
+                                        "rolled-back"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "outcome",
+                                    "detail",
+                                    "at"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "progress": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "phase": {
+                                      "type": "string",
+                                      "enum": [
+                                        "verifying",
+                                        "backing-up",
+                                        "deploying",
+                                        "waiting-for-health",
+                                        "done",
+                                        "rolling-back",
+                                        "failed"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "startedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "failedPhase": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "verifying",
+                                            "backing-up",
+                                            "deploying",
+                                            "waiting-for-health",
+                                            "done",
+                                            "rolling-back",
+                                            "failed"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "rollbackAttempted": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "phase",
+                                    "detail",
+                                    "at",
+                                    "startedAt",
+                                    "failedPhase",
+                                    "rollbackAttempted"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "currentVersion",
+                            "availableVersion",
+                            "updateAvailable",
+                            "lastCheckedAt",
+                            "lastUpdatedAt",
+                            "lastError",
+                            "releaseCheckStatus",
+                            "releaseCheckError",
+                            "releaseCheckRetryAt",
+                            "updaterVersion",
+                            "updaterUpdateAvailable",
+                            "updaterSelfUpdateEnabled",
+                            "updateMode",
+                            "maintenanceTime",
+                            "timezone",
+                            "updaterSwap",
+                            "progress"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "availability",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/workspace/updates/apply": {
+      "post": {
+        "operationId": "updates.apply",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Install the release that the updater found: the image is checked by its signature, the database is backed up, the web server and the worker are replaced, and the previous image comes back if the new one does not become ready. The desk is unavailable for a short time. Only the owner, only when a release is waiting and nothing else runs; audited",
+        "x-required-access": "owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "not-configured",
+                        "unreachable",
+                        "unauthorized",
+                        "ok"
+                      ]
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "starting",
+                                "checking",
+                                "current",
+                                "available",
+                                "updating",
+                                "failed"
+                              ]
+                            },
+                            "currentVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "availableVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updateAvailable": {
+                              "type": "boolean"
+                            },
+                            "lastCheckedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastUpdatedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ok",
+                                "degraded"
+                              ]
+                            },
+                            "releaseCheckError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckRetryAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterUpdateAvailable": {
+                              "type": "boolean"
+                            },
+                            "updaterSelfUpdateEnabled": {
+                              "type": "boolean"
+                            },
+                            "updateMode": {
+                              "type": "string",
+                              "enum": [
+                                "manual",
+                                "automatic"
+                              ]
+                            },
+                            "maintenanceTime": {
+                              "type": "string"
+                            },
+                            "timezone": {
+                              "type": "string"
+                            },
+                            "updaterSwap": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "outcome": {
+                                      "type": "string",
+                                      "enum": [
+                                        "succeeded",
+                                        "failed",
+                                        "rolled-back"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "outcome",
+                                    "detail",
+                                    "at"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "progress": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "phase": {
+                                      "type": "string",
+                                      "enum": [
+                                        "verifying",
+                                        "backing-up",
+                                        "deploying",
+                                        "waiting-for-health",
+                                        "done",
+                                        "rolling-back",
+                                        "failed"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "startedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "failedPhase": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "verifying",
+                                            "backing-up",
+                                            "deploying",
+                                            "waiting-for-health",
+                                            "done",
+                                            "rolling-back",
+                                            "failed"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "rollbackAttempted": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "phase",
+                                    "detail",
+                                    "at",
+                                    "startedAt",
+                                    "failedPhase",
+                                    "rollbackAttempted"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "currentVersion",
+                            "availableVersion",
+                            "updateAvailable",
+                            "lastCheckedAt",
+                            "lastUpdatedAt",
+                            "lastError",
+                            "releaseCheckStatus",
+                            "releaseCheckError",
+                            "releaseCheckRetryAt",
+                            "updaterVersion",
+                            "updaterUpdateAvailable",
+                            "updaterSelfUpdateEnabled",
+                            "updateMode",
+                            "maintenanceTime",
+                            "timezone",
+                            "updaterSwap",
+                            "progress"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "availability",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/workspace/updates/schedule": {
+      "put": {
+        "operationId": "updates.schedule",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Set whether a release that is waiting is installed by itself, and the time of day and the time zone of that maintenance window. Only the owner, not while an operation runs; audited",
+        "x-required-access": "owner",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "manual",
+                      "automatic"
+                    ]
+                  },
+                  "maintenanceTime": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "mode",
+                  "maintenanceTime",
+                  "timezone"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "not-configured",
+                        "unreachable",
+                        "unauthorized",
+                        "ok"
+                      ]
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "starting",
+                                "checking",
+                                "current",
+                                "available",
+                                "updating",
+                                "failed"
+                              ]
+                            },
+                            "currentVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "availableVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updateAvailable": {
+                              "type": "boolean"
+                            },
+                            "lastCheckedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastUpdatedAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "lastError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckStatus": {
+                              "type": "string",
+                              "enum": [
+                                "ok",
+                                "degraded"
+                              ]
+                            },
+                            "releaseCheckError": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "releaseCheckRetryAt": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterVersion": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "updaterUpdateAvailable": {
+                              "type": "boolean"
+                            },
+                            "updaterSelfUpdateEnabled": {
+                              "type": "boolean"
+                            },
+                            "updateMode": {
+                              "type": "string",
+                              "enum": [
+                                "manual",
+                                "automatic"
+                              ]
+                            },
+                            "maintenanceTime": {
+                              "type": "string"
+                            },
+                            "timezone": {
+                              "type": "string"
+                            },
+                            "updaterSwap": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "outcome": {
+                                      "type": "string",
+                                      "enum": [
+                                        "succeeded",
+                                        "failed",
+                                        "rolled-back"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "outcome",
+                                    "detail",
+                                    "at"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "progress": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "phase": {
+                                      "type": "string",
+                                      "enum": [
+                                        "verifying",
+                                        "backing-up",
+                                        "deploying",
+                                        "waiting-for-health",
+                                        "done",
+                                        "rolling-back",
+                                        "failed"
+                                      ]
+                                    },
+                                    "detail": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "at": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "startedAt": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "failedPhase": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "verifying",
+                                            "backing-up",
+                                            "deploying",
+                                            "waiting-for-health",
+                                            "done",
+                                            "rolling-back",
+                                            "failed"
+                                          ]
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "rollbackAttempted": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "phase",
+                                    "detail",
+                                    "at",
+                                    "startedAt",
+                                    "failedPhase",
+                                    "rollbackAttempted"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "currentVersion",
+                            "availableVersion",
+                            "updateAvailable",
+                            "lastCheckedAt",
+                            "lastUpdatedAt",
+                            "lastError",
+                            "releaseCheckStatus",
+                            "releaseCheckError",
+                            "releaseCheckRetryAt",
+                            "updaterVersion",
+                            "updaterUpdateAvailable",
+                            "updaterSelfUpdateEnabled",
+                            "updateMode",
+                            "maintenanceTime",
+                            "timezone",
+                            "updaterSwap",
+                            "progress"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "availability",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
     "/messages/{messageId}/translations": {
       "post": {
         "operationId": "translations.request",
