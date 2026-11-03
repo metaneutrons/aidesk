@@ -281,6 +281,24 @@ jobs:
             exit 1
           fi
           docker compose -f compose.coolify.yaml config --quiet
+      # The production Compose file renders without the values that only a profile needs (Compose
+      # resolves `${X:?}` for services of inactive profiles too), and the proxy says what is
+      # missing instead of starting without an address.
+      - name: The production Compose file renders without SITE_ADDRESS, the proxy needs it
+        run: |
+          set -euo pipefail
+          BETTER_AUTH_SECRET="$(openssl rand -hex 24)"
+          ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          export APP_URL=https://desk.example.test POSTGRES_PASSWORD=ci S3_ACCESS_KEY=ci S3_SECRET_KEY=ci
+          export BETTER_AUTH_SECRET ENCRYPTION_KEY
+          unset SITE_ADDRESS
+          docker compose -f compose.production.yaml --profile bundled config --quiet
+          out="$(docker compose -f compose.production.yaml --profile proxy run --rm --no-deps -T proxy 2>&1)" && {
+            echo "the proxy started without SITE_ADDRESS" >&2
+            exit 1
+          }
+          printf '%s\n' "$out" | grep -q 'SITE_ADDRESS is required for the proxy profile'
+          docker compose -f compose.production.yaml --profile proxy down --volumes >/dev/null 2>&1
       # The Compose setup from a clean state: ready, a restart, a backup, the loss of the
       # volumes and the restore, with throwaway values that exist only for this run.
       - name: The Compose setup starts, is backed up and is restored
