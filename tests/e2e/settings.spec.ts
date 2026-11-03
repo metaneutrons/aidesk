@@ -45,6 +45,16 @@ test("an operator added in settings signs in through SSO with the granted access
       .array(z.object({ id: z.string() }))
       .parse(await (await operator.request.get("/api/v1/projects")).json());
     expect(projects.map((project) => project.id)).toEqual([desk.projects.alpha.id]);
+    // A person who manages nothing has no settings of the workspace, but their account: it is behind their name, and an
+    // address of the settings of the workspace shows it as well.
+    const menu = operator.getByRole("navigation");
+    await expect(menu.getByRole("button", { name: "Inbox" })).toBeVisible();
+    await expect(menu.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
+    await operator.getByRole("button", { name: `Account of Invited ${desk.run}` }).click();
+    await expect(operator.getByRole("heading", { level: 2, name: "Profile" })).toBeVisible();
+    await operator.goto("/?settings=people");
+    await expect(operator.getByRole("heading", { level: 2, name: "Profile" })).toBeVisible();
+    await expect(operator).toHaveURL(/\/\?settings=account$/);
     await context.close();
   } finally {
     await deleteIdpUser(email);

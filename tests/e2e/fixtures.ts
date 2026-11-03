@@ -73,13 +73,32 @@ export async function openPasswordSignIn(page: Page): Promise<void> {
 }
 // Opens a topic of the settings, in the project that is named when the topic belongs to a project. The topics are links
 // in the list on the left; the project is chosen in the list of the group Project.
+// The topics of the account are behind the entry of the person at the bottom of the menu; the others are the settings of
+// the workspace and of the projects, behind the entry "Settings".
+const accountTopics = ["Profile", "Notifications", "Sign-in and security"];
+export async function openAccount(page: Page): Promise<void> {
+  // On a narrow screen the entry is in the panel of the last tab.
+  const more = page.getByRole("navigation").getByRole("button", { name: "More" });
+  if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true")
+    await more.click();
+  await page.getByRole("button", { name: /^Account of / }).click();
+}
 export async function openSettings(page: Page, topic: string, project?: string): Promise<void> {
+  const account = accountTopics.includes(topic);
+  const area = page.locator("section.settings");
+  // The area that is shown has to be the one of the topic: the account is not a part of the settings.
+  if (
+    !(await area.isVisible()) ||
+    (await area.getAttribute("aria-label")) !== (account ? "Account" : "Settings")
+  ) {
+    if (account) await openAccount(page);
+    else await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await expect(area).toBeVisible();
+  }
   const list = page.getByRole("complementary", { name: "Topics" });
   if (!(await list.isVisible())) {
     // On a narrow screen an open topic hides the list; its back button shows it again.
-    const back = page.locator(".settings-back");
-    if (await back.isVisible()) await back.click();
-    else await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await page.locator(".settings-back").click();
     await expect(list).toBeVisible();
   }
   if (project) {

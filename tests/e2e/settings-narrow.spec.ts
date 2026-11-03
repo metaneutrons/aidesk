@@ -51,8 +51,10 @@ test("shows the list of topics, then a topic, and goes back; the menu is a bar o
     "rgba(0, 0, 0, 0)",
   );
   expect((await scan(page)).violations.map((violation) => violation.id)).toEqual([]);
-  await list.getByRole("link", { name: "Profile", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Profile" })).toBeVisible();
+  // The account is not in this list: it is behind the name of the person.
+  await expect(list.getByRole("link", { name: "Profile", exact: true })).toHaveCount(0);
+  await list.getByRole("link", { name: "People", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
   await expect(list).toBeHidden();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
