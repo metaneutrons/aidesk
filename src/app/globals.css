@@ -3240,3 +3240,28 @@ section.notifications {
         flex-shrink: 0;
     }
 }
+@media (max-width: 760px) {
+    /* The six tabs share the width, so the bar does not scroll; a scroll container made a browser report the tabs as
+       partly covered. */
+    .sidebar nav {
+        overflow: visible;
+    }
+}
+@media (max-width: 760px) {
+    /* On a phone the ticket (header, messages, composer) is higher than the window; the column scrolls as a whole, so
+       that the composer is not cut at the lower edge and does not lie over the tabs. */
+    .conversation {
+        overflow-y: auto;
+    }
+    .conversation .message-list {
+        flex: none;
+        overflow: visible;
+    }
+    .conversation .composer {
+        flex-shrink: 0;
+    }
+    .conversation-header {
+        max-height: none;
+        overflow: visible;
+    }
+}
