@@ -281,6 +281,24 @@ jobs:
             exit 1
           fi
           docker compose -f compose.coolify.yaml config --quiet
+      # The production Compose file renders without the values that only a profile needs (Compose
+      # resolves `${X:?}` for services of inactive profiles too), and the proxy says what is
+      # missing instead of starting without an address.
+      - name: The production Compose file renders without SITE_ADDRESS, the proxy needs it
+        run: |
+          set -euo pipefail
+          BETTER_AUTH_SECRET="$(openssl rand -hex 24)"
+          ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          export APP_URL=https://desk.example.test POSTGRES_PASSWORD=ci S3_ACCESS_KEY=ci S3_SECRET_KEY=ci
+          export BETTER_AUTH_SECRET ENCRYPTION_KEY
+          unset SITE_ADDRESS
+          docker compose -f compose.production.yaml --profile bundled config --quiet
+          out="$(docker compose -f compose.production.yaml --profile proxy run --rm --no-deps -T proxy 2>&1)" && {
+            echo "the proxy started without SITE_ADDRESS" >&2
+            exit 1
+          }
+          printf '%s\n' "$out" | grep -q 'SITE_ADDRESS is required for the proxy profile'
+          docker compose -f compose.production.yaml --profile proxy down --volumes >/dev/null 2>&1
       # The Compose setup from a clean state: ready, a restart, a backup, the loss of the
       # volumes and the restore, with throwaway values that exist only for this run.
       - name: The Compose setup starts, is backed up and is restored
@@ -302,10 +320,45 @@ jobs:
           } > .env.check
           ENV_FILE=.env.check sh scripts/check-production.sh
 
+  updater:
+    name: Updater
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      # The updater of the Compose installation (deploy/updater) is outside the application's
+      # lint and test run: its tests use the runner of Node and a replaced `docker`.
+      - name: ShellCheck
+        run: shellcheck -x deploy/updater/update.sh deploy/updater/test-update.sh
+      - name: Control API tests
+        run: node --test deploy/updater/control.test.mjs
+      - name: Worker tests (docker replaced, no daemon needed)
+        run: bash deploy/updater/test-update.sh
+      - name: The image builds and carries what the worker calls
+        run: |
+          set -euo pipefail
+          docker build --build-arg UPDATER_VERSION=0.0.0-ci --tag aidesk-updater:ci deploy/updater
+          docker run --rm --entrypoint sh aidesk-updater:ci -c 'cosign version >/dev/null && docker compose version >/dev/null && jq --version >/dev/null && test -x /usr/local/bin/aidesk-update && test "$UPDATER_VERSION" = 0.0.0-ci'
+      # A weak or missing token must stop the control API, the way into a root-equivalent process.
+      - name: The control API refuses a missing, short and example token
+        run: |
+          set -euo pipefail
+          for token in '' short replace-with-openssl-rand-hex-32; do
+            if docker run --rm --env UPDATER_TOKEN="$token" aidesk-updater:ci >/dev/null 2>&1; then
+              echo "started with the token '$token'" >&2
+              exit 1
+            fi
+          done
+
   ci-success:
     name: CI Success
     if: always()
-    needs: [quality, security, commit-hygiene, browser, image]
+    needs: [quality, security, commit-hygiene, browser, image, updater]
     runs-on: ubuntu-24.04
     steps:
       - name: Every preceding job must have succeeded or been skipped
