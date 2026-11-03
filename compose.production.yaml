@@ -19,10 +19,24 @@
 # SITE_ADDRESS, the host name of APP_URL, and gets a certificate from Let's Encrypt by itself:
 #   COMPOSE_PROFILES=bundled,proxy
 # Without it, put a proxy of your own in front of the port of the web server.
+#
+# The profile `updater` adds the updater: it finds the latest release, checks the signature of
+# its image (cosign, keyless, the release workflow of this repository), dumps the bundled
+# database, replaces the web server and the worker, and puts the old image back when the new
+# one does not become ready. It needs the Docker socket, which is as good as root on this
+# machine: run it only where you accept that, and keep UPDATER_TOKEN (32 characters or more,
+# `openssl rand -hex 32`) secret. The owner starts an update on the settings page.
+#   COMPOSE_PROFILES=bundled,proxy,updater
+# It writes AIDESK_IMAGE and UPDATER_IMAGE into the environment file (AIDESK_ENV_FILE, default
+# .env.production), so that a later `docker compose up` keeps the version that was installed.
+# Start from a release instead of a local build by pulling its image first:
+#   docker pull ghcr.io/metaneutrons/aidesk:<version>
+#   AIDESK_IMAGE=ghcr.io/metaneutrons/aidesk:<version> docker compose ... up -d --no-build
 name: aidesk
 x-image: &image
-  image: aidesk-production
-  # Built here by the app service; the others use that image.
+  # A local build by the app service, or the image of a release (AIDESK_IMAGE, set by the
+  # updater). The others use the same image.
+  image: ${AIDESK_IMAGE:-aidesk-production}
   pull_policy: never
 x-environment: &environment
   NODE_ENV: production
@@ -143,8 +157,40 @@ services:
     cap_add: [NET_BIND_SERVICE]
     depends_on:
       app: { condition: service_healthy }
+  updater:
+    profiles: [updater]
+    # Pinned to its own version by the updater after the first swap.
+    image: ${UPDATER_IMAGE:-ghcr.io/metaneutrons/aidesk-updater:latest}
+    restart: unless-stopped
+    environment:
+      # Not `:?`: Compose resolves that for services of inactive profiles too, which would stop
+      # every installation without the updater. The updater itself refuses to start without a
+      # token of 32 characters or more.
+      UPDATER_TOKEN: ${UPDATER_TOKEN:-}
+      POLL_INTERVAL_SECONDS: ${UPDATER_POLL_INTERVAL_SECONDS:-3600}
+      # Nothing is installed without the owner, unless this is true (or the page says so).
+      AUTO_APPLY: ${UPDATER_AUTO_APPLY:-false}
+      MAINTENANCE_TIME: ${UPDATER_MAINTENANCE_TIME:-02:00}
+      TZ: ${TZ:-UTC}
+      # false when the database is yours: the updater can only dump the bundled one.
+      BACKUP_ENABLED: ${UPDATER_BACKUP_ENABLED:-true}
+      BACKUP_RETENTION_DAYS: ${UPDATER_BACKUP_RETENTION_DAYS:-14}
+      # Raises the limit of the GitHub API for the check of the release; not needed otherwise.
+      GITHUB_TOKEN:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The updater reads the compose file and writes the image pins into the environment file.
+      # Both must exist: Docker would make a directory of a missing source.
+      - ./compose.production.yaml:/stack/compose.production.yaml:ro
+      - ${AIDESK_ENV_FILE:-.env.production}:/stack/env.production
+      - updater-state:/state
+      - updater-backups:/backups
+    depends_on:
+      app: { condition: service_healthy }
 volumes:
   postgres-data:
   silo-data:
   caddy-data:
   caddy-config:
+  updater-state:
+  updater-backups:

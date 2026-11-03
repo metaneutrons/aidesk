@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { expect, openSettings, test } from "./fixtures";
+import { expect, openAccount, openSettings, test } from "./fixtures";
 // A walkthrough of the operator and of the customer with what a mouse-free, zoomed or narrow
 // reader needs: German and English, light and dark, the keyboard alone, a window of 320 px and the
 // same at 200 % zoom. It finds what the rules of the scanner can find and what a script can measure
@@ -239,6 +239,8 @@ test("the desk and the customer page log no error in the console", async ({
   const url = await page.getByLabel("Link to the customer's view").inputValue();
   for (const view of ["Junk", "Settings"])
     await page.getByRole("navigation").getByRole("button", { name: view }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
+  await openAccount(page);
   await expect(page.getByRole("heading", { level: 2, name: "Profile" })).toBeVisible();
   const context = await browser.newContext({ locale: "en-US" });
   const customer = await context.newPage();

@@ -24,6 +24,7 @@ export function SettingsShell({
   href,
   onSelect,
   onBack,
+  backLabel,
   heading,
   children,
 }: {
@@ -34,6 +35,8 @@ export function SettingsShell({
   href: (topic: string) => string;
   onSelect: (topic: string) => void;
   onBack: () => void;
+  // What the button that goes back to the list says: the name of the area.
+  backLabel: string;
   heading: ReactNode;
   children: ReactNode;
 }) {
@@ -82,7 +85,7 @@ export function SettingsShell({
       <div className="settings-detail" ref={detail}>
         <button type="button" className="settings-back" onClick={onBack}>
           <ChevronLeft size={18} aria-hidden />
-          {t("settings")}
+          {backLabel}
         </button>
         <div className="settings-detail-body" data-topic={active}>
           <header className="settings-detail-head">{heading}</header>

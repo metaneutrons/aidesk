@@ -102,9 +102,16 @@ const projectTopics = [
 const projectTopicIds = new Set<string>(projectTopics.map(([id]) => id));
 const label = (id: string) =>
   `topic${id.replace(/(^|-)(\w)/g, (_, __, letter: string) => letter.toUpperCase())}`;
+// The topics of the account (the profile, the notifications and the sign-in of the person) are behind the entry of the
+// person at the bottom of the menu; the others are the settings of the workspace and of the projects. `account` is the
+// address of the list of the account topics, as an empty value is the list of the other settings.
+export type SettingsArea = "account" | "workspace";
+const accountTopicIds = new Set(["profile", "notifications", "security", "account"]);
+export const areaOf = (topic: string | null): SettingsArea =>
+  topic !== null && accountTopicIds.has(topic) ? "account" : "workspace";
 // The address of a topic: the settings are part of the desk, so the address is the desk's with the topic in the query.
-function address(topic: string | null, project: string | null): string {
-  const query = new URLSearchParams({ settings: topic ?? "" });
+function address(topic: string | null, project: string | null, area: SettingsArea): string {
+  const query = new URLSearchParams({ settings: topic ?? (area === "account" ? "account" : "") });
   if (topic && project && projectTopicIds.has(topic)) query.set("project", project);
   return `/?${query.toString()}`;
 }
@@ -112,12 +119,17 @@ function address(topic: string | null, project: string | null): string {
 // that the change is none of its business): its request for fresh data, as after a change of the profile, keeps
 // asking for the page it knows, and a change of the address cannot put back a tree that is older than that data.
 const keepState = (): unknown => window.history.state;
-function fromLocation(): { topic: string | null; project: string | null } {
+// The topic and the project that the address names; the list of an area is no topic.
+export function fromLocation(): { topic: string | null; project: string | null } {
   const query = new URLSearchParams(window.location.search);
   const topic = query.get("settings");
-  return { topic: topic === "" ? null : topic, project: query.get("project") };
+  return {
+    topic: topic === "" || topic === "account" ? null : topic,
+    project: query.get("project"),
+  };
 }
 export function Settings({
+  area,
   viewerId,
   owner,
   projects,
@@ -125,6 +137,8 @@ export function Settings({
   initialTopic,
   initialProject,
 }: {
+  // The account of the person, or the settings of the workspace and the projects.
+  area: SettingsArea;
   viewerId: string;
   owner: boolean;
   projects: Project[];
@@ -138,7 +152,10 @@ export function Settings({
   const [failure, setFailure] = useState<"settingsNoAccess" | "error" | null>(null);
   // Raised when a connection changed, so other sections that list them reload.
   const [connectionsStamp, setConnectionsStamp] = useState(0);
-  const [topic, setTopic] = useState<string | null>(initialTopic);
+  // The list of the account is `account` in the address and no topic.
+  const [topic, setTopic] = useState<string | null>(
+    initialTopic === "account" ? null : initialTopic,
+  );
   const [chosenProject, setChosenProject] = useState<string | null>(initialProject);
   const load = useCallback(async () => {
     const response = await fetch("/api/v1/operators").catch(() => null);
@@ -155,9 +172,10 @@ export function Settings({
   const managed = people?.find((person) => person.id === viewerId)?.effective ?? [];
   const held = (projectId: string): Action[] =>
     managed.find((grant) => grant.projectId === projectId)?.actions ?? [];
+  // The account topics need nothing of the people and rights of the workspace.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (area === "workspace") void load();
+  }, [area, load]);
   async function act(request: Promise<Response>, after: () => Promise<void>) {
     const response = await request.catch(() => null);
     if (!response?.ok) setFailure("error");
@@ -175,18 +193,21 @@ export function Settings({
     null;
   const noAccess = failure === "settingsNoAccess";
   const topic$ = (id: string, icon: Topic["icon"]): Topic => ({ id, label: t(label(id)), icon });
-  const groups: TopicGroup[] = [
-    {
-      id: "account",
-      label: t("settingsGroupAccount"),
-      topics: [
-        topic$("profile", User),
-        { id: "notifications", label: t("notifications"), icon: Bell },
-        topic$("security", KeyRound),
-      ],
-    },
-  ];
-  if (!noAccess)
+  const groups: TopicGroup[] =
+    area === "account"
+      ? [
+          {
+            id: "account",
+            label: t("settingsGroupAccount"),
+            topics: [
+              topic$("profile", User),
+              { id: "notifications", label: t("notifications"), icon: Bell },
+              topic$("security", KeyRound),
+            ],
+          },
+        ]
+      : [];
+  if (area === "workspace" && !noAccess)
     groups.push({
       id: "workspace",
       label: t("settingsGroupWorkspace"),
@@ -206,7 +227,7 @@ export function Settings({
         ...(manageable.length > 0 ? [topic$("design", Palette)] : []),
       ],
     });
-  if (selected)
+  if (area === "workspace" && selected)
     groups.push({
       id: "project",
       label: t("settingsGroupProject"),
@@ -235,13 +256,13 @@ export function Settings({
   const available = groups.flatMap((group) => group.topics);
   const ready = people !== null || failure !== null;
   // A topic that is not offered (the address of a person with fewer rights, a project that is gone) opens the first one.
-  const active = available.find((entry) => entry.id === topic)?.id ?? "profile";
-  const waiting =
-    !ready && topic !== null && !["profile", "notifications", "security"].includes(topic);
+  const active = available.find((entry) => entry.id === topic)?.id ?? available[0]?.id ?? "";
+  // The topics of the account need no answer; the others are shown when the rights of the person are known.
+  const waiting = area === "workspace" && !ready;
   function go(next: string | null, nextProject: string | null = selected) {
     setTopic(next);
     if (nextProject) setChosenProject(nextProject);
-    window.history.pushState(keepState(), "", address(next, nextProject));
+    window.history.pushState(keepState(), "", address(next, nextProject, area));
   }
   // The browser's back and forward buttons move between the topics that were opened; the desk puts the part of the
   // settings into the address when they are opened and takes it off when another view is.
@@ -249,6 +270,8 @@ export function Settings({
     const follow = () => {
       if (!new URLSearchParams(window.location.search).has("settings")) return;
       const place = fromLocation();
+      // An address of the other area is followed by the desk, which shows that area.
+      if (areaOf(place.topic) !== area) return;
       setTopic(place.topic);
       if (place.project) setChosenProject(place.project);
     };
@@ -256,7 +279,7 @@ export function Settings({
     return () => {
       window.removeEventListener("popstate", follow);
     };
-  }, []);
+  }, [area]);
   const render = (): ReactNode => {
     const p = selected;
     const name = p ? projectName(p) : "";
@@ -451,12 +474,13 @@ export function Settings({
   };
   const current = available.find((entry) => entry.id === active);
   return (
-    <section className="settings" aria-label={t("settings")}>
+    <section className="settings" aria-label={t(area === "account" ? "account" : "settings")}>
       <SettingsShell
+        backLabel={t(area === "account" ? "account" : "settings")}
         groups={groups}
         active={active}
         level={topic === null ? "list" : "topic"}
-        href={(id) => address(id, selected)}
+        href={(id) => address(id, selected, area)}
         onSelect={(id) => {
           go(id);
         }}

@@ -272,6 +272,27 @@ label {
 .operator .icon-button {
     margin-left: auto;
 }
+/* The person at the bottom of the menu: a button that opens their account. */
+.operator-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    min-height: 40px;
+    padding: 4px 6px;
+    margin: -4px 0 -4px -6px;
+    border: 0;
+    border-radius: var(--radius-small);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.operator-link:hover,
+.operator-link[aria-current="page"] {
+    background: var(--accent-soft);
+}
 .avatar {
     display: inline-flex;
     align-items: center;

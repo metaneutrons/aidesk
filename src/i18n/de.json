@@ -1121,6 +1121,8 @@
   "viewsError": "Die Ansicht konnte nicht gespeichert werden.",
   "settingsTopics": "Themen",
   "settingsGroupAccount": "Konto",
+  "account": "Konto",
+  "accountOpen": "Konto von {name}",
   "settingsGroupWorkspace": "Workspace",
   "settingsGroupProject": "Projekt",
   "topicProfile": "Profil",
