@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The export about a requester from the settings: the file is downloaded, and the export is an entry of the audit
 // that holds a digest of the address and not the address.
 test("takes out what is held about a requester as a file", async ({ page, desk, signIn }) => {
@@ -8,7 +8,7 @@ test("takes out what is held about a requester as a file", async ({ page, desk, 
   const address = `${desk.prefix}-nobody-${Date.now().toString(36)}@example.test`;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Data and privacy", alpha.name);
   const section = page.locator("section.requester-export").filter({
     has: page.getByRole("heading", { name: `Export about a requester in ${alpha.name}` }),
   });

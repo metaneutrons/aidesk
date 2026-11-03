@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, openPasswordSignIn, remote, test } from "./fixtures";
+import { expect, openPasswordSignIn, openSettings, remote, test } from "./fixtures";
 // A passkey as the second factor of an owner, with the virtual authenticator of Chromium: it is added in the
 // settings, offered first after the password, and the code stays as the way back.
 test.skip(
@@ -32,7 +32,7 @@ test("an owner adds a passkey in the settings, signs in with it after the passwo
   });
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Sign-in and security");
   const section = page.getByRole("region", { name: "Passkeys" });
   await expect(section).toBeVisible();
   await expect(section.getByText("No passkey yet.")).toBeVisible();
@@ -76,7 +76,7 @@ test("an owner adds a passkey in the settings, signs in with it after the passwo
   // Remove the passkey again, so that the owner of the run is as it was.
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Sign-in and security");
   await page.getByRole("button", { name: "Remove: E2E key" }).click();
   await expect(page.getByText("The passkey was removed.")).toBeVisible();
   await expect(page.getByText("No passkey yet.")).toBeVisible();

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { test as base, expect, type Locator, type Page } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 import { z } from "zod";
 import { createIdpUser, deleteIdpUser } from "./keycloak";
 import { totp } from "./totp";
@@ -71,16 +71,25 @@ export async function openPasswordSignIn(page: Page): Promise<void> {
   await expect(toggle.or(page.getByLabel("Password"))).toBeVisible();
   if (await toggle.isVisible()) await toggle.click();
 }
-// Opens a collapsed section of the settings. The sections are filled in while the page is still loading, and in CI a
-// click on the heading that lands in between was lost now and then (no request for the content was ever sent), so
-// the section is checked and clicked again until it stays open.
-export async function openSection(section: Locator, heading: string | RegExp): Promise<void> {
-  const details = section.locator("details").first();
-  await expect(async () => {
-    if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open)))
-      await section.getByRole("heading", { name: heading }).click({ timeout: 5_000 });
-    await expect(details).toHaveJSProperty("open", true, { timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
+// Opens a topic of the settings, in the project that is named when the topic belongs to a project. The topics are links
+// in the list on the left; the project is chosen in the list of the group Project.
+export async function openSettings(page: Page, topic: string, project?: string): Promise<void> {
+  const list = page.getByRole("complementary", { name: "Topics" });
+  if (!(await list.isVisible())) {
+    // On a narrow screen an open topic hides the list; its back button shows it again.
+    const back = page.locator(".settings-back");
+    if (await back.isVisible()) await back.click();
+    else await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await expect(list).toBeVisible();
+  }
+  if (project) {
+    // The group of the project appears with the answer about the rights of the person.
+    await expect(list.getByRole("heading", { name: "Project", exact: true })).toBeVisible();
+    const choice = list.getByRole("combobox", { name: "Project" });
+    if ((await choice.count()) > 0) await choice.selectOption({ label: project });
+  }
+  await list.getByRole("link", { name: topic, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: topic, exact: true })).toBeVisible();
 }
 // The pages are rendered on the server and take their handlers only when the scripts have run, which in a development
 // build can be seconds after the load event. A click or a selection before that is lost without a trace: the control

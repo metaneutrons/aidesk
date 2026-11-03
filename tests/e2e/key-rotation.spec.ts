@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The keys of the installation, as the owner sees them: with no previous key set nothing is being rotated, the status
 // lists the groups of stored values, and the run is refused until an operator has set a previous key.
 const statusSchema = z.object({
@@ -16,7 +16,7 @@ test("shows the keys of the installation to the owner and refuses a run without 
 }) => {
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Keys");
   const section = page.locator("section.key-rotation");
   await expect(section).toBeVisible();
   await expect(section.getByRole("heading", { name: "Keys of the installation" })).toBeVisible();

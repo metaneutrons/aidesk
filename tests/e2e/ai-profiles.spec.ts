@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // AI task profiles: a connection to a model provider is defined through the API,
 // the settings page sets the profile of a task (model, limits, the switch that lets
 // ticket content leave the system), and the page never shows the key.
@@ -44,7 +44,7 @@ test("sets the profile of a task on the settings page and switches it on and off
       .find((entry) => entry.task === "reply.draft");
   expect(await read()).toMatchObject({ version: 0, enabled: false, model: null });
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "AI tasks", alpha.name);
   const section = page.getByRole("region", { name: `AI tasks of ${alpha.name}` });
   const task = section.getByRole("group", { name: "Draft a reply to the customer" });
   // The task that reads images is offered like the others.

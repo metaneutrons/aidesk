@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The names of the customer page in the settings: a name is claimed, the record that proves it is shown, a
 // look at the DNS finds nothing (the name belongs to no one here), and the claim is removed. A name is proved
 // only by a record in a real DNS, so the test stops at the claim.
@@ -13,7 +13,7 @@ test("claims a name for the customer page, shows the record to create and remove
   const host = `claim-${desk.run}.example.test`.toLowerCase();
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Customer page", alpha.name);
   const section = page
     .locator("section.portal-domains")
     .filter({ has: page.getByRole("heading", { name: `Customer page names of ${alpha.name}` }) });
@@ -54,7 +54,7 @@ test("lets the owner claim a name for the whole installation and remove it", asy
   const host = `wide-${desk.run}.example.test`.toLowerCase();
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Customer page names");
   const section = page.locator("section.portal-domains").filter({
     has: page.getByRole("heading", { name: "Customer page names of the installation" }),
   });

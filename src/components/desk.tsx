@@ -258,6 +258,8 @@ interface Props {
   initialUnread: number;
   // The saved views of the operator; the one that is the start is applied when the desk opens without a ticket.
   initialViews: SavedView[];
+  // The topic and the project of the settings, when the address opened them.
+  initialSettings: { topic: string | null; project: string | null } | null;
 }
 type Theme = "system" | "light" | "dark";
 const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
@@ -291,6 +293,7 @@ export function Desk({
   serverTime,
   initialUnread,
   initialViews,
+  initialSettings,
 }: Props) {
   const t = useTranslations();
   const zone = useZone();
@@ -301,8 +304,18 @@ export function Desk({
     ? undefined
     : initialViews.find((entry) => entry.start && !entry.restricted);
   const [views, setViews] = useState(initialViews);
-  const [view, setView] = useState<View>(initialTicketId ? "inbox" : (start?.list ?? "overview"));
+  const [view, setView] = useState<View>(
+    initialTicketId ? "inbox" : initialSettings ? "settings" : (start?.list ?? "overview"),
+  );
   const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
+  // The settings have an address of their own (the topic is part of it, see settings.tsx); another view has none.
+  useEffect(() => {
+    const named = new URLSearchParams(window.location.search).has("settings");
+    if (view === "settings" && !named)
+      window.history.replaceState(window.history.state as unknown, "", "/?settings=");
+    if (view !== "settings" && named)
+      window.history.replaceState(window.history.state as unknown, "", "/");
+  }, [view]);
   // The number of unread notifications comes with the page and is asked for again every minute; the list asks again
   // when it opens. Nothing is asked for while the page loads, because a request that a navigation cuts off is reported
   // as an error by WebKit.
@@ -910,71 +923,75 @@ export function Desk({
           <header className="topbar">
             <h1>{t(view)}</h1>
             <div className="topbar-actions">
-              <div className="project-filter">
-                <button
-                  className="secondary filter-trigger"
-                  aria-expanded={filterOpen}
-                  onClick={() => {
-                    setFilterOpen(!filterOpen);
-                  }}
-                >
-                  <Layers3 size={16} />
-                  {!filters.length
-                    ? t("allProjects")
-                    : projects
-                        .filter((project) => filters.includes(project.id))
-                        .map((project) => project.name)
-                        .join(", ")}
-                  <ChevronDown size={14} />
-                </button>
-                {filterOpen && (
-                  <div className="filter-menu">
+              {view !== "settings" && (
+                <>
+                  <div className="project-filter">
                     <button
+                      className="secondary filter-trigger"
+                      aria-expanded={filterOpen}
                       onClick={() => {
-                        setFilters([]);
+                        setFilterOpen(!filterOpen);
                       }}
                     >
-                      <span>{t("allProjects")}</span>
-                      {!filters.length && <Check size={14} />}
+                      <Layers3 size={16} />
+                      {!filters.length
+                        ? t("allProjects")
+                        : projects
+                            .filter((project) => filters.includes(project.id))
+                            .map((project) => project.name)
+                            .join(", ")}
+                      <ChevronDown size={14} />
                     </button>
-                    {projects.map((project) => (
-                      <label key={project.id}>
-                        <input
-                          type="checkbox"
-                          checked={filters.includes(project.id)}
-                          onChange={(event) => {
-                            setFilters(
-                              event.target.checked
-                                ? [...filters, project.id]
-                                : filters.filter((id) => id !== project.id),
-                            );
+                    {filterOpen && (
+                      <div className="filter-menu">
+                        <button
+                          onClick={() => {
+                            setFilters([]);
                           }}
-                        />
-                        <i style={{ background: project.color }} />
-                        {project.name}
-                      </label>
-                    ))}
+                        >
+                          <span>{t("allProjects")}</span>
+                          {!filters.length && <Check size={14} />}
+                        </button>
+                        {projects.map((project) => (
+                          <label key={project.id}>
+                            <input
+                              type="checkbox"
+                              checked={filters.includes(project.id)}
+                              onChange={(event) => {
+                                setFilters(
+                                  event.target.checked
+                                    ? [...filters, project.id]
+                                    : filters.filter((id) => id !== project.id),
+                                );
+                              }}
+                            />
+                            <i style={{ background: project.color }} />
+                            {project.name}
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <SavedViews
-                views={views}
-                current={{
-                  list: view,
-                  projects: filters,
-                  tag: tagFilter,
-                  priority: priorityFilter,
-                  category: categoryFilter,
-                }}
-                onChange={setViews}
-                onApply={(saved) => {
-                  setView(saved.list);
-                  setFilters(saved.projects);
-                  setTagFilter(saved.tag);
-                  setPriorityFilter(saved.priority ?? "");
-                  setCategoryFilter(saved.category ?? "");
-                }}
-              />
+                  <SavedViews
+                    views={views}
+                    current={{
+                      list: view,
+                      projects: filters,
+                      tag: tagFilter,
+                      priority: priorityFilter,
+                      category: categoryFilter,
+                    }}
+                    onChange={setViews}
+                    onApply={(saved) => {
+                      setView(saved.list);
+                      setFilters(saved.projects);
+                      setTagFilter(saved.tag);
+                      setPriorityFilter(saved.priority ?? "");
+                      setCategoryFilter(saved.category ?? "");
+                    }}
+                  />
+                </>
+              )}
               {operator.owner && (
                 <Dialog.Trigger className="icon-button" aria-label={t("newProject")}>
                   <Plus size={20} />
@@ -1004,6 +1021,8 @@ export function Desk({
               owner={operator.owner}
               projects={projects}
               locale={initialLocale}
+              initialTopic={initialSettings?.topic ?? null}
+              initialProject={initialSettings?.project ?? null}
             />
           ) : view === "overview" ? (
             <section className="overview">

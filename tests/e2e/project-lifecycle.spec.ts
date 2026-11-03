@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Archiving a project in the settings: it is archived on a second click, it disappears from the list of the
 // projects and appears under the archived ones, and it is restored. The project is restored in any case.
 test.describe.configure({ mode: "serial" });
@@ -12,7 +12,7 @@ test("archives a project, lists it as archived and restores it", async ({ page, 
       .parse(await (await page.request.get(`/api/v1/projects${query}`)).json());
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Projects");
   const section = page
     .locator("section.project-lifecycle")
     .filter({ has: page.getByRole("heading", { name: "Archive of projects" }) });
@@ -67,7 +67,7 @@ test("exports an archived project and deletes it for good, as the owner", async 
   expect(created.status(), await created.text()).toBe(201);
   const project = z.object({ id: z.string() }).parse(await created.json());
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Projects");
   const section = page
     .locator("section.project-lifecycle")
     .filter({ has: page.getByRole("heading", { name: "Archive of projects" }) });

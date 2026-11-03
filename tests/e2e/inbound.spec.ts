@@ -3,7 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import nodemailer from "nodemailer";
 import { z } from "zod";
-import { expect, mailpit, test } from "./fixtures";
+import { expect, mailpit, openSettings, test } from "./fixtures";
 // A complete round trip through real protocols: the customer writes to the
 // project's mailbox (GreenMail SMTP), the worker reads it over IMAP, the
 // operator answers in the desk (delivered to Mailpit), and the customer's
@@ -191,7 +191,7 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
   const subject = `Acknowledge ${randomUUID()}`;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "General", desk.projects.alpha.name);
   const section = page.getByRole("region", {
     name: `Configuration of ${desk.projects.alpha.name}`,
   });
@@ -249,7 +249,7 @@ test("acknowledges a new ticket once switched on in settings", async ({ page, de
     ).toBeVisible();
   } finally {
     await page.goto("/");
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "General", desk.projects.alpha.name);
     const back = page.getByRole("region", {
       name: `Configuration of ${desk.projects.alpha.name}`,
     });

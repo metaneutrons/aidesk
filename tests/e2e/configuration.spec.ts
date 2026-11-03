@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Project configuration: one document, saved as a whole, with changes by agents
 // waiting for approval under the default policy.
 test.describe.configure({ mode: "serial" });
@@ -21,7 +21,7 @@ test("edits the configuration, checks it first, and approves what an agent propo
   const original = (await read()).config;
   try {
     await page.goto("/");
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "General", alpha.name);
     const section = page.getByRole("region", { name: `Configuration of ${String(original.name)}` });
     await expect(section).toBeVisible();
     // The check reports the difference and writes nothing.
@@ -125,8 +125,9 @@ test("edits the configuration, checks it first, and approves what an agent propo
     });
     expect(proposal.status()).toBe(202);
     expect((await read()).config.acknowledgements).toBe(before.config.acknowledgements);
+    // The name of the project is not what the list offers now; the address names the project.
     await page.reload();
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "General");
     await expect(section.getByText("Waiting for approval")).toBeVisible();
     await expect(section.getByText("proposed by an agent")).toBeVisible();
     await section.getByRole("button", { name: "Approve" }).click();

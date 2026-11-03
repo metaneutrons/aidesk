@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // A walkthrough of the operator and of the customer with what a mouse-free, zoomed or narrow
 // reader needs: German and English, light and dark, the keyboard alone, a window of 320 px and the
 // same at 200 % zoom. It finds what the rules of the scanner can find and what a script can measure
@@ -64,7 +64,11 @@ test.describe("operator in German with a dark system", () => {
       .fill(`Antwort ${randomUUID()}`);
     expect(await audit(page)).toEqual([]);
     await page.getByRole("navigation").getByRole("button", { name: "Einstellungen" }).click();
-    await expect(page.getByRole("heading", { name: "Operatoren" })).toBeVisible();
+    await page
+      .getByRole("complementary", { name: "Themen" })
+      .getByRole("link", { name: "Personen", exact: true })
+      .click();
+    await expect(page.getByRole("heading", { level: 2, name: "Personen" })).toBeVisible();
     expect(await audit(page)).toEqual([]);
   });
 });
@@ -92,8 +96,8 @@ test.describe("a narrow window and zoom", () => {
         .getByRole("button", { name: "Back" })
         .click()
         .catch(() => undefined);
-      await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-      await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
+      await openSettings(page, "People");
+      await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
       // The heading is there while the list is still loading; the table with a column for each
       // project is what is wide.
       await expect(page.getByRole("table")).toBeVisible();
@@ -224,7 +228,7 @@ test("the desk and the customer page log no error in the console", async ({
   const url = await page.getByLabel("Link to the customer's view").inputValue();
   for (const view of ["Junk", "Settings"])
     await page.getByRole("navigation").getByRole("button", { name: view }).click();
-  await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Profile" })).toBeVisible();
   const context = await browser.newContext({ locale: "en-US" });
   const customer = await context.newPage();
   watch(customer);

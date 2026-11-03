@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // A channel of a messenger: added on the settings page, with the address kept sealed and shown as its host only, and
 // the subject of the ticket off until it is switched on. Nothing is sent to the messenger here: the address is one that
 // resolves and that this test never calls.
@@ -25,7 +25,7 @@ test("adds a channel, shows only its host, and switches the subject on and off",
   const key = `KEY${desk.run}${"z".repeat(12)}`;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Webhooks", alpha.name);
   const section = page.getByRole("region", { name: `Webhooks of ${alpha.name}` });
   await section.getByRole("button", { name: "Add a channel" }).click();
   const form = section.locator("form.connection-form");
@@ -82,7 +82,7 @@ test("refuses an address that is not https and says which field is wrong", async
   const { alpha } = desk.projects;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Webhooks", alpha.name);
   const section = page.getByRole("region", { name: `Webhooks of ${alpha.name}` });
   await section.getByRole("button", { name: "Add a channel" }).click();
   const form = section.locator("form.connection-form");

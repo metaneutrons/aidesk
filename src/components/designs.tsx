@@ -193,7 +193,7 @@ export function Designs({
   ];
   return (
     <section className="designs" aria-labelledby={`${fieldId}-title`}>
-      <h2 id={`${fieldId}-title`}>{t("designsTitle")}</h2>
+      <h3 id={`${fieldId}-title`}>{t("designsTitle")}</h3>
       {failure && (
         <p className="error" role="alert">
           {t("error")}

@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
 import { request } from "@playwright/test";
-import { expect, openSection, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The audit in the settings: opened on demand, filtered by action and actor, the detail of an entry, the
 // export with the filters that are applied, and the audit of the workspace for the owner.
 test.describe.configure({ mode: "serial" });
@@ -25,11 +25,11 @@ test("filters the audit of a project, shows the detail of an entry and exports w
     expect(response.status(), await response.text()).toBe(200);
   }
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Audit log", alpha.name);
   const section = page
     .locator("section.audit-log")
     .filter({ has: page.getByRole("heading", { name: `Audit of ${alpha.name}` }) });
-  await openSection(section, `Audit of ${alpha.name}`);
+  await expect(section).toBeVisible();
   // Newest first: the removal of the tags, then the entry that set them.
   const rows = section.getByRole("row").filter({ hasText: "ticket.tags" });
   const row = rows.nth(1);
@@ -78,7 +78,7 @@ test("lets the owner read the audit of the workspace and nobody else", async ({
 }) => {
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Workspace audit log");
   const section = page
     .locator("section.audit-log")
     .filter({ has: page.getByRole("heading", { name: "Audit of the workspace" }) });

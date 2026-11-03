@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, fixture, test } from "./fixtures";
+import { expect, fixture, openSettings, test } from "./fixtures";
 // "Your sign-in" in the settings: the ways to sign in that the account has, and the open sessions. A second session is
 // made by the fixture, as a sign-in from another browser would; the session of the test is marked and cannot be ended
 // from here, the other one can.
@@ -30,7 +30,7 @@ test("shows how the account signs in and ends another session", async ({
   });
   const added = z.object({ id: z.string() }).parse(JSON.parse(fixture("add-session", desk.email)));
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Sign-in and security");
   const section = page.locator("section.sign-in");
   await expect(section.getByRole("heading", { name: "Your sign-in" })).toBeVisible();
   // The fixture operator is an owner with a password and an authenticator app.
@@ -86,7 +86,7 @@ test("shows how the account signs in and ends another session", async ({
   fixture("add-session", desk.email);
   fixture("add-session", desk.email);
   await page.reload();
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Sign-in and security");
   await expect(list.getByRole("listitem").filter({ hasText: "E2E Other Browser" })).toHaveCount(2);
   await everything.click();
   await expect(list.getByRole("listitem")).toHaveCount(1);

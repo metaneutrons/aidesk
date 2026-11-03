@@ -252,6 +252,12 @@ components rather than forcing everyday users to edit arbitrary HTML.
 
 Workspace settings contain SSO, people/roles and instance-wide administration;
 project settings contain identities, portal, design, integrations and automation.
+The settings are a list of topics (groups Account, Workspace and Project) beside
+one topic at a time, as in the system settings of a Mac; on a narrow screen the list
+and the topic follow each other. A topic has an address (`/?settings=<topic>`, with
+`&project=<id>` for a project topic), so it can be linked and the back button works.
+The project is chosen once for all topics of the group Project instead of repeating
+every section for every project.
 Permissions have project and function granularity. Role presets start simple,
 with advanced per-function settings and an effective-permissions view available.
 Operators see authorized projects only. Capability availability comes from the
