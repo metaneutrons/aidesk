@@ -320,10 +320,45 @@ jobs:
           } > .env.check
           ENV_FILE=.env.check sh scripts/check-production.sh
 
+  updater:
+    name: Updater
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      # The updater of the Compose installation (deploy/updater) is outside the application's
+      # lint and test run: its tests use the runner of Node and a replaced `docker`.
+      - name: ShellCheck
+        run: shellcheck -x deploy/updater/update.sh deploy/updater/test-update.sh
+      - name: Control API tests
+        run: node --test deploy/updater/control.test.mjs
+      - name: Worker tests (docker replaced, no daemon needed)
+        run: bash deploy/updater/test-update.sh
+      - name: The image builds and carries what the worker calls
+        run: |
+          set -euo pipefail
+          docker build --build-arg UPDATER_VERSION=0.0.0-ci --tag aidesk-updater:ci deploy/updater
+          docker run --rm --entrypoint sh aidesk-updater:ci -c 'cosign version >/dev/null && docker compose version >/dev/null && jq --version >/dev/null && test -x /usr/local/bin/aidesk-update && test "$UPDATER_VERSION" = 0.0.0-ci'
+      # A weak or missing token must stop the control API, the way into a root-equivalent process.
+      - name: The control API refuses a missing, short and example token
+        run: |
+          set -euo pipefail
+          for token in '' short replace-with-openssl-rand-hex-32; do
+            if docker run --rm --env UPDATER_TOKEN="$token" aidesk-updater:ci >/dev/null 2>&1; then
+              echo "started with the token '$token'" >&2
+              exit 1
+            fi
+          done
+
   ci-success:
     name: CI Success
     if: always()
-    needs: [quality, security, commit-hygiene, browser, image]
+    needs: [quality, security, commit-hygiene, browser, image, updater]
     runs-on: ubuntu-24.04
     steps:
       - name: Every preceding job must have succeeded or been skipped
