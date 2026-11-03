@@ -28,6 +28,7 @@ import {
   Webhook,
 } from "lucide-react";
 import { z } from "zod";
+import { NewProject } from "./new-project";
 import { OwnerPasskeys } from "./owner-passkeys";
 import { UpdatesPanel } from "./updates";
 import { actions as allActions, type Action } from "../domain/permissions";
@@ -224,7 +225,9 @@ export function Settings({
               topic$("workspace-audit", ScrollText),
             ]
           : []),
-        ...(manageable.length > 0 ? [topic$("projects", Archive), topic$("design", Palette)] : []),
+        // The owner makes the projects, also when there is none yet.
+        ...(owner || manageable.length > 0 ? [topic$("projects", Archive)] : []),
+        ...(manageable.length > 0 ? [topic$("design", Palette)] : []),
       ],
     });
   if (area === "workspace" && selected)
@@ -330,7 +333,12 @@ export function Settings({
       case "workspace-audit":
         return <AuditLog projectId={null} name="" locale={locale} />;
       case "projects":
-        return <ProjectLifecycle manageable={manageable} locale={locale} owner={owner} />;
+        return (
+          <>
+            {owner && <NewProject locale={locale} onCreated={() => void load()} />}
+            <ProjectLifecycle manageable={manageable} locale={locale} owner={owner} />
+          </>
+        );
       case "design":
         return <Designs projects={manageable} locale={locale} />;
     }

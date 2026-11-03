@@ -15,7 +15,6 @@ import {
   LogOut,
   Monitor,
   Moon,
-  Plus,
   Search,
   Send,
   Languages,
@@ -28,7 +27,6 @@ import {
   X,
 } from "lucide-react";
 import { z } from "zod";
-import { Dialog } from "@base-ui/react/dialog";
 import { OriginalPreview } from "./original-preview";
 import { PortalLink } from "./portal-link";
 import { Reminder } from "./reminder";
@@ -414,9 +412,6 @@ export function Desk({
   const [assistSources, setAssistSources] = useState(0);
   const [theme, setTheme] = useState<Theme>("system");
   const [now, setNow] = useState(serverTime);
-  const [creating, setCreating] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [slug, setSlug] = useState("");
   const messageList = useRef<HTMLDivElement>(null);
   // Where the person is now, so that a draft that arrives after they moved on is dropped.
   const place = useRef({ selected: initialTicketId, internal: false });
@@ -844,26 +839,6 @@ export function Desk({
       setSending(false);
     }
   }
-  async function create(): Promise<void> {
-    setSending(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/v1/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: projectName, slug, defaultLanguage: initialLocale }),
-      });
-      if (!response.ok) throw new Error("create_failed");
-      setCreating(false);
-      setProjectName("");
-      setSlug("");
-      router.refresh();
-    } catch {
-      setError("error");
-    } finally {
-      setSending(false);
-    }
-  }
   // On a narrow screen these views are in the panel of the last tab; the others have a tab.
   const secondary: View[] = ["reminders", "waiting", "resolved", "junk"];
   const navigation: { view: View; icon: typeof Inbox }[] = [
@@ -879,7 +854,7 @@ export function Desk({
     ...(settingsAvailable ? [{ view: "settings" as const, icon: SettingsIcon }] : []),
   ];
   return (
-    <Dialog.Root open={creating} onOpenChange={setCreating}>
+    <>
       <div className="desk-shell">
         <aside className={`sidebar${more ? " more" : ""}`}>
           <a className="brand" href="/">
@@ -1092,11 +1067,6 @@ export function Desk({
                   />
                 </>
               )}
-              {operator.owner && (
-                <Dialog.Trigger className="icon-button" aria-label={t("newProject")}>
-                  <Plus size={20} />
-                </Dialog.Trigger>
-              )}
             </div>
           </header>
           {view === "notifications" ? (
@@ -1128,6 +1098,19 @@ export function Desk({
             />
           ) : view === "overview" ? (
             <section className="overview">
+              {projects.length === 0 && (
+                <div className="start-note">
+                  <h2>{t("noProjectsTitle")}</h2>
+                  <p className="muted">
+                    {t(operator.owner ? "noProjectsOwner" : "noProjectsOther")}
+                  </p>
+                  {operator.owner && (
+                    <a className="primary" href="/?settings=projects">
+                      {t("noProjectsAction")}
+                    </a>
+                  )}
+                </div>
+              )}
               <h2 className="eyebrow">{t("attention")}</h2>
               <div className="metric-grid">
                 <button
@@ -1985,72 +1968,7 @@ export function Desk({
             </div>
           )}
         </main>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="modal-backdrop" />
-          <Dialog.Popup className="modal">
-            <button
-              className="icon-button modal-close"
-              aria-label={t("close")}
-              onClick={() => {
-                setCreating(false);
-              }}
-            >
-              <X size={18} />
-            </button>
-            <Dialog.Title render={<h2 />}>{t("newProject")}</Dialog.Title>
-            <Dialog.Description className="muted">{t("newProjectDescription")}</Dialog.Description>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void create();
-              }}
-            >
-              <label>
-                {t("projectName")}
-                <input
-                  value={projectName}
-                  onChange={(event) => {
-                    setProjectName(event.target.value);
-                  }}
-                  required
-                  maxLength={100}
-                />
-              </label>
-              <label>
-                {t("projectSlug")}
-                <input
-                  value={slug}
-                  onChange={(event) => {
-                    setSlug(event.target.value);
-                  }}
-                  required
-                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                  maxLength={60}
-                />
-              </label>
-              {error && (
-                <p className="error" role="alert">
-                  {t(error)}
-                </p>
-              )}
-              <div className="modal-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => {
-                    setCreating(false);
-                  }}
-                >
-                  {t("cancel")}
-                </button>
-                <button className="primary" disabled={sending}>
-                  {t("create")}
-                </button>
-              </div>
-            </form>
-          </Dialog.Popup>
-        </Dialog.Portal>
       </div>
-    </Dialog.Root>
+    </>
   );
 }

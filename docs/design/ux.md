@@ -257,8 +257,12 @@ a time, as in the system settings of a Mac; on a narrow screen the list and the 
 follow each other. A topic has an address (`/?settings=<topic>`, with `&project=<id>`
 for a project topic), so it can be linked and the back button works. The project is
 chosen once for all topics of the group Project instead of repeating every section for
-every project. A person who manages no project has no settings of the workspace, and
-the entry "Settings" is not shown to them.
+every project. A project is made by the owner in the topic Projects (a project is made
+rarely, and the settings are where projects are managed), not by a button in the header
+of the desk. A desk without a project says on the overview what to do first: the owner is
+led to that topic, and everybody else is told that the owner creates projects. A person
+who manages no project has no settings of the workspace, and the entry "Settings" is not
+shown to them.
 
 The account of the person (Profile, Notifications, Sign-in and security) is not part of
 the settings: it is behind the name at the bottom of the menu (in the panel of the last
