@@ -3265,3 +3265,40 @@ section.notifications {
         overflow: visible;
     }
 }
+/* The header of a list view on a phone: the title with "New project" in the first row, and in the second the project
+   filter, the views and the button that saves the filters, which shows its icon only. */
+@media (max-width: 760px) {
+    .topbar {
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .topbar h1 {
+        order: 1;
+        flex: 1 1 0;
+    }
+    .topbar-actions {
+        display: contents;
+    }
+    .topbar-actions > .icon-button {
+        order: 2;
+    }
+    .topbar-actions > .project-filter {
+        order: 3;
+    }
+    .topbar-actions > .saved-views {
+        order: 4;
+        flex: 1 1 auto;
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+    .saved-views select {
+        min-width: 0;
+        flex: 1 1 0;
+    }
+    .label-wide {
+        display: none;
+    }
+    .saved-views .secondary {
+        padding-inline: 10px;
+    }
+}
