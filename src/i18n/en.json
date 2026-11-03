@@ -1152,5 +1152,9 @@
   "actionTest": "Test",
   "actionEdit": "Edit",
   "actionDisable": "Disable",
-  "actionRemove": "Remove"
+  "actionRemove": "Remove",
+  "textsCustomized": "Own wording: {languages}",
+  "textsBuiltIn": "Built-in wording",
+  "textsLanguage": "Language of the text",
+  "more": "More"
 }

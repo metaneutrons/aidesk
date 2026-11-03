@@ -213,6 +213,9 @@ label {
     color: var(--text);
     box-shadow: 0 2px 5px #10102005;
 }
+.nav-more {
+    display: none;
+}
 .nav-count {
     margin-left: auto;
     font-size: 11px;
@@ -915,35 +918,73 @@ label {
     }
 }
 @media (max-width: 760px) {
+    /* The menu is a bar of tabs at the lower edge; what is below the menu on a wide screen (language, appearance, the
+       person) opens above the bar with the last tab. */
+    .desk-shell {
+        flex-direction: column-reverse;
+    }
     .sidebar {
-        width: 64px;
-        padding: 20px 8px;
+        position: relative;
+        width: 100%;
+        flex-direction: row;
+        padding: 0 4px env(safe-area-inset-bottom);
+        border-right: 0;
+        border-top: 1px solid var(--line);
     }
     .sidebar .brand {
-        font-size: 0;
-        padding: 0;
-        margin-bottom: 28px;
-    }
-    .nav-item {
-        font-size: 0;
-        padding: 12px;
-        gap: 0;
-    }
-    .nav-item svg {
-        flex-shrink: 0;
-    }
-    .nav-count,
-    .operator > span:not(.avatar),
-    .operator > .icon-button,
-    .locale-select {
         display: none;
     }
-    .theme-switch {
-        flex-direction: column;
-        margin: 0 auto;
+    .sidebar nav {
+        display: flex;
+        flex: 1;
+        gap: 0;
+        overflow-x: auto;
     }
-    .operator {
+    .nav-item {
+        position: relative;
+        flex: 1 0 auto;
+        flex-direction: column;
         justify-content: center;
+        gap: 3px;
+        width: auto;
+        min-width: 60px;
+        min-height: 54px;
+        padding: 6px 8px;
+        font-size: 10px;
+        text-align: center;
+    }
+    .nav-item.active {
+        background: none;
+        box-shadow: none;
+        color: var(--accent-text);
+    }
+    .nav-count {
+        position: absolute;
+        top: 4px;
+        left: 50%;
+        margin: 0 0 0 6px;
+    }
+    .nav-more {
+        display: flex;
+    }
+    .sidebar-bottom {
+        display: none;
+        position: absolute;
+        right: 8px;
+        bottom: calc(100% + 8px);
+        left: 8px;
+        z-index: 20;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        box-shadow: 0 8px 30px #10102030;
+    }
+    .sidebar.more .sidebar-bottom {
+        display: block;
+    }
+    .sidebar-bottom .locale-select {
+        margin: 0 0 12px;
     }
     .topbar {
         padding: 0 16px;
@@ -2848,4 +2889,47 @@ label.inline-check {
     padding: 8px 4px;
     font-weight: 500;
     cursor: pointer;
+}
+.text-body {
+    display: grid;
+    gap: 12px;
+    padding: 12px 16px 16px;
+}
+.text-body .segmented {
+    justify-self: start;
+}
+.text-body .row {
+    padding: 0;
+    min-height: 0;
+}
+.text-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.text-body .row-hint {
+    margin: 0;
+}
+/* The table of the people has a column for each project and is wider than a topic of text. */
+.settings-detail-body[data-topic="people"] {
+    max-width: 1100px;
+}
+@media (max-width: 760px) {
+    /* A row of a narrow screen puts its control below the label, except a switch, which stays beside it. */
+    .row:not(:has(input.switch)) {
+        grid-template-columns: minmax(0, 1fr);
+        padding-block: 10px;
+    }
+    .row:not(:has(input.switch)) .row-control {
+        justify-content: flex-start;
+    }
+    .row:not(:has(input.switch)) .row-control select,
+    .row:not(:has(input.switch))
+        .row-control
+        input:not([type="number"], [type="color"], [type="time"]) {
+        width: 100%;
+    }
+    .actions-bar {
+        padding-bottom: 12px;
+    }
 }

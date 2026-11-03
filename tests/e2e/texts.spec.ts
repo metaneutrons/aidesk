@@ -22,6 +22,7 @@ test("sets the label of the reply button and resets it", async ({
   await openSettings(page, "Texts", alpha.name);
   const section = page.getByRole("region", { name: `Texts of ${alpha.name}` });
   const entry = section.getByRole("group", { name: "Label of the button that sends a reply" });
+  await entry.getByText("Label of the button that sends a reply", { exact: true }).click();
   const field = entry.getByRole("textbox", { name: /\(English\)/ });
   await expect(field).toHaveValue("Send reply");
   try {
