@@ -20,7 +20,7 @@ printf '%s\n' \
   'APP_URL=https://desk.example.org' \
   'AIDESK_IMAGE=ghcr.io/metaneutrons/aidesk:1.8.1' \
   'SOME_SETTING=preserved' >"$STACK_ENV_FILE"
-# shellcheck source=update.sh
+# shellcheck source-path=SCRIPTDIR source=update.sh
 source "$update_sh"
 
 assert() { "$@" >/dev/null || { printf 'FAILED: %q ' "$@" >&2; printf '\n' >&2; exit 1; }; }
