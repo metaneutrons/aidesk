@@ -42,7 +42,7 @@ import { Issues } from "./issues";
 import { Knowledge } from "./knowledge";
 import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
-import { Settings } from "./settings";
+import { areaOf, fromLocation, Settings } from "./settings";
 import { Notifications } from "./notifications";
 import { SavedViews } from "./saved-views";
 import type { SavedView } from "../domain/views";
@@ -261,6 +261,8 @@ interface Props {
   initialViews: SavedView[];
   // The topic and the project of the settings, when the address opened them.
   initialSettings: { topic: string | null; project: string | null } | null;
+  // Whether the person has settings of the workspace or of a project; the account is theirs in any case.
+  settingsAvailable: boolean;
 }
 type Theme = "system" | "light" | "dark";
 const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
@@ -281,7 +283,9 @@ type View =
   | "resolved"
   | "notifications"
   | "junk"
-  | "settings";
+  | "settings"
+  // The account of the person (profile, notifications, sign-in): behind their entry at the bottom of the menu.
+  | "account";
 export function Desk({
   projects,
   initialTickets,
@@ -295,6 +299,7 @@ export function Desk({
   initialUnread,
   initialViews,
   initialSettings,
+  settingsAvailable,
 }: Props) {
   const t = useTranslations();
   const zone = useZone();
@@ -305,22 +310,59 @@ export function Desk({
     ? undefined
     : initialViews.find((entry) => entry.start && !entry.restricted);
   const [views, setViews] = useState(initialViews);
+  // The settings view for an address: the account topics are the account, and a person without settings of the
+  // workspace is shown their account for any other topic.
+  const settingsViewOf = (topic: string | null): View =>
+    areaOf(topic) === "account" || !settingsAvailable ? "account" : "settings";
   const [view, setView] = useState<View>(
-    initialTicketId ? "inbox" : initialSettings ? "settings" : (start?.list ?? "overview"),
+    initialTicketId
+      ? "inbox"
+      : initialSettings
+        ? settingsViewOf(initialSettings.topic)
+        : (start?.list ?? "overview"),
   );
+  // The topic and the project that the next opening of the settings starts with: those of the address, until the
+  // person has opened another view or followed the browser's back and forward buttons.
+  const [entry, setEntry] = useState(initialSettings);
   const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
   // On a narrow screen the part of the menu below the tabs is closed until the last tab opens it.
   const [more, setMore] = useState(false);
   // On a narrow screen the details of a ticket (assignee, tags, reminder, link) are closed until asked for.
   const [inspector, setInspector] = useState(false);
-  // The settings have an address of their own (the topic is part of it, see settings.tsx); another view has none.
+  // The settings and the account have an address of their own (the topic is part of it, see settings.tsx); another view
+  // has none. An address of the other area is replaced by the list of the area that is shown.
   useEffect(() => {
-    const named = new URLSearchParams(window.location.search).has("settings");
-    if (view === "settings" && !named)
-      window.history.replaceState(window.history.state as unknown, "", "/?settings=");
-    if (view !== "settings" && named)
+    const named = new URLSearchParams(window.location.search).get("settings");
+    const wanted = view === "account" ? "account" : view === "settings" ? "workspace" : null;
+    const here = named === null ? null : areaOf(named === "" ? null : named);
+    if (wanted !== null && here !== wanted)
+      window.history.replaceState(
+        window.history.state as unknown,
+        "",
+        wanted === "account" ? "/?settings=account" : "/?settings=",
+      );
+    if (wanted === null && here !== null)
       window.history.replaceState(window.history.state as unknown, "", "/");
   }, [view]);
+  // The browser's back and forward buttons between the account and the other settings: the desk shows the area that the
+  // address names, and that area starts with the topic of the address. The listener is put up once and reads the
+  // current rule through a reference, so that no event falls into the gap of a listener that is taken down and put up
+  // again with each render.
+  const settingsView = useRef(settingsViewOf);
+  settingsView.current = settingsViewOf;
+  useEffect(() => {
+    const follow = () => {
+      const named = new URLSearchParams(window.location.search).get("settings");
+      if (named === null) return;
+      // The area comes from the address as it is: the list of the account is `account`, which is no topic.
+      setEntry(fromLocation());
+      setView(settingsView.current(named === "" ? null : named));
+    };
+    window.addEventListener("popstate", follow);
+    return () => {
+      window.removeEventListener("popstate", follow);
+    };
+  }, []);
   // The number of unread notifications comes with the page and is asked for again every minute; the list asks again
   // when it opens. Nothing is asked for while the page loads, because a request that a navigation cuts off is reported
   // as an error by WebKit.
@@ -833,7 +875,8 @@ export function Desk({
     { view: "resolved", icon: Check },
     { view: "notifications", icon: Bell },
     { view: "junk", icon: ShieldAlert },
-    { view: "settings", icon: SettingsIcon },
+    // A person who manages nothing has no settings of the workspace; their account is behind their name.
+    ...(settingsAvailable ? [{ view: "settings" as const, icon: SettingsIcon }] : []),
   ];
   return (
     <Dialog.Root open={creating} onOpenChange={setCreating}>
@@ -852,6 +895,7 @@ export function Desk({
                 className={`nav-item ${view === item.view ? "active" : ""}${secondary.includes(item.view) ? " nav-secondary" : ""}`}
                 onClick={() => {
                   setMore(false);
+                  setEntry(null);
                   setView(item.view);
                 }}
               >
@@ -943,8 +987,20 @@ export function Desk({
               ))}
             </div>
             <div className="operator">
-              <span className="avatar">{operator.name.slice(0, 1)}</span>
-              <span>{operator.name}</span>
+              <button
+                type="button"
+                className="operator-link"
+                aria-label={t("accountOpen", { name: operator.name })}
+                aria-current={view === "account" ? "page" : undefined}
+                onClick={() => {
+                  setMore(false);
+                  setEntry(null);
+                  setView("account");
+                }}
+              >
+                <span className="avatar">{operator.name.slice(0, 1)}</span>
+                <span>{operator.name}</span>
+              </button>
               <button
                 className="icon-button"
                 aria-label={t("signOut")}
@@ -967,7 +1023,7 @@ export function Desk({
           <header className="topbar">
             <h1>{t(view)}</h1>
             <div className="topbar-actions">
-              {view !== "settings" && view !== "notifications" && (
+              {view !== "settings" && view !== "account" && view !== "notifications" && (
                 <>
                   <div className="project-filter">
                     <button
@@ -1059,14 +1115,16 @@ export function Desk({
                 });
               }}
             />
-          ) : view === "settings" ? (
+          ) : view === "settings" || view === "account" ? (
             <Settings
+              key={view}
+              area={view === "account" ? "account" : "workspace"}
               viewerId={operator.id}
               owner={operator.owner}
               projects={projects}
               locale={initialLocale}
-              initialTopic={initialSettings?.topic ?? null}
-              initialProject={initialSettings?.project ?? null}
+              initialTopic={entry?.topic ?? null}
+              initialProject={entry?.project ?? null}
             />
           ) : view === "overview" ? (
             <section className="overview">

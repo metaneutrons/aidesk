@@ -9,6 +9,7 @@ import { TimeZone } from "../components/time-zone";
 import { listCeiling, listStep } from "../domain/paging";
 import { DomainError } from "../server/errors";
 import { effectiveLocale } from "../domain/locale";
+import { allowedProjectIds } from "../domain/permissions";
 import { Desk } from "../components/desk";
 import english from "../i18n/en.json";
 import german from "../i18n/de.json";
@@ -77,6 +78,9 @@ export default async function Home({
           serverTime={Date.now()}
           initialUnread={notified.unread}
           initialViews={saved.views}
+          settingsAvailable={
+            principal.owner || allowedProjectIds(principal, "project.manage").length > 0
+          }
           initialSettings={
             parameters.settings === undefined || parameters.ticket
               ? null

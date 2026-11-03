@@ -1115,6 +1115,8 @@
   "viewsError": "The view could not be saved.",
   "settingsTopics": "Topics",
   "settingsGroupAccount": "Account",
+  "account": "Account",
+  "accountOpen": "Account of {name}",
   "settingsGroupWorkspace": "Workspace",
   "settingsGroupProject": "Project",
   "topicProfile": "Profile",

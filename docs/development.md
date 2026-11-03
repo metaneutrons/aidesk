@@ -2281,7 +2281,7 @@ nobody is assigned, when the ticket is assigned to an agent, or when the assigne
 The rules are the configuration keys `notifyNewTicket`, `notifyAssignment`, `notifyMention`, `notifyOverdue` and `notifyDraft`
 (settings of the project, "Notifications of operators"); a value that is missing or not valid reads as the default, and a mode
 that does not fit a kind is refused. Each operator chooses for every kind whether it reaches them in the desk and by mail
-(`GET/PUT /api/v1/me/notification-preferences`, in the settings "Your notifications"); both are on until the person chooses.
+(`GET/PUT /api/v1/me/notification-preferences`, behind the name at the bottom of the menu, "Your notifications"); both are on until the person chooses.
 A kind that an operator switched off in the desk writes no notification for them. The choice is an audit entry
 (`operator.notification_preferences`) with the kinds and not the values.
 
