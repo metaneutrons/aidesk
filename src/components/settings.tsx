@@ -1,6 +1,31 @@
 "use client";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import {
+  Archive,
+  Bell,
+  Bot,
+  ChartColumn,
+  Database,
+  Globe,
+  KeyRound,
+  Lock,
+  LogIn,
+  MailPlus,
+  MessageSquareText,
+  PanelsTopLeft,
+  Palette,
+  Plug,
+  ScrollText,
+  Settings2,
+  SlidersHorizontal,
+  Sparkles,
+  Type,
+  User,
+  Users,
+  UsersRound,
+  Webhook,
+} from "lucide-react";
 import { z } from "zod";
 import { OwnerPasskeys } from "./owner-passkeys";
 import { actions as allActions, type Action } from "../domain/permissions";
@@ -13,7 +38,7 @@ import { Limits } from "./limits";
 import { ProjectLifecycle } from "./project-lifecycle";
 import { PortalDomains } from "./portal-domains";
 import { SsoProviders } from "./sso-providers";
-import { ActionChecks, GroupsPanel } from "./groups";
+import { GroupsPanel } from "./groups";
 import { CannedReplies } from "./canned-replies";
 import { KeyRotation } from "./key-rotation";
 import { EraseRequester } from "./erase-requester";
@@ -22,7 +47,6 @@ import { RequesterExport } from "./requester-export";
 import { RoutingRules } from "./routing-rules";
 import { SenderRules } from "./sender-rules";
 import { TagAdmin } from "./tag-admin";
-import { Invite } from "./invite";
 import { PortalBranding } from "./portal-branding";
 import { Profile } from "./profile";
 import { NotificationPreferences } from "./notification-preferences";
@@ -31,15 +55,9 @@ import { UsagePanel } from "./usage";
 import { Webhooks } from "./webhooks";
 import { Designs } from "./designs";
 import { Texts } from "./texts";
-import { useZone } from "./time-zone";
-import {
-  operatorRoles,
-  roleOf,
-  tokenRoles,
-  within,
-  type OperatorRole,
-  type TokenRole,
-} from "../domain/roles";
+import { People, type Person } from "./settings-people";
+import { SettingsShell, type Topic, type TopicGroup } from "./settings-shell";
+import { Tokens } from "./settings-tokens";
 const action = z.enum(allActions);
 const personSchema = z.object({
   id: z.string(),
@@ -52,35 +70,11 @@ const personSchema = z.object({
   groups: z.array(z.object({ id: z.string(), projectId: z.string(), name: z.string() })),
   effective: z.array(z.object({ projectId: z.string(), actions: z.array(action) })),
 });
-const tokenSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  actions: z.array(action),
-  active: z.boolean(),
-  managed: z.boolean(),
-  expiresAt: z.string(),
-});
-type Person = z.infer<typeof personSchema>;
-type Token = z.infer<typeof tokenSchema>;
 interface Project {
   id: string;
   name: string;
   categories?: string[];
 }
-const roleLabels: Record<OperatorRole | "custom", string> = {
-  none: "roleNone",
-  read: "roleRead",
-  respond: "roleRespond",
-  manage: "roleManage",
-  custom: "roleCustom",
-};
-const tokenLabels: Record<TokenRole | "custom", string> = {
-  read: "tokenRoleRead",
-  readFiles: "tokenRoleReadFiles",
-  notes: "tokenRoleNotes",
-  respond: "tokenRoleRespond",
-  custom: "roleCustom",
-};
 async function send(path: string, body: object = {}): Promise<Response> {
   return fetch(`/api/v1${path}`, {
     method: "POST",
@@ -88,35 +82,63 @@ async function send(path: string, body: object = {}): Promise<Response> {
     body: JSON.stringify(body),
   });
 }
+// A topic of the project group is shown when the viewer holds one of these actions in the chosen project.
+const projectTopics = [
+  ["general", Settings2, ["config.read"]],
+  ["connections", Plug, ["integration.manage"]],
+  ["intake", MailPlus, ["intake.manage"]],
+  ["texts", Type, ["config.read"]],
+  ["ai", Sparkles, ["config.read"]],
+  ["agents", Bot, ["ticket.assign", "agent.manage"]],
+  ["portal", PanelsTopLeft, ["config.read", "project.manage"]],
+  ["replies", MessageSquareText, ["config.read", "project.manage"]],
+  ["groups", UsersRound, ["project.manage"]],
+  ["webhooks", Webhook, ["integration.manage"]],
+  ["data", Database, ["config.read", "data.export", "data.erase"]],
+  ["usage", ChartColumn, ["config.read"]],
+  ["audit", ScrollText, ["audit.read"]],
+] as const satisfies readonly (readonly [string, Topic["icon"], readonly Action[]])[];
+const projectTopicIds = new Set<string>(projectTopics.map(([id]) => id));
+const label = (id: string) =>
+  `topic${id.replace(/(^|-)(\w)/g, (_, __, letter: string) => letter.toUpperCase())}`;
+// The address of a topic: the settings are part of the desk, so the address is the desk's with the topic in the query.
+function address(topic: string | null, project: string | null): string {
+  const query = new URLSearchParams({ settings: topic ?? "" });
+  if (topic && project && projectTopicIds.has(topic)) query.set("project", project);
+  return `/?${query.toString()}`;
+}
+// The address is changed without telling the router of the framework (which takes a state of its own as a sign
+// that the change is none of its business): its request for fresh data, as after a change of the profile, keeps
+// asking for the page it knows, and a change of the address cannot put back a tree that is older than that data.
+const keepState = (): unknown => window.history.state;
+function fromLocation(): { topic: string | null; project: string | null } {
+  const query = new URLSearchParams(window.location.search);
+  const topic = query.get("settings");
+  return { topic: topic === "" ? null : topic, project: query.get("project") };
+}
 export function Settings({
   viewerId,
   owner,
   projects,
   locale,
+  initialTopic,
+  initialProject,
 }: {
   viewerId: string;
   owner: boolean;
   projects: Project[];
   locale: string;
+  // The topic and the project that the address named, when the settings were opened by an address.
+  initialTopic: string | null;
+  initialProject: string | null;
 }) {
   const t = useTranslations();
-  const zone = useZone();
-  const fieldId = useId();
   const [people, setPeople] = useState<Person[] | null>(null);
   const [failure, setFailure] = useState<"settingsNoAccess" | "error" | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [tokenProject, setTokenProject] = useState("");
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [tokenName, setTokenName] = useState("");
-  const [tokenRole, setTokenRole] = useState<TokenRole>("read");
-  const [tokenDays, setTokenDays] = useState(30);
-  // An agent that aidesk runs itself has no token and no end date.
-  const [tokenManaged, setTokenManaged] = useState(false);
-  const [managedCreated, setManagedCreated] = useState(false);
   // Raised when a connection changed, so other sections that list them reload.
   const [connectionsStamp, setConnectionsStamp] = useState(0);
-  const [issued, setIssued] = useState<string | null>(null);
+  const [topic, setTopic] = useState<string | null>(initialTopic);
+  const [chosenProject, setChosenProject] = useState<string | null>(initialProject);
   const load = useCallback(async () => {
     const response = await fetch("/api/v1/operators").catch(() => null);
     if (response?.status === 403) {
@@ -132,19 +154,9 @@ export function Settings({
   const managed = people?.find((person) => person.id === viewerId)?.effective ?? [];
   const held = (projectId: string): Action[] =>
     managed.find((grant) => grant.projectId === projectId)?.actions ?? [];
-  const tokenProjects = managed.filter((grant) => grant.actions.includes("agent.manage"));
-  const loadTokens = useCallback(async (projectId: string) => {
-    if (!projectId) return;
-    const response = await fetch(`/api/v1/projects/${projectId}/agents`).catch(() => null);
-    const parsed = response?.ok ? z.array(tokenSchema).safeParse(await response.json()) : null;
-    setTokens(parsed?.success ? parsed.data : []);
-  }, []);
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
-    void loadTokens(tokenProject);
-  }, [tokenProject, loadTokens]);
   async function act(request: Promise<Response>, after: () => Promise<void>) {
     const response = await request.catch(() => null);
     if (!response?.ok) setFailure("error");
@@ -152,579 +164,314 @@ export function Settings({
   }
   const projectName = (projectId: string) =>
     projects.find((project) => project.id === projectId)?.name ?? projectId;
-  if (failure === "settingsNoAccess")
-    return (
-      <section className="settings">
-        <p className="muted">{t("settingsNoAccess")}</p>
-        <Profile />
-        <NotificationPreferences />
-        <SignIn locale={locale} />
-      </section>
-    );
-  return (
-    <section className="settings" aria-label={t("settings")}>
-      {failure === "error" && (
-        <p className="error" role="alert">
-          {t("error")}
-        </p>
-      )}
-      <Profile />
-      <NotificationPreferences />
-      <SignIn locale={locale} />
-      <h2>{t("operatorsTitle")}</h2>
-      {people === null ? (
-        <p className="muted">{t("loading")}</p>
-      ) : (
-        <div>
-          <div className="table-scroll" role="region" aria-label={t("operatorsTitle")} tabIndex={0}>
-            <table className="settings-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("name")}</th>
-                  <th scope="col">{t("status")}</th>
-                  {managed.map((grant) => (
-                    <th scope="col" key={grant.projectId}>
-                      {projectName(grant.projectId)}
-                    </th>
-                  ))}
-                  {owner && (
-                    <th scope="col">
-                      <span className="visually-hidden">{t("operatorActions")}</span>
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {people.map((person) => (
-                  <tr key={person.id}>
-                    <td>
-                      <strong>{person.name}</strong>
-                      <small>{person.email}</small>
-                    </td>
-                    <td>
-                      {t(person.active ? "statusActive" : "statusDisabled")}
-                      {person.owner && ` · ${t("ownerBadge")}`}
-                      {person.signIn.length > 0 &&
-                        ` · ${person.signIn.map((kind) => t(kind === "sso" ? "signInSsoBadge" : "signInPasswordBadge")).join(", ")}`}
-                    </td>
-                    {managed.map((grant) => {
-                      const current =
-                        person.grants.find((entry) => entry.projectId === grant.projectId)
-                          ?.actions ?? [];
-                      const role = roleOf(operatorRoles, current);
-                      return (
-                        <td key={grant.projectId}>
-                          <select
-                            aria-label={`${t("role")}: ${person.name}, ${projectName(grant.projectId)}`}
-                            value={role}
-                            onChange={(event) => {
-                              const next = event.target.value as OperatorRole;
-                              void act(
-                                send(`/operators/${person.id}/grants`, {
-                                  projectId: grant.projectId,
-                                  actions: within(operatorRoles[next], held(grant.projectId)),
-                                }),
-                                load,
-                              );
-                            }}
-                          >
-                            {role === "custom" && <option value="custom">{t("roleCustom")}</option>}
-                            {(Object.keys(operatorRoles) as OperatorRole[]).map((option) => (
-                              <option key={option} value={option}>
-                                {t(roleLabels[option])}
-                              </option>
-                            ))}
-                          </select>
-                          <details className="rights">
-                            <summary>
-                              <span className="visually-hidden">
-                                {t("rightsOf", {
-                                  name: person.name,
-                                  project: projectName(grant.projectId),
-                                })}
-                                {": "}
-                              </span>
-                              {t("rightsSummary")}
-                            </summary>
-                            <ActionChecks
-                              legend={t("rightsOf", {
-                                name: person.name,
-                                project: projectName(grant.projectId),
-                              })}
-                              held={held(grant.projectId)}
-                              value={current}
-                              onChange={(next) => {
-                                void act(
-                                  send(`/operators/${person.id}/grants`, {
-                                    projectId: grant.projectId,
-                                    actions: next.filter((entry) =>
-                                      held(grant.projectId).includes(entry),
-                                    ),
-                                  }),
-                                  load,
-                                );
-                              }}
-                            />
-                            {person.groups.some((entry) => entry.projectId === grant.projectId) && (
-                              <small className="muted">
-                                {t("rightsViaGroups", {
-                                  groups: person.groups
-                                    .filter((entry) => entry.projectId === grant.projectId)
-                                    .map((entry) => entry.name)
-                                    .join(", "),
-                                })}
-                              </small>
-                            )}
-                          </details>
-                        </td>
-                      );
-                    })}
-                    {owner && (
-                      <td>
-                        {!person.owner && person.id !== viewerId && (
-                          <button
-                            type="button"
-                            className="secondary"
-                            aria-label={`${t(person.active ? "disable" : "enable")}: ${person.name}`}
-                            onClick={() => {
-                              void act(
-                                send(`/operators/${person.id}/active`, { active: !person.active }),
-                                load,
-                              );
-                            }}
-                          >
-                            {t(person.active ? "disable" : "enable")}
-                          </button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      <Invite
-        projects={projects.filter((project) => held(project.id).includes("project.manage"))}
-        held={held}
-        locale={locale}
-        onInvited={() => {
-          void load();
-        }}
-      />
-      {owner && (
-        <form
-          className="settings-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void act(send("/operators", { name, email }), async () => {
-              setName("");
-              setEmail("");
-              await load();
-            });
-          }}
-        >
-          <h3>{t("operatorAdd")}</h3>
-          <label>
-            {t("name")}
-            <input
-              value={name}
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-              required
-            />
-          </label>
-          <label>
-            {t("email")}
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              required
-            />
-          </label>
-          <p className="muted">{t("operatorAddHint")}</p>
-          <button className="primary" type="submit">
-            {t("operatorAdd")}
-          </button>
-        </form>
-      )}
-      {tokenProjects.length > 0 && (
-        <>
-          <h2>{t("tokensTitle")}</h2>
-          <label className="inline-field" htmlFor={`${fieldId}-project`}>
-            {t("project")}
-          </label>
+  const manageable = projects.filter((project) => held(project.id).includes("project.manage"));
+  const topicsOf = (projectId: string) =>
+    projectTopics.filter(([, , needs]) => needs.some((entry) => held(projectId).includes(entry)));
+  const projectChoices = projects.filter((project) => topicsOf(project.id).length > 0);
+  const selected =
+    projectChoices.find((project) => project.id === chosenProject)?.id ??
+    projectChoices[0]?.id ??
+    null;
+  const noAccess = failure === "settingsNoAccess";
+  const topic$ = (id: string, icon: Topic["icon"]): Topic => ({ id, label: t(label(id)), icon });
+  const groups: TopicGroup[] = [
+    {
+      id: "account",
+      label: t("settingsGroupAccount"),
+      topics: [
+        topic$("profile", User),
+        { id: "notifications", label: t("notifications"), icon: Bell },
+        topic$("security", KeyRound),
+      ],
+    },
+  ];
+  if (!noAccess)
+    groups.push({
+      id: "workspace",
+      label: t("settingsGroupWorkspace"),
+      topics: [
+        topic$("people", Users),
+        ...(owner
+          ? [
+              topic$("workspace", SlidersHorizontal),
+              topic$("sso", LogIn),
+              topic$("domains", Globe),
+              topic$("keys", Lock),
+              topic$("workspace-audit", ScrollText),
+            ]
+          : []),
+        ...(manageable.length > 0 ? [topic$("projects", Archive), topic$("design", Palette)] : []),
+      ],
+    });
+  if (selected)
+    groups.push({
+      id: "project",
+      label: t("settingsGroupProject"),
+      lead:
+        projectChoices.length > 1 ? (
           <select
-            id={`${fieldId}-project`}
-            value={tokenProject}
+            className="settings-project"
+            aria-label={t("project")}
+            value={selected}
             onChange={(event) => {
-              setIssued(null);
-              setTokenProject(event.target.value);
+              const next = event.target.value;
+              go(topicsOf(next).some(([id]) => id === active) ? active : null, next);
             }}
           >
-            <option value="">–</option>
-            {tokenProjects.map((grant) => (
-              <option key={grant.projectId} value={grant.projectId}>
-                {projectName(grant.projectId)}
+            {projectChoices.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
               </option>
             ))}
           </select>
-          {tokenProject && (
-            <>
-              {tokens.length === 0 ? (
-                <p className="muted">{t("noTokens")}</p>
-              ) : (
-                <ul className="token-list">
-                  {tokens.map((token) => (
-                    <li key={token.id}>
-                      <strong>{token.name}</strong>
-                      <span>{t(tokenLabels[roleOf(tokenRoles, token.actions)])}</span>
-                      <span>
-                        {token.active
-                          ? token.managed
-                            ? t("agentManagedLabel")
-                            : t("tokenExpires", {
-                                date: new Intl.DateTimeFormat(locale, {
-                                  ...zone,
-                                  dateStyle: "medium",
-                                }).format(new Date(token.expiresAt)),
-                              })
-                          : t("statusRevoked")}
-                      </span>
-                      {token.active && (
-                        <button
-                          type="button"
-                          className="secondary"
-                          aria-label={`${t("tokenRevoke")}: ${token.name}`}
-                          onClick={() => {
-                            void act(send(`/agents/${token.id}/revoke`), () =>
-                              loadTokens(tokenProject),
-                            );
-                          }}
-                        >
-                          {t("tokenRevoke")}
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form
-                className="settings-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setIssued(null);
-                  setManagedCreated(false);
-                  void (async () => {
-                    if (tokenManaged) {
-                      const created = await send(`/projects/${tokenProject}/agents/managed`, {
-                        name: tokenName,
-                        actions: within(tokenRoles[tokenRole], held(tokenProject)),
-                      }).catch(() => null);
-                      if (created?.ok) {
-                        setManagedCreated(true);
-                        setTokenName("");
-                      } else setFailure("error");
-                      await loadTokens(tokenProject);
-                      return;
-                    }
-                    const response = await send(`/projects/${tokenProject}/agents`, {
-                      name: tokenName,
-                      actions: within(tokenRoles[tokenRole], held(tokenProject)),
-                      expiresInDays: tokenDays,
-                    }).catch(() => null);
-                    const parsed = response?.ok
-                      ? z.object({ token: z.string() }).safeParse(await response.json())
-                      : null;
-                    if (parsed?.success) {
-                      setIssued(parsed.data.token);
-                      setTokenName("");
-                    } else setFailure("error");
-                    await loadTokens(tokenProject);
-                  })();
-                }}
-              >
-                <h3>{t(tokenManaged ? "managedCreate" : "tokenIssue")}</h3>
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={tokenManaged}
-                    onChange={(event) => {
-                      setTokenManaged(event.target.checked);
-                      setIssued(null);
-                      setManagedCreated(false);
-                    }}
-                  />
-                  <span>{t("managedAgent")}</span>
-                </label>
-                {tokenManaged && <p className="muted">{t("managedAgentHint")}</p>}
-                <label>
-                  {t("tokenName")}
-                  <input
-                    value={tokenName}
-                    onChange={(event) => {
-                      setTokenName(event.target.value);
-                    }}
-                    required
-                  />
-                </label>
-                <label htmlFor={`${fieldId}-access`}>{t("tokenRole")}</label>
-                <select
-                  id={`${fieldId}-access`}
-                  value={tokenRole}
-                  onChange={(event) => {
-                    setTokenRole(event.target.value as TokenRole);
-                  }}
-                >
-                  {(Object.keys(tokenRoles) as TokenRole[]).map((option) => (
-                    <option key={option} value={option}>
-                      {t(tokenLabels[option])}
-                    </option>
-                  ))}
-                </select>
-                {!tokenManaged && (
-                  <>
-                    <label htmlFor={`${fieldId}-expiry`}>{t("tokenExpiry")}</label>
-                    <select
-                      id={`${fieldId}-expiry`}
-                      value={tokenDays}
-                      onChange={(event) => {
-                        setTokenDays(Number(event.target.value));
-                      }}
-                    >
-                      {[7, 30, 90].map((days) => (
-                        <option key={days} value={days}>
-                          {t("days", { count: days })}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-                <button className="primary" type="submit">
-                  {t(tokenManaged ? "managedCreate" : "tokenIssue")}
-                </button>
-                {managedCreated && (
-                  <p className="muted" role="status">
-                    {t("managedCreated")}
-                  </p>
-                )}
-                {issued && (
-                  <div className="issued-token" role="status">
-                    <p>{t("tokenShownOnce")}</p>
-                    <code>{issued}</code>
-                  </div>
-                )}
-              </form>
-            </>
-          )}
-        </>
-      )}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
+        ) : (
+          <p className="settings-project-name">{projectName(selected)}</p>
+        ),
+      topics: topicsOf(selected).map(([id, icon]) => topic$(id, icon)),
+    });
+  const available = groups.flatMap((group) => group.topics);
+  const ready = people !== null || failure !== null;
+  // A topic that is not offered (the address of a person with fewer rights, a project that is gone) opens the first one.
+  const active = available.find((entry) => entry.id === topic)?.id ?? "profile";
+  const waiting =
+    !ready && topic !== null && !["profile", "notifications", "security"].includes(topic);
+  function go(next: string | null, nextProject: string | null = selected) {
+    setTopic(next);
+    if (nextProject) setChosenProject(nextProject);
+    window.history.pushState(keepState(), "", address(next, nextProject));
+  }
+  // The browser's back and forward buttons move between the topics that were opened; the desk puts the part of the
+  // settings into the address when they are opened and takes it off when another view is.
+  useEffect(() => {
+    const follow = () => {
+      if (!new URLSearchParams(window.location.search).has("settings")) return;
+      const place = fromLocation();
+      setTopic(place.topic);
+      if (place.project) setChosenProject(place.project);
+    };
+    window.addEventListener("popstate", follow);
+    return () => {
+      window.removeEventListener("popstate", follow);
+    };
+  }, []);
+  const render = (): ReactNode => {
+    const p = selected;
+    const name = p ? projectName(p) : "";
+    const a = p ? held(p) : [];
+    switch (active) {
+      case "profile":
+        return <Profile />;
+      case "notifications":
+        return <NotificationPreferences />;
+      case "security":
+        return (
+          <>
+            <SignIn locale={locale} />
+            {owner && <OwnerPasskeys locale={locale} />}
+          </>
+        );
+      case "people":
+        return (
+          <People
+            people={people}
+            managed={managed}
+            owner={owner}
+            viewerId={viewerId}
+            projects={projects}
+            locale={locale}
+            projectName={projectName}
+            held={held}
+            send={send}
+            act={act}
+            load={load}
+          />
+        );
+      case "workspace":
+        return (
+          <>
+            <WorkspaceControls />
+            <Limits />
+          </>
+        );
+      case "sso":
+        return <SsoProviders />;
+      case "domains":
+        return <PortalDomains projectId={null} name="" />;
+      case "keys":
+        return <KeyRotation />;
+      case "workspace-audit":
+        return <AuditLog projectId={null} name="" locale={locale} />;
+      case "projects":
+        return <ProjectLifecycle manageable={manageable} locale={locale} owner={owner} />;
+      case "design":
+        return <Designs projects={manageable} locale={locale} />;
+    }
+    if (!p) return null;
+    switch (active) {
+      case "general":
+        return (
           <Configuration
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            canWrite={grant.actions.includes("config.write")}
-            canApprove={grant.actions.includes("config.approve")}
+            key={p}
+            projectId={p}
+            name={name}
+            canWrite={a.includes("config.write")}
+            canApprove={a.includes("config.approve")}
             connectionsStamp={connectionsStamp}
           />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("integration.manage"))
-        .map((grant) => (
+        );
+      case "connections":
+        return (
           <Connections
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
+            key={p}
+            projectId={p}
+            name={name}
             onChanged={() => {
               setConnectionsStamp((stamp) => stamp + 1);
             }}
           />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
-          <Texts
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            canWrite={grant.actions.includes("config.write")}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
+        );
+      case "intake":
+        return (
+          <>
+            <SenderRules key={`senders-${p}`} projectId={p} name={name} />
+            <RoutingRules
+              key={`routing-${p}`}
+              projectId={p}
+              name={name}
+              categories={projects.find((project) => project.id === p)?.categories ?? []}
+            />
+          </>
+        );
+      case "texts":
+        return <Texts key={p} projectId={p} name={name} canWrite={a.includes("config.write")} />;
+      case "ai":
+        return (
           <AiProfiles
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            canWrite={grant.actions.includes("config.write")}
-            canApprove={grant.actions.includes("config.approve")}
+            key={p}
+            projectId={p}
+            name={name}
+            canWrite={a.includes("config.write")}
+            canApprove={a.includes("config.approve")}
             connectionsStamp={connectionsStamp}
           />
-        ))}
-      {owner && <OwnerPasskeys locale={locale} />}
-      {owner && <WorkspaceControls />}
-      {owner && <Limits />}
-      {owner && <SsoProviders />}
-      {managed
-        .filter((grant) => grant.actions.includes("ticket.assign"))
-        .map((grant) => (
-          <ProjectAgentControls
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("integration.manage"))
-        .map((grant) => (
-          <Webhooks
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            locale={locale}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
-          <PortalBranding
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            canWrite={grant.actions.includes("config.write")}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
-          <UsagePanel
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            locale={locale}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("audit.read"))
-        .map((grant) => (
-          <AuditLog
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            locale={locale}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("project.manage"))
-        .map((grant) => (
-          <PortalDomains
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("intake.manage"))
-        .map((grant) => (
-          <SenderRules
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
-          <CannedReplies
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            canWrite={grant.actions.includes("config.write")}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("data.export"))
-        .map((grant) => (
-          <RequesterExport
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("data.erase"))
-        .map((grant) => (
-          <EraseRequester
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("config.read"))
-        .map((grant) => (
-          <Processing
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("intake.manage"))
-        .map((grant) => (
-          <RoutingRules
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            categories={
-              projects.find((project) => project.id === grant.projectId)?.categories ?? []
-            }
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("project.manage"))
-        .map((grant) => (
-          <TagAdmin
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-          />
-        ))}
-      {managed
-        .filter((grant) => grant.actions.includes("project.manage"))
-        .map((grant) => (
+        );
+      case "agents":
+        return (
+          <>
+            {a.includes("ticket.assign") && (
+              <ProjectAgentControls key={`controls-${p}`} projectId={p} name={name} />
+            )}
+            {a.includes("agent.manage") && (
+              <Tokens
+                key={`tokens-${p}`}
+                projectId={p}
+                held={a}
+                locale={locale}
+                send={send}
+                act={act}
+              />
+            )}
+          </>
+        );
+      case "portal":
+        return (
+          <>
+            {a.includes("config.read") && (
+              <PortalBranding
+                key={`branding-${p}`}
+                projectId={p}
+                name={name}
+                canWrite={a.includes("config.write")}
+              />
+            )}
+            {a.includes("project.manage") && (
+              <PortalDomains key={`domains-${p}`} projectId={p} name={name} />
+            )}
+          </>
+        );
+      case "replies":
+        return (
+          <>
+            {a.includes("config.read") && (
+              <CannedReplies
+                key={`replies-${p}`}
+                projectId={p}
+                name={name}
+                canWrite={a.includes("config.write")}
+              />
+            )}
+            {a.includes("project.manage") && (
+              <TagAdmin key={`tags-${p}`} projectId={p} name={name} />
+            )}
+          </>
+        );
+      case "groups":
+        return (
           <GroupsPanel
-            key={grant.projectId}
-            projectId={grant.projectId}
-            name={projectName(grant.projectId)}
-            held={grant.actions}
+            key={p}
+            projectId={p}
+            name={name}
+            held={a}
             people={(people ?? []).filter((person) => person.active)}
             onChanged={() => {
               void load();
             }}
           />
-        ))}
-      {owner && <PortalDomains projectId={null} name="" />}
-      {owner && <KeyRotation />}
-      {owner && <AuditLog projectId={null} name="" locale={locale} />}
-      <ProjectLifecycle
-        manageable={projects.filter((project) => held(project.id).includes("project.manage"))}
-        locale={locale}
-        owner={owner}
-      />
-      <Designs
-        projects={projects.filter((project) => held(project.id).includes("project.manage"))}
-        locale={locale}
-      />
+        );
+      case "webhooks":
+        return <Webhooks key={p} projectId={p} name={name} locale={locale} />;
+      case "data":
+        return (
+          <>
+            {a.includes("config.read") && (
+              <Processing key={`processing-${p}`} projectId={p} name={name} />
+            )}
+            {a.includes("data.export") && (
+              <RequesterExport key={`export-${p}`} projectId={p} name={name} />
+            )}
+            {a.includes("data.erase") && (
+              <EraseRequester key={`erase-${p}`} projectId={p} name={name} />
+            )}
+          </>
+        );
+      case "usage":
+        return <UsagePanel key={p} projectId={p} name={name} locale={locale} />;
+      case "audit":
+        return <AuditLog key={p} projectId={p} name={name} locale={locale} />;
+    }
+    return null;
+  };
+  const current = available.find((entry) => entry.id === active);
+  return (
+    <section className="settings" aria-label={t("settings")}>
+      <SettingsShell
+        groups={groups}
+        active={active}
+        level={topic === null ? "list" : "topic"}
+        href={(id) => address(id, selected)}
+        onSelect={(id) => {
+          go(id);
+        }}
+        onBack={() => {
+          go(null);
+        }}
+        heading={
+          <>
+            <h2>{current?.label}</h2>
+            {projectTopicIds.has(active) && selected && (
+              <p className="muted">{projectName(selected)}</p>
+            )}
+            {noAccess && <p className="muted">{t("settingsNoAccess")}</p>}
+            {failure === "error" && (
+              <p className="error" role="alert">
+                {t("error")}
+              </p>
+            )}
+          </>
+        }
+      >
+        {waiting ? <p className="muted">{t("loading")}</p> : render()}
+      </SettingsShell>
     </section>
   );
 }

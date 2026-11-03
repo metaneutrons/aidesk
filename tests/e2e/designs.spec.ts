@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, mailpit, test } from "./fixtures";
+import { expect, mailpit, openSettings, test } from "./fixtures";
 // Mail design settings: draft preview, versions, selection and the test mail
 // that goes to the signed-in person.
 test.describe.configure({ mode: "serial" });
@@ -19,7 +19,7 @@ test("previews a draft, saves a version, uses it and sends a test mail", async (
   const header = `Design ${desk.run}`;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Mail design");
   const section = page.getByRole("region", { name: "Mail design" });
   await expect(section.getByText("Built-in design", { exact: true })).toBeVisible();
   await expect(section.getByText("In use", { exact: true })).toBeVisible();

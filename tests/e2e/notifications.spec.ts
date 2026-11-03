@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, fixture, test } from "./fixtures";
+import { expect, fixture, openSettings, test } from "./fixtures";
 // The notifications of an operator in the desk: the number of unread ones next to the entry of the navigation, the
 // list with the number and the subject of the ticket, the opening of the ticket and the marking as read, and the
 // choice of channels in the settings. The notification is written as the rules of the project would write it; what
@@ -75,7 +75,7 @@ test("chooses the channels for a kind in the settings and keeps the choice", asy
   const original = (await read()).preferences;
   try {
     await page.goto("/");
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Notifications");
     const section = page.locator("section.notification-preferences");
     await expect(section).toBeVisible();
     await expect(section.getByRole("heading", { name: "Your notifications" })).toBeVisible();
@@ -88,7 +88,7 @@ test("chooses the channels for a kind in the settings and keeps the choice", asy
       mail: false,
     });
     await page.reload();
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Notifications");
     await expect(
       page
         .locator("section.notification-preferences")

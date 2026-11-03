@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ ticket?: string; limit?: string }>;
+  searchParams: Promise<{ ticket?: string; limit?: string; settings?: string; project?: string }>;
 }) {
   const parameters = await searchParams;
   const requestHeaders = new Headers(await headers());
@@ -77,6 +77,11 @@ export default async function Home({
           serverTime={Date.now()}
           initialUnread={notified.unread}
           initialViews={saved.views}
+          initialSettings={
+            parameters.settings === undefined || parameters.ticket
+              ? null
+              : { topic: parameters.settings || null, project: parameters.project ?? null }
+          }
         />
       </TimeZone>
     </NextIntlClientProvider>

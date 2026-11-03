@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Inviting an operator by address in the settings: the person is added with the role, the answer says what happened
 // to the mail, and a second invitation of the same address adds rights and creates nobody. The account carries the
 // prefix of the run, so that the fixture removes it with the rest.
@@ -25,7 +25,7 @@ test("invites an operator by address and adds rights when the address is used ag
       ?.grants.find((grant) => grant.projectId === alpha.id)?.actions;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "People");
   const form = page.locator("form.invite");
   await expect(form).toBeVisible();
   await form.getByLabel("Project").selectOption({ label: alpha.name });

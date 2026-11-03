@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The limits of the workspace in the settings: an owner changes one, saves, sees it after a reload, reads
 // it over the API, and goes back to the standard. The value that is changed (the number of files of a
 // received mail) is one that no other test depends on, and it is put back at the end.
@@ -17,7 +17,7 @@ test("lets the owner change a limit, keeps it, and goes back to the standard", a
 }) => {
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Limits and controls");
   const section = page
     .locator("section.limits")
     .filter({ has: page.getByRole("heading", { name: "Limits of the workspace" }) });
@@ -35,7 +35,7 @@ test("lets the owner change a limit, keeps it, and goes back to the standard", a
     await expect(section.getByText("The limits were saved.")).toBeVisible();
     // It is kept: a new page load shows it, and so does the API.
     await page.reload();
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Limits and controls");
     await expect(section.getByLabel("Files per received mail")).toHaveValue("24");
     const stored = z
       .object({ intakeFiles: z.number(), sessionHours: z.number() })

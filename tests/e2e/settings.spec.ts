@@ -1,15 +1,9 @@
 import { randomBytes } from "node:crypto";
-import type { Page } from "@playwright/test";
 import { z } from "zod";
-import { expect, remote, test } from "./fixtures";
+import { expect, openSettings, remote, test } from "./fixtures";
 import { createIdpUser, deleteIdpUser } from "./keycloak";
 // Operator and token administration through the settings view.
 test.describe.configure({ mode: "serial" });
-async function openSettings(page: Page) {
-  await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-  await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
-}
 test("an operator added in settings signs in through SSO with the granted access", async ({
   page,
   desk,
@@ -20,7 +14,8 @@ test("an operator added in settings signs in through SSO with the granted access
   const email = `${desk.prefix}-invited@oidc.aidesk.test`;
   const password = randomBytes(16).toString("hex");
   await signIn();
-  await openSettings(page);
+  await page.goto("/");
+  await openSettings(page, "People");
   const form = page
     .locator("form")
     .filter({ has: page.getByRole("heading", { name: "Add operator" }) });
@@ -61,7 +56,8 @@ test("disables an operator and shows the state", async ({ page, desk, signIn }) 
     "The operator of this test is made by the SSO test, which a deployment does not run.",
   );
   await signIn();
-  await openSettings(page);
+  await page.goto("/");
+  await openSettings(page, "People");
   const row = page.getByRole("row").filter({ hasText: `Invited ${desk.run}` });
   await row.getByRole("button", { name: `Disable: Invited ${desk.run}` }).click();
   await expect(row.getByText("Disabled")).toBeVisible();
@@ -74,8 +70,8 @@ test("issues a token that may read files only when that access is chosen", async
   signIn,
 }) => {
   await signIn();
-  await openSettings(page);
-  await page.getByLabel("Project", { exact: true }).selectOption(desk.projects.alpha.id);
+  await page.goto("/");
+  await openSettings(page, "Agents and tokens", desk.projects.alpha.name);
   await page.getByLabel("Token name").fill("Files token");
   await page.getByLabel("Access").selectOption("readFiles");
   await page.getByRole("button", { name: "Issue token" }).click();
@@ -105,8 +101,8 @@ test("issues a token that may read files only when that access is chosen", async
 });
 test("issues a token once and revokes it", async ({ page, desk, signIn }) => {
   await signIn();
-  await openSettings(page);
-  await page.getByLabel("Project", { exact: true }).selectOption(desk.projects.alpha.id);
+  await page.goto("/");
+  await openSettings(page, "Agents and tokens", desk.projects.alpha.name);
   await page.getByLabel("Token name").fill("Settings token");
   await page.getByLabel("Access").selectOption("notes");
   await page.getByRole("button", { name: "Issue token" }).click();
@@ -124,8 +120,8 @@ test("issues a token once and revokes it", async ({ page, desk, signIn }) => {
 });
 test("creates a managed agent without a token and revokes it", async ({ page, desk, signIn }) => {
   await signIn();
-  await openSettings(page);
-  await page.getByLabel("Project", { exact: true }).selectOption(desk.projects.alpha.id);
+  await page.goto("/");
+  await openSettings(page, "Agents and tokens", desk.projects.alpha.name);
   await page.getByLabel("Token name").fill("Settings managed agent");
   await page.getByLabel("Access").selectOption("respond");
   await page.getByLabel("Run by aidesk (managed agent, no token)").check();

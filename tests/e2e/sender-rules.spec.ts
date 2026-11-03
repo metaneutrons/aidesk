@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The lists of senders in the settings: an address and a domain are blocked, a bad entry and a double one are
 // refused with a reason, and an entry is taken off again. The test leaves the lists as it found them.
 test.describe.configure({ mode: "serial" });
@@ -15,7 +15,7 @@ test("blocks and allows senders and takes them off again", async ({ page, desk, 
     );
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Incoming mail", alpha.name);
   const section = page.locator("section.sender-rules").filter({
     has: page.getByRole("heading", { name: `Allowed and blocked senders for ${alpha.name}` }),
   });

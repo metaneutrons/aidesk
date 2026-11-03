@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, fixture, test } from "./fixtures";
+import { expect, fixture, openSettings, test } from "./fixtures";
 // The profile of the signed-in operator in the settings: the name and the signature are saved, kept after a reload,
 // read over the API, and removed again. The fixture operator is the only one who changes it, and it is put back.
 test.describe.configure({ mode: "serial" });
@@ -14,7 +14,7 @@ test("saves the name and the signature of the operator and removes them again", 
 }) => {
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Profile");
   const section = page
     .locator("section.profile")
     .filter({ has: page.getByRole("heading", { name: "Your profile" }) });
@@ -28,7 +28,7 @@ test("saves the name and the signature of the operator and removes them again", 
     await expect(section.getByText("The profile was saved.")).toBeVisible();
     await expect(save).toBeDisabled();
     await page.reload();
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Profile");
     await expect(section.getByLabel("Name on replies")).toHaveValue("Kim Example");
     await expect(section.getByLabel("Signature")).toHaveValue("Kim Example\nSupport team");
     const stored = profileSchema.parse(await (await page.request.get("/api/v1/me/profile")).json());
@@ -72,7 +72,7 @@ test("shows times in the time zone of the profile and refuses one that does not 
     );
   expect(await at("Pacific/Kiritimati")).not.toBe(await at("Pacific/Pago_Pago"));
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Profile");
   const section = page
     .locator("section.profile")
     .filter({ has: page.getByRole("heading", { name: "Your profile" }) });
@@ -88,14 +88,14 @@ test("shows times in the time zone of the profile and refuses one that does not 
   };
   try {
     for (const name of ["Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
-      await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+      await openSettings(page, "Profile");
       await zone.fill(name);
       await save.click();
       await expect(section.getByText("The profile was saved.")).toBeVisible();
       await expect(await listed()).toContainText(await at(name));
     }
     // A name that is no zone is refused by the server, and the stored zone stays.
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Profile");
     await zone.fill("Mars/Olympus");
     await save.click();
     await expect(section.getByText("The profile could not be saved.")).toBeVisible();
@@ -105,7 +105,7 @@ test("shows times in the time zone of the profile and refuses one that does not 
         .parse(await (await page.request.get("/api/v1/me/profile")).json()).timeZone,
     ).toBe("Pacific/Pago_Pago");
   } finally {
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Profile");
     await zone.fill("");
     if (await save.isEnabled()) await save.click();
   }

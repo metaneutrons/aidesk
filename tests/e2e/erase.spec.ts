@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import nodemailer from "nodemailer";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Erasing data: a mail that arrives over the real protocol becomes a ticket, the ticket is erased from its header
 // after the numbers were shown, and everything about a requester is erased from the settings. The mails are the
 // test's own, so nothing of the fixture is touched.
@@ -76,7 +76,7 @@ test("erases a ticket and a requester after showing what goes", async ({ page, d
   ).toBe(404);
   // Everything about the requester, from the settings: the address is shown with the counts.
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Data and privacy", alpha.name);
   const section = page.locator("section.erase-requester").filter({
     has: page.getByRole("heading", { name: `Erase a requester in ${alpha.name}` }),
   });

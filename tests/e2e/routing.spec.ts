@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The routing of new tickets in the settings: rules are added, put in order, changed, switched off and removed. The
 // test leaves the rules of the project as it found them.
 test.describe.configure({ mode: "serial" });
@@ -31,7 +31,7 @@ test("adds, orders, changes and removes routing rules", async ({
       await (await page.request.get(`/api/v1/projects/${alpha.id}/routing-rules`)).json(),
     );
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Incoming mail", alpha.name);
   const section = page.locator("section.routing-rules").filter({
     has: page.getByRole("heading", { name: `Routing of new tickets for ${alpha.name}` }),
   });

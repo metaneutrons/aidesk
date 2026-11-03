@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The administration of tags in the settings: a tag is renamed, merged into another, coloured and removed after the
 // question. Two tickets carry the tags, and the test takes them off again. The tickets are shared by the browsers of
 // a run, so this one runs in one browser only.
@@ -30,7 +30,7 @@ test("renames, merges, colours and removes tags", async ({
     expect((await setTags(alpha.tickets[0], [tag("one"), tag("two")])).ok()).toBe(true);
     expect((await setTags(alpha.tickets[1], [tag("one")])).ok()).toBe(true);
     await page.goto("/");
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Replies and tags", alpha.name);
     const section = page.locator("section.tag-admin").filter({
       has: page.getByRole("heading", { name: `Tags of ${alpha.name}` }),
     });

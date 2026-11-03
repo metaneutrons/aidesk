@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Texts: a project's own wording replaces the built-in text, here on the
 // customer page, and returns to it when the text is reset.
 test.describe.configure({ mode: "serial" });
@@ -19,7 +19,7 @@ test("sets the label of the reply button and resets it", async ({
   const label = `Submit answer ${desk.run}`;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Texts", alpha.name);
   const section = page.getByRole("region", { name: `Texts of ${alpha.name}` });
   const entry = section.getByRole("group", { name: "Label of the button that sends a reply" });
   const field = entry.getByRole("textbox", { name: /\(English\)/ });

@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The branding of the customer page: set in the settings, seen by a customer who opens a link (name, line of text,
 // logo, language, colour of the button), and taken away again. The logo is a small PNG that the test makes up.
 test.describe.configure({ mode: "serial" });
@@ -25,7 +25,7 @@ test("brands the customer page and takes the branding away again", async ({
     );
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Customer page", alpha.name);
   const section = page
     .locator("section.portal-branding")
     .filter({ has: page.getByRole("heading", { name: `Customer page of ${alpha.name}` }) });

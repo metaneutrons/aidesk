@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Canned replies: written in the settings, offered in the composer of a ticket with the placeholders filled in, and
 // removed again. The test leaves the project as it found it.
 test.describe.configure({ mode: "serial" });
@@ -21,7 +21,7 @@ test("writes a canned reply and uses it in the composer", async ({
       await (await page.request.get(`/api/v1/projects/${alpha.id}/canned-replies`)).json(),
     );
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Replies and tags", alpha.name);
   const section = page.locator("section.canned-replies").filter({
     has: page.getByRole("heading", { name: `Canned replies for ${alpha.name}` }),
   });
@@ -67,7 +67,7 @@ test("writes a canned reply and uses it in the composer", async ({
     // A second one is added below what is there.
     await panel.getByLabel("Insert a canned reply").selectOption({ label: `${name} (en)` });
     await expect(composer).toHaveValue(/\.\n\nHello Customer 1/);
-    await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await openSettings(page, "Replies and tags", alpha.name);
     await row.getByRole("button", { name: `Remove ${name}` }).click();
     await expect(section.getByRole("listitem").filter({ hasText: name })).toHaveCount(0);
     expect((await replies()).filter((entry) => entry.name === name)).toEqual([]);

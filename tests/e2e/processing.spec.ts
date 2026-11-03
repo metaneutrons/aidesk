@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // The overview of where ticket content goes: the page lists the connections and the models of the project, and the
 // same list can be taken out as a file, which is an entry of the audit.
 test("shows where the content of the tickets goes and exports it", async ({
@@ -11,7 +11,7 @@ test("shows where the content of the tickets goes and exports it", async ({
   const { alpha } = desk.projects;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Data and privacy", alpha.name);
   const section = page.locator("section.processing").filter({
     has: page.getByRole("heading", { name: `Processing of ticket content for ${alpha.name}` }),
   });

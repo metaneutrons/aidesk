@@ -1080,19 +1080,164 @@ label {
     text-decoration: none;
 }
 .settings {
-    padding: 32px 40px;
-    overflow: auto;
-    display: grid;
-    gap: 16px;
-    align-content: start;
-}
-.settings h2 {
-    margin: 8px 0 0;
-    font-size: 18px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
 }
 .settings h3 {
     margin: 0;
     font-size: 14px;
+}
+/* The frame of the settings: the topics on the left, one topic on the right. Below 760px the two are shown one after
+   the other. */
+.settings-layout {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+}
+.settings-list {
+    width: 264px;
+    flex-shrink: 0;
+    overflow: auto;
+    display: grid;
+    gap: 22px;
+    align-content: start;
+    padding: 20px 14px 32px;
+    border-right: 1px solid var(--line);
+    background: var(--sidebar);
+}
+.settings-group-title {
+    margin: 0 10px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.settings-list ul {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.settings-topic {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    padding: 5px 10px;
+    border-radius: 9px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+}
+.settings-topic:hover {
+    background: var(--accent-soft);
+}
+.settings-topic[aria-current="page"] {
+    background: var(--accent);
+    color: var(--panel);
+}
+.settings-topic-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+.settings-topic[aria-current="page"] .settings-topic-icon {
+    background: color-mix(in srgb, var(--panel) 25%, transparent);
+    color: inherit;
+}
+.settings-topic-chevron {
+    display: none;
+    margin-left: auto;
+    opacity: 0.5;
+}
+.settings-project {
+    width: calc(100% - 8px);
+    margin: 0 4px 8px;
+}
+.settings-project-name {
+    margin: 0 10px 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.settings-detail {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+}
+.settings-back {
+    display: none;
+}
+.settings-detail-body {
+    display: grid;
+    gap: 20px;
+    align-content: start;
+    max-width: 780px;
+    padding: 32px 40px 64px;
+}
+.settings-detail-head {
+    display: grid;
+    gap: 4px;
+}
+.settings-detail-head h2 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+.settings-detail-body > section h2 {
+    margin: 0;
+    font-size: 18px;
+}
+@media (max-width: 760px) {
+    .settings-list {
+        width: 100%;
+        border-right: 0;
+    }
+    .settings-layout[data-level="topic"] .settings-list,
+    .settings-layout[data-level="list"] .settings-detail {
+        display: none;
+    }
+    .settings-topic {
+        min-height: 44px;
+    }
+    /* A list of topics that is shown alone has no topic that is open. */
+    .settings-topic[aria-current="page"] {
+        background: none;
+        color: var(--text);
+    }
+    .settings-topic[aria-current="page"] .settings-topic-icon {
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+    .settings-topic-chevron {
+        display: block;
+    }
+    .settings-back {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-height: 44px;
+        padding: 0 12px;
+        color: var(--accent);
+        font-weight: 500;
+    }
+    .settings-detail-body {
+        padding: 4px 16px 48px;
+    }
+    .settings-detail-head h2 {
+        font-size: 22px;
+    }
 }
 /* A table with a column for each project is wider than a narrow window; it scrolls inside its box
    and the page does not. */
