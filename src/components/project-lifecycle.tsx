@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 import { useZone } from "./time-zone";
 // The life of the projects: a project that a person manages is archived here, and an archived project is restored.
 // An archived project keeps its data and is read-only: it takes no mail and is left out of the lists.
@@ -195,7 +196,7 @@ export function ProjectLifecycle({
                 ))}
                 {owner && (
                   <form
-                    className="project-delete"
+                    className="project-delete stack"
                     onSubmit={(event) => {
                       event.preventDefault();
                       const latest = (exports[project.id] ?? [])[0];
@@ -206,30 +207,36 @@ export function ProjectLifecycle({
                         });
                     }}
                   >
-                    <label>
-                      <span>{t("projectDeleteType", { name: project.name })}</span>
-                      <input
-                        type="text"
-                        autoComplete="off"
-                        value={typed[project.id] ?? ""}
-                        onChange={(event) => {
-                          setTyped({ ...typed, [project.id]: event.target.value });
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="secondary danger"
-                      disabled={
-                        busy ||
-                        (typed[project.id] ?? "") !== project.name ||
-                        !(exports[project.id] ?? []).some(
-                          (made) => made.createdAt >= project.archivedAt,
-                        )
-                      }
-                    >
-                      {t("projectDelete", { name: project.name })}
-                    </button>
+                    <Group>
+                      <Row label={t("projectDeleteType", { name: project.name })}>
+                        {(props) => (
+                          <input
+                            {...props}
+                            type="text"
+                            autoComplete="off"
+                            value={typed[project.id] ?? ""}
+                            onChange={(event) => {
+                              setTyped({ ...typed, [project.id]: event.target.value });
+                            }}
+                          />
+                        )}
+                      </Row>
+                    </Group>
+                    <Actions>
+                      <button
+                        type="submit"
+                        className="secondary danger"
+                        disabled={
+                          busy ||
+                          (typed[project.id] ?? "") !== project.name ||
+                          !(exports[project.id] ?? []).some(
+                            (made) => made.createdAt >= project.archivedAt,
+                          )
+                        }
+                      >
+                        {t("projectDelete", { name: project.name })}
+                      </button>
+                    </Actions>
                   </form>
                 )}
               </li>

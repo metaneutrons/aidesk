@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions } from "./form";
 // The keys of the installation: what still depends on the previous encryption key and the previous secret, and the
 // button that re-protects it. The operator sets the keys in the environment; this page only reports and runs the job.
 const groupSchema = z.object({
@@ -54,10 +55,6 @@ export function KeyRotation() {
     <section className="connections key-rotation" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("keysTitle")}</h3>
       <p className="muted">{t("keysHint")}</p>
-      <p role="status">
-        {rotating ? t("keysRotating") : t("keysNone")}{" "}
-        {rotating && (status.settled ? t("keysSettled") : t("keysOpen"))}
-      </p>
       {problem && (
         <p className="error" role="alert">
           {t("error")}
@@ -77,9 +74,18 @@ export function KeyRotation() {
           </li>
         ))}
       </ul>
-      <button type="button" disabled={!rotating || running} onClick={() => void rotate()}>
-        {t(running ? "keysWorking" : "keysRun")}
-      </button>
+      <Actions
+        status={
+          <>
+            {rotating ? t("keysRotating") : t("keysNone")}{" "}
+            {rotating && (status.settled ? t("keysSettled") : t("keysOpen"))}
+          </>
+        }
+      >
+        <button type="button" disabled={!rotating || running} onClick={() => void rotate()}>
+          {t(running ? "keysWorking" : "keysRun")}
+        </button>
+      </Actions>
     </section>
   );
 }

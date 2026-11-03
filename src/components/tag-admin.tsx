@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 import { textOn } from "../domain/branding";
 import { normalizeTag, tagAdminOut, tagPattern, tagStyle } from "../domain/tags";
 // The tags of a project with the number of tickets and a colour each: renamed, merged into another, coloured and
@@ -187,7 +188,7 @@ export function TagAdmin({ projectId, name }: { projectId: string; name: string 
       )}
       {renaming && (
         <form
-          className="tag-rename"
+          className="stack"
           aria-label={t("tagAdminRenameForm", { tag: renaming.tag })}
           onSubmit={(event) => {
             event.preventDefault();
@@ -198,34 +199,41 @@ export function TagAdmin({ projectId, name }: { projectId: string; name: string 
               });
           }}
         >
-          <label>
-            {t("tagAdminNewName")}
-            <input
-              value={renaming.to}
-              maxLength={60}
-              onChange={(event) => {
-                setRenaming({ ...renaming, to: event.target.value });
+          <Group>
+            <Row label={t("tagAdminNewName")}>
+              {(props) => (
+                <input
+                  {...props}
+                  value={renaming.to}
+                  maxLength={60}
+                  onChange={(event) => {
+                    setRenaming({ ...renaming, to: event.target.value });
+                  }}
+                />
+              )}
+            </Row>
+          </Group>
+          <Actions>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setRenaming(null);
               }}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={
-              !tagPattern.test(normalizeTag(renaming.to)) ||
-              normalizeTag(renaming.to) === renaming.tag
-            }
-          >
-            {t("tagAdminRenameSave")}
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              setRenaming(null);
-            }}
-          >
-            {t("tagAdminCancel")}
-          </button>
+            >
+              {t("tagAdminCancel")}
+            </button>
+            <button
+              type="submit"
+              className="primary"
+              disabled={
+                !tagPattern.test(normalizeTag(renaming.to)) ||
+                normalizeTag(renaming.to) === renaming.tag
+              }
+            >
+              {t("tagAdminRenameSave")}
+            </button>
+          </Actions>
         </form>
       )}
     </section>

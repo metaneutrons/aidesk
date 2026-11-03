@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Actions, Group, Row } from "./form";
 // Takes out what the system holds about one requester as a file, for a request for information. The file is made
 // for the request and kept nowhere; the export is an entry of the audit.
 export function RequesterExport({ projectId, name }: { projectId: string; name: string }) {
@@ -50,28 +51,34 @@ export function RequesterExport({ projectId, name }: { projectId: string; name: 
           )}
         </p>
       ) : null}
-      {state === "done" && <p role="status">{t("requesterExportDone")}</p>}
       <form
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void take();
         }}
       >
-        <label>
-          {t("eraseRequesterAddress")}
-          <input
-            type="email"
-            value={email}
-            maxLength={320}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setState("idle");
-            }}
-          />
-        </label>
-        <button type="submit" disabled={email.trim() === "" || state === "working"}>
-          {t(state === "working" ? "requesterExportWorking" : "requesterExportButton")}
-        </button>
+        <Group>
+          <Row label={t("eraseRequesterAddress")}>
+            {(props) => (
+              <input
+                {...props}
+                type="email"
+                value={email}
+                maxLength={320}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setState("idle");
+                }}
+              />
+            )}
+          </Row>
+        </Group>
+        <Actions status={state === "done" && t("requesterExportDone")}>
+          <button type="submit" disabled={email.trim() === "" || state === "working"}>
+            {t(state === "working" ? "requesterExportWorking" : "requesterExportButton")}
+          </button>
+        </Actions>
       </form>
     </section>
   );

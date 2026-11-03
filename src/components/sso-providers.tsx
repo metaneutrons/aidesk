@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row, Segmented } from "./form";
 // The identity providers of the installation, for its owner: registered, proved by their domain, tested, switched off
 // and on, edited and deleted. The secret of a client is written once and never shown again.
 const recordSchema = z.object({ name: z.string(), value: z.string() });
@@ -77,30 +78,33 @@ export function SsoProviders() {
     setBusy(false);
   }
   const field = (key: string, label: string, options: { type?: string; area?: boolean } = {}) => (
-    <label key={key}>
-      <span>{label}</span>
-      {options.area ? (
-        <textarea
-          rows={4}
-          value={form[key] ?? ""}
-          spellCheck={false}
-          onChange={(event) => {
-            setForm({ ...form, [key]: event.target.value });
-          }}
-        />
-      ) : (
-        <input
-          type={options.type ?? "text"}
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          value={form[key] ?? ""}
-          onChange={(event) => {
-            setForm({ ...form, [key]: event.target.value });
-          }}
-        />
-      )}
-    </label>
+    <Row key={key} label={label} stacked={options.area === true}>
+      {(props) =>
+        options.area ? (
+          <textarea
+            {...props}
+            rows={4}
+            value={form[key] ?? ""}
+            spellCheck={false}
+            onChange={(event) => {
+              setForm({ ...form, [key]: event.target.value });
+            }}
+          />
+        ) : (
+          <input
+            {...props}
+            type={options.type ?? "text"}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={form[key] ?? ""}
+            onChange={(event) => {
+              setForm({ ...form, [key]: event.target.value });
+            }}
+          />
+        )
+      }
+    </Row>
   );
   if (rows === null) return null;
   const status = (row: Provider) =>
@@ -216,6 +220,7 @@ export function SsoProviders() {
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("ssoTest", { id: row.providerId })}
                   disabled={busy}
                   onClick={() => {
                     void call(
@@ -233,7 +238,7 @@ export function SsoProviders() {
                     );
                   }}
                 >
-                  {t("ssoTest", { id: row.providerId })}
+                  {t("actionTest")}
                 </button>
                 <button
                   type="button"
@@ -258,17 +263,18 @@ export function SsoProviders() {
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("ssoEdit", { id: row.providerId })}
                   onClick={() => {
                     setEditing(editing === row.providerId ? null : row.providerId);
                     setEdit({});
                   }}
                 >
-                  {t("ssoEdit", { id: row.providerId })}
+                  {t("actionEdit")}
                 </button>
               </span>
               {editing === row.providerId && (
                 <form
-                  className="sso-edit"
+                  className="sso-edit stack"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const body: Record<string, string> = {};
@@ -283,41 +289,49 @@ export function SsoProviders() {
                     });
                   }}
                 >
-                  <label>
-                    <span>{t("ssoDomain")}</span>
-                    <input
-                      type="text"
-                      placeholder={row.domain}
-                      value={edit.domain ?? ""}
-                      onChange={(event) => {
-                        setEdit({ ...edit, domain: event.target.value });
-                      }}
-                    />
-                  </label>
-                  {row.type === "oidc" && (
-                    <label>
-                      <span>{t("ssoNewSecret")}</span>
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        value={edit.clientSecret ?? ""}
-                        onChange={(event) => {
-                          setEdit({ ...edit, clientSecret: event.target.value });
-                        }}
-                      />
-                    </label>
-                  )}
-                  <button
-                    type="submit"
-                    className="primary"
-                    disabled={busy || (!edit.domain && !edit.clientSecret)}
-                  >
-                    {t("ssoSaveChanges")}
-                  </button>
+                  <Group>
+                    <Row label={t("ssoDomain")}>
+                      {(props) => (
+                        <input
+                          {...props}
+                          type="text"
+                          placeholder={row.domain}
+                          value={edit.domain ?? ""}
+                          onChange={(event) => {
+                            setEdit({ ...edit, domain: event.target.value });
+                          }}
+                        />
+                      )}
+                    </Row>
+                    {row.type === "oidc" && (
+                      <Row label={t("ssoNewSecret")}>
+                        {(props) => (
+                          <input
+                            {...props}
+                            type="password"
+                            autoComplete="new-password"
+                            value={edit.clientSecret ?? ""}
+                            onChange={(event) => {
+                              setEdit({ ...edit, clientSecret: event.target.value });
+                            }}
+                          />
+                        )}
+                      </Row>
+                    )}
+                  </Group>
+                  <Actions>
+                    <button
+                      type="submit"
+                      className="primary"
+                      disabled={busy || (!edit.domain && !edit.clientSecret)}
+                    >
+                      {t("ssoSaveChanges")}
+                    </button>
+                  </Actions>
                 </form>
               )}
               <form
-                className="sso-delete"
+                className="sso-delete stack"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void call(
@@ -329,24 +343,30 @@ export function SsoProviders() {
                   );
                 }}
               >
-                <label>
-                  <span>{t("ssoDeleteType", { id: row.providerId })}</span>
-                  <input
-                    type="text"
-                    autoComplete="off"
-                    value={typed[row.providerId] ?? ""}
-                    onChange={(event) => {
-                      setTyped({ ...typed, [row.providerId]: event.target.value });
-                    }}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="secondary danger"
-                  disabled={busy || (typed[row.providerId] ?? "") !== row.providerId}
-                >
-                  {t("ssoDelete", { id: row.providerId })}
-                </button>
+                <Group>
+                  <Row label={t("ssoDeleteType", { id: row.providerId })}>
+                    {(props) => (
+                      <input
+                        {...props}
+                        type="text"
+                        autoComplete="off"
+                        value={typed[row.providerId] ?? ""}
+                        onChange={(event) => {
+                          setTyped({ ...typed, [row.providerId]: event.target.value });
+                        }}
+                      />
+                    )}
+                  </Row>
+                </Group>
+                <Actions>
+                  <button
+                    type="submit"
+                    className="secondary danger"
+                    disabled={busy || (typed[row.providerId] ?? "") !== row.providerId}
+                  >
+                    {t("ssoDelete", { id: row.providerId })}
+                  </button>
+                </Actions>
               </form>
             </li>
           ))}
@@ -355,6 +375,7 @@ export function SsoProviders() {
       <details className="sso-register">
         <summary>{t("ssoRegisterTitle")}</summary>
         <form
+          className="stack"
           onSubmit={(event) => {
             event.preventDefault();
             const body =
@@ -393,45 +414,51 @@ export function SsoProviders() {
             });
           }}
         >
-          <fieldset disabled={busy}>
-            <legend>{t("ssoKind")}</legend>
-            {(["oidc", "saml"] as const).map((value) => (
-              <label key={value} className="configuration-check">
-                <input
-                  type="radio"
-                  name="sso-kind"
-                  checked={kind === value}
-                  onChange={() => {
-                    setKind(value);
-                  }}
-                />
-                {value.toUpperCase()}
-              </label>
-            ))}
+          <fieldset className="plain" disabled={busy}>
+            <Group>
+              <div className="row">
+                <div className="row-label">
+                  <span>{t("ssoKind")}</span>
+                </div>
+                <div className="row-control">
+                  <Segmented
+                    label={t("ssoKind")}
+                    value={kind}
+                    options={[
+                      { value: "oidc", label: "OIDC" },
+                      { value: "saml", label: "SAML" },
+                    ]}
+                    onChange={setKind}
+                  />
+                </div>
+              </div>
+              {field("providerId", t("ssoProviderId"))}
+              {field("issuer", t("ssoIssuer"))}
+              {field("domain", t("ssoDomain"))}
+              {kind === "oidc" ? (
+                <>
+                  {field("clientId", t("ssoClientId"))}
+                  {field("clientSecret", t("ssoClientSecret"), { type: "password" })}
+                  {field("discoveryEndpoint", t("ssoDiscovery"))}
+                </>
+              ) : (
+                <>
+                  {field("entryPoint", t("ssoEntryPoint"))}
+                  {field("cert", t("ssoCertificate"), { area: true })}
+                  {field("audience", t("ssoAudience"))}
+                </>
+              )}
+            </Group>
           </fieldset>
-          {field("providerId", t("ssoProviderId"))}
-          {field("issuer", t("ssoIssuer"))}
-          {field("domain", t("ssoDomain"))}
-          {kind === "oidc" ? (
-            <>
-              {field("clientId", t("ssoClientId"))}
-              {field("clientSecret", t("ssoClientSecret"), { type: "password" })}
-              {field("discoveryEndpoint", t("ssoDiscovery"))}
-            </>
-          ) : (
-            <>
-              {field("entryPoint", t("ssoEntryPoint"))}
-              {field("cert", t("ssoCertificate"), { area: true })}
-              {field("audience", t("ssoAudience"))}
-            </>
-          )}
-          <button
-            type="submit"
-            className="primary"
-            disabled={busy || !form.providerId || !form.issuer || !form.domain}
-          >
-            {t("ssoRegister")}
-          </button>
+          <Actions>
+            <button
+              type="submit"
+              className="primary"
+              disabled={busy || !form.providerId || !form.issuer || !form.domain}
+            >
+              {t("ssoRegister")}
+            </button>
+          </Actions>
         </form>
       </details>
       {message && (

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 // The names under which the customer page of one project is reached next to the shared address. A name is
 // claimed here, proved with a text record in the DNS (the page shows the record to create), and checked
 // again as often as needed. A name serves the page only after it is verified.
@@ -118,7 +119,7 @@ export function PortalDomains({ projectId, name }: { projectId: string | null; n
         </ul>
       )}
       <form
-        className="portal-domain-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           const wanted = host.trim();
@@ -131,37 +132,46 @@ export function PortalDomains({ projectId, name }: { projectId: string | null; n
           });
         }}
       >
-        <label>
-          <span>{t("portalDomainHost")}</span>
-          <input
-            type="text"
-            inputMode="url"
-            autoCapitalize="none"
-            spellCheck={false}
-            maxLength={253}
-            value={host}
-            onChange={(event) => {
-              setHost(event.target.value);
-            }}
-          />
-        </label>
-        <button type="submit" className="primary" disabled={busy || host.trim() === ""}>
-          {t("portalDomainAdd")}
-        </button>
-      </form>
-      <p className="muted">{t("portalDomainPoint")}</p>
-      {message && (
-        <p
-          className={
-            message.text === "added" || message.text === "removed" || message.text === "verified"
-              ? "muted"
-              : "error"
+        <Group note={t("portalDomainPoint")}>
+          <Row label={t("portalDomainHost")}>
+            {(props) => (
+              <input
+                {...props}
+                type="text"
+                inputMode="url"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={253}
+                value={host}
+                onChange={(event) => {
+                  setHost(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+        </Group>
+        <Actions
+          status={
+            message && (
+              <span
+                className={
+                  message.text === "added" ||
+                  message.text === "removed" ||
+                  message.text === "verified"
+                    ? undefined
+                    : "error"
+                }
+              >
+                {t(`portalDomainMessage_${message.text}`, { host: message.host })}
+              </span>
+            )
           }
-          role="status"
         >
-          {t(`portalDomainMessage_${message.text}`, { host: message.host })}
-        </p>
-      )}
+          <button type="submit" className="primary" disabled={busy || host.trim() === ""}>
+            {t("portalDomainAdd")}
+          </button>
+        </Actions>
+      </form>
     </section>
   );
 }

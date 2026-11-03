@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { priorities, priorityOf, type Priority } from "../domain/triage";
+import { Actions, Group, Row } from "./form";
 import { priorityKey } from "./triage";
 // How a project routes a new ticket: the rules in the order in which they are tried, and a form to add or change one.
 // A rule without conditions matches every ticket; put last, it is the default.
@@ -78,6 +79,7 @@ export function RoutingRules({
 }) {
   const t = useTranslations();
   const titleId = useId();
+  const languagesId = useId();
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [targets, setTargets] = useState<Targets | null>(null);
   const [draft, setDraft] = useState<Draft>(empty);
@@ -261,156 +263,177 @@ export function RoutingRules({
         </ol>
       )}
       <form
-        className="routing-form"
+        className="stack"
         aria-label={t(editing === null ? "routingAddForm" : "routingEditForm")}
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <label>
-          {t("routingName")}
-          <input
-            value={draft.name}
-            maxLength={80}
-            onChange={(event) => {
-              set("name", event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("routingSenders")}
-          <input
-            value={draft.senders}
-            placeholder="example.org, kim@example.org"
-            onChange={(event) => {
-              set("senders", event.target.value);
-            }}
-          />
-        </label>
-        <fieldset>
-          <legend>{t("routingLanguages")}</legend>
-          {languages.map((entry) => (
-            <label key={entry} className="check">
+        <Group>
+          <Row label={t("routingName")}>
+            {(props) => (
               <input
-                type="checkbox"
-                checked={draft.languages.includes(entry)}
+                {...props}
+                value={draft.name}
+                maxLength={80}
                 onChange={(event) => {
-                  set(
-                    "languages",
-                    event.target.checked
-                      ? [...draft.languages, entry]
-                      : draft.languages.filter((other) => other !== entry),
-                  );
+                  set("name", event.target.value);
                 }}
               />
-              {entry === "de" ? "Deutsch" : "English"}
-            </label>
-          ))}
-        </fieldset>
-        <label>
-          {t("routingSubject")}
-          <input
-            value={draft.subjectWords}
-            placeholder={t("routingSubjectHint")}
-            onChange={(event) => {
-              set("subjectWords", event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("routingAssignTo")}
-          <select
-            value={draft.target}
-            onChange={(event) => {
-              set("target", event.target.value);
-            }}
-          >
-            <option value="">{t("routingNobody")}</option>
-            {targets.users.length > 0 && (
-              <optgroup label={t("routingPeople")}>
-                {targets.users.map((entry) => (
-                  <option key={entry.id} value={`user:${entry.id}`}>
-                    {entry.name}
+            )}
+          </Row>
+          <Row label={t("routingSenders")}>
+            {(props) => (
+              <input
+                {...props}
+                value={draft.senders}
+                placeholder="example.org, kim@example.org"
+                onChange={(event) => {
+                  set("senders", event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <div className="row">
+            <div className="row-label">
+              <span id={languagesId}>{t("routingLanguages")}</span>
+            </div>
+            <div className="row-control weekdays" role="group" aria-labelledby={languagesId}>
+              {languages.map((entry) => (
+                <label key={entry} className="chip">
+                  <input
+                    type="checkbox"
+                    checked={draft.languages.includes(entry)}
+                    onChange={(event) => {
+                      set(
+                        "languages",
+                        event.target.checked
+                          ? [...draft.languages, entry]
+                          : draft.languages.filter((other) => other !== entry),
+                      );
+                    }}
+                  />
+                  {entry === "de" ? "Deutsch" : "English"}
+                </label>
+              ))}
+            </div>
+          </div>
+          <Row label={t("routingSubject")}>
+            {(props) => (
+              <input
+                {...props}
+                value={draft.subjectWords}
+                placeholder={t("routingSubjectHint")}
+                onChange={(event) => {
+                  set("subjectWords", event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <Row label={t("routingAssignTo")}>
+            {(props) => (
+              <select
+                {...props}
+                value={draft.target}
+                onChange={(event) => {
+                  set("target", event.target.value);
+                }}
+              >
+                <option value="">{t("routingNobody")}</option>
+                {targets.users.length > 0 && (
+                  <optgroup label={t("routingPeople")}>
+                    {targets.users.map((entry) => (
+                      <option key={entry.id} value={`user:${entry.id}`}>
+                        {entry.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {targets.groups.length > 0 && (
+                  <optgroup label={t("routingGroups")}>
+                    {targets.groups.map((entry) => (
+                      <option key={entry.id} value={`group:${entry.id}`}>
+                        {entry.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {targets.agents.length > 0 && (
+                  <optgroup label={t("routingAgents")}>
+                    {targets.agents.map((entry) => (
+                      <option key={entry.id} value={`agent:${entry.id}`}>
+                        {entry.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            )}
+          </Row>
+          <Row label={t("priorityLabel")}>
+            {(props) => (
+              <select
+                {...props}
+                value={draft.priority}
+                onChange={(event) => {
+                  set("priority", event.target.value);
+                }}
+              >
+                <option value="">{t("routingKeep")}</option>
+                {priorities.map((entry: Priority) => (
+                  <option key={entry} value={entry}>
+                    {t(priorityKey(entry))}
                   </option>
                 ))}
-              </optgroup>
+              </select>
             )}
-            {targets.groups.length > 0 && (
-              <optgroup label={t("routingGroups")}>
-                {targets.groups.map((entry) => (
-                  <option key={entry.id} value={`group:${entry.id}`}>
-                    {entry.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {targets.agents.length > 0 && (
-              <optgroup label={t("routingAgents")}>
-                {targets.agents.map((entry) => (
-                  <option key={entry.id} value={`agent:${entry.id}`}>
-                    {entry.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
-        <label>
-          {t("priorityLabel")}
-          <select
-            value={draft.priority}
-            onChange={(event) => {
-              set("priority", event.target.value);
-            }}
-          >
-            <option value="">{t("routingKeep")}</option>
-            {priorities.map((entry: Priority) => (
-              <option key={entry} value={entry}>
-                {t(priorityKey(entry))}
-              </option>
-            ))}
-          </select>
-        </label>
-        {categories.length > 0 && (
-          <label>
-            {t("categoryLabel")}
-            <select
-              value={draft.category}
-              onChange={(event) => {
-                set("category", event.target.value);
+          </Row>
+          {categories.length > 0 && (
+            <Row label={t("categoryLabel")}>
+              {(props) => (
+                <select
+                  {...props}
+                  value={draft.category}
+                  onChange={(event) => {
+                    set("category", event.target.value);
+                  }}
+                >
+                  <option value="">{t("routingKeep")}</option>
+                  {categories.map((entry) => (
+                    <option key={entry} value={entry}>
+                      {entry}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Row>
+          )}
+        </Group>
+        <Actions>
+          {editing !== null && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setEditing(null);
+                setDraft(empty);
               }}
             >
-              <option value="">{t("routingKeep")}</option>
-              {categories.map((entry) => (
-                <option key={entry} value={entry}>
-                  {entry}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="submit"
-          disabled={
-            draft.name.trim() === "" ||
-            (draft.target === "" && draft.priority === "" && draft.category === "")
-          }
-        >
-          {t(editing === null ? "routingAdd" : "routingSave")}
-        </button>
-        {editing !== null && (
+              {t("routingCancel")}
+            </button>
+          )}
           <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              setEditing(null);
-              setDraft(empty);
-            }}
+            type="submit"
+            className="primary"
+            disabled={
+              draft.name.trim() === "" ||
+              (draft.target === "" && draft.priority === "" && draft.category === "")
+            }
           >
-            {t("routingCancel")}
+            {t(editing === null ? "routingAdd" : "routingSave")}
           </button>
-        )}
+        </Actions>
       </form>
     </section>
   );
