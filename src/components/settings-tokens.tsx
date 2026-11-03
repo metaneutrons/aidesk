@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { roleOf, tokenRoles, within, type TokenRole } from "../domain/roles";
+import { Actions, Group, Row, Switch } from "./form";
 import { useZone } from "./time-zone";
 const tokenSchema = z.object({
   id: z.string(),
@@ -105,7 +106,7 @@ export function Tokens({
         </ul>
       )}
       <form
-        className="settings-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           setIssued(null);
@@ -139,65 +140,71 @@ export function Tokens({
           })();
         }}
       >
-        <h3>{t(tokenManaged ? "managedCreate" : "tokenIssue")}</h3>
-        <label className="checkbox">
-          <input
-            type="checkbox"
+        <Group title={t(tokenManaged ? "managedCreate" : "tokenIssue")}>
+          <Switch
+            label={t("managedAgent")}
+            hint={t("managedAgentHint")}
             checked={tokenManaged}
-            onChange={(event) => {
-              setTokenManaged(event.target.checked);
+            onChange={(checked) => {
+              setTokenManaged(checked);
               setIssued(null);
               setManagedCreated(false);
             }}
           />
-          <span>{t("managedAgent")}</span>
-        </label>
-        {tokenManaged && <p className="muted">{t("managedAgentHint")}</p>}
-        <label>
-          {t("tokenName")}
-          <input
-            value={tokenName}
-            onChange={(event) => {
-              setTokenName(event.target.value);
-            }}
-            required
-          />
-        </label>
-        <label htmlFor={`${fieldId}-access`}>{t("tokenRole")}</label>
-        <select
-          id={`${fieldId}-access`}
-          value={tokenRole}
-          onChange={(event) => {
-            setTokenRole(event.target.value as TokenRole);
-          }}
-        >
-          {(Object.keys(tokenRoles) as TokenRole[]).map((option) => (
-            <option key={option} value={option}>
-              {t(tokenLabels[option])}
-            </option>
-          ))}
-        </select>
-        {!tokenManaged && (
-          <>
-            <label htmlFor={`${fieldId}-expiry`}>{t("tokenExpiry")}</label>
-            <select
-              id={`${fieldId}-expiry`}
-              value={tokenDays}
-              onChange={(event) => {
-                setTokenDays(Number(event.target.value));
-              }}
-            >
-              {[7, 30, 90].map((days) => (
-                <option key={days} value={days}>
-                  {t("days", { count: days })}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-        <button className="primary" type="submit">
-          {t(tokenManaged ? "managedCreate" : "tokenIssue")}
-        </button>
+          <Row label={t("tokenName")}>
+            {(props) => (
+              <input
+                {...props}
+                value={tokenName}
+                onChange={(event) => {
+                  setTokenName(event.target.value);
+                }}
+                required
+              />
+            )}
+          </Row>
+          <Row label={t("tokenRole")}>
+            {(props) => (
+              <select
+                {...props}
+                value={tokenRole}
+                onChange={(event) => {
+                  setTokenRole(event.target.value as TokenRole);
+                }}
+              >
+                {(Object.keys(tokenRoles) as TokenRole[]).map((option) => (
+                  <option key={option} value={option}>
+                    {t(tokenLabels[option])}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Row>
+          {!tokenManaged && (
+            <Row label={t("tokenExpiry")}>
+              {(props) => (
+                <select
+                  {...props}
+                  value={tokenDays}
+                  onChange={(event) => {
+                    setTokenDays(Number(event.target.value));
+                  }}
+                >
+                  {[7, 30, 90].map((days) => (
+                    <option key={days} value={days}>
+                      {t("days", { count: days })}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Row>
+          )}
+        </Group>
+        <Actions>
+          <button className="primary" type="submit">
+            {t(tokenManaged ? "managedCreate" : "tokenIssue")}
+          </button>
+        </Actions>
         {managedCreated && (
           <p className="muted" role="status">
             {t("managedCreated")}
