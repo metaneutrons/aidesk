@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Actions, Disclosure, Group, Row, Switch, Unit } from "./form";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { z } from "zod";
@@ -232,163 +233,368 @@ export function Configuration({
   const businessOn = draft.businessDays !== null;
   const businessDays = parseDays(draft.businessDays ?? "") ?? [];
   const zones: string[] = Intl.supportedValuesOf("timeZone");
+  const clamp = (value: string, min: number, max: number) =>
+    Math.min(max, Math.max(min, Math.trunc(Number(value)) || min));
+  const optional = (value: string, min: number, max: number) =>
+    value === "" ? null : clamp(value, min, max);
+  const hours = t("unitHours");
+  const days = t("unitDays");
+  const weekdayLabel = `${fieldId}-weekdays`;
   return (
     <section className="configuration" aria-labelledby={`${fieldId}-title`}>
       <h3 id={`${fieldId}-title`}>{t("configTitle", { project: name })}</h3>
-      <div className="configuration-fields">
-        <label>
-          {t("configName")}
-          <input
-            value={draft.name}
-            disabled={!canWrite}
-            maxLength={100}
-            onChange={(event) => {
-              set("name", event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("configColor")}
-          <input
-            type="color"
-            value={draft.color}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("color", event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("configLanguage")}
-          <select
-            value={draft.defaultLanguage}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("defaultLanguage", event.target.value === "de" ? "de" : "en");
-            }}
-          >
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-          </select>
-        </label>
-        <label>
-          {t("configPolicy")}
-          <select
-            value={draft.approvalPolicy}
-            disabled={!canApprove}
-            onChange={(event) => {
-              set("approvalPolicy", event.target.value === "direct" ? "direct" : "review");
-            }}
-          >
-            <option value="review">{t("configPolicyReview")}</option>
-            <option value="direct">{t("configPolicyDirect")}</option>
-          </select>
-        </label>
-        <label className="configuration-check">
-          <input
-            type="checkbox"
-            checked={draft.acknowledgements}
-            disabled={!canWrite}
-            aria-describedby={`${fieldId}-ack`}
-            onChange={(event) => {
-              set("acknowledgements", event.target.checked);
-            }}
-          />
-          {t("configAcknowledgements")}
-        </label>
-        <p id={`${fieldId}-ack`} className="muted">
-          {t("acknowledgementHint")}
-        </p>
-        <label className="configuration-check">
-          <input
-            type="checkbox"
-            checked={draft.portalLinks}
-            disabled={!canWrite}
-            aria-describedby={`${fieldId}-links`}
-            onChange={(event) => {
-              set("portalLinks", event.target.checked);
-            }}
-          />
-          {t("configPortalLinks")}
-        </label>
-        <p id={`${fieldId}-links`} className="muted">
-          {t("portalLinksHint")}
-        </p>
-        <label>
-          {t("configOutgoing")}
-          <select
-            value={draft.outboundConnectionId ?? ""}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("outboundConnectionId", event.target.value === "" ? null : event.target.value);
-            }}
-          >
-            <option value="">{t("configOutgoingNone")}</option>
-            {draft.outboundConnectionId &&
-              !outgoing.some((entry) => entry.id === draft.outboundConnectionId) && (
-                <option value={draft.outboundConnectionId}>{draft.outboundConnectionId}</option>
+      <Group>
+        <Row label={t("configName")}>
+          {(props) => (
+            <input
+              {...props}
+              value={draft.name}
+              disabled={!canWrite}
+              maxLength={100}
+              onChange={(event) => {
+                set("name", event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        <Row label={t("configColor")}>
+          {(props) => (
+            <input
+              {...props}
+              type="color"
+              value={draft.color}
+              disabled={!canWrite}
+              onChange={(event) => {
+                set("color", event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        <Row label={t("configLanguage")}>
+          {(props) => (
+            <select
+              {...props}
+              value={draft.defaultLanguage}
+              disabled={!canWrite}
+              onChange={(event) => {
+                set("defaultLanguage", event.target.value === "de" ? "de" : "en");
+              }}
+            >
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+            </select>
+          )}
+        </Row>
+        <Row label={t("configOutgoing")}>
+          {(props) => (
+            <select
+              {...props}
+              value={draft.outboundConnectionId ?? ""}
+              disabled={!canWrite}
+              onChange={(event) => {
+                set("outboundConnectionId", event.target.value === "" ? null : event.target.value);
+              }}
+            >
+              <option value="">{t("configOutgoingNone")}</option>
+              {draft.outboundConnectionId &&
+                !outgoing.some((entry) => entry.id === draft.outboundConnectionId) && (
+                  <option value={draft.outboundConnectionId}>{draft.outboundConnectionId}</option>
+                )}
+              {outgoing
+                .filter((entry) => entry.status !== "disabled")
+                .map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+            </select>
+          )}
+        </Row>
+        <Switch
+          label={t("configPause")}
+          checked={draft.pauseOutgoing}
+          disabled={!canWrite}
+          onChange={(checked) => {
+            set("pauseOutgoing", checked);
+          }}
+        />
+      </Group>
+      <Group title={t("configGroupCustomers")}>
+        <Switch
+          label={t("configAcknowledgements")}
+          hint={t("acknowledgementHint")}
+          checked={draft.acknowledgements}
+          disabled={!canWrite}
+          onChange={(checked) => {
+            set("acknowledgements", checked);
+          }}
+        />
+        <Switch
+          label={t("configPortalLinks")}
+          hint={t("portalLinksHint")}
+          checked={draft.portalLinks}
+          disabled={!canWrite}
+          onChange={(checked) => {
+            set("portalLinks", checked);
+          }}
+        />
+        <Row label={t("configReopenMode")}>
+          {(props) => (
+            <select
+              {...props}
+              value={draft.reopenMode}
+              disabled={!canWrite}
+              onChange={(event) => {
+                set("reopenMode", event.target.value as typeof draft.reopenMode);
+              }}
+            >
+              <option value="reopen">{t("configReopenModeReopen")}</option>
+              <option value="new_ticket">{t("configReopenModeNew")}</option>
+              <option value="refuse">{t("configReopenModeRefuse")}</option>
+            </select>
+          )}
+        </Row>
+        <Row label={t("configReopenDays")}>
+          {(props) => (
+            <Unit unit={days}>
+              <input
+                {...props}
+                type="number"
+                min={1}
+                max={365}
+                value={draft.reopenDays}
+                disabled={!canWrite || draft.reopenMode !== "reopen"}
+                onChange={(event) => {
+                  set("reopenDays", clamp(event.target.value, 1, 365));
+                }}
+              />
+            </Unit>
+          )}
+        </Row>
+        <Row label={t("configAutoResolve")}>
+          {(props) => (
+            <Unit unit={days}>
+              <input
+                {...props}
+                type="number"
+                min={1}
+                max={365}
+                value={draft.autoResolveDays ?? ""}
+                placeholder={t("configAutoResolveOff")}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  set("autoResolveDays", optional(event.target.value, 1, 365));
+                  if (event.target.value === "") set("autoResolveReminderDays", null);
+                }}
+              />
+            </Unit>
+          )}
+        </Row>
+        <Row label={t("configAutoResolveReminder")}>
+          {(props) => (
+            <Unit unit={days}>
+              <input
+                {...props}
+                type="number"
+                min={1}
+                max={364}
+                value={draft.autoResolveReminderDays ?? ""}
+                placeholder={t("configAutoResolveOff")}
+                disabled={!canWrite || draft.autoResolveDays === null}
+                onChange={(event) => {
+                  set(
+                    "autoResolveReminderDays",
+                    optional(event.target.value, 1, (draft.autoResolveDays ?? 2) - 1),
+                  );
+                }}
+              />
+            </Unit>
+          )}
+        </Row>
+        <Row label={t("configJunkSensitivity")}>
+          {(props) => (
+            <select
+              {...props}
+              value={draft.junkSensitivity}
+              disabled={!canWrite}
+              onChange={(event) => {
+                set("junkSensitivity", event.target.value as typeof draft.junkSensitivity);
+              }}
+            >
+              <option value="off">{t("configJunkSensitivityOff")}</option>
+              <option value="standard">{t("configJunkSensitivityStandard")}</option>
+              <option value="strict">{t("configJunkSensitivityStrict")}</option>
+            </select>
+          )}
+        </Row>
+      </Group>
+      <Group title={t("configGroupTimes")}>
+        <Row label={t("configWarn")}>
+          {(props) => (
+            <Unit unit={hours}>
+              <input
+                {...props}
+                type="number"
+                min={1}
+                max={720}
+                value={draft.warnHours}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  set("warnHours", clamp(event.target.value, 1, 720));
+                }}
+              />
+            </Unit>
+          )}
+        </Row>
+        <Row label={t("configOverdue")}>
+          {(props) => (
+            <Unit unit={hours}>
+              <input
+                {...props}
+                type="number"
+                min={1}
+                max={720}
+                value={draft.overdueHours}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  set("overdueHours", clamp(event.target.value, 1, 720));
+                }}
+              />
+            </Unit>
+          )}
+        </Row>
+        <Disclosure title={t("configPriorityGroup")} hint={t("configPriorityGroupHint")}>
+          {priorityFields.map(([key, label]) => (
+            <Row key={key} label={t(label)}>
+              {(props) => (
+                <Unit unit={hours}>
+                  <input
+                    {...props}
+                    type="number"
+                    min={1}
+                    max={720}
+                    value={draft[key] ?? ""}
+                    placeholder="–"
+                    disabled={!canWrite}
+                    onChange={(event) => {
+                      set(key, optional(event.target.value, 1, 720));
+                    }}
+                  />
+                </Unit>
               )}
-            {outgoing
-              .filter((entry) => entry.status !== "disabled")
-              .map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          {t("configWarn")}
-          <input
-            type="number"
-            min={1}
-            max={720}
-            value={draft.warnHours}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set(
-                "warnHours",
-                Math.min(720, Math.max(1, Math.trunc(Number(event.target.value) || 1))),
-              );
-            }}
-          />
-        </label>
-        <label>
-          {t("configOverdue")}
-          <input
-            type="number"
-            min={1}
-            max={720}
-            value={draft.overdueHours}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set(
-                "overdueHours",
-                Math.min(720, Math.max(1, Math.trunc(Number(event.target.value) || 1))),
-              );
-            }}
-          />
-        </label>
-        <label>
-          {t("configJunkSensitivity")}
-          <select
-            value={draft.junkSensitivity}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("junkSensitivity", event.target.value as typeof draft.junkSensitivity);
-            }}
-          >
-            <option value="off">{t("configJunkSensitivityOff")}</option>
-            <option value="standard">{t("configJunkSensitivityStandard")}</option>
-            <option value="strict">{t("configJunkSensitivityStrict")}</option>
-          </select>
-        </label>
-        <fieldset className="configuration-group">
-          <legend>{t("configNotifyTitle")}</legend>
-          {notificationRows.map((row) => (
-            <label key={row.key}>
-              {t(row.label)}
+            </Row>
+          ))}
+        </Disclosure>
+      </Group>
+      <Group title={t("configGroupHours")}>
+        <Switch
+          label={t("configBusinessHours")}
+          checked={businessOn}
+          disabled={!canWrite}
+          onChange={(checked) => {
+            setDraft({
+              ...draft,
+              businessDays: checked ? "1,2,3,4,5" : null,
+              businessTimeZone: checked
+                ? (draft.businessTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+                : draft.businessTimeZone,
+            });
+            edited.current = true;
+            setChecked(null);
+          }}
+        />
+        <div className="row stacked">
+          <div className="row-label">
+            <span id={weekdayLabel}>{t("configBusinessDays")}</span>
+          </div>
+          <div className="row-control weekdays" role="group" aria-labelledby={weekdayLabel}>
+            {weekdays.map((day) => (
+              <label key={day} className="chip">
+                <input
+                  type="checkbox"
+                  checked={businessDays.includes(day)}
+                  disabled={!canWrite || !businessOn}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                      ? [...businessDays, day]
+                      : businessDays.filter((entry) => entry !== day);
+                    set("businessDays", [...next].sort((a, b) => a - b).join(","));
+                  }}
+                />
+                {weekdayName(day, locale)}
+              </label>
+            ))}
+          </div>
+        </div>
+        <Row label={t("configBusinessStart")}>
+          {(props) => (
+            <input
+              {...props}
+              type="time"
+              value={draft.businessStart}
+              disabled={!canWrite || !businessOn}
+              onChange={(event) => {
+                set("businessStart", event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        <Row label={t("configBusinessEnd")}>
+          {(props) => (
+            <input
+              {...props}
+              type="time"
+              value={draft.businessEnd}
+              disabled={!canWrite || !businessOn}
+              onChange={(event) => {
+                set("businessEnd", event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        <Row label={t("configBusinessTimeZone")}>
+          {(props) => (
+            <>
+              <input
+                {...props}
+                list={`${fieldId}-zones`}
+                value={draft.businessTimeZone ?? ""}
+                disabled={!canWrite || !businessOn}
+                maxLength={64}
+                onChange={(event) => {
+                  set("businessTimeZone", event.target.value === "" ? null : event.target.value);
+                }}
+              />
+              <datalist id={`${fieldId}-zones`}>
+                {zones.map((zone) => (
+                  <option key={zone} value={zone} />
+                ))}
+              </datalist>
+            </>
+          )}
+        </Row>
+        <Row label={t("configHolidays")} stacked>
+          {(props) => (
+            <textarea
+              {...props}
+              rows={3}
+              value={draft.holidays}
+              disabled={!canWrite}
+              maxLength={2400}
+              placeholder="2026-12-25"
+              onChange={(event) => {
+                set("holidays", event.target.value);
+              }}
+            />
+          )}
+        </Row>
+      </Group>
+      <Group title={t("configNotifyTitle")}>
+        {notificationRows.map((row) => (
+          <Row key={row.key} label={t(row.label)}>
+            {(props) => (
               <select
+                {...props}
                 value={draft[row.key]}
                 disabled={!canWrite}
                 onChange={(event) => {
@@ -401,115 +607,67 @@ export function Configuration({
                   </option>
                 ))}
               </select>
-            </label>
-          ))}
-        </fieldset>
-        <label>
-          {t("configReopenMode")}
-          <select
-            value={draft.reopenMode}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("reopenMode", event.target.value as typeof draft.reopenMode);
-            }}
-          >
-            <option value="reopen">{t("configReopenModeReopen")}</option>
-            <option value="new_ticket">{t("configReopenModeNew")}</option>
-            <option value="refuse">{t("configReopenModeRefuse")}</option>
-          </select>
-        </label>
-        <label>
-          {t("configReopenDays")}
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={draft.reopenDays}
-            disabled={!canWrite || draft.reopenMode !== "reopen"}
-            onChange={(event) => {
-              set(
-                "reopenDays",
-                Math.min(365, Math.max(1, Math.trunc(Number(event.target.value) || 1))),
-              );
-            }}
-          />
-        </label>
-        <label>
-          {t("configAutoResolve")}
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={draft.autoResolveDays ?? ""}
-            placeholder={t("configAutoResolveOff")}
-            disabled={!canWrite}
-            onChange={(event) => {
-              const days = Math.trunc(Number(event.target.value));
-              set(
-                "autoResolveDays",
-                event.target.value === "" ? null : Math.min(365, Math.max(1, days || 1)),
-              );
-              if (event.target.value === "") set("autoResolveReminderDays", null);
-            }}
-          />
-        </label>
-        <label>
-          {t("configAutoResolveReminder")}
-          <input
-            type="number"
-            min={1}
-            max={364}
-            value={draft.autoResolveReminderDays ?? ""}
-            placeholder={t("configAutoResolveOff")}
-            disabled={!canWrite || draft.autoResolveDays === null}
-            onChange={(event) => {
-              const days = Math.trunc(Number(event.target.value));
-              set(
-                "autoResolveReminderDays",
-                event.target.value === ""
-                  ? null
-                  : Math.min((draft.autoResolveDays ?? 2) - 1, Math.max(1, days || 1)),
-              );
-            }}
-          />
-        </label>
-        <fieldset className="retention">
-          <legend>{t("retentionTitle")}</legend>
-          <p className="muted">{t("retentionHint")}</p>
+            )}
+          </Row>
+        ))}
+      </Group>
+      <Group>
+        <Row label={t("configCategories")} stacked>
+          {(props) => (
+            <textarea
+              {...props}
+              rows={3}
+              value={draft.categories}
+              disabled={!canWrite}
+              maxLength={2050}
+              onChange={(event) => {
+                set("categories", event.target.value);
+              }}
+            />
+          )}
+        </Row>
+      </Group>
+      <Group note={t("retentionHint")}>
+        <Disclosure title={t("retentionTitle")}>
           {retentionKinds.map((kind) => (
-            <label key={kind}>
-              {t(`retentionKind_${kind}`)}
-              <input
-                type="number"
-                min={1}
-                max={3650}
-                value={draft[retentionConfigKey(kind)] ?? ""}
-                placeholder={t("retentionForever")}
-                disabled={!canWrite}
-                onChange={(event) => {
-                  set(
-                    retentionConfigKey(kind),
-                    event.target.value === ""
-                      ? null
-                      : Math.min(3650, Math.max(1, Math.trunc(Number(event.target.value)) || 1)),
-                  );
-                }}
-              />
-              <small className="muted">
-                {t("retentionSuggestion", { days: retentionSuggestions[kind] })}
-              </small>
-            </label>
+            <Row
+              key={kind}
+              label={t(`retentionKind_${kind}`)}
+              hint={t("retentionSuggestion", { days: retentionSuggestions[kind] })}
+            >
+              {(props) => (
+                <Unit unit={days}>
+                  <input
+                    {...props}
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={draft[retentionConfigKey(kind)] ?? ""}
+                    placeholder={t("retentionForever")}
+                    disabled={!canWrite}
+                    onChange={(event) => {
+                      set(retentionConfigKey(kind), optional(event.target.value, 1, 3650));
+                    }}
+                  />
+                </Unit>
+              )}
+            </Row>
           ))}
-          <button
-            type="button"
-            className="secondary"
-            disabled={!canWrite}
-            onClick={() => void showDryRun()}
-          >
-            {t("retentionDryRun")}
-          </button>
+          <div className="row">
+            <span />
+            <div className="row-control">
+              <button
+                type="button"
+                className="secondary"
+                disabled={!canWrite}
+                onClick={() => void showDryRun()}
+              >
+                {t("retentionDryRun")}
+              </button>
+            </div>
+          </div>
           {dryRun?.for === periodsKey && (
-            <ul aria-label={t("retentionDryRunResult")}>
+            <ul className="row stacked" aria-label={t("retentionDryRunResult")}>
               {retentionKinds
                 .filter((kind) => periods[kind] !== null)
                 .map((kind) => (
@@ -520,153 +678,37 @@ export function Configuration({
                 ))}
             </ul>
           )}
-          {needsDryRun && (
-            <p className="muted" role="status">
-              {t("retentionNeedsDryRun")}
-            </p>
-          )}
-          {tightened.length > 0 && !canApprove && (
-            <p className="muted" role="status">
-              {t("retentionNeedsApproval")}
-            </p>
-          )}
-        </fieldset>
-        {priorityFields.map(([key, label]) => (
-          <label key={key}>
-            {t(label)}
-            <input
-              type="number"
-              min={1}
-              max={720}
-              value={draft[key] ?? ""}
-              placeholder="–"
-              disabled={!canWrite}
+        </Disclosure>
+      </Group>
+      {needsDryRun && (
+        <p className="muted" role="status">
+          {t("retentionNeedsDryRun")}
+        </p>
+      )}
+      {tightened.length > 0 && !canApprove && (
+        <p className="muted" role="status">
+          {t("retentionNeedsApproval")}
+        </p>
+      )}
+      <Group>
+        <Row label={t("configPolicy")}>
+          {(props) => (
+            <select
+              {...props}
+              value={draft.approvalPolicy}
+              disabled={!canApprove}
               onChange={(event) => {
-                set(
-                  key,
-                  event.target.value === ""
-                    ? null
-                    : Math.min(720, Math.max(1, Math.trunc(Number(event.target.value)) || 1)),
-                );
+                set("approvalPolicy", event.target.value === "direct" ? "direct" : "review");
               }}
-            />
-          </label>
-        ))}
-        <label>
-          {t("configCategories")}
-          <textarea
-            rows={3}
-            value={draft.categories}
-            disabled={!canWrite}
-            maxLength={2050}
-            onChange={(event) => {
-              set("categories", event.target.value);
-            }}
-          />
-        </label>
-        <label className="configuration-check">
-          <input
-            type="checkbox"
-            checked={businessOn}
-            disabled={!canWrite}
-            onChange={(event) => {
-              setDraft({
-                ...draft,
-                businessDays: event.target.checked ? "1,2,3,4,5" : null,
-                businessTimeZone: event.target.checked
-                  ? (draft.businessTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
-                  : draft.businessTimeZone,
-              });
-              edited.current = true;
-              setChecked(null);
-            }}
-          />
-          {t("configBusinessHours")}
-        </label>
-        <fieldset className="business-days" disabled={!canWrite || !businessOn}>
-          <legend>{t("configBusinessDays")}</legend>
-          {weekdays.map((day) => (
-            <label key={day} className="configuration-check">
-              <input
-                type="checkbox"
-                checked={businessDays.includes(day)}
-                onChange={(event) => {
-                  const next = event.target.checked
-                    ? [...businessDays, day]
-                    : businessDays.filter((entry) => entry !== day);
-                  set("businessDays", [...next].sort((a, b) => a - b).join(","));
-                }}
-              />
-              {weekdayName(day, locale)}
-            </label>
-          ))}
-        </fieldset>
-        <label>
-          {t("configBusinessStart")}
-          <input
-            type="time"
-            value={draft.businessStart}
-            disabled={!canWrite || !businessOn}
-            onChange={(event) => {
-              set("businessStart", event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("configBusinessEnd")}
-          <input
-            type="time"
-            value={draft.businessEnd}
-            disabled={!canWrite || !businessOn}
-            onChange={(event) => {
-              set("businessEnd", event.target.value);
-            }}
-          />
-        </label>
-        <label>
-          {t("configBusinessTimeZone")}
-          <input
-            list={`${fieldId}-zones`}
-            value={draft.businessTimeZone ?? ""}
-            disabled={!canWrite || !businessOn}
-            maxLength={64}
-            onChange={(event) => {
-              set("businessTimeZone", event.target.value === "" ? null : event.target.value);
-            }}
-          />
-          <datalist id={`${fieldId}-zones`}>
-            {zones.map((zone) => (
-              <option key={zone} value={zone} />
-            ))}
-          </datalist>
-        </label>
-        <label>
-          {t("configHolidays")}
-          <textarea
-            rows={3}
-            value={draft.holidays}
-            disabled={!canWrite}
-            maxLength={2400}
-            placeholder="2026-12-25"
-            onChange={(event) => {
-              set("holidays", event.target.value);
-            }}
-          />
-        </label>
-        <label className="configuration-check">
-          <input
-            type="checkbox"
-            checked={draft.pauseOutgoing}
-            disabled={!canWrite}
-            onChange={(event) => {
-              set("pauseOutgoing", event.target.checked);
-            }}
-          />
-          {t("configPause")}
-        </label>
-      </div>
+            >
+              <option value="review">{t("configPolicyReview")}</option>
+              <option value="direct">{t("configPolicyDirect")}</option>
+            </select>
+          )}
+        </Row>
+      </Group>
       {canWrite && (
-        <div className="configuration-actions">
+        <Actions>
           <button
             type="button"
             className="secondary"
@@ -687,7 +729,7 @@ export function Configuration({
           >
             {t("configSave")}
           </button>
-        </div>
+        </Actions>
       )}
       {canWrite && dirty && !valid && (
         <p className="error" role="status">

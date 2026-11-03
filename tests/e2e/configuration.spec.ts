@@ -43,10 +43,12 @@ test("edits the configuration, checks it first, and approves what an agent propo
     // Which events tell operators, and whom: the kinds that name their person offer only that person.
     await section.getByLabel("Tell operators of a new ticket").selectOption("members");
     await section.getByLabel("Tell operators of an overdue ticket").selectOption("members");
-    // Limits by priority and the list of categories.
+    // Limits by priority (a disclosure that is closed until it is asked for) and the list of categories.
+    await section.getByText("Limits by priority", { exact: true }).click();
     await section.getByLabel("Urgent priority: warn after").fill("1");
     await section.getByLabel("Urgent priority: overdue after").fill("2");
     await section.getByLabel("Categories of tickets (one per line)").fill("Billing\nSupport");
+    await section.getByText("Retention", { exact: true }).click();
     // A retention period is off until it is set; setting one asks for its dry run before the form can be saved.
     await section.getByLabel("Resolved and junk tickets").fill("365");
     await expect(

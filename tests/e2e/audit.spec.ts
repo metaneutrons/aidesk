@@ -83,7 +83,6 @@ test("lets the owner read the audit of the workspace and nobody else", async ({
     .locator("section.audit-log")
     .filter({ has: page.getByRole("heading", { name: "Audit of the workspace" }) });
   await expect(section).toBeVisible();
-  await section.getByText("Audit of the workspace").click();
   await expect(
     section.getByRole("link", { name: /Export the audit of the workspace as CSV/ }),
   ).toBeVisible();

@@ -1139,5 +1139,18 @@
   "topicWebhooks": "Webhooks",
   "topicData": "Daten und Datenschutz",
   "topicUsage": "Nutzung",
-  "topicAudit": "Protokoll"
+  "topicAudit": "Protokoll",
+  "configGroupCustomers": "Kunden",
+  "configGroupTimes": "Reaktionszeiten",
+  "configGroupHours": "Geschäftszeiten",
+  "configPriorityGroup": "Fristen nach Priorität",
+  "configPriorityGroupHint": "Warn- und Überfälligkeitszeiten einzelner Prioritäten",
+  "unitHours": "Stunden",
+  "unitDays": "Tage",
+  "aiMore": "Ersatzmodell und Grenzen",
+  "aiMoreHint": "Zweites Modell, Zeitlimit und Budget",
+  "actionTest": "Testen",
+  "actionEdit": "Bearbeiten",
+  "actionDisable": "Deaktivieren",
+  "actionRemove": "Entfernen"
 }

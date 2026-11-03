@@ -62,6 +62,7 @@ test("sets the profile of a task on the settings page and switches it on and off
   await task.getByLabel("Model provider").selectOption({ label: `${connection} (Anthropic)` });
   await expect(task.getByRole("button", { name: "Save task" })).toBeDisabled();
   await task.getByLabel("Model", { exact: true }).fill("model-e2e");
+  await task.getByText("Fallback and limits", { exact: true }).click();
   await task.getByLabel("Timeout in seconds").fill("45");
   // A fallback is named with its connection and its model together.
   await expect(task.getByLabel("Fallback model", { exact: true })).toBeDisabled();

@@ -81,32 +81,35 @@ export function Connections({
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("connectionTest", { name: row.name })}
                   disabled={row.status === "disabled"}
                   onClick={() => {
                     void run(row, "test");
                   }}
                 >
-                  {t("connectionTest", { name: row.name })}
+                  {t("actionTest")}
                 </button>
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("connEdit", { name: row.name })}
                   disabled={row.status === "disabled"}
                   onClick={() => {
                     setEditing(row);
                   }}
                 >
-                  {t("connEdit", { name: row.name })}
+                  {t("actionEdit")}
                 </button>
                 <button
                   type="button"
                   className="secondary"
+                  aria-label={t("connectionDisable", { name: row.name })}
                   disabled={row.status === "disabled"}
                   onClick={() => {
                     void run(row, "disable");
                   }}
                 >
-                  {t("connectionDisable", { name: row.name })}
+                  {t("actionDisable")}
                 </button>
               </span>
             </li>
