@@ -1157,5 +1157,10 @@
   "textsBuiltIn": "Built-in wording",
   "textsLanguage": "Language of the text",
   "more": "More",
-  "notificationsShort": "Alerts"
+  "notificationsShort": "Alerts",
+  "ticketDetails": "Details",
+  "ticketGroupHandling": "Handling",
+  "ticketGroupOrganise": "Organise",
+  "ticketGroupShare": "Share and sources",
+  "reminderCustom": "Pick a date…"
 }

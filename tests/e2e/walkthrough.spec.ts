@@ -119,7 +119,12 @@ test.describe("a narrow window and zoom", () => {
       });
       expect(sent.status()).toBe(202);
       await page.goto(`/?ticket=${target}`);
-      await page.getByRole("button", { name: "Create portal link" }).click();
+      // On a narrow screen the details of the ticket are closed until they are asked for.
+      const details = page.getByRole("button", { name: "Details", exact: true });
+      const portalButton = page.getByRole("button", { name: "Create portal link" });
+      await expect(details.or(portalButton)).toBeVisible();
+      if (await details.isVisible()) await details.click();
+      await portalButton.click();
       const url = await page.getByLabel("Link to the customer's view").inputValue();
       const context = await browser.newContext({ locale: "de-DE", viewport: { width, height } });
       const customer = await context.newPage();
