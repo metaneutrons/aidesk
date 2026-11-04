@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/metaneutrons/aidesk/compare/v0.2.0...v0.3.0) (2026-11-04)
+
+
+### Features
+
+* **sso:** let an owner allow a provider to create operators ([#284](https://github.com/metaneutrons/aidesk/issues/284)) ([f392c83](https://github.com/metaneutrons/aidesk/commit/f392c83a6b590119cd78952ba7030886ad5c5a2f))
+
+
+### Bug Fixes
+
+* **a11y:** let the name of a control contain the text that is visible on it ([#282](https://github.com/metaneutrons/aidesk/issues/282)) ([c38dc8e](https://github.com/metaneutrons/aidesk/commit/c38dc8ee7edc38fd1dfc0a255508b4b1e2c899c5))
+
 ## [0.2.0](https://github.com/metaneutrons/aidesk/compare/v0.1.0...v0.2.0) (2026-11-03)
 
 
