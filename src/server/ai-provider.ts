@@ -105,14 +105,14 @@ export const generate: Generate = async (call) => {
     call.files?.length || call.messages?.length || call.tools
       ? await generateText({
           model: modelOf(call),
-          system: call.system,
+          instructions: call.system,
           messages: [first, ...(call.messages ?? [])],
           ...tools,
           ...limits,
         })
       : await generateText({
           model: modelOf(call),
-          system: call.system,
+          instructions: call.system,
           prompt: call.prompt,
           ...limits,
         });
