@@ -1323,6 +1323,14 @@ export const capabilities = {
     mcp: null,
     difference: "docs/capabilities.md",
   },
+  "sso.providers_provisioning": {
+    operation: "setSsoProvisioning",
+    action: "workspace.sso.manage",
+    ui: "src/components/sso-providers.tsx",
+    api: "src/server/api/routes.ts",
+    mcp: null,
+    difference: "docs/capabilities.md",
+  },
   "sso.providers_delete": {
     operation: "deleteSsoProvider",
     action: "workspace.sso.manage",

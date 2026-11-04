@@ -390,6 +390,10 @@ test("answers every documented route in the published shape, with real data", as
   await call("sso.providers_test", { params: { providerId: sso } });
   await call("sso.providers_disable", { params: { providerId: sso } });
   await call("sso.providers_enable", { params: { providerId: sso } });
+  await call("sso.providers_provisioning", {
+    params: { providerId: sso },
+    data: { enabled: true },
+  });
   await call("sso.providers_update", {
     params: { providerId: sso },
     data: { domain: `${sso}-moved.example.test` },

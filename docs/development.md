@@ -51,13 +51,14 @@ cache against replay). Provider configuration, including client secrets, is stor
 encrypted (`encryptedText` columns); OAuth tokens are encrypted as well, and the
 development OIDC provider requests no `offline_access`.
 
-SSO never creates aidesk users. The plugin's `disableImplicitSignUp` can be
-overridden by an unauthenticated `requestSignUp` flag for OIDC; the auth route
-therefore refuses any `/sign-in/sso` request carrying that flag. An IdP account
-reaches aidesk only when an operator with the same, verified email exists; the
-plugin links the account when the provider's domain is verified and the email
-domain matches. Project access still comes only from explicit grants, and a
-disabled operator or a revoked session loses access immediately.
+SSO creates no aidesk users unless an owner allows it for a provider (see "Creating operators through a
+provider" below). An IdP account reaches aidesk when an operator with the same, verified email exists; the
+plugin links the account when the provider's domain is verified and the email domain matches. The plugin has
+one switch against creating users for the whole installation (`disableImplicitSignUp`), which can be
+overridden by an unauthenticated `requestSignUp` flag for OIDC; the auth route therefore refuses any
+`/sign-in/sso` request carrying that flag, and the switch stays open while the decision is taken per
+provider in a user hook (`src/server/sso-provisioning.ts`). Project access still comes only from explicit
+grants, and a disabled operator or a revoked session loses access immediately.
 
 Provider domains are verified through DNS TXT records in production. The
 development bootstrap (`scripts/dev-sso.ts`) registers the local Keycloak realm as
@@ -154,6 +155,18 @@ and stay owner-only, so registration through the API keeps working.
   signed in through it. Every sign-in through a provider is an audit entry `operator.sso_sign_in` with the provider when
   the route names it (the callback of one provider and the SAML answer do). Deleting a provider deletes those links, so
   the operators lose that way in; the identifier has to be typed. The audit entry of the deletion names how many.
+- **Creating operators through a provider.** Off for a new provider; an owner turns it on per provider
+  (`POST .../provisioning` with `enabled`, table `sso_provider_provisioning`). The plugin then creates an operator
+  for a person who signs in through that provider and has none, and only when all of this holds: the sign-in came
+  back through the address of that provider (`/sso/callback/<id>` or the SAML answer of `<id>`; the shared callback
+  names no provider and creates nobody), the provider is switched on, its domain is verified, and the address of the
+  person is in that domain or below it. Anything else that makes the plugin create a user is refused, which also
+  covers a domain that was changed and is not proved again yet. The new operator is not an owner, has no
+  membership and sees no project until one is granted; the name comes from the provider. The creation is an audit
+  entry `operator.sso_provisioned` with the provider, the setting is `sso_provider.provisioning_on` and
+  `.provisioning_off`, and deleting the provider removes the setting. Whoever the provider lets in with an
+  address of its domain gets an operator, so this is meant for a provider whose users are the people of that
+  domain; it is not a way to restrict by group.
 - **Audit.** `sso_provider.register`, `.update` (the names of the fields, never a secret), `.verify_domain`, `.test`,
   `.disable`, `.enable` and `.delete`, as entries of the installation.
 
@@ -206,7 +219,9 @@ The Settings view lists operators. Owners add operators by name and email and
 disable or re-enable them; owners themselves and the caller cannot be disabled
 there, and disabling ends the operator's sessions. An added operator signs in
 through SSO with that email: the identity provider account is linked when the
-provider's domain is verified and the email domain matches.
+provider's domain is verified and the email domain matches. A provider that an
+owner has allowed to create operators makes one for a person of its domain who
+signs in and has none.
 
 Project access is set per project with the roles No access, Read, Respond and
 Manage, or kept as Custom. Only people who manage a project change its access, and

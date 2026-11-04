@@ -60,6 +60,15 @@ export const ssoUpdateInput = z
   .refine((value) => Object.values(value).some((entry) => entry !== undefined), {
     message: "Name at least one field",
   });
+export const ssoProvisioningInput = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe(
+        "Whether a person who signs in through the provider and has no operator gets one, with an address in the domain of the provider and no access to any project",
+      ),
+  })
+  .strict();
 export const ssoDeleteInput = z.object({ confirm: z.string().min(1).max(100) }).strict();
 // The record that proves a domain, as the plugin reads it.
 export const domainRecord = (id: string, domain: string, token: string) => ({

@@ -23,6 +23,7 @@ import {
   projectExports,
   projects,
   session,
+  ssoProviderProvisioning,
   tickets,
   twoFactor,
   user,
@@ -176,6 +177,7 @@ async function setup() {
     oidc: `${prefix}-oidc@oidc.aidesk.test`,
     saml: `${prefix}-saml@saml.aidesk.test`,
     stranger: `${prefix}-stranger@oidc.aidesk.test`,
+    newcomer: `${prefix}-newcomer@saml.aidesk.test`,
   };
   const alpha = result.alpha;
   if (!alpha) throw new Error("Alpha project missing");
@@ -303,6 +305,41 @@ async function addSession(email: string) {
 async function userCount(email: string) {
   return { count: (await db().select().from(user).where(eq(user.email, email))).length };
 }
+// Whether a provider of the development IdP creates operators; an owner decides that in the settings, the browser
+// tests set it directly.
+async function ssoProvisioning(providerId: string, mode: string) {
+  if (!["keycloak-oidc", "keycloak-saml"].includes(providerId) || !["on", "off"].includes(mode))
+    throw new Error("Usage: sso-provisioning keycloak-oidc|keycloak-saml on|off");
+  if (mode === "on")
+    await db()
+      .insert(ssoProviderProvisioning)
+      .values({ providerId, enabledBy: "e2e" })
+      .onConflictDoNothing();
+  else
+    await db()
+      .delete(ssoProviderProvisioning)
+      .where(eq(ssoProviderProvisioning.providerId, providerId));
+  return { providerId, provisioning: mode === "on" };
+}
+// The operator that a sign-in created: the entries of the audit that name the provider that created it.
+async function ssoProvisioned(email: string) {
+  const [person] = await db()
+    .select({ id: user.id, name: user.name })
+    .from(user)
+    .where(eq(user.email, email));
+  if (!person) return { count: 0, name: "", providers: [] as string[] };
+  const rows = await db()
+    .select({ detail: audit.detail })
+    .from(audit)
+    .where(and(eq(audit.actorId, person.id), eq(audit.action, "operator.sso_provisioned")));
+  return {
+    count: rows.length,
+    name: person.name,
+    providers: rows.map((row) =>
+      typeof row.detail.providerId === "string" ? row.detail.providerId : "",
+    ),
+  };
+}
 async function disable(email: string) {
   await db().update(user).set({ active: false }).where(eq(user.email, email));
   return { disabled: email };
@@ -368,6 +405,9 @@ try {
   else if (command === "teardown" && argument) write(await teardown(argument));
   else if (command === "user-count") write(await userCount(fixtureEmail(argument)));
   else if (command === "sso-sign-ins") write(await ssoSignIns(fixtureEmail(argument)));
+  else if (command === "sso-provisioned") write(await ssoProvisioned(fixtureEmail(argument)));
+  else if (command === "sso-provisioning" && argument && process.argv[4])
+    write(await ssoProvisioning(argument, process.argv[4]));
   else if (command === "disable") write(await disable(fixtureEmail(argument)));
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
   else if (command === "github-source" && argument) write(await githubSource(argument));

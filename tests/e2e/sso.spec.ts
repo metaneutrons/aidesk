@@ -90,6 +90,35 @@ test("rejects an IdP user without an aidesk account and does not create one", as
   expect((await page.request.get("/api/v1/projects")).status()).toBe(401);
   expect(JSON.parse(fixture("user-count", desk.sso.stranger))).toEqual({ count: 0 });
 });
+test("creates an operator without project access for a person of the domain once the provider allows it", async ({
+  page,
+  desk,
+}, testInfo) => {
+  // The provider is shared by the browsers of a run, and one of them changes it.
+  test.skip(testInfo.project.name !== "chromium", "Runs once.");
+  await ssoSignIn(page, desk.sso.newcomer, desk.idpPassword);
+  await expect(page).toHaveURL(/\/login\?sso=failed/);
+  expect(JSON.parse(fixture("user-count", desk.sso.newcomer))).toEqual({ count: 0 });
+  fixture("sso-provisioning", "keycloak-saml", "on");
+  try {
+    // The provider keeps the person signed in after the first attempt, which would skip its form.
+    await page.context().clearCookies();
+    await ssoSignIn(page, desk.sso.newcomer, desk.idpPassword);
+    await expect(page).toHaveURL("http://localhost:3000/");
+    // An operator now, and nothing to see until a project is granted.
+    expect(projects.parse(await (await page.request.get("/api/v1/projects")).json())).toEqual([]);
+  } finally {
+    fixture("sso-provisioning", "keycloak-saml", "off");
+  }
+  expect(JSON.parse(fixture("user-count", desk.sso.newcomer))).toEqual({ count: 1 });
+  // The name comes from the provider; an operator without one would be a blank line in every list.
+  expect(JSON.parse(fixture("sso-provisioned", desk.sso.newcomer))).toEqual({
+    count: 1,
+    name: "E2E SSO",
+    providers: ["keycloak-saml"],
+  });
+  expect(JSON.parse(fixture("sso-sign-ins", desk.sso.newcomer))).toMatchObject({ count: 1 });
+});
 test("refuses SSO requests that ask for sign-up", async ({ page, desk, baseURL }) => {
   const response = await page.request.post("/api/auth/sign-in/sso", {
     data: { email: desk.sso.stranger, callbackURL: "/", requestSignUp: true },

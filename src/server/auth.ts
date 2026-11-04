@@ -13,6 +13,7 @@ import { authSecrets } from "./secrets";
 import { getLimits } from "./limits";
 import { passwordSignInAllowed } from "./owner";
 import { auditSsoSignIn } from "./sso-audit";
+import { assertSsoProvisioning, auditSsoProvisioned, providerOfSignIn } from "./sso-provisioning";
 import { auditPasskeySignIn, guardPasskeyRoutes, passkeys2FA, passkeyStatus } from "./passkey";
 function createAuth() {
   return betterAuth({
@@ -37,6 +38,18 @@ function createAuth() {
       cookieCache: { enabled: false },
     },
     databaseHooks: {
+      // The plugin of the sign-in may create a user only where an owner allowed it for the provider.
+      user: {
+        create: {
+          before: async (created, context) => {
+            await assertSsoProvisioning(context, created.email);
+          },
+          after: async (created, context) => {
+            const providerId = providerOfSignIn(context);
+            if (providerId !== null) await auditSsoProvisioned(created.id, providerId);
+          },
+        },
+      },
       session: {
         create: {
           before: async () => ({
@@ -51,9 +64,11 @@ function createAuth() {
     // account model; store them encrypted.
     account: { encryptOAuthTokens: true },
     // Identity providers must be registered by an owner and their domains
-    // verified. SSO never creates aidesk users; see the /sign-in/sso guard.
+    // verified. The plugin's switch against creating users is one for the whole installation,
+    // so it stays open and the user hook above decides per provider (default: no user is
+    // created); see `sso-provisioning.ts` and the /sign-in/sso guard.
     plugins: [
-      sso({ domainVerification: { enabled: true }, disableImplicitSignUp: true }),
+      sso({ domainVerification: { enabled: true }, disableImplicitSignUp: false }),
       twoFactor({ issuer: "aidesk" }),
       passkeys2FA(),
       passkeyStatus(),
