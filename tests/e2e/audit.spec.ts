@@ -58,7 +58,7 @@ test("filters the audit of a project, shows the detail of an entry and exports w
     .analyze();
   expect(scan.violations.map((violation) => violation.id)).toEqual([]);
   // The export carries the filters that are applied, and the file is the table of the entries.
-  const link = section.getByRole("link", { name: /Export the audit of .* as CSV/ });
+  const link = section.getByRole("link", { name: /Export as CSV, audit of .* with these filters/ });
   const href = (await link.getAttribute("href")) ?? "";
   expect(href).toContain(`/api/v1/projects/${alpha.id}/audit/export`);
   expect(href).toContain("action=ticket.");
@@ -84,7 +84,7 @@ test("lets the owner read the audit of the workspace and nobody else", async ({
     .filter({ has: page.getByRole("heading", { name: "Audit of the workspace" }) });
   await expect(section).toBeVisible();
   await expect(
-    section.getByRole("link", { name: /Export the audit of the workspace as CSV/ }),
+    section.getByRole("link", { name: /Export as CSV, audit of the workspace with these filters/ }),
   ).toBeVisible();
   const listed = z
     .object({ entries: z.array(z.object({ action: z.string() })), next: z.string().nullable() })

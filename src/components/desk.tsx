@@ -973,7 +973,11 @@ export function Desk({
                   setView("account");
                 }}
               >
-                <span className="avatar">{operator.name.slice(0, 1)}</span>
+                <span
+                  className="avatar avatar-initial"
+                  aria-hidden="true"
+                  data-initial={operator.name.slice(0, 1)}
+                />
                 <span>{operator.name}</span>
               </button>
               <button
