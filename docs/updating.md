@@ -124,9 +124,12 @@ is.
 - A release that needs a change of the Compose file (a new required variable, a new service) is not applied by the updater: the
   replacement fails and the rollback runs. Such a release says so in its notes, and you change the file yourself first.
 - An image that was built on the machine has no version label and counts as older than any release; the first update replaces it.
-- The updater has not run end to end from a signed release: its signature check, the swap of the updater itself and the label
-  `metadata-action` writes are shown by the first real release, not before. `test-rollback.sh` replaces the signature check and the
-  pull and uses local images made from one base image.
+- The updater has not yet updated an installation from a signed release. Release 0.2.0 (4 November 2026) showed that the images
+  are signed with the identity above, that `cosign verify` accepts them from outside, that both architectures of both images
+  carry the label `org.opencontainers.image.version` without the `v`, and that the packages can be pulled without credentials.
+  What the first update from one release to the next still has to show is the signature check as the updater calls it, the
+  pull by the updater and the swap of the updater itself. `test-rollback.sh` replaces the signature check and the pull and uses
+  local images made from one base image.
 - The restore of a dump is a manual step.
 - Only an installation from `compose.production.yaml` is meant for the updater.
 
