@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { request as httpsRequest } from "node:https";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
 import { expect, test } from "./fixtures";
 // MCP over real HTTPS through the development proxy, with certificate
@@ -46,10 +45,7 @@ async function connect(token: string, fetch = verifiedFetch) {
     fetch,
     requestInit: { headers: { authorization: `Bearer ${token}` } },
   });
-  // The SDK declares sessionId as `string | undefined` on the class but as an
-  // optional string on its Transport interface, which exactOptionalPropertyTypes
-  // rejects. The runtime contract is the same.
-  await client.connect(transport as Transport);
+  await client.connect(transport);
   return client;
 }
 const textResult = z.object({ content: z.array(z.object({ type: z.string(), text: z.string() })) });
