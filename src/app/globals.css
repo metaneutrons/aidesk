@@ -306,6 +306,11 @@ label {
     font-weight: 600;
     flex-shrink: 0;
 }
+/* The letter inside a control that has the name next to it is drawn, not written: it would otherwise be part of the
+   visible text, which the name of the control has to contain. */
+.avatar-initial::before {
+    content: attr(data-initial);
+}
 .desk-main {
     flex: 1;
     min-width: 0;

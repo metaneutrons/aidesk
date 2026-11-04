@@ -70,7 +70,7 @@ test("adds, orders, changes and removes routing rules", async ({
     await editForm.getByRole("button", { name: "Save the rule" }).click();
     await expect(secondRow).toContainText("Urgent");
     // Switched off, a rule stays in the list and is marked.
-    await firstRow.getByRole("button", { name: `Switch ${first} off` }).click();
+    await firstRow.getByRole("button", { name: `Switch off ${first}` }).click();
     await expect(firstRow).toContainText("switched off");
     expect((await rules()).find((rule) => rule.name === first)?.enabled).toBe(false);
     const scan = await new AxeBuilder({ page })
