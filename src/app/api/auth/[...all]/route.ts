@@ -15,10 +15,11 @@ const managementPaths = new Set([
 async function handle(request: Request): Promise<Response> {
   try {
     const path = new URL(request.url).pathname.slice("/api/auth".length);
-    // The SSO plugin lets an unauthenticated sign-in request ask for sign-up,
-    // which would bypass disableImplicitSignUp for OIDC. aidesk provisions
-    // operators explicitly, so such requests are refused. Only JSON bodies are
-    // accepted here, so the check cannot be sidestepped with another encoding.
+    // The SSO plugin lets an unauthenticated sign-in request ask for sign-up. Who may be
+    // created is decided per provider by the user hook (`sso-provisioning.ts`), so the flag
+    // adds nothing and is refused: a request does not say more than the sign-in form does.
+    // Only JSON bodies are accepted here, so the check cannot be sidestepped with another
+    // encoding.
     if (path === "/sign-in/sso" && request.method === "POST") {
       const type = request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
       const body: unknown =

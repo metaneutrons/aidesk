@@ -18569,6 +18569,10 @@
                           }
                         ]
                       },
+                      "provisioning": {
+                        "type": "boolean",
+                        "description": "Whether a person who signs in through it and has no operator gets one"
+                      },
                       "clientIdLastFour": {
                         "type": [
                           "string",
@@ -18629,6 +18633,7 @@
                       "domainVerified",
                       "disabled",
                       "disabledAt",
+                      "provisioning",
                       "clientIdLastFour",
                       "callback",
                       "metadata",
@@ -18808,6 +18813,10 @@
                         }
                       ]
                     },
+                    "provisioning": {
+                      "type": "boolean",
+                      "description": "Whether a person who signs in through it and has no operator gets one"
+                    },
                     "clientIdLastFour": {
                       "type": [
                         "string",
@@ -18892,6 +18901,7 @@
                     "domainVerified",
                     "disabled",
                     "disabledAt",
+                    "provisioning",
                     "clientIdLastFour",
                     "callback",
                     "metadata",
@@ -19017,6 +19027,10 @@
                         }
                       ]
                     },
+                    "provisioning": {
+                      "type": "boolean",
+                      "description": "Whether a person who signs in through it and has no operator gets one"
+                    },
                     "clientIdLastFour": {
                       "type": [
                         "string",
@@ -19077,6 +19091,7 @@
                     "domainVerified",
                     "disabled",
                     "disabledAt",
+                    "provisioning",
                     "clientIdLastFour",
                     "callback",
                     "metadata",
@@ -19258,6 +19273,10 @@
                         }
                       ]
                     },
+                    "provisioning": {
+                      "type": "boolean",
+                      "description": "Whether a person who signs in through it and has no operator gets one"
+                    },
                     "clientIdLastFour": {
                       "type": [
                         "string",
@@ -19327,6 +19346,7 @@
                     "domainVerified",
                     "disabled",
                     "disabledAt",
+                    "provisioning",
                     "clientIdLastFour",
                     "callback",
                     "metadata",
@@ -19509,6 +19529,10 @@
                         }
                       ]
                     },
+                    "provisioning": {
+                      "type": "boolean",
+                      "description": "Whether a person who signs in through it and has no operator gets one"
+                    },
                     "clientIdLastFour": {
                       "type": [
                         "string",
@@ -19569,6 +19593,7 @@
                     "domainVerified",
                     "disabled",
                     "disabledAt",
+                    "provisioning",
                     "clientIdLastFour",
                     "callback",
                     "metadata",
@@ -19662,6 +19687,10 @@
                         }
                       ]
                     },
+                    "provisioning": {
+                      "type": "boolean",
+                      "description": "Whether a person who signs in through it and has no operator gets one"
+                    },
                     "clientIdLastFour": {
                       "type": [
                         "string",
@@ -19722,6 +19751,185 @@
                     "domainVerified",
                     "disabled",
                     "disabledAt",
+                    "provisioning",
+                    "clientIdLastFour",
+                    "callback",
+                    "metadata",
+                    "samlAudience",
+                    "operators"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/sso-providers/{providerId}/provisioning": {
+      "post": {
+        "operationId": "sso.providers_provisioning",
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Let a provider create an operator for a person who signs in through it and has none (`enabled`), or stop that. Off for a new provider. The address has to be in the verified domain of the provider, and the new operator has no access to any project",
+        "x-required-access": "owner",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether a person who signs in through the provider and has no operator gets one, with an address in the domain of the provider and no access to any project"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "oidc",
+                        "saml"
+                      ]
+                    },
+                    "issuer": {
+                      "type": "string"
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "domainVerified": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "disabledAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "provisioning": {
+                      "type": "boolean",
+                      "description": "Whether a person who signs in through it and has no operator gets one"
+                    },
+                    "clientIdLastFour": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "callback": {
+                      "type": "string",
+                      "description": "The address that the provider is told to call back"
+                    },
+                    "metadata": {
+                      "description": "The metadata of this side, for a SAML provider",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "samlAudience": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "operators": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "email",
+                          "active"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The operators who have signed in through this provider and are linked to it"
+                    }
+                  },
+                  "required": [
+                    "providerId",
+                    "type",
+                    "issuer",
+                    "domain",
+                    "domainVerified",
+                    "disabled",
+                    "disabledAt",
+                    "provisioning",
                     "clientIdLastFour",
                     "callback",
                     "metadata",

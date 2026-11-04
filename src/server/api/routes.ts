@@ -130,9 +130,15 @@ import { auditFilter } from "../../domain/audit";
 import { archiveProject, restoreProject } from "../archive";
 import { usageQuery } from "../../domain/usage";
 import { getUsage } from "../usage";
-import { ssoDeleteInput, ssoRegisterInput, ssoUpdateInput } from "../../domain/sso";
+import {
+  ssoDeleteInput,
+  ssoProvisioningInput,
+  ssoRegisterInput,
+  ssoUpdateInput,
+} from "../../domain/sso";
 import {
   deleteSsoProvider,
+  setSsoProvisioning,
   disableSsoProvider,
   enableSsoProvider,
   listSsoProviders,
@@ -2372,6 +2378,20 @@ export const routes: Route[] = [
     access: "owner",
     response: out.ssoProviderOut,
     run: ({ principal, params }) => enableSsoProvider(principal, params.providerId ?? ""),
+  },
+  {
+    id: "sso.providers_provisioning",
+    mcp: { not: "Identity providers are configuration of the installation, for its owner" },
+    method: "POST",
+    path: "/sso-providers/{providerId}/provisioning",
+    tag: "Workspace",
+    summary:
+      "Let a provider create an operator for a person who signs in through it and has none (`enabled`), or stop that. Off for a new provider. The address has to be in the verified domain of the provider, and the new operator has no access to any project",
+    access: "owner",
+    body: ssoProvisioningInput,
+    response: out.ssoProviderOut,
+    run: ({ principal, params, input }) =>
+      setSsoProvisioning(principal, params.providerId ?? "", input),
   },
   {
     id: "sso.providers_delete",

@@ -23,7 +23,12 @@ const deskSchema = z.object({
     hidden: projectSchema,
     gamma: projectSchema,
   }),
-  sso: z.object({ oidc: z.email(), saml: z.email(), stranger: z.email() }),
+  sso: z.object({
+    oidc: z.email(),
+    saml: z.email(),
+    stranger: z.email(),
+    newcomer: z.email(),
+  }),
 });
 export type Desk = z.infer<typeof deskSchema> & { idpPassword: string };
 // The database is private to the Compose network, so fixture data is created
@@ -151,7 +156,9 @@ export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>
     async ({}, use) => {
       const desk = { ...deskSchema.parse(JSON.parse(fixture("setup"))), idpPassword: "" };
       // The identity provider of the development stack is not reachable from a deployment.
-      const idpUsers = remote ? [] : [desk.sso.oidc, desk.sso.saml, desk.sso.stranger];
+      const idpUsers = remote
+        ? []
+        : [desk.sso.oidc, desk.sso.saml, desk.sso.stranger, desk.sso.newcomer];
       try {
         desk.idpPassword = randomBytes(16).toString("hex");
         for (const email of idpUsers) await createIdpUser(email, desk.idpPassword);

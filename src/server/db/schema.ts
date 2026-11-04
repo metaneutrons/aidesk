@@ -152,6 +152,14 @@ export const ssoProviderState = pgTable("sso_provider_state", {
   disabledBy: text("disabled_by").notNull(),
   verifiedBefore: boolean("verified_before").notNull().default(false),
 });
+// A provider that creates an operator when a person signs in who has none. Without a row here a provider only signs in
+// the operators that exist: the plugin has one switch for the whole installation, so the decision per provider is kept
+// here and read when the plugin is about to create the user (see `sso-provisioning.ts`).
+export const ssoProviderProvisioning = pgTable("sso_provider_provisioning", {
+  providerId: text("provider_id").primaryKey(),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }).notNull().defaultNow(),
+  enabledBy: text("enabled_by").notNull(),
+});
 export const projects = pgTable("project", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),

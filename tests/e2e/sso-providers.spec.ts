@@ -53,6 +53,24 @@ test("registers a provider, switches it off and on, tests it and deletes it", as
     await entry.getByRole("button", { name: `Test ${id}` }).click();
     await expect(section.getByText(`${id} was tested`)).toBeVisible();
     await expect(entry.getByText(/Problem: domain/)).toBeVisible();
+    // A provider creates no operators until an owner says so, and the page says what then happens.
+    await expect(entry.getByText(/signs in who has none/)).toHaveCount(0);
+    await entry.getByRole("button", { name: `Create operators through ${id}` }).click();
+    await expect(
+      section.getByText(`${id} creates an operator for a new person now.`),
+    ).toBeVisible();
+    await expect(
+      entry.getByText(`Creates an operator when a person from ${id}.example.test signs in`),
+    ).toBeVisible();
+    const switched = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .exclude("[data-base-ui-focus-guard]")
+      .exclude(".design-frame")
+      .analyze();
+    expect(switched.violations.map((violation) => violation.id)).toEqual([]);
+    await entry.getByRole("button", { name: `Stop creating operators through ${id}` }).click();
+    await expect(section.getByText(`${id} creates no operators any more.`)).toBeVisible();
+    await expect(entry.getByText(/signs in who has none/)).toHaveCount(0);
     // Switched off and on again.
     await entry.getByRole("button", { name: `Switch ${id} off` }).click();
     await expect(entry.getByText("Switched off", { exact: true })).toBeVisible();

@@ -3,10 +3,23 @@ import { APIError } from "better-auth/api";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Principal } from "../domain/permissions";
-import { domainRecord, ssoRegisterInput, ssoUpdateInput, ssoDeleteInput } from "../domain/sso";
+import {
+  domainRecord,
+  ssoRegisterInput,
+  ssoUpdateInput,
+  ssoDeleteInput,
+  ssoProvisioningInput,
+} from "../domain/sso";
 import { auth } from "./auth";
 import { db } from "./db";
-import { account, audit, ssoProvider, ssoProviderState, user } from "./db/schema";
+import {
+  account,
+  audit,
+  ssoProvider,
+  ssoProviderProvisioning,
+  ssoProviderState,
+  user,
+} from "./db/schema";
 import { env } from "./env";
 import { DomainError } from "./errors";
 import { checkHost, developmentStack } from "./host-guard";
@@ -38,6 +51,10 @@ async function view(row: typeof ssoProvider.$inferSelect) {
     .select()
     .from(ssoProviderState)
     .where(eq(ssoProviderState.providerId, row.providerId));
+  const [provisioning] = await db()
+    .select()
+    .from(ssoProviderProvisioning)
+    .where(eq(ssoProviderProvisioning.providerId, row.providerId));
   const linked = await db()
     .select({ id: user.id, name: user.name, email: user.email, active: user.active })
     .from(account)
@@ -54,6 +71,7 @@ async function view(row: typeof ssoProvider.$inferSelect) {
     domainVerified: row.domainVerified === true,
     disabled: state !== undefined,
     disabledAt: state?.disabledAt ?? null,
+    provisioning: provisioning !== undefined,
     clientIdLastFour: clientId ? clientId.slice(-4) : null,
     // What the provider has to be given: the address that it calls back, or the metadata of this side.
     callback: isOidc
@@ -302,6 +320,35 @@ export async function enableSsoProvider(principal: Principal, providerId: string
   });
   return view(await find(row.providerId));
 }
+// Whether the provider creates an operator when a person signs in who has none. Off for a new provider. A person
+// is created only with an address in the domain of the provider, and has no access to a project until it is granted.
+export async function setSsoProvisioning(principal: Principal, providerId: string, input: unknown) {
+  owner(principal);
+  const row = await find(providerId);
+  const values = ssoProvisioningInput.parse(input);
+  await db().transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(ssoProviderProvisioning)
+      .where(eq(ssoProviderProvisioning.providerId, row.providerId));
+    if ((current !== undefined) === values.enabled) return;
+    if (values.enabled)
+      await tx
+        .insert(ssoProviderProvisioning)
+        .values({ providerId: row.providerId, enabledBy: principal.id });
+    else
+      await tx
+        .delete(ssoProviderProvisioning)
+        .where(eq(ssoProviderProvisioning.providerId, row.providerId));
+    await tx.insert(audit).values({
+      actorId: principal.id,
+      action: values.enabled ? "sso_provider.provisioning_on" : "sso_provider.provisioning_off",
+      targetId: row.providerId,
+      detail: { domain: row.domain },
+    });
+  });
+  return view(await find(row.providerId));
+}
 export async function deleteSsoProvider(
   principal: Principal,
   headers: Headers,
@@ -328,6 +375,9 @@ export async function deleteSsoProvider(
     refused(error);
   }
   await db().delete(ssoProviderState).where(eq(ssoProviderState.providerId, row.providerId));
+  await db()
+    .delete(ssoProviderProvisioning)
+    .where(eq(ssoProviderProvisioning.providerId, row.providerId));
   return { deleted: true, operators: linked.length };
 }
 // A look at what a provider needs to work, without signing anybody in: its documents can be read, they say what

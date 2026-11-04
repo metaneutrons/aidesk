@@ -13,6 +13,7 @@ const providerSchema = z.object({
   domain: z.string(),
   domainVerified: z.boolean(),
   disabled: z.boolean(),
+  provisioning: z.boolean(),
   callback: z.string(),
   metadata: z.string().nullable(),
   operators: z.array(z.object({ id: z.string(), name: z.string(), email: z.string() })),
@@ -34,6 +35,8 @@ type Message =
   | "tested"
   | "disabled"
   | "enabled"
+  | "provisioningOn"
+  | "provisioningOff"
   | "deleted"
   | "taken"
   | "error";
@@ -142,6 +145,14 @@ export function SsoProviders() {
                           .join(", "),
                       })}
                 </small>
+                {row.provisioning && (
+                  <>
+                    <br />
+                    <small className="muted">
+                      {t("ssoProvisioningOn", { domain: row.domain })}
+                    </small>
+                  </>
+                )}
                 {records[row.providerId] && (
                   <>
                     <br />
@@ -259,6 +270,31 @@ export function SsoProviders() {
                   }}
                 >
                   {t(row.disabled ? "ssoSwitchOn" : "ssoSwitchOff", { id: row.providerId })}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    void call(
+                      row.providerId,
+                      `/${row.providerId}/provisioning`,
+                      "POST",
+                      { enabled: !row.provisioning },
+                      (response) =>
+                        Promise.resolve(
+                          response.ok
+                            ? row.provisioning
+                              ? "provisioningOff"
+                              : "provisioningOn"
+                            : "error",
+                        ),
+                    );
+                  }}
+                >
+                  {t(row.provisioning ? "ssoProvisioningStop" : "ssoProvisioningStart", {
+                    id: row.providerId,
+                  })}
                 </button>
                 <button
                   type="button"

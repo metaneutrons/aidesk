@@ -556,6 +556,9 @@ export const ssoProviderOut = z.object({
   domainVerified: z.boolean(),
   disabled: z.boolean(),
   disabledAt: isoDate.nullable(),
+  provisioning: z
+    .boolean()
+    .describe("Whether a person who signs in through it and has no operator gets one"),
   clientIdLastFour: z.string().nullable(),
   callback: z.string().describe("The address that the provider is told to call back"),
   metadata: z.string().nullable().describe("The metadata of this side, for a SAML provider"),

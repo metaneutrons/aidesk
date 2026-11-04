@@ -27,6 +27,7 @@ import {
   audit,
   session,
   ssoProvider,
+  ssoProviderProvisioning,
   ssoProviderState,
   verification,
   user,
@@ -39,11 +40,17 @@ import {
   listSsoProviders,
   registerSsoProvider,
   requestSsoDomainRecord,
+  setSsoProvisioning,
   testSsoProvider,
   updateSsoProvider,
   verifySsoDomain,
 } from "../src/server/sso-providers";
 import { auditSsoSignIn } from "../src/server/sso-audit";
+import {
+  assertSsoProvisioning,
+  inProviderDomain,
+  providerOfSignIn,
+} from "../src/server/sso-provisioning";
 import { DomainError } from "../src/server/errors";
 import { certificates } from "./support/certificates";
 import type { Principal } from "../src/domain/permissions";
@@ -167,6 +174,9 @@ afterAll(async () => {
   if (ids.length) {
     await db().delete(account).where(inArray(account.providerId, ids));
     await db().delete(ssoProviderState).where(inArray(ssoProviderState.providerId, ids));
+    await db()
+      .delete(ssoProviderProvisioning)
+      .where(inArray(ssoProviderProvisioning.providerId, ids));
     await db().delete(audit).where(inArray(audit.targetId, ids));
     await db().delete(ssoProvider).where(inArray(ssoProvider.providerId, ids));
   }
@@ -695,6 +705,126 @@ describe("the operators of a provider and the deletion", () => {
     expect(entries.map((entry) => entry.detail)).toEqual(
       expect.arrayContaining([{ providerId: "keycloak-oidc" }, {}]),
     );
+  });
+});
+describe("creating operators through a provider", () => {
+  beforeAll(async () => {
+    await newRegistrant("provisioning");
+  });
+  async function verified(label: string) {
+    const id = provider(label);
+    const made = await registerSsoProvider(owner, headers, oidc(id));
+    dns.txt.set(made.domainRecord?.name ?? "", [[made.domainRecord?.value ?? ""]]);
+    await verifySsoDomain(owner, headers, id);
+    return id;
+  }
+  const callback = (id: string) => ({
+    path: "/sso/callback/:providerId",
+    params: { providerId: id },
+  });
+  it("is off for a new provider, and creates nobody then", async () => {
+    const id = await verified("prov-off");
+    const [listed] = (await listSsoProviders(owner)).filter((row) => row.providerId === id);
+    expect(listed?.provisioning).toBe(false);
+    expect(await outcome(assertSsoProvisioning(callback(id), `new@${id}.example.test`))).toBe(
+      "other",
+    );
+  });
+  it("is the decision of an owner, written once, audited, and gone with the provider", async () => {
+    const id = await verified("prov-set");
+    for (const refused of [operator, token, { ...owner, active: false }])
+      expect(await outcome(setSsoProvisioning(refused, id, { enabled: true }))).toBe("forbidden");
+    for (const bad of [{}, { enabled: "yes" }, { enabled: true, extra: 1 }])
+      expect(await outcome(setSsoProvisioning(owner, id, bad))).toBe("invalid");
+    expect(await outcome(setSsoProvisioning(owner, "missing-" + run, { enabled: true }))).toBe(
+      "not_found",
+    );
+    expect(await setSsoProvisioning(owner, id, { enabled: true })).toMatchObject({
+      provisioning: true,
+    });
+    await setSsoProvisioning(owner, id, { enabled: true });
+    const on = await db()
+      .select()
+      .from(audit)
+      .where(and(eq(audit.targetId, id), eq(audit.action, "sso_provider.provisioning_on")));
+    expect(on).toHaveLength(1);
+    expect((await listSsoProviders(owner)).find((row) => row.providerId === id)?.provisioning).toBe(
+      true,
+    );
+    expect(await setSsoProvisioning(owner, id, { enabled: false })).toMatchObject({
+      provisioning: false,
+    });
+    expect(
+      await db()
+        .select()
+        .from(audit)
+        .where(and(eq(audit.targetId, id), eq(audit.action, "sso_provider.provisioning_off"))),
+    ).toHaveLength(1);
+    await setSsoProvisioning(owner, id, { enabled: true });
+    await deleteSsoProvider(owner, headers, id, { confirm: id });
+    expect(
+      await db()
+        .select()
+        .from(ssoProviderProvisioning)
+        .where(eq(ssoProviderProvisioning.providerId, id)),
+    ).toHaveLength(0);
+  });
+  it("creates a user only for an address in the domain of a provider that is on, proved and allowed", async () => {
+    const id = await verified("prov-on");
+    const domain = `${id}.example.test`;
+    await setSsoProvisioning(owner, id, { enabled: true });
+    expect(await assertSsoProvisioning(callback(id), `new@${domain}`)).toBe(id);
+    expect(await assertSsoProvisioning(callback(id), `New@Team.${domain.toUpperCase()}`)).toBe(id);
+    for (const email of [
+      `new@x${domain}`,
+      `new@${domain}.evil.test`,
+      "new@example.test",
+      domain,
+      "",
+    ])
+      expect(await outcome(assertSsoProvisioning(callback(id), email)), email).toBe("other");
+    // Switched off, the domain is not verified for the plugin, and the state says so here as well.
+    await disableSsoProvider(owner, id);
+    expect(await outcome(assertSsoProvisioning(callback(id), `new@${domain}`))).toBe("other");
+    await enableSsoProvider(owner, id);
+    expect(await assertSsoProvisioning(callback(id), `new@${domain}`)).toBe(id);
+    // A domain that is changed needs a new proof, and creates nobody until it has one.
+    await updateSsoProvider(owner, headers, id, { domain: `other-${domain}` });
+    expect(await outcome(assertSsoProvisioning(callback(id), `new@other-${domain}`))).toBe("other");
+  });
+  it("refuses every creation that does not come back through the address of one provider", async () => {
+    const id = await verified("prov-path");
+    const domain = `${id}.example.test`;
+    await setSsoProvisioning(owner, id, { enabled: true });
+    for (const context of [
+      null,
+      undefined,
+      {},
+      { path: "/sign-in/email", params: { providerId: id } },
+      { path: "/sso/callback", params: {} },
+      { path: "/sso/callback/:providerId", params: { providerId: "" } },
+      { path: "/sso/callback/:providerId", params: { providerId: 5 } },
+      { path: "/sso/callback/:providerId", params: { providerId: `${id}-not` } },
+    ])
+      expect(
+        await outcome(assertSsoProvisioning(context, `new@${domain}`)),
+        JSON.stringify(context ?? "none"),
+      ).toBe("other");
+    expect(
+      providerOfSignIn({ path: "/sso/saml2/sp/acs/:providerId", params: { providerId: id } }),
+    ).toBe(id);
+    expect(inProviderDomain(`a@${domain}`, domain)).toBe(true);
+    expect(inProviderDomain("a", domain)).toBe(false);
+    // The plugin creates a user through the same call; outside a sign-in nothing is created.
+    const context = await auth().$context;
+    const email = `direct-${run}@${domain}`;
+    await expect(
+      context.internalAdapter.createUser(
+        { name: "Direct", email, emailVerified: false },
+        { method: "admin" },
+      ),
+    ).rejects.toThrow();
+    expect(await db().select().from(user).where(eq(user.email, email))).toHaveLength(0);
   });
 });
 describe("the routes of the plugin", () => {
