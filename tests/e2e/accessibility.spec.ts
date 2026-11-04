@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Automated WCAG 2.2 A/AA rules only. They find a subset of barriers; manual
 // keyboard, screen-reader and zoom checks are still required.
 const tags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -47,12 +47,33 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("navigation").getByRole("button", { name: "Junk" }).click();
       await expect(page.getByRole("region", { name: "Junk" })).toBeVisible();
       expect(await audit(page)).toEqual([]);
-      await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-      await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
+      await openSettings(page, "People");
+      await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
+      expect(await audit(page)).toEqual([]);
+      await openSettings(page, "Projects");
       expect(await audit(page)).toEqual([]);
       await page.getByRole("button", { name: "New project" }).click();
       await expect(page.getByRole("dialog", { name: "New project" })).toBeVisible();
       expect(await audit(page)).toEqual([]);
+    });
+    test("every topic of the settings has no automatically detectable violations", async ({
+      page,
+      signIn,
+    }) => {
+      // One scan for each of some twenty topics is more than the time of an ordinary test.
+      test.setTimeout(300_000);
+      await signIn();
+      await page.goto("/");
+      await openSettings(page, "People");
+      const list = page.getByRole("complementary", { name: "Topics" });
+      // The topics of the project come with the answer about the rights of the person.
+      await expect(list.getByRole("link", { name: "General" })).toBeVisible();
+      const topics = await list.getByRole("link").allInnerTexts();
+      expect(topics.length).toBeGreaterThan(10);
+      for (const topic of topics) {
+        await openSettings(page, topic.trim());
+        expect(await audit(page), topic).toEqual([]);
+      }
     });
   });
 }

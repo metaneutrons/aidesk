@@ -904,3 +904,21 @@ exists yet; this plan makes no cost or deadline commitment.
   prompt and an optional custom one. Open: whether the customer portal's reply
   field gets the same button (assumed not, since the portal speaks for the
   customer), and whether editing the standard prompts needs `config.write` only.
+- 2026-10-24: Waivers for the acceptance in M11 (M11-A2), decided by the product owner on the proposals in the table
+  of the M11 issue ([comment of 24 October](https://github.com/metaneutrons/aidesk/issues/233#issuecomment-6380602743)).
+  Each is a limit that stays and that the acceptance names, not a defect that was found:
+    - M2: SMTP2GO does not forward bounces. Consequence: delivery reports exist for transports whose return path reaches
+      the project mailbox.
+    - M3: search has no index and reads the table. Consequence: it slows down with a very large number of tickets.
+    - M3: the manual check with a screen reader is limited to VoiceOver on the main flows (that check stays open as an
+      item to do); other readers and the keyboard model of Safari are not covered.
+    - M3: a customer cannot download or remove a file after sending it, as with mail.
+    - M4: a documentation site and a customer system were qualified only through fake servers, because no real
+      counterpart exists. Consequence: both kinds are qualified against fakes; the guard against private addresses is
+      tested.
+    - M4: Google (Gemini) is not qualified because of the quota of the free tier. Consequence: that connection kind is
+      stated as not qualified.
+    - M4: each fixture ran once per provider, and negation and intent of a translation are checked by two fixtures and by
+      reading. Consequence: a pass is a sample and not a statistic.
+    - M5: no recovery target of the database provider is claimed (the timed restore of a backup into an empty stack stays
+      open as an item to do). Consequence: the recovery of the provider's own backups is not part of the evidence.

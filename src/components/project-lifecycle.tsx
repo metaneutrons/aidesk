@@ -3,6 +3,8 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
+import { useZone } from "./time-zone";
 // The life of the projects: a project that a person manages is archived here, and an archived project is restored.
 // An archived project keeps its data and is read-only: it takes no mail and is left out of the lists.
 const archivedSchema = z.object({ id: z.string(), name: z.string(), archivedAt: z.string() });
@@ -25,6 +27,7 @@ export function ProjectLifecycle({
   owner: boolean;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const router = useRouter();
   const titleId = useId();
   const [archived, setArchived] = useState<z.infer<typeof archivedSchema>[] | null>(null);
@@ -89,15 +92,19 @@ export function ProjectLifecycle({
     router.refresh();
     setBusy(false);
   }
-  if (archived === null || (manageable.length === 0 && archived.length === 0)) return null;
-  const when = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
+  // A project that was just archived leaves the list of the managed ones in the same render in which it appears
+  // under the archived ones. The parent reloads its projects later, and a row that disappears then shifts the page.
+  const archivedIds = new Set((archived ?? []).map((project) => project.id));
+  const active = manageable.filter((project) => !archivedIds.has(project.id));
+  if (archived === null || (active.length === 0 && archived.length === 0)) return null;
+  const when = new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium" });
   return (
     <section className="connections project-lifecycle" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("projectLifecycleTitle")}</h3>
       <p className="muted">{t("projectLifecycleHint")}</p>
-      {manageable.length > 0 && (
+      {active.length > 0 && (
         <ul className="connection-list">
-          {manageable.map((project) => (
+          {active.map((project) => (
             <li key={project.id}>
               <strong>{project.name}</strong>
               <span className="connection-actions">
@@ -189,7 +196,7 @@ export function ProjectLifecycle({
                 ))}
                 {owner && (
                   <form
-                    className="project-delete"
+                    className="project-delete stack"
                     onSubmit={(event) => {
                       event.preventDefault();
                       const latest = (exports[project.id] ?? [])[0];
@@ -200,30 +207,36 @@ export function ProjectLifecycle({
                         });
                     }}
                   >
-                    <label>
-                      <span>{t("projectDeleteType", { name: project.name })}</span>
-                      <input
-                        type="text"
-                        autoComplete="off"
-                        value={typed[project.id] ?? ""}
-                        onChange={(event) => {
-                          setTyped({ ...typed, [project.id]: event.target.value });
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="secondary danger"
-                      disabled={
-                        busy ||
-                        (typed[project.id] ?? "") !== project.name ||
-                        !(exports[project.id] ?? []).some(
-                          (made) => made.createdAt >= project.archivedAt,
-                        )
-                      }
-                    >
-                      {t("projectDelete", { name: project.name })}
-                    </button>
+                    <Group>
+                      <Row label={t("projectDeleteType", { name: project.name })}>
+                        {(props) => (
+                          <input
+                            {...props}
+                            type="text"
+                            autoComplete="off"
+                            value={typed[project.id] ?? ""}
+                            onChange={(event) => {
+                              setTyped({ ...typed, [project.id]: event.target.value });
+                            }}
+                          />
+                        )}
+                      </Row>
+                    </Group>
+                    <Actions>
+                      <button
+                        type="submit"
+                        className="secondary danger"
+                        disabled={
+                          busy ||
+                          (typed[project.id] ?? "") !== project.name ||
+                          !(exports[project.id] ?? []).some(
+                            (made) => made.createdAt >= project.archivedAt,
+                          )
+                        }
+                      >
+                        {t("projectDelete", { name: project.name })}
+                      </button>
+                    </Actions>
                   </form>
                 )}
               </li>

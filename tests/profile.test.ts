@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db, sqlClient } from "../src/server/db";
 import { audit, jobs, messages, projects, tickets, user } from "../src/server/db/schema";
-import { reply } from "../src/server/operations";
+import { operatorInfo, reply } from "../src/server/operations";
 import { getProfile, setProfile } from "../src/server/profile";
 import { signed } from "../src/domain/profile";
 import { DomainError } from "../src/server/errors";
@@ -89,6 +89,7 @@ describe("the profile of an operator", () => {
       name: "Account kim",
       displayName: null,
       signature: null,
+      timeZone: null,
     });
     expect(
       await setProfile(person(ids.kim), {
@@ -99,6 +100,7 @@ describe("the profile of an operator", () => {
       name: "Account kim",
       displayName: "Kim Example",
       signature: "Kim Example\nSupport team",
+      timeZone: null,
     });
     // A field that is left out stays, a field that is empty goes.
     expect(await setProfile(person(ids.kim), { displayName: "" })).toMatchObject({
@@ -119,6 +121,28 @@ describe("the profile of an operator", () => {
     ])
       await expect(setProfile(person(ids.lee), input)).rejects.toThrow();
     expect(await getProfile(person(ids.lee))).toMatchObject({ displayName: null, signature: null });
+  });
+  it("takes a time zone by itself, refuses what is not one, and null goes back to the zone of the device", async () => {
+    expect(await setProfile(person(ids.lee), { timeZone: " Europe/Berlin " })).toMatchObject({
+      timeZone: "Europe/Berlin",
+      displayName: null,
+    });
+    expect(await setProfile(person(ids.lee), { displayName: "Lee" })).toMatchObject({
+      timeZone: "Europe/Berlin",
+      displayName: "Lee",
+    });
+    for (const bad of ["Mars/Olympus", "CET+9", "", "x".repeat(65), 7])
+      await expect(setProfile(person(ids.lee), { timeZone: bad })).rejects.toThrow();
+    expect(await getProfile(person(ids.lee))).toMatchObject({ timeZone: "Europe/Berlin" });
+    expect(await setProfile(person(ids.lee), { timeZone: null })).toMatchObject({ timeZone: null });
+    // The operator information that the desk is made from carries the zone as well.
+    await setProfile(person(ids.lee), { timeZone: "Asia/Tokyo" });
+    expect(await operatorInfo(person(ids.lee))).toMatchObject({ timeZone: "Asia/Tokyo" });
+    expect((await operatorInfo({ ...person(ids.lee), kind: "agent" })).timeZone).toBeNull();
+    await db()
+      .update(user)
+      .set({ displayName: null, signature: null, timeZone: null })
+      .where(eq(user.id, ids.lee));
   });
   it("changes only the account of the person who asks", async () => {
     await setProfile(person(ids.lee), { displayName: "Lee", signature: "Lee's signature" });

@@ -2,7 +2,8 @@
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Tag, X } from "lucide-react";
-import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
+import { textOn } from "../domain/branding";
+import { maxTags, normalizeTag, tagPattern, tagStyle } from "../domain/tags";
 // The team's own labels on a ticket. Every change saves the whole list; it
 // does not touch the conversation. Suggestions are the tags already in use in
 // the ticket's project.
@@ -10,11 +11,13 @@ export function Tags({
   ticketId,
   projectId,
   tags,
+  colors = {},
   onChanged,
 }: {
   ticketId: string;
   projectId: string;
   tags: string[];
+  colors?: Record<string, string>;
   onChanged: () => void;
 }) {
   const t = useTranslations();
@@ -62,7 +65,7 @@ export function Tags({
       <Tag size={16} aria-hidden="true" />
       <ul className="tag-list" aria-label={t("tags")}>
         {tags.map((tag) => (
-          <li key={tag} className="tag-chip">
+          <li key={tag} className="tag-chip" style={tagStyle(colors[tag], textOn)}>
             <span>{tag}</span>
             <button
               type="button"

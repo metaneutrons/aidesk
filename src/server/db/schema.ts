@@ -13,12 +13,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { Action } from "../../domain/permissions";
-import { seal, unseal } from "../crypto";
-import { env } from "../env";
+import { sealSecret, unsealSecret } from "../secrets";
 const encryptedText = customType<{ data: string; driverData: string }>({
   dataType: () => "text",
-  toDriver: (value) => seal(value, env().ENCRYPTION_KEY),
-  fromDriver: (value) => unseal(value, env().ENCRYPTION_KEY),
+  toDriver: (value) => sealSecret(value),
+  fromDriver: (value) => unsealSecret(value),
 });
 const created = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const updated = () => timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
@@ -36,6 +35,8 @@ export const user = pgTable("auth_user", {
   // The name that customers read on a reply, and the text under it; the name of the account is used when there is none.
   displayName: text("display_name"),
   signature: text("signature"),
+  // The time zone in which this person sees times in the desk; none means the one of the device.
+  timeZone: text("time_zone"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
 });
 export const session = pgTable(
@@ -227,6 +228,107 @@ export const portalBranding = pgTable(
   },
   (t) => [uniqueIndex("portal_branding_project_idx").on(t.projectId)],
 );
+// The lists of senders of a project: always taken, or always kept out as junk (see `domain/sender-rules.ts`).
+export const senderRules = pgTable(
+  "sender_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    type: text("type").notNull(),
+    value: text("value").notNull(),
+    note: text("note"),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("sender_rule_value_idx").on(t.projectId, t.value)],
+);
+// A saved view of the inbox of one operator (see `domain/views.ts`): a name and the filters that the desk applies. At most
+// one view of a person is the one that the desk opens with.
+export const savedViews = pgTable(
+  "saved_view",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    list: text("list").notNull(),
+    projects: jsonb("projects").$type<string[]>().notNull().default([]),
+    tag: text("tag"),
+    priority: text("priority"),
+    category: text("category"),
+    isStart: boolean("is_start").notNull().default(false),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [
+    uniqueIndex("saved_view_name_idx").on(t.userId, sql`lower(${t.name})`),
+    uniqueIndex("saved_view_start_idx")
+      .on(t.userId)
+      .where(sql`${t.isStart}`),
+  ],
+);
+// The colour of a tag in one project; a tag without a row has none (see `domain/tags.ts`).
+export const projectTags = pgTable(
+  "project_tag",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    tag: text("tag").notNull(),
+    color: text("color").notNull(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("project_tag_idx").on(t.projectId, t.tag)],
+);
+// The canned replies of a project (see `domain/canned.ts`); `version` counts the changes, for the proposals of agents.
+export const cannedReplies = pgTable(
+  "canned_reply",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    language: text("language").notNull(),
+    body: text("body").notNull(),
+    version: integer("version").notNull().default(1),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("canned_reply_name_idx").on(t.projectId, t.language, t.name)],
+);
+// The rules that route a new ticket of a project to an assignee and give it a priority and a category (see
+// `domain/routing.ts`). The first enabled rule in order that matches wins; `cursor` counts the tickets that a rule gave
+// to the members of a group, for the round robin.
+export const routingRules = pgTable(
+  "routing_rule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    conditions: jsonb("conditions")
+      .$type<{ senders: string[]; languages: string[]; subjectWords: string[] }>()
+      .notNull(),
+    target: jsonb("target").$type<{ kind: "user" | "group" | "agent"; id: string } | null>(),
+    priority: text("priority"),
+    category: text("category"),
+    cursor: integer("cursor").notNull().default(0),
+    createdBy: text("created_by").notNull(),
+    createdAt: created(),
+    updatedAt: updated(),
+  },
+  (t) => [index("routing_rule_project_idx").on(t.projectId, t.position)],
+);
 // A group of operators in one project with the actions that every member holds there, in addition to what each
 // holds by their own membership.
 export const operatorGroups = pgTable(
@@ -311,10 +413,17 @@ export const tickets = pgTable(
     // an event is sent once per cycle, and a new cycle has a new start.
     warnedFor: timestamp("warned_for", { withTimezone: true }),
     overdueFor: timestamp("overdue_for", { withTimezone: true }),
+    // When the ticket began to wait for the customer (the team's answer was sent), and the start of the wait for
+    // which the reminder before the automatic resolve was sent: a reminder is sent once for each wait.
+    waitingSince: timestamp("waiting_since", { withTimezone: true }),
+    autoRemindedFor: timestamp("auto_reminded_for", { withTimezone: true }),
     // When the team wants to look at the ticket again; private to the team.
     remindAt: timestamp("remind_at", { withTimezone: true }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    // The priority, one of low, normal, high and urgent (see `triage.ts`), and the category from the list of the project.
+    priority: text("priority").notNull().default("normal"),
+    category: text("category"),
     createdAt: created(),
     updatedAt: updated(),
   },
@@ -616,6 +725,40 @@ export const audit = pgTable(
   },
   (t) => [index("audit_project_idx").on(t.projectId)],
 );
+// What an operator is told about (see `domain/notifications.ts`). A row holds the kind, the ticket and the time; the
+// subject of the ticket is read when the list is shown. It goes with the ticket, the project and the person.
+export const notifications = pgTable(
+  "notification",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    ticketId: uuid("ticket_id").references(() => tickets.id, { onDelete: "cascade" }),
+    createdAt: created(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt)],
+);
+// The channels an operator chose for a kind of notification; without a row both are on.
+export const notificationPreferences = pgTable(
+  "notification_preference",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    desk: boolean("desk").notNull(),
+    mail: boolean("mail").notNull(),
+    updatedAt: updated(),
+  },
+  (t) => [uniqueIndex("notification_preference_idx").on(t.userId, t.kind)],
+);
 // Versioned email designs of a project. A version is never changed; a new
 // one is added and then selected, so a mail that was sent can always name the
 // design it was rendered with.
@@ -717,6 +860,13 @@ export const webhooks = pgTable(
     events: jsonb("events").$type<string[]>().notNull(),
     // Allows a plain or local endpoint on a development stack only.
     developmentOnly: boolean("development_only").notNull().default(false),
+    // How a delivery is written: `aidesk` is the signed JSON body of the event, any other format is a channel of a
+    // messenger. Fixed when the webhook is made.
+    format: text("format").notNull().default("aidesk"),
+    // A channel names the subject of the ticket only when this is on. It needs config.approve to switch it on.
+    withSubject: boolean("with_subject").notNull().default(false),
+    // The signing secret; for a channel it holds the address, which carries the key of the messenger, and `url` shows
+    // the host only.
     secretCiphertext: text("secret_ciphertext").notNull(),
     // active or disabled
     status: text("status").notNull().default("active"),

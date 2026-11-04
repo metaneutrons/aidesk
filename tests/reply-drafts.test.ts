@@ -200,8 +200,10 @@ describe("a reply by an agent under the review policy", () => {
     const [message] = await db().select().from(messages).where(eq(messages.id, result.id));
     expect(message).toMatchObject({ deliveryState: "draft", authorType: "agent", internal: false });
     expect(message?.source).toMatchObject({ draft: { baseRevision: revision, resolve: false } });
-    // No mail job exists, and the ticket is as it was.
-    expect((await jobsOf(id)).map((job) => job.type)).toEqual(["draft.recorded"]);
+    // No mail to the customer exists, and the ticket is as it was. The operators may be told of the draft by mail.
+    expect(
+      (await jobsOf(id)).map((job) => job.type).filter((type) => type !== "notify.mail"),
+    ).toEqual(["draft.recorded"]);
     expect((await getTicket(manager, id)).ticket).toMatchObject({ revision, status: "open" });
     // A draft does not answer the customer: the cycle of the response clock goes on.
     expect((await getTicket(manager, id)).ticket.pendingSince).toEqual(pendingSince);

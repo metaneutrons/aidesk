@@ -2,13 +2,22 @@ import { cancelAgentRuns, cancelRunsOfAgent, queueAgentRun, takeOver } from "./a
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { signed } from "../domain/profile";
 import { actionsOf, peopleWith } from "./grants";
+import { notifyKind } from "./notifications";
 import { maxTags, normalizeTag, tagPattern } from "../domain/tags";
 import { supersedeOlder } from "./configuration";
 import { emitEvent } from "./webhooks";
 import { aiWorkOf } from "./ai-work";
 import type { Tx } from "./changes";
 import { clampLimit, listStep } from "../domain/paging";
-import { defaultOverdueHours, defaultWarnHours } from "../domain/response-clock";
+import { businessSettingsOf, calendarOf, clockMillis } from "../domain/business-hours";
+import {
+  defaultOverdueHours,
+  defaultWarnHours,
+  limitsOf,
+  priorityLimitsOf,
+} from "../domain/response-clock";
+import { categoriesOf, priorities, priorityOf } from "../domain/triage";
+import { overdueLimit } from "./response-clock";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import { db } from "./db";
@@ -25,6 +34,7 @@ import {
   operatorGroups,
   messages,
   projects,
+  projectTags,
   session,
   tickets,
   user,
@@ -62,6 +72,12 @@ export type ArchivedFilter = "hide" | "include" | "only";
 export async function listProjects(principal: Principal, archived: ArchivedFilter = "hide") {
   const allowed = allowedProjectIds(principal);
   if (allowed.length === 0) return [];
+  const colours = new Map<string, Record<string, string>>();
+  for (const row of await db()
+    .select()
+    .from(projectTags)
+    .where(inArray(projectTags.projectId, allowed)))
+    colours.set(row.projectId, { ...colours.get(row.projectId), [row.tag]: row.color });
   return db()
     .select({
       id: projects.id,
@@ -74,6 +90,7 @@ export async function listProjects(principal: Principal, archived: ArchivedFilte
       overdueHours: sql<number>`coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours})`,
       warnHours: sql<number>`least(coalesce((${projects.settings}->>'warnHours')::int, ${defaultWarnHours}), coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
       archivedAt: projects.archivedAt,
+      settings: projects.settings,
     })
     .from(projects)
     .where(
@@ -86,7 +103,16 @@ export async function listProjects(principal: Principal, archived: ArchivedFilte
             : undefined,
       ),
     )
-    .orderBy(projects.name);
+    .orderBy(projects.name)
+    .then((rows) =>
+      rows.map(({ settings, ...row }) => ({
+        ...row,
+        tagColors: colours.get(row.id) ?? {},
+        clock: businessSettingsOf(settings),
+        limits: priorityLimitsOf(settings),
+        categories: categoriesOf(settings),
+      })),
+    );
 }
 // Project behaviour that people with project.manage may change. Only the
 // listed fields are accepted; other settings are kept as they are.
@@ -129,6 +155,8 @@ export async function listTickets(
   principal: Principal,
   requested: string[] = [],
   limit: number = listStep,
+  // Only the tickets of a priority or a category; the category is matched in any case.
+  only: { priority?: string | undefined; category?: string | undefined } = {},
 ) {
   const filtered = await activeProjectIds(
     principal,
@@ -139,7 +167,18 @@ export async function listTickets(
   return db()
     .select()
     .from(tickets)
-    .where(and(inArray(tickets.projectId, filtered), isNull(tickets.junkAt)))
+    .where(
+      and(
+        inArray(tickets.projectId, filtered),
+        isNull(tickets.junkAt),
+        only.priority === undefined
+          ? undefined
+          : eq(tickets.priority, z.enum(priorities).parse(only.priority)),
+        only.category === undefined
+          ? undefined
+          : sql`lower(${tickets.category}) = lower(${only.category})`,
+      ),
+    )
     .orderBy(sql`${tickets.pendingSince} asc nulls last`, desc(tickets.updatedAt))
     .limit(clampLimit(limit));
 }
@@ -170,7 +209,7 @@ export async function getOverview(
         total: sql<number>`count(*)::int`,
         // The limit is the project's own, 24 hours unless it set another.
         overdue: counted(
-          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => coalesce((${projects.settings}->>'overdueHours')::int, ${defaultOverdueHours}))`,
+          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => ${overdueLimit})`,
         ),
         unassigned: counted(
           sql`${tickets.status} = 'open' and ${tickets.assigneeUserId} is null and ${tickets.assigneeAgentId} is null`,
@@ -199,7 +238,44 @@ export async function getOverview(
       ),
     ),
   ]);
-  return { projects: projectRows, oldest: oldest.flat() };
+  // A project with business hours counts its overdue tickets in business time, which the database does not know.
+  const clocks = await db()
+    .select({ id: projects.id, settings: projects.settings })
+    .from(projects)
+    .where(inArray(projects.id, filtered));
+  const counted_ = new Map<string, number>();
+  for (const { id: projectId, settings } of clocks) {
+    const calendar = calendarOf(settings);
+    if (!calendar) continue;
+    // Business time is never longer than calendar time, so what is not overdue by the calendar is not at all.
+    const waiting = await db()
+      .select({ pendingSince: tickets.pendingSince, priority: tickets.priority })
+      .from(tickets)
+      .innerJoin(projects, eq(projects.id, tickets.projectId))
+      .where(
+        and(
+          eq(tickets.projectId, projectId),
+          isNull(tickets.junkAt),
+          sql`${tickets.pendingSince} <= ${instant}::timestamptz - make_interval(hours => ${overdueLimit})`,
+        ),
+      );
+    counted_.set(
+      projectId,
+      waiting.filter(
+        (ticket) =>
+          ticket.pendingSince !== null &&
+          clockMillis(ticket.pendingSince, now, calendar) >=
+            limitsOf(settings, priorityOf(ticket.priority)).overdueHours * 3_600_000,
+      ).length,
+    );
+  }
+  return {
+    projects: projectRows.map((row) => ({
+      ...row,
+      overdue: counted_.get(row.projectId) ?? row.overdue,
+    })),
+    oldest: oldest.flat(),
+  };
 }
 // Search across the authorized projects, decided in the database: a ticket
 // matches when the text is in its subject, the requester's name or address, or
@@ -380,6 +456,13 @@ export async function listAssignees(principal: Principal, ticketId: string) {
       .filter((agent) => agent.expiresAt > new Date() && agent.actions.includes("ticket.read"))
       .map(({ id, name, managed }) => ({ id, name, managed })),
   };
+}
+// The people that a note on the ticket can name: whoever may read it. For the person who writes the note.
+export async function listMentionable(principal: Principal, ticketId: string) {
+  if (principal.kind !== "human" || !principal.active) throw new DomainError("forbidden", 403);
+  const { ticket } = await getTicket(principal, ticketId);
+  if (!permits(principal, ticket.projectId, "ticket.note")) throw new DomainError("forbidden", 403);
+  return { users: await peopleWith(ticket.projectId, "ticket.read") };
 }
 export async function assignTicket(principal: Principal, ticketId: string, input: unknown) {
   const values = assignInput.parse(input);
@@ -1048,6 +1131,8 @@ export async function restoreJunkMail(principal: Principal, ingressId: string) {
   if (principal.kind !== "human") throw new DomainError("forbidden", 403);
   const entry = await junkMailOf(principal, ingressId, "ticket.read");
   if (!permits(principal, entry.projectId, "ticket.junk")) throw new DomainError("forbidden", 403);
+  // The original of a mail that the retention of the project has removed cannot be read again.
+  if (!entry.rawObjectKey) throw new DomainError("conflict", 409);
   return db().transaction(async (tx) => {
     const [restored] = await tx
       .update(ingress)
@@ -1167,6 +1252,8 @@ export const replyInput = z.object({
   idempotencyKey: z.uuid(),
   language: z.string().min(2).max(35),
   resolve: z.boolean().default(false),
+  // The people that an internal note names (their ids); they are told of it when the project's rules say so.
+  mentions: z.array(z.string().min(1).max(100)).max(10).default([]),
 });
 export async function reply(principal: Principal, ticketId: string, input: unknown) {
   const values = replyInput.parse(input);
@@ -1178,6 +1265,8 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
   )
     throw new DomainError("forbidden", 403);
   if (values.resolve && values.internal) throw new DomainError("invalid_input", 400);
+  // Only a note can name somebody; a reply goes to the customer.
+  if (values.mentions.length > 0 && !values.internal) throw new DomainError("invalid_input", 400);
   // A ticket in junk gets no public reply until a person restores it.
   if (!values.internal && ticket.junkAt) throw new DomainError("conflict", 409);
   const project = await db()
@@ -1320,6 +1409,14 @@ export async function reply(principal: Principal, ticketId: string, input: unkno
       .values({ projectId: ticket.projectId, actorId: principal.id, action, targetId: messageId });
     // A person who answers a ticket that a managed agent works takes it over.
     if (principal.kind === "human" && !values.internal) await takeOver(tx, ticket.id);
+    // The people that a note names are told, in the same transaction as the note.
+    if (values.internal && values.mentions.length > 0)
+      await notifyKind(tx, ticket.projectId, "mention", {
+        ticketId: ticket.id,
+        number: ticket.number,
+        mentionedUserIds: values.mentions,
+        actorId: principal.id,
+      });
     return { id: messageId, duplicate: false, draft: false };
   });
 }
@@ -1423,9 +1520,10 @@ export async function setLocale(principal: Principal, input: unknown): Promise<v
   await db().update(user).set({ locale }).where(eq(user.id, principal.id));
 }
 export async function operatorInfo(principal: Principal) {
-  if (principal.kind !== "human") return { name: "Agent", locale: null, owner: false };
+  if (principal.kind !== "human")
+    return { name: "Agent", locale: null, owner: false, timeZone: null as string | null };
   const [operator] = await db()
-    .select({ name: user.name, locale: user.locale, owner: user.owner })
+    .select({ name: user.name, locale: user.locale, owner: user.owner, timeZone: user.timeZone })
     .from(user)
     .where(eq(user.id, principal.id));
   if (!operator) throw new DomainError("unauthenticated", 401);

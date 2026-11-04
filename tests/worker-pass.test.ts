@@ -10,7 +10,7 @@ vi.mock("../src/worker/pass", async (importOriginal) => {
     },
   };
 });
-import { runBounded } from "../src/worker/pass";
+import { runBounded, slowPassMs, slowStages } from "../src/worker/pass";
 import { GET, POST } from "../src/app/api/worker/tick/route";
 const secret = "s".repeat(40);
 const call = (method: "GET" | "POST", headers: Record<string, string> = {}, query = "") =>
@@ -65,6 +65,19 @@ describe("working the queue in passes that end", () => {
   it("is the mocked one when the route asks", async () => {
     expect(await runBounded(5)).toEqual({ passes: 2, idle: true });
     budgets.length = 0;
+  });
+});
+describe("a pass that takes long", () => {
+  it("says where the time went when it took five seconds or more, and says nothing for a quick one", () => {
+    expect(slowStages({ mailboxes: 4000, ingest: 100 })).toBeNull();
+    expect(slowStages({ mailboxes: 4000, ingest: 100, testMail: 900 })).toEqual({
+      event: "worker.pass_slow",
+      ms: 5000,
+      // A stage of less than a quarter of a second is left out of the list, and counts for the total.
+      stages: { mailboxes: 4000, testMail: 900 },
+    });
+    expect(slowStages({}, 0)).toEqual({ event: "worker.pass_slow", ms: 0, stages: {} });
+    expect(slowPassMs).toBe(5000);
   });
 });
 describe("the tick route", () => {

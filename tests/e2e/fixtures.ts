@@ -71,8 +71,81 @@ export async function openPasswordSignIn(page: Page): Promise<void> {
   await expect(toggle.or(page.getByLabel("Password"))).toBeVisible();
   if (await toggle.isVisible()) await toggle.click();
 }
+// Opens a topic of the settings, in the project that is named when the topic belongs to a project. The topics are links
+// in the list on the left; the project is chosen in the list of the group Project.
+// The topics of the account are behind the entry of the person at the bottom of the menu; the others are the settings of
+// the workspace and of the projects, behind the entry "Settings".
+const accountTopics = ["Profile", "Notifications", "Sign-in and security"];
+export async function openAccount(page: Page): Promise<void> {
+  // On a narrow screen the entry is in the panel of the last tab.
+  const more = page.getByRole("navigation").getByRole("button", { name: "More" });
+  if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true")
+    await more.click();
+  await page.getByRole("button", { name: /^Account of / }).click();
+}
+export async function openSettings(page: Page, topic: string, project?: string): Promise<void> {
+  const account = accountTopics.includes(topic);
+  const area = page.locator("section.settings");
+  // The area that is shown has to be the one of the topic: the account is not a part of the settings.
+  if (
+    !(await area.isVisible()) ||
+    (await area.getAttribute("aria-label")) !== (account ? "Account" : "Settings")
+  ) {
+    if (account) await openAccount(page);
+    else await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+    await expect(area).toBeVisible();
+  }
+  const list = page.getByRole("complementary", { name: "Topics" });
+  if (!(await list.isVisible())) {
+    // On a narrow screen an open topic hides the list; its back button shows it again.
+    await page.locator(".settings-back").click();
+    await expect(list).toBeVisible();
+  }
+  if (project) {
+    // The group of the project appears with the answer about the rights of the person.
+    await expect(list.getByRole("heading", { name: "Project", exact: true })).toBeVisible();
+    const choice = list.getByRole("combobox", { name: "Project" });
+    if ((await choice.count()) > 0) await choice.selectOption({ label: project });
+  }
+  await list.getByRole("link", { name: topic, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: topic, exact: true })).toBeVisible();
+}
+// The pages are rendered on the server and take their handlers only when the scripts have run, which in a development
+// build can be seconds after the load event. A click or a selection before that is lost without a trace: the control
+// takes the focus and nothing happens. In CI the traces of a test that waited a minute for a view showed the overview
+// with the focused menu button. React marks each control it has taken over, so a page counts as ready when every
+// control carries that mark once the document is parsed. A page that does not get there in time is used as it is.
+export async function hydrated(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () =>
+        document.readyState !== "loading" &&
+        [...document.querySelectorAll("button, select, input, textarea, summary")]
+          .filter((control) => !control.closest("nextjs-portal"))
+          .every((control) => Object.keys(control).some((key) => key.startsWith("__reactProps$"))),
+      undefined,
+      { timeout: 15_000 },
+    )
+    .catch(() => undefined);
+}
 export const mailpit = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
 export const test = base.extend<{ signIn: () => Promise<void> }, { desk: Desk }>({
+  // Each navigation of the page waits until the page has taken its handlers.
+  page: async ({ page }, use) => {
+    const goto = page.goto.bind(page);
+    const reload = page.reload.bind(page);
+    page.goto = async (url, options) => {
+      const response = await goto(url, options);
+      await hydrated(page);
+      return response;
+    };
+    page.reload = async (options) => {
+      const response = await reload(options);
+      await hydrated(page);
+      return response;
+    };
+    await use(page);
+  },
   desk: [
     // eslint-disable-next-line no-empty-pattern -- Playwright requires the destructuring form.
     async ({}, use) => {

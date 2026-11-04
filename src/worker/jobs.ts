@@ -12,11 +12,14 @@ import { activeTexts } from "../server/texts";
 import { emitEvent } from "../server/webhooks";
 // The project's own wording of the link line, if it set one.
 const ownLine = (text: string | undefined) => (text === undefined ? {} : { portalLinkLine: text });
+import { autoResolveOf } from "../domain/reply-policy";
 import { threadHeaders } from "../domain/threading";
 import { runIdempotentJob } from "../server/jobs";
 import { pollImapConnection } from "../server/imap";
 import { pollCloudflareConnection } from "../server/cloudflare";
 import { env } from "../server/env";
+import { claimSlot } from "../server/schedule";
+import { eachLimited } from "./limited";
 import { deliver } from "./transport";
 import { invitationMarkdown, invitationSubject } from "../domain/invitations";
 const payloadSchema = z.object({
@@ -40,6 +43,7 @@ const refusalCodes = new Set([
   "stale_or_paused_dispatch",
   "dispatch_grant_revoked",
   "acknowledgement_not_enabled",
+  "auto_resolve_not_enabled",
   "autonomous_dispatch_not_enabled",
   "outbound_not_ready",
   "development_connection_not_allowed",
@@ -152,9 +156,14 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       )
         throw new Error("dispatch_grant_revoked");
     } else if (payload.actorKind === "system") {
-      // Only acknowledgements are sent without a person or agent, and only
-      // while the project still has them enabled.
-      if (message.source.kind !== "acknowledgement" || project.settings.acknowledgements !== true)
+      // Only acknowledgements and the reminders before an automatic resolve are sent without a person or an
+      // agent. An acknowledgement only while the project still has them on; a reminder only while the project
+      // still sends it and the ticket still waits for the customer.
+      const kind = message.source.kind;
+      if (kind === "auto_resolve_reminder") {
+        if (autoResolveOf(project.settings).reminderDays === null || ticket.status !== "waiting")
+          throw new Error("auto_resolve_not_enabled");
+      } else if (kind !== "acknowledgement" || project.settings.acknowledgements !== true)
         throw new Error("acknowledgement_not_enabled");
     } else {
       const [agent] = await db().select().from(agents).where(eq(agents.id, payload.actorId));
@@ -275,6 +284,8 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
             pendingSince: null,
             status: payload.resolve ? "resolved" : "waiting",
             resolvedAt: payload.resolve ? new Date() : null,
+            // The wait for the customer begins with the answer that was sent.
+            waitingSince: payload.resolve ? null : new Date(),
             updatedAt: new Date(),
           })
           .where(and(eq(tickets.id, ticket.id), eq(tickets.revision, payload.expectedRevision)));
@@ -458,8 +469,8 @@ export async function runTestSend(scope?: { projectId: string }): Promise<boolea
   }
   return true;
 }
-export async function runIngest(): Promise<boolean> {
-  const ran = await runIdempotentJob();
+export async function runIngest(scope?: { projectId: string }): Promise<boolean> {
+  const ran = await runIdempotentJob(scope);
   if (ran) console.log(JSON.stringify({ event: `${ran.type}.ran`, outcome: ran.outcome }));
   return ran !== null;
 }
@@ -468,9 +479,23 @@ export async function runIngest(): Promise<boolean> {
 // connection status.
 const imapPollMs = Math.max(5, Number(process.env.IMAP_POLL_SECONDS) || 60) * 1000;
 let nextImapPoll = 0;
-export async function pollMailboxes(): Promise<void> {
+type Poller = (connectionId: string) => Promise<object>;
+// The mailboxes of a deployment are independent of each other and a poll mostly waits for the network, so a few are
+// polled at once. One after the other, a deployment with many mailboxes (a development stack with the remains of many
+// test runs has dozens) spent more than ten seconds in one pass and held back every job that waited for the next one.
+export const pollConcurrency = 8;
+// The pollers are a parameter so that a test can count the calls. The limit holds across processes (`claimSlot`): a
+// platform that calls the worker every minute with a new process each time polls a mailbox as often as
+// IMAP_POLL_SECONDS says, and not on every call.
+export async function pollMailboxes(
+  pollers: { imap: Poller; cloudflare: Poller } = {
+    imap: pollImapConnection,
+    cloudflare: pollCloudflareConnection,
+  },
+): Promise<void> {
   if (Date.now() < nextImapPoll) return;
   nextImapPoll = Date.now() + imapPollMs;
+  if (!(await claimSlot("mailboxes", imapPollMs))) return;
   const inbound = await db()
     .select({ id: connections.id, kind: connections.kind })
     .from(connections)
@@ -484,12 +509,12 @@ export async function pollMailboxes(): Promise<void> {
         inArray(connections.status, ["ready", "degraded"]),
       ),
     );
-  for (const connection of inbound) {
+  await eachLimited(inbound, pollConcurrency, async (connection) => {
     try {
       const result =
         connection.kind === "imap"
-          ? await pollImapConnection(connection.id)
-          : await pollCloudflareConnection(connection.id);
+          ? await pollers.imap(connection.id)
+          : await pollers.cloudflare(connection.id);
       await db()
         .update(connections)
         .set({ status: "ready", lastErrorCode: null, updatedAt: new Date() })
@@ -512,5 +537,5 @@ export async function pollMailboxes(): Promise<void> {
         JSON.stringify({ event: `${connection.kind}.failed`, connectionId: connection.id, code }),
       );
     }
-  }
+  });
 }

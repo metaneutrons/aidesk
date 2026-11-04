@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { actions as allActions, type Action } from "../domain/permissions";
 import { operatorRoles, roleOf, within } from "../domain/roles";
+import { Actions, Group as FormGroup, Row } from "./form";
 // Single actions and groups. A person who manages a project picks the actions of an operator one by one, and forms
 // groups whose actions every member holds. Nobody gives more than they hold: an action that the caller does not hold
 // is shown, and cannot be ticked.
@@ -182,7 +183,7 @@ export function GroupsPanel({
                 </ul>
                 {open && addable.length > 0 && (
                   <form
-                    className="group-add"
+                    className="group-add stack"
                     onSubmit={(event) => {
                       event.preventDefault();
                       const userId = adding[group.id];
@@ -197,28 +198,31 @@ export function GroupsPanel({
                         });
                     }}
                   >
-                    <label>
-                      <span className="visually-hidden">
-                        {t("groupAddMember", { group: group.name })}
-                      </span>
-                      <select
-                        value={adding[group.id] ?? ""}
-                        aria-label={t("groupAddMember", { group: group.name })}
-                        onChange={(event) => {
-                          setAdding({ ...adding, [group.id]: event.target.value });
-                        }}
-                      >
-                        <option value="">–</option>
-                        {addable.map((person) => (
-                          <option key={person.id} value={person.id}>
-                            {person.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button type="submit" className="secondary" disabled={!adding[group.id]}>
-                      {t("groupAdd")}
-                    </button>
+                    <FormGroup>
+                      <Row label={t("groupAddMember", { group: group.name })}>
+                        {(props) => (
+                          <select
+                            {...props}
+                            value={adding[group.id] ?? ""}
+                            onChange={(event) => {
+                              setAdding({ ...adding, [group.id]: event.target.value });
+                            }}
+                          >
+                            <option value="">–</option>
+                            {addable.map((person) => (
+                              <option key={person.id} value={person.id}>
+                                {person.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </Row>
+                    </FormGroup>
+                    <Actions>
+                      <button type="submit" className="secondary" disabled={!adding[group.id]}>
+                        {t("groupAdd")}
+                      </button>
+                    </Actions>
                   </form>
                 )}
                 {open && (
@@ -287,7 +291,7 @@ export function GroupsPanel({
         </ul>
       )}
       <form
-        className="settings-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void act(
@@ -298,26 +302,32 @@ export function GroupsPanel({
         }}
       >
         <h4>{t("groupCreate")}</h4>
-        <label>
-          {t("groupName")}
-          <input
-            value={newName}
-            maxLength={60}
-            required
-            onChange={(event) => {
-              setNewName(event.target.value);
-            }}
-          />
-        </label>
+        <FormGroup>
+          <Row label={t("groupName")}>
+            {(props) => (
+              <input
+                {...props}
+                value={newName}
+                maxLength={60}
+                required
+                onChange={(event) => {
+                  setNewName(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+        </FormGroup>
         <ActionChecks
           legend={t("groupActionsLegend")}
           held={held}
           value={newActions}
           onChange={setNewActions}
         />
-        <button className="primary" type="submit" disabled={newName.trim() === ""}>
-          {t("groupCreate")}
-        </button>
+        <Actions>
+          <button className="primary" type="submit" disabled={newName.trim() === ""}>
+            {t("groupCreate")}
+          </button>
+        </Actions>
       </form>
     </section>
   );

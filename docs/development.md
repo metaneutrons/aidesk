@@ -270,6 +270,43 @@ draft of an agent and a draft that a person sends carry neither: the person who 
 signature changed later does not change replies that were sent. Nobody sets the profile of another person, also not
 an owner or a manager. The audit entry `operator.profile` names the fields and never their text.
 
+The profile also holds a time zone (`timeZone`, an IANA name such as `Europe/Berlin`, or `null` for the zone of the device).
+The desk shows every time it formats (the lists, the audit, the reminders, the notifications) in that zone: the page gives it
+to the client through `TimeZone` (`src/components/time-zone.tsx`), and a place that formats a time spreads `useZone()` into
+the options of `Intl.DateTimeFormat`. The language of the interface is chosen next to it in the navigation (`POST /me/locale`).
+The customer page and the sign-in pages do not use it. Business hours of a project have a zone of their own.
+
+### Your sign-in and the open sessions
+
+"Your sign-in" in the settings shows an operator how their account can be signed in to, and where it is signed in now.
+`GET /api/v1/me/sign-in` answers whether the account has a password (only owners may use it), a confirmed authenticator app,
+how many passkeys it has and which identity providers it has been used with; nothing of a secret. `GET /api/v1/me/sessions`
+lists the live sessions of the person, newest first, with the browser as it said it (cut at 200 characters), the address the
+session began from, its end, and a mark on the session that asks (read from the cookie). `POST /api/v1/me/sessions/{id}/end`
+ends one other session (the session that asks is left by signing out and answers `409`; the session of another person or one
+that does not exist answers `404`), and `POST /api/v1/me/sessions/end-others` ends all others. Each end is the audit entry
+`operator.session_end` with the scope and the number, and no device. The same functions serve the desk and the API; an agent
+gets none of them. Passkeys are added and removed in "Passkeys" of the owner (P8), and a lost password is recovered through the
+way back of the owner; changing the password while signed in is not offered.
+
+### Saved views of the inbox
+
+An operator saves the filters of the inbox as a view: a name, the list (`inbox`, `overdue`, `reminders`, `waiting` or
+`resolved`), projects, a tag, a priority and a category (`src/domain/views.ts`, `src/server/views.ts`, the choice "Views…" in the
+top bar of the desk). A choice applies the filters; "Save the filters as a view" saves the current ones; a chosen view can be
+updated with the current filters, made the view that the desk opens with, or deleted. The desk opens with that view when it is
+opened without a link to a ticket (a link to a ticket always shows the ticket). REST: `GET/POST /api/v1/me/views`,
+`PUT /me/views/{id}`, `POST /me/views/{id}/delete` and `POST /me/views/{id}/start` with `{ "start": true|false }`; every answer is
+the whole list. At most 20 views for a person, and a name is used once for a person in any case (`409`). The views are the
+person's own: nobody sees or changes those of another (`404`), agents have none, and nothing is audited.
+
+A view is a filter of what the person may read anyway, never a grant. A project that is named when saving must be one that the
+person may read (`400` otherwise, the same for one that does not exist). What a view shows is read through the grants of that
+moment: a project that the person may not read any more is left out of `projects`, and a view that named projects and has none
+left says `restricted: true`, shows nothing and is not applied (it cannot be chosen, and as the start it is skipped). The stored
+projects are not changed, so the view works again when the access comes back. A view of no projects is every project that the
+person may read.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`
@@ -606,6 +643,30 @@ key is recorded as an alias, and a byte-identical copy of a restored mail is
 treated as a duplicate, so the next poll neither reads it again nor classifies
 it as junk once more.
 
+### Allowed and blocked senders, junk sensitivity
+
+Each project has two lists of senders, kept in the table `sender_rule` (migration 0038) and managed in the settings
+("Allowed and blocked senders for ...") and over REST (`/api/v1/projects/{id}/sender-rules`, with `intake.manage`;
+not offered to agents or over MCP, because a list decides which mail reaches the inbox). A rule names an address
+(`kim@example.org`) or a domain (`example.org`, which also covers its subdomains), is either `allow` or `block`, and
+a name is in the lists once, at most 500 per project. An address rule wins over a domain rule, and among domain
+rules the longest one wins, so one address of a blocked domain can be allowed and the other way round. Every change
+is an audit entry (`sender_rule.add`, `sender_rule.remove`) with kind, type and value.
+
+At intake the lists come before everything else. Mail from a blocked sender is kept out like any junk, with the
+reason `blocked_sender`, also when it replies to an existing ticket. Mail from an allowed sender is not classified by
+its headers and is not shown to the junk model. A mail that a person restored from junk is not classified again, so
+a blocked mail that was restored is processed once; the next mail of the sender is blocked again.
+
+The configuration key `junkSensitivity` sets how far the headers of a mail count:
+
+- `off`: no header keeps a mail out; only the blocked senders do.
+- `standard` (default): the verdict of an upstream spam filter, as before.
+- `strict`: additionally bulk mail, meaning `Precedence: bulk|list|junk` or a `List-Id` or `List-Unsubscribe`
+  header, with the reason `bulk_mail`.
+
+The project export contains the rules under `senderRules`.
+
 A delivery status notification (RFC 3464, `multipart/report` with
 `report-type=delivery-status`) for a sent reply belongs to that reply and creates
 no ticket. It must name the Message-ID of one of the project's sent messages and
@@ -778,7 +839,7 @@ ends the access. A link is not stored: it is the participant's identifier plus a
 MAC over that identifier and the participant's epoch, made with a key derived
 from `ENCRYPTION_KEY`. A database copy therefore contains no link, a new link
 raises the epoch and replaces the earlier one, and changing the encryption key
-ends all links. A grant is valid for 30 days by default (1 to 90), can be
+ends all links unless the previous key is kept (see "Rotating the keys"). A grant is valid for 30 days by default (1 to 90), can be
 revoked, and is bound to the ticket's requester (a participant of that ticket).
 Issuing and disabling are audited. A link resolves only while the MAC fits, the
 grant is not revoked or expired and the ticket is not in junk; every other case
@@ -959,12 +1020,56 @@ The editable configuration of a project is one document: name, colour, default
 language, acknowledgements, portal links, approval policy, the outgoing
 connection, a pause for outgoing mail and the hours after which an unanswered
 ticket is flagged as late (`warnHours`, 4 by default) and is overdue (`overdueHours`, 24 by
-default; both 1 to 720, the first never later than the second). Connections themselves, secrets and texts
+default; both 1 to 720, the first never later than the second) and what a reply of a customer does to a
+resolved ticket (`reopenMode` and `reopenDays`, see below). Connections themselves, secrets and texts
 are not part of it. It is read with `GET
 /api/v1/projects/{id}/config`, which also returns its `version`, and replaced with
 `PUT` on the same path. A write names the version it read (`expectedVersion`); a
 change made in between answers `409 stale_version`. An optional
 `idempotencyKey` makes a repeated request have the effect of one.
+
+### A reply to a resolved ticket
+
+`reopenMode` says what a reply of the customer does to a ticket that is resolved, by mail and in the customer page:
+
+- `reopen` (the default): a reply within `reopenDays` (1 to 365, 30 by default) after the resolution reopens the
+  ticket; a later reply starts a new ticket that is linked to the old one (`follow_up`). This is what the constant of
+  30 days did before.
+- `new_ticket`: a reply never reopens. By mail it starts a linked new ticket; the customer page does not take a reply
+  to a resolved ticket.
+- `refuse`: a mail that answers a resolved ticket is not taken. It is kept out as junk with the reason
+  `reply_to_resolved`, where a person with `ticket.junk` sees it and can restore it; a restored mail is taken like a
+  reply in `reopen` mode with the window of the project, so it is not refused twice. The customer page does not take
+  a reply to a resolved ticket. Nothing is sent to the customer: a refusal that answered by mail would answer every
+  automatic mail as well.
+
+A reply to a ticket that is not resolved is taken in every mode. A value in the settings that is not valid reads as
+the default. The policy is part of the configuration document, so a change is a versioned change that an agent
+proposes under the review policy.
+
+### Automatic resolve of a waiting ticket
+
+A ticket waits for the customer from the moment an answer of the team is sent (`ticket.waiting_since`, set by the
+worker when it sends the mail). Two more keys of the configuration say what happens when nobody answers:
+`autoResolveDays` (1 to 365, or none, which is the default: never) and `autoResolveReminderDays` (none, or fewer than
+the days). The worker looks every five minutes (`scanAutoResolve`):
+
+- **Reminder.** When the wait has lasted `autoResolveDays - autoResolveReminderDays`, a mail goes to the requester
+  through the outgoing connection of the project: a message of the system with the source `auto_resolve_reminder`, whose
+  text is the project text `autoResolveReminder` (placeholders `{number}` and `{days}`, built-in wording in English and
+  German). It is sent once for each wait: `auto_reminded_for` holds the start of the wait that it was sent for. A
+  project without an outgoing connection, or whose mail is paused, sends none, and the wait counts as reminded all the
+  same, so that no reminder arrives when the wait is nearly over. The worker sends it only while the project still
+  has the reminder on and the ticket still waits; otherwise the job goes to review with `auto_resolve_not_enabled`. It
+  is automatic mail: it does not change the ticket.
+- **Resolve.** When the wait has lasted `autoResolveDays`, the ticket is resolved (`resolved_at` now, revision raised,
+  the event `ticket.status_changed`), with a note for the team in the conversation (an internal system message with the
+  source `auto_resolve`) and the audit entry `ticket.auto_resolve`. A reply of the customer reopens a resolved ticket by
+  the policy above.
+
+Only tickets with the status waiting that are not junk and belong to a project that is not archived are touched. A
+reply of the customer before the end sets the status to open and ends the wait. Existing waiting tickets start their
+wait at the time they were last changed (migration 0037).
 
 `PUT ...?validate=true` writes nothing and reports the diff and what a real write
 would do. Errors for an invalid body name the offending field as a JSON pointer in
@@ -1286,7 +1391,8 @@ repository that is not on the connection is dropped. The text is written by othe
 has a portal record of that address that is verified and not revoked (the record is made when the
 portal link for the address is issued; it is not proof that the customer owns the mailbox).
 
-The runner has the tool `search_knowledge` (at most three searches a run, with `ticket.read`), and
+The runner has the tool `search_knowledge` (at most three searches a run, with `ticket.read`) and `list_canned_replies`
+(see "Canned replies"), and
 the draft button can use the sources (`knowledge: true`): the passages go to the model as data with
 their source, and the draft is told to name the source of a fact that it takes from one. A source
 that fails leaves the draft without it. The desk shows the search under the ticket.
@@ -1337,11 +1443,22 @@ answers 404, with a wrong or missing header 401. A job is claimed under a lease,
 cut off leaves its job to the next one. `vercel.json` has the daily call that the free plan allows;
 a plan with shorter intervals, or any scheduler that can send the header, calls it more often.
 
+The repository has such a scheduler for Cloudflare: `cloudflare/worker-tick` is a Worker with a Cron Trigger that
+calls the route every minute. Deploy it with `wrangler deploy --config cloudflare/worker-tick/wrangler.jsonc` and give
+it the two secrets `TICK_URL` (the address of `/api/worker/tick` of the deployment) and `CRON_SECRET` (the same value as
+in the deployment); they are secrets of the Worker and stay out of the repository. A refusal makes the run fail, which
+the log of the Worker shows. A new Cron Trigger can take several minutes to run for the first time. The daily call of
+`vercel.json` can stay as a second way.
+
 What this does not make equal to Docker: mail is polled and jobs are taken only when the route is
 called, so a reply or an acknowledgement waits for the next call (with the daily schedule, up to a
 day); the reading of PDF and Office files runs in a closed process that is built from the sources at
 run time and does not exist in a function bundle, so those files are reported as not readable there;
-the response clock and the refresh of issues run on every call. The Node version of the platform is
+the response clock, the refresh of issues, the automatic resolve, the retention and the poll of the mailboxes keep a limit
+that holds across processes (the time of the last claim is in the table of the workspace settings, one statement decides),
+so a scheduler that calls every minute does not look more often than the long-lived worker: the clock every half minute, the
+issues and the automatic resolve every five minutes, the retention every quarter of an hour and the mailboxes every
+`IMAP_POLL_SECONDS` seconds (60 by default; a deployment with many mailboxes sets a longer time). The Node version of the platform is
 at most 24, while the repository asks for 26: a deployment sets its own version. A deployment on such a platform has not been made or qualified yet.
 
 ### Stopping agents and outgoing mail
@@ -1817,12 +1934,295 @@ both events. An event carries the ticket id and number, the start of the cycle a
 hours. The marker is set also when no webhook is subscribed: an event that nobody listened to is
 not sent later when someone subscribes.
 
+#### Business hours
+
+A project can restrict the clock to business hours. The configuration holds `businessDays` (ISO weekdays such as
+`1,2,3,4,5`; null means no business hours), `businessStart` and `businessEnd` (`09:00`, `17:00`), `businessTimeZone`
+(an IANA name such as `Europe/Berlin`) and `holidays` (dates such as `2026-12-25`, separated by commas or line
+breaks, at most 200; they are dates in the time zone of the project). Business hours need at least one day, a time
+zone and an end after the start; the settings form cannot be saved otherwise, and the API refuses it. Without
+business hours the clock counts every hour as before, and a stored value that does not make business hours is read
+as none.
+
+What counts is the time within an open day (`src/domain/business-hours.ts`, `businessMillis`). The warning limit,
+the overdue limit, the overdue state in the desk and the overdue count of the overview then mean business hours:
+a ticket that arrived on Friday at 16:00 has waited one business hour on Monday at 09:00 when the window is 09:00 to
+17:00. The wall times of the window follow the clock of the zone, so a day with a change of the time has the
+hours it really has (25 on the night the clocks go back). Counting stops after ten years of waiting, which is longer
+than any limit.
+
+The database only knows calendar time, which is never shorter than business time. The scan therefore takes the
+tickets that are due by the calendar (up to 2000 of them, oldest first) and measures the business time of each
+under its lock; tickets that wait outside the hours are not handled and do not use up the number a pass may handle.
+The overview counts the overdue tickets of a project with business hours in the application, over the tickets that
+are overdue by the calendar. The project list (`GET /api/v1/projects`) carries the settings as `clock`, so that the
+desk counts in the same way as the server. Limits that depend on the priority of a ticket follow with the priority.
+
 The ticket list is loaded in steps of 250, oldest unanswered first, and up to
 2000 (`?limit=` on the page and on `GET /api/v1/tickets`). When fewer tickets
 are loaded than exist, the list says so and offers to load more. Views such as
 Waiting, Resolved and Reminders filter the loaded tickets, so beyond the first
 step they can be incomplete; the counts in the overview are not. Search runs on
 the server and is not affected.
+
+## Rotating the keys
+
+`ENCRYPTION_KEY` seals the stored secrets (connections, webhooks, single sign-on, and the secrets in proposals that wait for
+approval) and derives the links of the customer page. `BETTER_AUTH_SECRET` protects the authenticator and the backup codes of
+the owners and their claims and recoveries that are under way, and signs the session cookies. Either can be rotated without
+losing a secret:
+
+1. Put the new value in the variable and the old value in `ENCRYPTION_KEY_PREVIOUS` or `BETTER_AUTH_SECRET_PREVIOUS`. When the
+   secret changes, raise `BETTER_AUTH_SECRET_VERSION` by one (1 if it was never set; the previous secret is read as the version
+   before). Restart the web server and the worker. From now on reading works with either key and writing uses the current one,
+   so the product keeps working.
+2. The owner opens "Keys of the installation" in the settings (`GET /api/v1/workspace/keys` for the status, `POST
+/api/v1/workspace/keys/rotate` for the run). The status counts, for each group of stored values, how many are protected with
+   the current key, how many still depend on the previous one and how many no key opens. The run re-protects the ones that
+   depend on the previous key, one by one, each only if it is still the value that was read; it is an audit entry
+   (`keys.rotate`, counts only) and can be repeated. It runs while a previous key is set, or while a value is still protected the older
+   way (an authenticator stored before values carried the version of their secret, which a first run turns into the versioned form
+   without any change of the environment); otherwise it answers 409.
+3. When the status says that nothing depends on the previous key (`settled`), remove it from the environment and restart. A
+   value that no key opens (a secret that was sealed with a third key) does not keep the previous key in use: it is left as it
+   is and reported with its group, and the run does not delete it.
+
+A run that stops halfway (an error, a restart) leaves every value readable: a value is rewritten on its own, and the previous key
+is not removed before the status is settled. Sessions that were started under the previous secret end with the change of the
+secret, because their cookies are signed with it, and their people sign in again. Links of the customer page that were issued
+under the previous encryption key stay valid while it is set, and end when it is removed; a link cannot be derived again for a
+customer who holds it. Better Auth reads the owner's authenticator with the versioned secrets (`secrets`) and the oldest secret
+for values that carry no version.
+
+## Updates of a Compose installation
+
+The owner opens "Updates" in the settings. The page shows the version that runs, the latest release, the steps of an update that is
+under way and the maintenance window. The work is done by the updater of the profile `updater` in `compose.production.yaml`
+(`deploy/updater`); the product asks it through `UPDATER_URL` (default `http://updater:8080`) with `UPDATER_TOKEN`, the token the
+updater was started with. Without a token the page says that there is no updater, and with a token the updater does not answer or
+refuses, it says that too. The token never reaches the browser.
+
+- `GET /api/v1/workspace/updates` is the status. `POST .../check` asks the updater to look for a release now. `POST .../apply`
+  installs the release that the updater found (the version is the updater's to name, so the page cannot ask for another one); it is
+  refused with 409 when nothing is waiting or an operation runs. `PUT .../schedule` sets the maintenance window (`manual` or
+  `automatic`, a time of day and a time zone); it is refused with 409 while an operation runs. All four are for the owner only.
+- `apply` and `schedule` are entries of the audit of the workspace (`updates.apply` with the version that ran and the one that was
+  installed, `updates.schedule` with the values). Nothing of the token is in them.
+- Where Coolify runs the installation, the updates of the settings do not apply. Coolify builds the containers from
+  `compose.coolify.yaml` and replaces them on every deployment, so an update made by the updater would be undone by the next
+  deployment, and the page says so instead: this installation is run by Coolify, update it there by deploying again. It offers
+  no check, no installation and no maintenance window, and `managedBy` of the status is `coolify`. Two signs are read, and
+  nothing else. The application recognises Coolify by `COOLIFY_RESOURCE_UUID`, which Coolify sets in the containers of an
+  application; then no updater is asked, also when `UPDATER_TOKEN` is set, and `apply` and `schedule` are refused with 409. The
+  updater recognises it by the label `coolify.managed=true` on its own container or on a container of `COMPOSE_PROJECT` (on
+  Coolify the project is named after the application, so the own container is the one that shows it). It then refuses, before it
+  asks for a release, pulls an image, backs up the database or touches a container: the phase is `failed` with a message that
+  names Coolify, and the control API reports `managedBy: "coolify"`. A host that runs Coolify for other applications is not
+  Coolify's installation: only the containers of the project count. Other platforms that deploy the product themselves are not
+  recognised. An updater that finds no container of its `COMPOSE_PROJECT` at all says so (the project name is wrong) and does not
+  report a missing database.
+- While the containers are replaced the product does not answer for a short time. The page keeps asking every two seconds, says
+  that the desk restarts, and loads itself again when the update is done.
+
+The development stack has no images to install, so `scripts/updater-stub.mjs` (the service `updater-stub`, published on
+`127.0.0.1:8099`) answers like the control API with a version that does not really change. `POST /__stub/reset` sets it back,
+`POST /__stub/scenario` with `{"outcome":"success"|"rollback","stepMs":600}` chooses how the next update ends and how long each
+step takes, and `POST /__stub/status` with `{"managedBy":"coolify"}` makes it report a platform that deploys the product itself. Its token is `UPDATER_TOKEN` of `.env.development`, which `scripts/dev.sh` adds when it is missing. The tests are
+`tests/updates.test.ts` (the way to the updater, against a server of the test) and `tests/e2e/updates.spec.ts` (the page).
+
+## Retention
+
+A project can limit how long it keeps what it holds. Every period is **off** (null, kept for good) until the project sets
+it; the settings suggest values (tickets 730 days, files 365, original mails 365, translations 180, records of model runs 90) and preset none. The periods are configuration keys in days, 1 to 3650: `retentionTicketsDays`,
+`retentionAttachmentsDays`, `retentionOriginalsDays`, `retentionTranslationsDays` and `retentionAiRunsDays`.
+
+**Approval.** A period that is set where there was none, or made shorter, removes more than before. Only a person with
+`config.approve` applies such a change; a person with `config.write` only, and every agent under every policy, makes a
+proposal that a person with `config.approve` decides. Making a period longer, or switching it off, needs nothing more. The
+settings form first asks for a dry run of the periods that would tighten something (`POST
+/api/v1/projects/{id}/retention/preview`, `config.read`, MCP tool `retention_preview`), which counts what the periods
+would remove now and changes nothing, and does not let the form be saved before that dry run was seen.
+
+**The job.** The worker calls `scanRetention` every quarter of an hour (`src/server/retention.ts`). For each project that
+is not archived and has a period, one pass removes up to 200 tickets and up to 1,000 of each other kind, so a large backlog is
+worked off over several passes. What each period counts from:
+
+- tickets: a ticket that was resolved, or moved to junk, longer ago than the period; an open or waiting ticket stays, also
+  one that was reopened. The ticket is erased as by an erasure (messages, files, translations, links, portal records, run
+  records, jobs), as the system and without a confirmation;
+- attachments: an attachment older than the period loses its file and its extracted text; the row stays and says that the
+  file was removed (`removed_by_retention`);
+- originals: the original of a message older than the period and the original of a mail entry that is not waiting to be
+  read; the entry stays, because it recognizes a mail that is read again, without the stored sender and subject. A junk mail
+  whose original is gone cannot be restored (409);
+- translations and records of model runs older than the period.
+
+A file is removed only when no other row still names it. Every pass that removed something writes `retention.run` with the
+counts and the periods (the erasure of tickets writes `retention.erase` as well); the entries hold counts and no content, and
+the actor is `system`. A project that has no period at all is listed by the processing overview with the issue
+`no_retention`, and the overview shows the periods.
+
+## Export about a requester
+
+For a request for information, a person with `data.export` in the project (an action that no preset holds, granted as a
+single action or through a group, like `data.erase`) takes out what the system holds about one address (`POST /api/v1/projects/{id}/requester-export`
+with `{ "email": ... }`; in the settings "Export about a requester in ..."; not offered over MCP). The answer is the file
+itself, a zip (`src/server/requester-export.ts`): the rows as lines of JSON (`tickets`, `messages`, `participants`,
+`attachments`, `attachment-texts`, `translations`, `ticket-issues`, `issue-drafts`, `ingress`, `audit`), the files that the rows
+name under `objects/` (original mails and attached files) and `manifest.json` with the counts, the missing objects and
+the size and SHA-256 of every file. It holds the tickets of the address with all their messages, the internal notes of the
+team included because they are about the person, the portal records of the address on any ticket, the mail of the address
+that no ticket holds (junk, delivery reports) and the audit entries that name these tickets or their messages. Secrets and
+settings of the project are not in it.
+
+The file is made in memory with the ceiling of the project export (200 MiB; above it the answer is `413` and the data is taken
+with the backup) and kept nowhere, so that it cannot outlive an erasure. The export is an audit entry (`requester.export`)
+with the counts, the digest of the file and the SHA-256 of the address, never the address; the file name carries only a
+short part of that digest.
+
+## Erasing a ticket or a requester
+
+A person with `data.erase` in a project erases one ticket, or everything about one requester, from the database and the
+storage (`src/server/erasure.ts`). The action is part of no preset (the Manage preset leaves it out) and is granted as a
+single action or through a group; the owner has no access to the data of a project and erases nothing because of that
+status; an agent cannot erase. MCP does not offer it.
+
+It takes two steps. The preview (`GET /api/v1/tickets/{id}/erasure`, `GET /api/v1/projects/{id}/erasure/requester?email=`)
+names what would be removed and what cannot be reached. The erasure (`POST /api/v1/tickets/{id}/erase`,
+`POST /api/v1/projects/{id}/erasure/requester`) sends the counts of the preview back; if the counts are different now (a
+mail arrived or a record was added meanwhile) nothing is removed and the answer is `stale_version` (409). The desk shows
+the counts in words and sends them back with the confirmation.
+
+What is removed, in one transaction under a lock on the tickets:
+
+- the tickets with their messages, attachments (the rows and the extracted text), translations, links to issues and drafts
+  of issues, portal records (participants) and records of agent runs, which follow the ticket;
+- the entries of the incoming mail (`ingress`) that belong to the tickets, and for a requester also the entries of mail
+  that no ticket holds (junk, delivery reports) whose sender is the address, and the portal records of the address on
+  tickets of other requesters;
+- the jobs that name the tickets, their messages or those entries (queued mail, queued webhook events, the job that
+  read the mail);
+- the detail of audit entries that name an erased ticket or one of its messages; the entries stay as facts. AI run
+  records hold no ticket content and are not touched.
+
+The files follow after the commit: an original mail or an attached file is removed only when no other row names it,
+because files are named by their content and two messages can share one; the result counts the files removed, shared and
+failed (the sweep of the storage takes failed ones later). The audit gets `data.erase` with the counts and the out-of-reach
+numbers; for a requester it holds only the SHA-256 of the address, never the address.
+
+The result and the preview name what cannot be reached: webhook events about the tickets that were delivered (the receiver
+keeps what it got), issues that were created in a repository, exports of the project that were made earlier and hold the
+data, and, in words, copies at the providers of mail and models and backups of the installation.
+
+## Processing of ticket content
+
+For the records of processing and for a customer who asks where their data goes, each project has an overview of the
+connections, models and webhooks that receive content of its tickets (`src/server/processing.ts`). It is read from the
+configuration and changes nothing. It is in the settings ("Processing of ticket content for ...") and over REST
+(`GET /api/v1/processing` for every project whose configuration the caller may read, archived ones left out;
+`GET /api/v1/projects/{id}/processing`; MCP tools `processing_list` and `processing_get`), all with `config.read`.
+
+An entry has a group, the kind, the host that is reached, a detail (the model, the account, the repositories or the events),
+the content classes that it receives, a state and the issues:
+
+- **Outgoing mail**: the connection that the project sends through (`outboundConnectionId`) gets the messages of replies
+  and acknowledgements with the subject, the name and the address of the customer. The other outgoing connections are
+  listed as not used. A project without one says so; with acknowledgements on, the issue is
+  `acknowledgements_without_outbound`.
+- **Incoming mail**: an IMAP connection reads mail; a Cloudflare connection stores the raw mail in its bucket.
+- **Models by task**: one entry for each of the eight tasks. A task without a profile is `not_set_up` and receives nothing;
+  a profile that is off is `off`; a profile that is on and whose connection is not ready has the issue `not_ready`. The host is
+  the address of the connection or the standard address of the provider. What a task receives is fixed by task in
+  `taskContent` (a reply draft gets the conversation without the notes, a note draft also the notes, the junk check the
+  sender, the subject and the start of the mail).
+- **Sources of knowledge**: they receive search words; a source of customer data also the address of the requester.
+- **Webhooks**: they receive ticket numbers and status facts, never the content of a message, and the subject of a new
+  ticket when they listen to `ticket.created`.
+
+Where a provider keeps the data (the region of an account, for instance) is not known to the product; the overview names
+the host and leaves the rest to the contract with the provider. A change of an entry that waits for approval gives the
+issue `approval_pending`. The list can be taken out as a CSV file for the records of processing
+(`.../processing/export`; a cell that a spreadsheet would read as a formula is written as text); the export is an audit
+entry (`processing.export`).
+
+## Canned replies
+
+A project keeps canned replies (table `canned_reply`, migration 0041): a name, a language (`en` or `de`) and a body in
+Markdown of up to 4,000 characters, at most 100 per project, the name unique per language in any case. A body can hold
+the placeholders `{{customer_name}}`, `{{ticket_number}}` and `{{operator_name}}` (spaces inside the braces are
+allowed); any other placeholder and unclosed braces are refused when the reply is saved.
+
+Changes follow the path of the other project settings (`submitChange`): a person with `config.write` adds, changes and
+removes a reply at once (`POST/PUT /api/v1/projects/{id}/canned-replies[/{replyId}]`, `.../delete`, with `validate=true`
+for a check and an `idempotencyKey`); an agent under the review policy makes a proposal (202) that a person with
+`config.approve` decides. A change and a removal name the version that was read (`stale_version` otherwise); a proposal
+on a version that has changed since never applies, and a proposal to add a name that was taken meanwhile does not apply
+either. Every applied change is an audit entry (`canned.create`, `canned.update`, `canned.delete`). The list needs
+`config.read` or `ticket.reply`; the project export contains the replies under `cannedReplies`.
+
+Used for a ticket, the replies come with the placeholders filled in (`GET /api/v1/tickets/{id}/canned-replies`, MCP tool
+`tickets_canned_replies`, `ticket.reply`): the customer name and the number of the ticket, and the name of the person or
+the agent who asks. The replies in the language of the ticket come first. Three places use them:
+
+- The composer has a select "Insert a canned reply" for a public reply; the text goes below what is typed and the
+  insertion can be undone like a draft.
+- The draft button gives the model up to twenty replies of the project, filled in, as data between the markers (never
+  as instructions) for a draft of a reply, and tells it to base the draft on one that fits and to keep to its facts. The
+  audit entry of the draft counts them (`cannedReplies`).
+- A managed agent has the tool `list_canned_replies` (with `ticket.reply`); an agent without that right is refused like
+  for any other tool.
+
+## Routing of new tickets
+
+A project can route each new ticket by rules (table `routing_rule`, migration 0040), managed in the settings
+("Routing of new tickets for ...") and over REST (`/api/v1/projects/{id}/routing-rules`, `.../routing-targets`,
+`.../routing-order`, with `intake.manage`; not offered to agents or over MCP, because a rule decides who gets the
+tickets of customers). At most 50 rules per project; every change is an audit entry (`routing_rule.create`, `update`,
+`delete`, `reorder`).
+
+The rules are tried in their order and the first enabled one that matches wins. A rule matches when every condition it
+names holds: the sender is one of the listed addresses or domains (a domain covers its subdomains), the language of
+the ticket is one of the listed, the subject contains one of the listed words (any case, anywhere). A rule without
+conditions matches every ticket; as the last rule it is the default. A new ticket has no tags, so tags are no
+condition. The rule hands the ticket to a person, to a group or to an agent, and can set the priority and the category
+(the category has to be on the list of the project, in any case). It has to do at least one of these.
+
+A group hands tickets to its members in turn: the members who are active and can read tickets of the project, in the
+order of their ids, taken by a counter on the rule that is advanced in the transaction of the ticket. A person has to be
+active with the right to read tickets, an agent active, not expired and allowed to read. These are checked when the
+rule is saved and again when it is applied. A rule that finds nobody leaves the ticket unassigned (the overview counts
+it with the open tickets nobody handles), still sets priority and category, and writes the audit entry
+`ticket.route_failed` with the reason (`person_unavailable`, `agent_unavailable`, `nobody_in_group`, `error`). A
+success writes `ticket.route`. An assignment by a rule is announced as `ticket.assigned` (actor `system`), and a managed
+agent that gets a ticket starts on it as for an assignment by a person.
+
+Routing runs when a ticket is created from an inbound mail, in the same transaction, after the message is stored; a
+reply to an existing ticket and a mail that is kept out as junk are not routed, a mail restored from junk creates a
+ticket that is. A failure inside the routing is rolled back to a savepoint and audited, and never fails the intake of
+the mail. The project export contains the rules under `routingRules`.
+
+## Priority and category
+
+A ticket has a priority, one of `low`, `normal` (the default), `high` and `urgent`, and at most one category.
+The categories of a project are a list in its configuration (`categories`, one name per line, at most 50 names of
+up to 40 characters, none twice in any case). A category can only be set when it is on the list, in any case, and is
+stored as the list writes it. A ticket keeps a category that the list lost; it can be taken off, but not set again.
+
+`POST /api/v1/tickets/{id}/triage` (MCP tool `tickets_set_triage`) sets the priority, the category or both; `null`
+takes the category off. It needs `ticket.assign`, does not change the revision, writes an audit entry
+(`ticket.triage`, with the old and new values) and queues the webhook event `ticket.triaged` (`priority`, `category`
+and the previous values). A change to the values the ticket has does nothing and says `changed: false`. A ticket in
+junk is not changed. `GET /api/v1/tickets` and the MCP tool `tickets_list` take `priority` and `category` as filters
+(the category is matched in any case). The ticket header has the two selects, the list shows a badge for a priority
+other than normal and the category, and the list can be filtered by both.
+
+The limits of the response clock can differ by priority. The configuration keys `warnHoursLow`, `overdueHoursLow`,
+`warnHoursHigh`, `overdueHoursHigh`, `warnHoursUrgent` and `overdueHoursUrgent` hold hours or null; the normal
+priority uses the limits of the project, and a null takes the limit of the project too. Whatever is set has to keep
+the warning at or before the overdue limit when it is combined with the limit of the project. The scan, the overview
+and the desk use the limits of the priority that the ticket has (`limitsOf(settings, priority)`); the project list
+carries them for all four as `limits` and the categories as `categories`. Routing rules that set the priority and
+the category follow with M7-A4.
 
 ## Tags
 
@@ -1839,6 +2239,30 @@ first, junk excluded. Search also matches tags. The desk shows the tags on each
 row, offers the ones in use as a filter over the list and suggests them when a
 tag is added. MCP does not offer tags yet; the ledger in
 [capabilities.md](capabilities.md) records the difference.
+
+### Administration of the tags
+
+A person with `project.manage` administers the tags of a project in the settings ("Tags of ...") and over REST
+(`/api/v1/projects/{id}/tag-admin`; not offered to agents or over MCP, because a change reaches all tickets at once;
+migration 0042 adds the table `project_tag` for colours):
+
+- The list shows every tag of the project with the number of its tickets (junk included) and its colour; a tag that has
+  only a colour is listed with no tickets.
+- Renaming (`.../rename`) changes the tag in every ticket of the project; the new name goes through the same
+  normalization, and a name that is in use is a conflict, so that two tags are never joined by accident. A tag that no
+  ticket has is `not_found`.
+- Merging (`.../merge`) puts one or more tags into another; a ticket that has several of them keeps one. A merge never
+  gives a ticket more tags than it had, so the limit of ten holds.
+- Both move the colour: the colour of the tag that is merged into wins, otherwise the first colour of the tags that go.
+- A colour (`.../color`, `#rrggbb` or null) is shown on the chips in the list, the filter and the ticket header, with
+  black or white text chosen for the contrast. The project list carries the colours as `tagColors`.
+- Removing (`.../remove`) takes a tag from all tickets and drops its colour. The request names the number of tickets that
+  was shown; a different number (`stale_version`, 409) means that tickets changed meanwhile and nothing is removed. The
+  desk asks with that number before it sends the request.
+
+Every change is an audit entry (`tag.rename`, `tag.merge`, `tag.color`, `tag.remove`) with the names and the number of
+tickets, runs in one transaction under a lock per project, and leaves the revision of a ticket as it is. The project
+export contains the colours under `tagColors`.
 
 ## Reminders
 
@@ -1871,6 +2295,58 @@ search is a case-insensitive substring match without an index, which is
 adequate for the development scale; a trigram or full-text index is needed
 before the production scale is qualified. A single character still filters the
 loaded list.
+
+## Notifications of operators
+
+Operators are told about five kinds of events, in the desk (the entry "Notifications" in the navigation, with the number of
+unread ones). A notification holds the kind, the ticket and the time, and nothing else: the number and the subject of the
+ticket are read when the list is shown (`src/server/notifications.ts`, `src/domain/notifications.ts`).
+
+| Kind         | Event                                | Reaches (rule of the project)                                     |
+| ------------ | ------------------------------------ | ----------------------------------------------------------------- |
+| `new_ticket` | `ticket.created`                     | nobody (default) or everybody who may reply (`members`)           |
+| `assignment` | `ticket.assigned`                    | the new assignee (default) or nobody; not the person who assigned |
+| `mention`    | an internal note that names a person | the named person (default) or nobody                              |
+| `overdue`    | `ticket.overdue`                     | the assignee (default), everybody who may reply, or nobody        |
+| `draft`      | `draft.created`                      | the assignee (default), everybody who may reply, or nobody        |
+
+"Everybody who may reply" means the people with `ticket.reply` in the project, by their own grant or through a group
+(`peopleWith`). For `overdue` and `draft` the mode `assignee` reaches the assigned person, and everybody who may reply when
+nobody is assigned, when the ticket is assigned to an agent, or when the assignee may no longer reply, so that nothing is lost.
+
+The rules are the configuration keys `notifyNewTicket`, `notifyAssignment`, `notifyMention`, `notifyOverdue` and `notifyDraft`
+(settings of the project, "Notifications of operators"); a value that is missing or not valid reads as the default, and a mode
+that does not fit a kind is refused. Each operator chooses for every kind whether it reaches them in the desk and by mail
+(`GET/PUT /api/v1/me/notification-preferences`, behind the name at the bottom of the menu, "Your notifications"); both are on until the person chooses.
+A kind that an operator switched off in the desk writes no notification for them. The choice is an audit entry
+(`operator.notification_preferences`) with the kinds and not the values.
+
+The notifications are written by `emitEvent`, inside the transaction that made the event happen: they are neither lost nor
+written for a change that was rolled back. The list (`GET /api/v1/me/notifications`, newest first, `unread=true` and a cursor
+`before`) shows only the notifications of projects in which the person may still read tickets. `POST /api/v1/me/notifications/read`
+marks the named ones, or all, as read. A notification goes with its ticket, project and person, and the pass of the worker that
+keeps the retention removes what is older than 90 days, read or not. Nothing of this is offered over MCP.
+
+Mentions. An internal note names people by their ids: `POST /api/v1/tickets/{id}/reply` takes `mentions` (up to ten) with
+`internal: true`, and refuses it with a reply to the customer (`400`). The desk offers the people from
+`GET /api/v1/tickets/{id}/mentionable` (everybody who may read the ticket, for a person with `ticket.note`) in the composer of a
+note, puts `@Name` into the text and sends the ids with the note. The names in the text are text only: the server tells the people
+of the list, not of what the text says, and only those who may read the ticket; the author is not told, a person that is named
+twice is told once, and a request that is repeated with the same idempotency key tells nobody again. The notifications are written
+in the transaction of the note, like those of the events. Agents do not name people (`tickets_reply` of MCP has no such field).
+
+Mail. When the project has an outgoing connection that is chosen, ready and not paused, a notification also queues a job
+`notify.mail` for every person who wants mail for the kind (on until they switch it off; independent of the desk). The worker
+(`src/worker/notification-mail.ts`) sends it through the connection of the project as an automatic mail (`Auto-Submitted`). It
+holds the kind, the number and the subject of the ticket, and a link (`APP_URL/?ticket=...`), in the language of the operator
+or the default of the project. The subject is customer text: control characters and line breaks are removed, it is cut at 150
+characters, and in the body it is written as plain text, so that it adds neither a header nor a link nor a format. The checks
+are made again when the job runs, because it may wait: the project paused its mail or changed its connection, the connection
+is not ready, the person left, lost the right to read tickets or switched the mail off, or the ticket is gone. Such a job ends
+as `succeeded` with the outcome `skipped:<reason>` in the log, because a notification that comes late is worse than none. A
+failure of the transport is tried again after a growing pause (`maxAttempts` in `worker/claim.ts`), and after the last try the job
+goes to review. The processing overview lists `operator_address` among what the used outgoing connection receives while any rule
+of the project is on.
 
 ## Production image
 
@@ -1995,6 +2471,69 @@ that CA is refused), HTTP answers 308, the four headers and no `Server`, 401 for
 through the proxy, and a body of 45 MB refused with 413 where one of 30 MB reaches the application (the limit
 works while the body is read, so it is tested on the sign-in, which reads it before it answers). A container that is killed by hand (`docker kill`) stays down under the policy
 `unless-stopped`, as it does for any manual stop; one that crashes is started again.
+
+### Coolify
+
+`compose.coolify.yaml` is the same product for a Coolify instance: a resource of type Docker Compose, built from
+this repository, with the file at `/compose.coolify.yaml` and no domain entered in Coolify. Each service that uses
+the image builds it, so no service depends on the order of the builds; the later builds come from the layer cache.
+The database and the storage always come with it, nothing is published on a port, and the web server joins the
+external network `coolify` that the Traefik of the instance reads, under the alias `aidesk-app`.
+
+- **Variables of the resource:** `APP_URL` (the address of the desk), `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`,
+  `POSTGRES_PASSWORD`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, and `OWNER_CLAIM_TOKEN` until the first owner is claimed.
+  The address of the database and the storage are fixed in the file, so that Coolify does not store them as variables.
+  Keep the two keys outside of Coolify too: a variable that Coolify hides cannot be read back, and without
+  `ENCRYPTION_KEY` the sealed values (the secrets of connections and webhooks, the two-factor secrets) cannot be
+  opened again.
+- **Routing is a file of Traefik, not labels:** Coolify rewrites the labels of a Compose file and puts no variables
+  into them, and the names of an installation do not belong in this repository. `config/traefik/aidesk.example.yml` is
+  the template: copy it to the directory that the Traefik of the instance watches (`/data/coolify/proxy/dynamic/` on a
+  standard Coolify), replace the names and the resolver, and Traefik reads it without a restart.
+- **The desk and the customer pages:** the desk router matches one name and lets only the ranges of its middleware
+  through (the private ranges and the loopback in the template), so a name that resolves to a private address stays
+  private when the Traefik is reachable from the internet, and any other source, also with a forged `Host` header,
+  gets 403. The customer router matches the names that the product has proved and passes `/portal`, `/portal/…`,
+  `/api/portal/…`, `/_next/…`, `/favicon.ico`, `/icon.svg` and `/robots.txt`. The application checks the same list by
+  itself (`src/proxy.ts`), and `tests/coolify-compose.test.ts` fails when the template and the list differ, when the
+  desk loses its middleware, when a public range enters the template, when the template holds a name that is not an
+  example, or when the Compose file routes by labels again. The names of the customer pages are entered in the product
+  and proved by a TXT record as before; the file only decides what reaches it.
+- **Certificates:** a router asks the resolver of the instance named in the file to issue for each name. An instance
+  whose Traefik publishes no port 80 needs one that works with the DNS challenge, and the token of that resolver has
+  to cover the zone of every name, including those of the customer pages.
+- **An identity provider without a public name:** the sign-in reads the documents of the provider and exchanges the
+  code on the server, so the web server has to resolve the provider's name. `IDP_HOSTNAME` and `IDP_ADDRESS` map one
+  name to one address for the web server only (`extra_hosts`; the default maps `idp.invalid`, so nothing is mapped
+  without them). The origin of the provider has to be in `BETTER_AUTH_TRUSTED_ORIGINS` (passed on, none by default),
+  for a provider on a private address and for any other: the plugin of the sign-in refuses a discovery address whose
+  origin is not trusted (`discovery_untrusted_origin`, read in the code of the plugin 1.7.7), and a name that resolves
+  to a private address unless it is trusted (`discovery_private_host`). Without it the registration fails before
+  anything is saved. The provider is entered under "Identity providers" by the owner, with the callback
+  `<APP_URL>/api/auth/sso/callback/<identifier>`.
+- **Names on a shared network:** the web server shares the network `coolify` with every resource of the instance, and
+  Docker resolves a bare `postgres` there to the database of Coolify itself (its alias). The services therefore are
+  `aidesk-postgres` and `aidesk-storage`, and the test keeps generic names out.
+- **Limits:** 1 GiB for the web server, the worker and the database, 512 MiB for the storage and the migration, so
+  that the product cannot take the memory of the other resources of a shared instance. These are first values and not
+  measurements.
+- **Proxy headers:** the template sends `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` and
+  `X-Frame-Options` as the Caddy of the other file does, and compresses. It does not limit the body (a buffering
+  middleware would also hold back the streaming of MCP); the route of a reply reads at most the limit of the settings
+  plus 1 MiB. A client address in `X-Forwarded-For` is replaced by the address of the connection, because no proxy in
+  front of Traefik is declared.
+
+Checked: the Compose file renders with the required values and refuses to render without a key (CI job "Production
+image"), and the tests above. On 2026-11-02 the file was deployed to a Coolify instance with four vCPUs and 8 GB that
+also runs other resources: the migration ended with code 0, the web server became healthy and `/api/health/ready`
+answered ready, and the first deployment showed the name collision described above (the web server was not healthy
+until the services were renamed). With the Traefik file from the template, a resolver with the DNS challenge issued a
+certificate from Let's Encrypt for the desk name; the desk answered 200 with the four headers from a private address
+and 403 from a public IPv4 and a public IPv6 address, also with `X-Forwarded-For`, `X-Real-IP` and `Forwarded` set
+to a private address. At rest the web server held 135 MiB, the worker 150 MiB, the database 35 MiB and the storage
+86 MiB. Not checked: a customer router with real names, load, restart and recovery times.
+`scripts/production-backup.sh` and `scripts/check-production.sh` work with `compose.production.yaml`; a backup of this
+setup has to dump the database and copy the objects the same way, which nothing here does yet.
 
 ## Reproduce the local check
 

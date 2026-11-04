@@ -10,13 +10,12 @@ import {
 } from "../domain/connections";
 import { permits, type Principal } from "../domain/permissions";
 import { cleanText } from "../domain/untrusted";
-import { unseal } from "./crypto";
 import { db } from "./db";
 import { audit, connections, participants, tickets } from "./db/schema";
 import { DomainError } from "./errors";
-import { env } from "./env";
 import { checkHost } from "./host-guard";
 import { htmlToMarkdown } from "./inbound";
+import { unsealSecret } from "./secrets";
 // Retrieval from the sources of knowledge of a project: the issues of its repositories, the pages of
 // its documentation, and what its customer system knows about the requester of a ticket. It reads
 // only, for the project that owns the connection, and answers with text, where it came from and
@@ -115,9 +114,7 @@ async function fromGithub(
   at: string,
 ): Promise<Passage[]> {
   const config = githubConfig.parse(row.config);
-  const secret = githubSecret.parse(
-    JSON.parse(unseal(row.secretCiphertext ?? "", env().ENCRYPTION_KEY)),
-  );
+  const secret = githubSecret.parse(JSON.parse(unsealSecret(row.secretCiphertext ?? "")));
   const base = (config.endpoint ?? "https://api.github.com").replace(/\/+$/, "");
   const found: Passage[] = [];
   for (const repository of config.repositories) {
@@ -164,7 +161,7 @@ async function fromDocs(
 ): Promise<Passage[]> {
   const config = docsConfig.parse(row.config);
   const secret = row.secretCiphertext
-    ? docsSecret.parse(JSON.parse(unseal(row.secretCiphertext, env().ENCRYPTION_KEY)))
+    ? docsSecret.parse(JSON.parse(unsealSecret(row.secretCiphertext)))
     : null;
   const found: { score: number; passage: Passage }[] = [];
   for (const page of config.pages) {
@@ -225,9 +222,7 @@ async function fromContext(
   at: string,
 ): Promise<Passage[]> {
   const config = contextConfig.parse(row.config);
-  const secret = contextSecret.parse(
-    JSON.parse(unseal(row.secretCiphertext ?? "", env().ENCRYPTION_KEY)),
-  );
+  const secret = contextSecret.parse(JSON.parse(unsealSecret(row.secretCiphertext ?? "")));
   const joiner = config.endpoint.includes("?") ? "&" : "?";
   const { text } = await get(
     deps,

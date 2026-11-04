@@ -9,6 +9,7 @@ import { attachments, ingress, jobs, messages, projects, tickets } from "./db/sc
 import { getObject, putObject } from "./storage";
 import { extractReply } from "../domain/extraction";
 import { classifyJunk } from "../domain/junk";
+import { matchSender } from "../domain/sender-rules";
 import { assemble, textLines, type ExtractResult, type JunkResult } from "../domain/intake";
 import type { AiDeps } from "./ai-run";
 import { runIntakeAi } from "./intake-ai";
@@ -25,12 +26,14 @@ import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
 import { fileRules } from "../domain/limits";
 import { getLimits } from "./limits";
+import { routeNewTicket } from "./routing";
+import { senderPolicyOf } from "./sender-rules";
 import { decideLanguage, detectLanguage } from "../domain/language";
+import { mayReopen, replyPolicyOf } from "../domain/reply-policy";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
 // together. Processing is idempotent and may be retried.
 const maxRawBytes = 25 * 1024 * 1024;
-const reopenWindowMs = 30 * 86_400_000;
 export async function acceptInbound(input: {
   projectId: string;
   connectionId: string | null;
@@ -170,7 +173,17 @@ export async function processIngress(
   // What is known without a transaction, and what the AI steps of intake need: a mail that the
   // rules keep out, a delivery report and a copy of a mail that is already in are not asked
   // about, and a reply to a ticket is not asked whether it is junk.
-  const ruleVerdict = entry.classification?.restored ? null : classifyJunk(mail.headers);
+  // The lists of senders of the project come first: a blocked sender is kept out, an allowed one is never taken for
+  // junk, by the headers or by the model. A mail that a person restored from junk is not classified again.
+  const senderPolicy = await senderPolicyOf(entry.projectId);
+  const listed = matchSender(senderPolicy.rules, sender.address);
+  const ruleVerdict = entry.classification?.restored
+    ? null
+    : listed?.kind === "block"
+      ? { junk: true, reason: "blocked_sender" }
+      : listed?.kind === "allow"
+        ? null
+        : classifyJunk(mail.headers, senderPolicy.sensitivity);
   const report = parseDeliveryReport(
     mail.headers.get("content-type"),
     mail.text ?? "",
@@ -209,6 +222,7 @@ export async function processIngress(
             ],
             wantJunk:
               !entry.classification?.restored &&
+              listed?.kind !== "allow" &&
               !(await findTarget(db(), entry.projectId, references, sender.address)),
             stored: storedAi(entry.classification),
           },
@@ -383,6 +397,21 @@ export async function processIngress(
     // calls junk stays out of the inbox, where a person can restore it. A reply to a ticket was
     // not asked about, and what it was not sure about is a ticket like any other, marked.
     if (!target && ai.junk?.state === "junk") return keepOut(ai.junk.reason, "ai");
+    // What a reply to a resolved ticket does is the project's policy. A mail that a person restored from junk
+    // is taken as a reply that reopens within the window, whatever the policy says: it is not refused twice.
+    const [policySource] = target
+      ? await tx
+          .select({ settings: projects.settings })
+          .from(projects)
+          .where(eq(projects.id, entry.projectId))
+      : [];
+    const replyPolicy = replyPolicyOf(policySource?.settings ?? {});
+    if (
+      target?.status === "resolved" &&
+      replyPolicy.mode === "refuse" &&
+      !entry.classification?.restored
+    )
+      return keepOut("reply_to_resolved", "rules");
     const usedAi = ai.extract?.state === "ok" && chosen !== null;
     const source = {
       from: sender.address,
@@ -455,8 +484,11 @@ export async function processIngress(
     };
     const recentlyResolved =
       target?.status === "resolved" &&
-      target.resolvedAt !== null &&
-      receivedAt.getTime() - target.resolvedAt.getTime() <= reopenWindowMs;
+      mayReopen(
+        replyPolicy.mode === "refuse" ? { ...replyPolicy, mode: "reopen" } : replyPolicy,
+        target.resolvedAt,
+        receivedAt,
+      );
     if (target && (target.status !== "resolved" || recentlyResolved)) {
       // The ticket keeps its language; the message records what it was written in.
       await insertMessage(target.id, detection.language ?? target.language);
@@ -603,6 +635,16 @@ export async function processIngress(
       messageId: messageIds[0] ?? null,
       channel: "email",
     });
+    // The rules of the project give the new ticket its assignee, its priority and its category.
+    await routeNewTicket(
+      tx,
+      { id: ticket.id, projectId: entry.projectId, number: ticket.number },
+      {
+        sender: sender.address,
+        language,
+        subject,
+      },
+    );
     return finish(ticket.id, "processed", target ? "follow_up" : "created");
   });
 }

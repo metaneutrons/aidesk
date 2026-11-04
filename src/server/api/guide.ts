@@ -44,6 +44,6 @@ export const agentGuide = [
   "",
   "## Receiving events",
   "",
-  "A project can send signed webhooks instead of being polled. Each delivery carries `X-Aidesk-Signature: v1=<hex>`, an HMAC-SHA256 over `<timestamp>.<body>` with the signing secret. Delivery is at least once, so drop a repeated event by its id.",
+  "A project can send signed webhooks instead of being polled. Each delivery carries `X-Aidesk-Signature: v1=<hex>`, an HMAC-SHA256 over `<timestamp>.<body>` with the signing secret. Delivery is at least once, so drop a repeated event by its id. A webhook with another `format` (`slack`, `teams`, `discord`, `mattermost`, `rocketchat`, `apprise`) is a channel of a messenger: its `url` is the address of the incoming webhook, which carries the key of the messenger and is stored sealed and never returned (a list shows the host only), a delivery is not signed, and it receives only `ticket.created`, `ticket.assigned`, `ticket.overdue`, `draft.created` and `ticket.status_changed`. The message names the kind of event, the number and a link; the subject of the ticket only when `withSubject` is true, which needs a person with the right to approve (an agent proposes it). The format is fixed when the webhook is made.",
   "",
 ].join("\n");

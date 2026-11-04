@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openAccount, openSettings, test } from "./fixtures";
 // A walkthrough of the operator and of the customer with what a mouse-free, zoomed or narrow
 // reader needs: German and English, light and dark, the keyboard alone, a window of 320 px and the
 // same at 200 % zoom. It finds what the rules of the scanner can find and what a script can measure
@@ -15,6 +15,8 @@ async function audit(page: Page) {
     .exclude("[data-base-ui-focus-guard]")
     .exclude(".design-frame")
     .exclude(".original-frame")
+    // The development indicator of Next.js lies over the first tab on a narrow screen; it is not part of the product.
+    .exclude("nextjs-portal")
     .analyze();
   return result.violations.map((violation) => ({
     rule: violation.id,
@@ -64,7 +66,11 @@ test.describe("operator in German with a dark system", () => {
       .fill(`Antwort ${randomUUID()}`);
     expect(await audit(page)).toEqual([]);
     await page.getByRole("navigation").getByRole("button", { name: "Einstellungen" }).click();
-    await expect(page.getByRole("heading", { name: "Operatoren" })).toBeVisible();
+    await page
+      .getByRole("complementary", { name: "Themen" })
+      .getByRole("link", { name: "Personen", exact: true })
+      .click();
+    await expect(page.getByRole("heading", { level: 2, name: "Personen" })).toBeVisible();
     expect(await audit(page)).toEqual([]);
   });
 });
@@ -92,8 +98,8 @@ test.describe("a narrow window and zoom", () => {
         .getByRole("button", { name: "Back" })
         .click()
         .catch(() => undefined);
-      await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-      await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
+      await openSettings(page, "People");
+      await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
       // The heading is there while the list is still loading; the table with a column for each
       // project is what is wide.
       await expect(page.getByRole("table")).toBeVisible();
@@ -115,7 +121,17 @@ test.describe("a narrow window and zoom", () => {
       });
       expect(sent.status()).toBe(202);
       await page.goto(`/?ticket=${target}`);
-      await page.getByRole("button", { name: "Create portal link" }).click();
+      // On a narrow screen the details of the ticket are closed until they are asked for.
+      const details = page.getByRole("button", { name: "Details", exact: true });
+      const portalButton = page.getByRole("button", { name: "Create portal link" });
+      await expect(details.or(portalButton)).toBeVisible();
+      // A click before the page has taken its handlers is lost, so the button is clicked until it is open.
+      await expect(async () => {
+        if ((await details.isVisible()) && (await details.getAttribute("aria-expanded")) !== "true")
+          await details.click();
+        await expect(portalButton).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
+      await portalButton.click();
       const url = await page.getByLabel("Link to the customer's view").inputValue();
       const context = await browser.newContext({ locale: "de-DE", viewport: { width, height } });
       const customer = await context.newPage();
@@ -173,7 +189,8 @@ test("the desk can be used with the keyboard alone", async ({
   await field.focus();
   await page.keyboard.type("A note written with the keyboard");
   await expect(field).toHaveValue("A note written with the keyboard");
-  // The dialog of a new project traps the focus and gives it back.
+  // The dialog of a new project (in the settings) traps the focus and gives it back.
+  await openSettings(page, "Projects");
   await page.getByRole("button", { name: "New project" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "New project" })).toBeVisible();
@@ -188,9 +205,7 @@ test("the desk can be used with the keyboard alone", async ({
   }
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? "")).toBe(
-    "New project",
-  );
+  expect(await page.evaluate(() => document.activeElement?.textContent ?? "")).toBe("New project");
   expect(desk.run).toBeTruthy();
 });
 test("the desk and the customer page log no error in the console", async ({
@@ -224,7 +239,9 @@ test("the desk and the customer page log no error in the console", async ({
   const url = await page.getByLabel("Link to the customer's view").inputValue();
   for (const view of ["Junk", "Settings"])
     await page.getByRole("navigation").getByRole("button", { name: view }).click();
-  await expect(page.getByRole("heading", { name: "Operators" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "People" })).toBeVisible();
+  await openAccount(page);
+  await expect(page.getByRole("heading", { level: 2, name: "Profile" })).toBeVisible();
   const context = await browser.newContext({ locale: "en-US" });
   const customer = await context.newPage();
   watch(customer);

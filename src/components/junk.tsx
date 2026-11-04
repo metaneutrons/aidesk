@@ -1,7 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 const itemSchema = z.object({
   kind: z.enum(["ticket", "mail"]),
   id: z.uuid(),
@@ -46,6 +48,8 @@ const reasons: Record<string, string> = {
   newsletter: "junkReasonNewsletter",
   automated: "junkReasonAutomated",
   other: "junkReasonAiOther",
+  blocked_sender: "junkReasonBlockedSender",
+  bulk_mail: "junkReasonBulk",
 };
 // Junk: tickets moved there by a person and mail classified as junk on
 // arrival. Neither appears in the inbox until it is restored here.
@@ -59,6 +63,7 @@ export function Junk({
   onRestored: () => void;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const [items, setItems] = useState<Item[] | null>(null);
   const [selected, setSelected] = useState<Item | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -113,7 +118,10 @@ export function Junk({
   }
   const projectName = (id: string) => projects.find((project) => project.id === id)?.name ?? "";
   return (
-    <section className="junk" aria-label={t("junk")}>
+    <section
+      className={`junk${items !== null && items.length === 0 ? " junk-none" : ""}`}
+      aria-label={t("junk")}
+    >
       <div className="junk-list">
         {failed && (
           <p className="error" role="alert">
@@ -124,7 +132,10 @@ export function Junk({
         {items === null ? (
           <p className="muted">{t("junkLoading")}</p>
         ) : items.length === 0 ? (
-          <p className="muted">{t("junkEmpty")}</p>
+          <div className="junk-empty">
+            <ShieldCheck size={32} aria-hidden />
+            <p>{t("junkEmpty")}</p>
+          </div>
         ) : (
           <ul>
             {items.map((item) => (
@@ -140,6 +151,7 @@ export function Junk({
                     <span>{item.from}</span>
                     <time dateTime={item.at}>
                       {new Intl.DateTimeFormat(locale, {
+                        ...zone,
                         dateStyle: "medium",
                         timeStyle: "short",
                       }).format(new Date(item.at))}

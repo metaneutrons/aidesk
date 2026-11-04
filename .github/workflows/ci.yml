@@ -179,9 +179,17 @@ jobs:
           fi
 
   browser:
-    name: Browser tests
+    name: Browser tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The suite took 33 to 42 minutes on one runner (the limit of 45 cancelled a run on 23 October with 315 tests green
+    # and none failed). It is split over three runners, each with a stack of its own, so that the job takes about a third
+    # of that plus the set-up.
+    timeout-minutes: 45
+    strategy:
+      # A failure in one part does not hide what the other parts found.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -214,14 +222,33 @@ jobs:
           echo "::error::the development stack did not become ready"
           exit 1
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/3
+      - name: List the tests that passed only on the repeat
+        if: always()
+        run: |
+          if [ -f test-results/results.json ]; then pnpm exec tsx scripts/flaky-report.ts; fi
+      # What helps to find out why a test needed a repeat: the requests that took a second or more and the answers with an
+      # error, and the passes of the worker that took long. They are shown for every run, because a run that passed on a repeat
+      # leaves nothing else behind.
+      - name: Show the slow and failed requests of the stack
+        if: always()
+        run: |
+          sh scripts/dev.sh logs --no-color --tail 40000 app > app.log || true
+          echo "Requests of one second or more:"
+          grep -E " in [0-9.]+s " app.log | grep -v "/api/health/" | tail -40 || true
+          echo "Answers with a server error:"
+          grep -E " 5[0-9]{2} in " app.log | grep -v "/api/health/" | tail -40 || true
+          sh scripts/dev.sh logs --no-color --tail 40000 worker > worker.log || true
+          echo "Slow passes of the worker:"
+          grep "worker.pass_slow" worker.log | tail -40 || true
       - name: Show the stack logs
         if: failure()
         run: sh scripts/dev.sh logs --no-color --tail 300
+      # The traces of a test that failed on its first try are in the report, also when the run passed on the repeat.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: failure()
+        if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
@@ -230,7 +257,7 @@ jobs:
   image:
     name: Production image
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build the image that runs
@@ -241,6 +268,37 @@ jobs:
         run: docker run --rm aidesk-production:ci node_modules/.bin/tsx scripts/smoke.ts
       - name: The process is not root and cannot write the application files
         run: docker run --rm aidesk-production:ci sh -c 'test "$(id -u)" != 0 && ! test -w /app'
+      # The Compose file for Coolify renders with the required values and refuses to render without a key.
+      - name: The Compose file for Coolify renders and needs its keys
+        run: |
+          set -euo pipefail
+          BETTER_AUTH_SECRET="$(openssl rand -hex 24)"
+          ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          export APP_URL=https://desk.example.test POSTGRES_PASSWORD=ci S3_ACCESS_KEY=ci S3_SECRET_KEY=ci
+          export BETTER_AUTH_SECRET ENCRYPTION_KEY
+          if env -u ENCRYPTION_KEY docker compose -f compose.coolify.yaml config --quiet 2>/dev/null; then
+            echo "rendered without ENCRYPTION_KEY" >&2
+            exit 1
+          fi
+          docker compose -f compose.coolify.yaml config --quiet
+      # The production Compose file renders without the values that only a profile needs (Compose
+      # resolves `${X:?}` for services of inactive profiles too), and the proxy says what is
+      # missing instead of starting without an address.
+      - name: The production Compose file renders without SITE_ADDRESS, the proxy needs it
+        run: |
+          set -euo pipefail
+          BETTER_AUTH_SECRET="$(openssl rand -hex 24)"
+          ENCRYPTION_KEY="$(openssl rand -hex 32)"
+          export APP_URL=https://desk.example.test POSTGRES_PASSWORD=ci S3_ACCESS_KEY=ci S3_SECRET_KEY=ci
+          export BETTER_AUTH_SECRET ENCRYPTION_KEY
+          unset SITE_ADDRESS
+          docker compose -f compose.production.yaml --profile bundled config --quiet
+          out="$(docker compose -f compose.production.yaml --profile proxy run --rm --no-deps -T proxy 2>&1)" && {
+            echo "the proxy started without SITE_ADDRESS" >&2
+            exit 1
+          }
+          printf '%s\n' "$out" | grep -q 'SITE_ADDRESS is required for the proxy profile'
+          docker compose -f compose.production.yaml --profile proxy down --volumes >/dev/null 2>&1
       # The Compose setup from a clean state: ready, a restart, a backup, the loss of the
       # volumes and the restore, with throwaway values that exist only for this run.
       - name: The Compose setup starts, is backed up and is restored
@@ -261,11 +319,50 @@ jobs:
             echo "ENCRYPTION_KEY=$(openssl rand -hex 32)"
           } > .env.check
           ENV_FILE=.env.check sh scripts/check-production.sh
+      # The updater against real containers: a good release is installed, and an image whose web server dies and one with a
+      # migration that fails are put back (see docs/updating.md).
+      - name: The updater installs a release and puts a broken one back
+        run: bash deploy/updater/test-rollback.sh aidesk-production:ci
+
+  updater:
+    name: Updater
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      # The updater of the Compose installation (deploy/updater) is outside the application's
+      # lint and test run: its tests use the runner of Node and a replaced `docker`.
+      - name: ShellCheck
+        run: shellcheck -x deploy/updater/update.sh deploy/updater/test-update.sh deploy/updater/test-rollback.sh
+      - name: Control API tests
+        run: node --test deploy/updater/control.test.mjs
+      - name: Worker tests (docker replaced, no daemon needed)
+        run: bash deploy/updater/test-update.sh
+      - name: The image builds and carries what the worker calls
+        run: |
+          set -euo pipefail
+          docker build --build-arg UPDATER_VERSION=0.0.0-ci --tag aidesk-updater:ci deploy/updater
+          docker run --rm --entrypoint sh aidesk-updater:ci -c 'cosign version >/dev/null && docker compose version >/dev/null && jq --version >/dev/null && test -x /usr/local/bin/aidesk-update && test "$UPDATER_VERSION" = 0.0.0-ci'
+      # A weak or missing token must stop the control API, the way into a root-equivalent process.
+      - name: The control API refuses a missing, short and example token
+        run: |
+          set -euo pipefail
+          for token in '' short replace-with-openssl-rand-hex-32; do
+            if docker run --rm --env UPDATER_TOKEN="$token" aidesk-updater:ci >/dev/null 2>&1; then
+              echo "started with the token '$token'" >&2
+              exit 1
+            fi
+          done
 
   ci-success:
     name: CI Success
     if: always()
-    needs: [quality, security, commit-hygiene, browser, image]
+    needs: [quality, security, commit-hygiene, browser, image, updater]
     runs-on: ubuntu-24.04
     steps:
       - name: Every preceding job must have succeeded or been skipped

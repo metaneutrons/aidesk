@@ -1,5 +1,7 @@
 @import "tailwindcss";
 :root {
+    --control: light-dark(#eceef5, #262a39);
+    --accent-text: light-dark(#3f4fd0, #9daaff);
     --bg: light-dark(#f6f7fb, #151720);
     --panel: light-dark(#fff, #1d202c);
     --sidebar: light-dark(#f1f2f7, #181b25);
@@ -116,17 +118,27 @@ label {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 9px 14px;
-    border-radius: 9px;
+    min-height: 32px;
+    padding: 6px 14px;
+    border-radius: 8px;
     font-weight: 600;
 }
 .primary {
     background: var(--accent);
     color: var(--panel);
 }
+.primary:disabled {
+    background: var(--control);
+    color: var(--muted);
+    opacity: 1;
+}
 .secondary {
-    background: var(--panel);
-    border: 1px solid var(--line);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border: 0;
+}
+.secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel));
 }
 .icon-button {
     display: inline-flex;
@@ -201,6 +213,9 @@ label {
     color: var(--text);
     box-shadow: 0 2px 5px #10102005;
 }
+.nav-more {
+    display: none;
+}
 .nav-count {
     margin-left: auto;
     font-size: 11px;
@@ -257,6 +272,27 @@ label {
 .operator .icon-button {
     margin-left: auto;
 }
+/* The person at the bottom of the menu: a button that opens their account. */
+.operator-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    min-height: 40px;
+    padding: 4px 6px;
+    margin: -4px 0 -4px -6px;
+    border: 0;
+    border-radius: var(--radius-small);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.operator-link:hover,
+.operator-link[aria-current="page"] {
+    background: var(--accent-soft);
+}
 .avatar {
     display: inline-flex;
     align-items: center;
@@ -270,6 +306,11 @@ label {
     font-weight: 600;
     flex-shrink: 0;
 }
+/* The letter inside a control that has the name next to it is drawn, not written: it would otherwise be part of the
+   visible text, which the name of the control has to contain. */
+.avatar-initial::before {
+    content: attr(data-initial);
+}
 .desk-main {
     flex: 1;
     min-width: 0;
@@ -277,11 +318,12 @@ label {
     flex-direction: column;
 }
 .topbar {
-    height: 76px;
+    min-height: 76px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    padding: 0 32px;
+    padding: 12px 32px;
     border-bottom: 1px solid var(--line);
     flex-shrink: 0;
     gap: 16px;
@@ -292,7 +334,9 @@ label {
 }
 .topbar-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
 }
 .project-filter {
@@ -350,7 +394,7 @@ label {
 }
 .metric-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 18px;
     margin: 16px 0 44px;
 }
@@ -900,35 +944,73 @@ label {
     }
 }
 @media (max-width: 760px) {
+    /* The menu is a bar of tabs at the lower edge; what is below the menu on a wide screen (language, appearance, the
+       person) opens above the bar with the last tab. */
+    .desk-shell {
+        flex-direction: column-reverse;
+    }
     .sidebar {
-        width: 64px;
-        padding: 20px 8px;
+        position: relative;
+        width: 100%;
+        flex-direction: row;
+        padding: 0 4px env(safe-area-inset-bottom);
+        border-right: 0;
+        border-top: 1px solid var(--line);
     }
     .sidebar .brand {
-        font-size: 0;
-        padding: 0;
-        margin-bottom: 28px;
-    }
-    .nav-item {
-        font-size: 0;
-        padding: 12px;
-        gap: 0;
-    }
-    .nav-item svg {
-        flex-shrink: 0;
-    }
-    .nav-count,
-    .operator > span:not(.avatar),
-    .operator > .icon-button,
-    .locale-select {
         display: none;
     }
-    .theme-switch {
-        flex-direction: column;
-        margin: 0 auto;
+    .sidebar nav {
+        display: flex;
+        flex: 1;
+        gap: 0;
+        overflow-x: auto;
     }
-    .operator {
+    .nav-item {
+        position: relative;
+        flex: 1 0 auto;
+        flex-direction: column;
         justify-content: center;
+        gap: 3px;
+        width: auto;
+        min-width: 60px;
+        min-height: 54px;
+        padding: 6px 8px;
+        font-size: 10px;
+        text-align: center;
+    }
+    .nav-item.active {
+        background: none;
+        box-shadow: none;
+        color: var(--accent-text);
+    }
+    .nav-count {
+        position: absolute;
+        top: 4px;
+        left: 50%;
+        margin: 0 0 0 6px;
+    }
+    .nav-more {
+        display: flex;
+    }
+    .sidebar-bottom {
+        display: none;
+        position: absolute;
+        right: 8px;
+        bottom: calc(100% + 8px);
+        left: 8px;
+        z-index: 20;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        box-shadow: 0 8px 30px #10102030;
+    }
+    .sidebar.more .sidebar-bottom {
+        display: block;
+    }
+    .sidebar-bottom .locale-select {
+        margin: 0 0 12px;
     }
     .topbar {
         padding: 0 16px;
@@ -948,6 +1030,7 @@ label {
         font-size: 25px;
     }
     .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
     }
     .metric {
@@ -1077,19 +1160,179 @@ label {
     text-decoration: none;
 }
 .settings {
-    padding: 32px 40px;
-    overflow: auto;
-    display: grid;
-    gap: 16px;
-    align-content: start;
-}
-.settings h2 {
-    margin: 8px 0 0;
-    font-size: 18px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
 }
 .settings h3 {
     margin: 0;
     font-size: 14px;
+}
+/* The frame of the settings: the topics on the left, one topic on the right. Below 760px the two are shown one after
+   the other. */
+.settings-layout {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+}
+.settings-list {
+    width: 264px;
+    flex-shrink: 0;
+    overflow: auto;
+    display: grid;
+    gap: 22px;
+    align-content: start;
+    padding: 20px 14px 32px;
+    border-right: 1px solid var(--line);
+    background: var(--sidebar);
+}
+.settings-group-title {
+    margin: 0 10px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.settings-list ul {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.settings-topic {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    padding: 5px 10px;
+    border-radius: 9px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+}
+.settings-topic:hover {
+    background: var(--accent-soft);
+}
+.settings-topic[aria-current="page"] {
+    background: var(--accent);
+    color: var(--panel);
+}
+.settings-topic-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+.settings-topic[aria-current="page"] .settings-topic-icon {
+    background: color-mix(in srgb, var(--panel) 25%, transparent);
+    color: inherit;
+}
+.settings-topic-chevron {
+    display: none;
+    margin-left: auto;
+    opacity: 0.5;
+}
+.settings-project {
+    width: calc(100% - 8px);
+    margin: 0 4px 8px;
+}
+.settings-project-name {
+    margin: 0 10px 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.settings-detail {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+}
+.settings-back {
+    display: none;
+}
+.settings-detail-body {
+    display: grid;
+    gap: 20px;
+    align-content: start;
+    max-width: 780px;
+    padding: 32px 40px 64px;
+}
+.settings-detail-head {
+    display: grid;
+    gap: 4px;
+}
+.settings-detail-head h2 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+.settings-detail-body > section > h3 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+/* A topic with one section names it already in its heading. */
+.settings-detail-body > section:only-of-type > h3:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+.settings-detail-body > section {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+}
+@media (max-width: 760px) {
+    .settings-list {
+        width: 100%;
+        border-right: 0;
+    }
+    .settings-layout[data-level="topic"] .settings-list,
+    .settings-layout[data-level="list"] .settings-detail {
+        display: none;
+    }
+    .settings-topic {
+        min-height: 44px;
+    }
+    /* A list of topics that is shown alone has no topic that is open. */
+    .settings-topic[aria-current="page"] {
+        background: none;
+        color: var(--text);
+    }
+    .settings-topic[aria-current="page"] .settings-topic-icon {
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+    .settings-topic-chevron {
+        display: block;
+    }
+    .settings-back {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-height: 44px;
+        padding: 0 12px;
+        color: var(--accent);
+        font-weight: 500;
+    }
+    .settings-detail-body {
+        padding: 4px 16px 48px;
+    }
+    .settings-detail-head h2 {
+        font-size: 22px;
+    }
 }
 /* A table with a column for each project is wider than a narrow window; it scrolls inside its box
    and the page does not. */
@@ -1433,12 +1676,7 @@ li.tag-chip button {
 
 .configuration {
     display: grid;
-    gap: 12px;
-    margin: 16px 0;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel);
+    gap: 20px;
 }
 
 .configuration-fields {
@@ -1835,20 +2073,6 @@ li.tag-chip button {
     gap: 8px;
 }
 
-/* The names of the customer page: the form is one row that wraps. */
-.portal-domain-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: end;
-}
-
-.portal-domain-form label {
-    display: grid;
-    gap: 4px;
-    flex: 1 1 260px;
-}
-
 .portal-domains code {
     overflow-wrap: anywhere;
 }
@@ -1866,19 +2090,6 @@ li.tag-chip button {
 /* A link inside a line of text is told from the text by more than its colour. */
 .project-export a {
     text-decoration: underline;
-}
-
-.project-delete {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: end;
-}
-
-.project-delete label {
-    display: grid;
-    gap: 4px;
-    flex: 1 1 260px;
 }
 
 button.danger {
@@ -2007,6 +2218,50 @@ button.danger {
     flex-basis: 100%;
 }
 
+.triage,
+.triage-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
+}
+
+.triage-filter label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.ticket-row-triage {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.priority-badge {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid var(--line);
+}
+
+.priority-badge.high {
+    border-color: var(--warn, #b45309);
+    color: var(--warn, #b45309);
+}
+
+.priority-badge.urgent {
+    background: var(--danger, #b91c1c);
+    border-color: var(--danger, #b91c1c);
+    color: #fff;
+}
+
+.routing-rules ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
 /* The branding of the customer page: the name, the line and the logo above the conversation, and the colour of the
    buttons. The text on the colour is black or white, chosen on the server. */
 .portal-brand {
@@ -2056,4 +2311,1072 @@ button.danger {
     max-width: 160px;
     width: auto;
     object-fit: contain;
+}
+
+.notification-list {
+    list-style: none;
+    margin: 12px 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+}
+.notification-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.notification-item {
+    flex: 1;
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+}
+.notification-list li.unread .notification-item {
+    border-left: 3px solid var(--accent);
+}
+.notification-list li.read .notification-item strong {
+    font-weight: 500;
+}
+.notifications .row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.notifications .inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.preference-list {
+    list-style: none;
+    margin: 12px 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+.preference-list li {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.preference-list strong {
+    min-width: 12em;
+}
+.preference-list .inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.mention-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 4px 0 8px;
+}
+.mention-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.mention-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--accent-soft);
+}
+.session-list {
+    list-style: none;
+    margin: 8px 0 12px;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+.session-list li {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+.session-list li.current {
+    border-left: 3px solid var(--accent);
+}
+.sign-in-methods {
+    margin: 8px 0 16px;
+    padding-left: 18px;
+}
+.saved-views {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.saved-view-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* The parts of the forms in the settings (src/components/form.tsx): a group, its rows, a switch, a number with its unit,
+   a segmented choice and the bar that saves a form. */
+:root {
+    --danger: light-dark(#c4302b, #ff9a92);
+    --control-line: light-dark(#d6d9e4, #43485d);
+    --radius: 12px;
+    --radius-small: 8px;
+}
+.group {
+    display: grid;
+    gap: 6px;
+}
+.group-title {
+    margin: 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.group-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    overflow: hidden;
+}
+.group-note {
+    margin: 0 4px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.group-card > * + * {
+    border-top: 1px solid var(--line);
+}
+.row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 16px;
+    min-height: 46px;
+    padding: 8px 16px;
+    font-weight: 400;
+}
+.row-label {
+    display: grid;
+    gap: 2px;
+}
+.row-label > label,
+.row-label > span {
+    font-weight: 500;
+}
+.row-hint {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+}
+.row-control {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+.row.stacked {
+    grid-template-columns: minmax(0, 1fr);
+}
+.row.stacked .row-control {
+    justify-content: stretch;
+}
+.row.stacked .row-control > * {
+    width: 100%;
+}
+.row-control input:not([type="checkbox"], [type="radio"], [type="color"]),
+.row-control select {
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-small);
+    background: var(--control);
+}
+.row-control input[type="number"] {
+    width: 96px;
+    text-align: right;
+}
+.row-control select {
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b90a5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+.row-control textarea {
+    width: 100%;
+}
+.unit {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.unit-name {
+    min-width: 2.5em;
+    color: var(--muted);
+}
+input.switch {
+    appearance: none;
+    position: relative;
+    flex-shrink: 0;
+    width: 42px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 13px;
+    background: var(--control-line);
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+input.switch::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px #0003;
+    transition: transform 0.15s;
+}
+input.switch:checked {
+    background: var(--accent);
+}
+input.switch:checked::before {
+    transform: translateX(16px);
+}
+input.switch:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--control);
+}
+.segmented label {
+    position: relative;
+    display: inline-flex;
+    flex-direction: row;
+    padding: 4px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+}
+.segmented label.selected {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 1px 3px #10102018;
+}
+.segmented input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    margin: 0;
+    cursor: pointer;
+}
+.segmented label:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+}
+.disclosure summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 46px;
+    padding: 8px 16px;
+    cursor: pointer;
+    list-style: none;
+}
+.disclosure summary::-webkit-details-marker {
+    display: none;
+}
+.disclosure-chevron {
+    flex-shrink: 0;
+    color: var(--muted);
+    transition: transform 0.15s;
+}
+.disclosure[open] .disclosure-chevron {
+    transform: rotate(90deg);
+}
+.disclosure-body {
+    border-top: 1px solid var(--line);
+}
+.disclosure-body > * + * {
+    border-top: 1px solid var(--line);
+}
+.actions-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 0 6px;
+    background: linear-gradient(to top, var(--bg) 75%, transparent);
+}
+.actions-status {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 13px;
+}
+.weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+}
+.chip {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--control);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+}
+.chip:has(input:checked) {
+    background: var(--accent);
+    color: var(--panel);
+}
+.chip {
+    position: relative;
+}
+.chip input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+}
+.chip:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.chip:has(input:disabled) {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Sections of a topic have no frame of their own; what they hold is drawn as groups, list cards and form cards. */
+.settings-detail-body > section {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+}
+.settings-detail-body > section > .muted:not(.error),
+.settings-detail-body > section > p.muted {
+    font-size: 13px;
+}
+.settings-detail-body .settings-form {
+    max-width: none;
+}
+.settings-detail-body .settings-form,
+.settings-detail-body ul.connection-list,
+.settings-detail-body ul.token-list,
+.settings-detail-body ul.sign-in-methods,
+.settings-detail-body ul.session-list {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.settings-detail-body .settings-form {
+    padding: 16px;
+}
+.settings-detail-body ul.connection-list,
+.settings-detail-body ul.token-list,
+.settings-detail-body ul.sign-in-methods,
+.settings-detail-body ul.session-list {
+    gap: 0;
+    overflow: hidden;
+}
+.settings-detail-body ul.connection-list > li,
+.settings-detail-body ul.token-list > li,
+.settings-detail-body ul.sign-in-methods > li,
+.settings-detail-body ul.session-list > li {
+    min-height: 46px;
+    padding: 8px 16px;
+}
+.settings-detail-body ul.connection-list > li + li,
+.settings-detail-body ul.token-list > li + li,
+.settings-detail-body ul.sign-in-methods > li + li,
+.settings-detail-body ul.session-list > li + li {
+    border-top: 1px solid var(--line);
+}
+input:not([type="checkbox"], [type="radio"], [type="color"]),
+select,
+textarea {
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border-color: var(--control-line);
+}
+form.stack {
+    display: grid;
+    gap: 20px;
+}
+.inline-switch {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    color: var(--muted);
+}
+fieldset.plain {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.settings-detail-body > section > fieldset.plain + fieldset.plain {
+    margin-top: 8px;
+}
+/* A button in a form of a topic that has no class of its own looks like a secondary one. */
+.settings-detail-body button:not([class], [role], [aria-haspopup], summary) {
+    min-height: 32px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-weight: 600;
+}
+.settings-detail-body button:not([class], [role], [aria-haspopup], summary):disabled {
+    background: var(--control);
+    color: var(--muted);
+    opacity: 1;
+}
+.color-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.row-control input[type="file"] {
+    max-width: 100%;
+    padding: 4px;
+    background: none;
+    border: 0;
+}
+.settings-detail-body h4 {
+    margin: 4px 4px 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.settings-detail-body input[type="checkbox"]:not(.switch) {
+    accent-color: var(--accent);
+    width: 24px;
+    height: 24px;
+    margin: 0;
+}
+label.checkbox,
+label.configuration-check,
+label.inline-check {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+}
+.settings-detail-body > section > details > summary,
+.settings-detail-body details.sso-register > summary {
+    padding: 8px 4px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.text-body {
+    display: grid;
+    gap: 12px;
+    padding: 12px 16px 16px;
+}
+.text-body .segmented {
+    justify-self: start;
+}
+.text-body .row {
+    padding: 0;
+    min-height: 0;
+}
+.text-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.text-body .row-hint {
+    margin: 0;
+}
+/* The table of the people has a column for each project and is wider than a topic of text. */
+.settings-detail-body[data-topic="people"] {
+    max-width: 1100px;
+}
+@media (max-width: 760px) {
+    /* A row of a narrow screen puts its control below the label, except a switch, which stays beside it. */
+    .row:not(:has(input.switch)) {
+        grid-template-columns: minmax(0, 1fr);
+        padding-block: 10px;
+    }
+    .row:not(:has(input.switch)) .row-control {
+        justify-content: flex-start;
+    }
+    .row:not(:has(input.switch)) .row-control select,
+    .row:not(:has(input.switch))
+        .row-control
+        input:not([type="number"], [type="color"], [type="time"]) {
+        width: 100%;
+    }
+    .actions-bar {
+        padding-bottom: 12px;
+    }
+}
+.settings-detail-body .table-scroll {
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.settings-detail-body .settings-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+.settings-detail-body .settings-table th {
+    padding-top: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.settings-detail-body > section > button.secondary,
+.settings-detail-body > section > button.primary {
+    justify-self: start;
+}
+.action-checks {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+.action-checks legend {
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.action-checks label.check {
+    flex-direction: row;
+    font-weight: 400;
+}
+select:not([multiple]) {
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b90a5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+/* A form inside a list entry has no bar of its own that sticks to the lower edge, and no frame around its groups. */
+.connection-list .actions-bar,
+.session-list .actions-bar {
+    position: static;
+    background: none;
+    padding: 8px 0 0;
+}
+.settings-detail-body form.stack {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+.more-views {
+    display: none;
+}
+@media (max-width: 760px) {
+    .sidebar nav .nav-secondary {
+        display: none;
+    }
+    .more-views {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+    }
+    .more-views .nav-item {
+        flex-direction: row;
+        justify-content: flex-start;
+        min-height: 44px;
+        gap: 10px;
+        padding: 8px 12px;
+        font-size: 13px;
+        text-align: left;
+    }
+    .more-views .nav-item.active {
+        background: var(--accent-soft);
+    }
+}
+.row.stacked .row-control.weekdays > * {
+    width: auto;
+}
+.row-label > label {
+    font-size: 14px;
+    color: var(--text);
+}
+.connection-list .group-card {
+    border: 0;
+    border-radius: 0;
+    background: none;
+}
+.connection-list .group-card .row {
+    padding-inline: 0;
+}
+.settings-detail-body .sso-register form {
+    max-width: none;
+}
+.label-short {
+    display: none;
+}
+@media (max-width: 760px) {
+    /* Six tabs share the width; a long name is replaced by a short one. */
+    .sidebar nav .nav-item {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-inline: 0;
+        font-size: 9.5px;
+        letter-spacing: -0.01em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .label-full {
+        display: none;
+    }
+    .label-short {
+        display: inline;
+    }
+}
+/* A text field smaller than 16 px makes a phone zoom into the page when it takes the focus. */
+@media (pointer: coarse) {
+    input:not([type="checkbox"], [type="radio"], [type="color"]),
+    select,
+    textarea {
+        font-size: 16px;
+    }
+}
+
+/* The header of a ticket: the title with its sender and status, and under it the tools in groups with a small title
+   each, the destructive actions last and in the colour of a warning. On a narrow screen the tools open with Details. */
+.conversation-header {
+    gap: 12px 18px;
+    padding: 22px 28px 18px;
+}
+.inspector-toggle {
+    display: none;
+}
+.ticket-tools {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px 28px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+}
+.inspector-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    align-items: center;
+    gap: 8px;
+}
+.inspector-title {
+    flex: 1 1 100%;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+/* A group without a tool shows no title. */
+.inspector-group:not(:has(> :not(.inspector-title))) {
+    display: none;
+}
+.inspector-danger {
+    grid-column: 1 / -1;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+.inspector-danger button {
+    color: var(--danger);
+    background: none;
+}
+.inspector-danger button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+}
+.reminder-custom summary {
+    cursor: pointer;
+    padding: 5px 9px;
+    border-radius: 8px;
+    font-weight: 600;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    list-style: none;
+}
+.reminder-custom summary::-webkit-details-marker {
+    display: none;
+}
+.reminder-custom[open] {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.reminder-custom[open] summary {
+    flex: 0 0 auto;
+}
+/* On a narrow or a low screen the tools would take the room of the conversation; they open with Details. */
+@media (max-width: 760px), (max-height: 820px) {
+    .inspector-toggle {
+        display: inline-flex;
+        margin-left: auto;
+    }
+    .ticket-tools {
+        display: none;
+        flex: 1 1 100%;
+    }
+    .ticket-tools.open {
+        display: grid;
+    }
+}
+
+/* The composer: two tabs that read as a choice, one line of helpers, and a footer that names sender and recipient
+   in a size that can be read. */
+.composer {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px #10102008;
+}
+.compose-tabs {
+    gap: 4px;
+    padding: 8px 12px;
+}
+.compose-tabs button {
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.compose-tabs button.active {
+    background: var(--panel);
+    box-shadow: 0 1px 3px #10102018;
+    font-weight: 600;
+}
+.composer textarea {
+    font-size: 15px;
+    min-height: 110px;
+}
+.assist-row {
+    padding: 8px 12px;
+}
+.assist-row input {
+    font-size: 13px;
+}
+.assist-row button {
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 600;
+}
+.assist-row button:disabled {
+    background: var(--control);
+    color: var(--muted);
+    opacity: 1;
+}
+.assist-knowledge {
+    font-size: 12px;
+    color: var(--muted);
+}
+.compose-footer {
+    padding: 10px 12px 12px;
+}
+.compose-footer small {
+    font-size: 12px;
+}
+.compose-footer .primary {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+.compose-identity {
+    flex-direction: column;
+}
+.triage-filter {
+    padding: 0 16px 12px;
+    gap: 6px 14px;
+}
+.triage-filter label {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+}
+.triage-filter select {
+    min-height: 30px;
+    padding-block: 3px;
+    font-size: 12px;
+}
+.ticket-knowledge summary,
+.message-translate summary {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+.ticket-knowledge summary::-webkit-details-marker,
+.message-translate summary::-webkit-details-marker {
+    display: none;
+}
+.message-translate {
+    margin-top: 6px;
+}
+.ticket-tools button,
+.ticket-tools select,
+.ticket-tools input,
+.reminder-custom summary {
+    min-height: 30px;
+}
+.inspector-danger button {
+    min-height: 32px;
+    padding-inline: 12px;
+}
+/* The notifications are a page of their own: a column with room around it, not a card that touches the edges. */
+section.notifications {
+    width: calc(100% - 48px);
+    max-width: 760px;
+    margin: 24px auto;
+}
+@media (max-width: 760px) {
+    section.notifications {
+        width: calc(100% - 24px);
+        margin: 12px auto;
+    }
+}
+/* Nothing in junk: the empty state has the width of the view and the preview is not shown. */
+.junk-none .junk-preview {
+    display: none;
+}
+.junk-none .junk-list {
+    width: 100%;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 8px;
+    border-right: 0;
+    padding: 24px;
+    text-align: center;
+}
+.junk-none .junk-list > p {
+    max-width: 520px;
+    padding: 0;
+}
+.junk-empty {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    color: var(--muted);
+}
+@media (max-width: 760px) {
+    /* The column of the desk is as high as the window; a column taller than that would push its header out of the
+       window (the tabs are below it, so the column grows upward). */
+    .desk-main {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+}
+@media (max-width: 760px) {
+    /* The small heading above the tiles keeps its small size (the rule for the headings of the overview is for the titles). */
+    .overview h2.eyebrow {
+        font-size: 11px;
+    }
+}
+.junk-none .junk-list {
+    flex: 1;
+    align-self: stretch;
+}
+.junk-none .junk-list > p {
+    order: 2;
+}
+.junk-none .junk-empty {
+    order: 1;
+}
+@media (max-width: 760px) {
+    /* The tools of the header wrap into a second row; a fixed height would cut them off. */
+    .topbar {
+        height: auto;
+        min-height: 56px;
+        padding: 10px 16px;
+        row-gap: 8px;
+    }
+    .topbar-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+}
+/* Opened on a narrow or a low screen, the header with its tools is at most as high as half the window and scrolls inside
+   itself, so that the conversation and the composer stay in reach. */
+@media (max-width: 760px), (max-height: 820px) {
+    .conversation-header {
+        max-height: 55dvh;
+        overflow-y: auto;
+        flex-shrink: 0;
+    }
+}
+@media (max-width: 760px) {
+    /* The six tabs share the width, so the bar does not scroll; a scroll container made a browser report the tabs as
+       partly covered. */
+    .sidebar nav {
+        overflow: visible;
+    }
+}
+@media (max-width: 760px) {
+    /* On a phone the ticket (header, messages, composer) is higher than the window; the column scrolls as a whole, so
+       that the composer is not cut at the lower edge and does not lie over the tabs. */
+    .conversation {
+        overflow-y: auto;
+    }
+    .conversation .message-list {
+        flex: none;
+        overflow: visible;
+    }
+    .conversation .composer {
+        flex-shrink: 0;
+    }
+    .conversation-header {
+        max-height: none;
+        overflow: visible;
+    }
+}
+/* The header of a list view on a phone: the title in the first row, and in the second the project filter, the views and
+   the button that saves the filters, which shows its icon only. */
+@media (max-width: 760px) {
+    .topbar {
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .topbar h1 {
+        order: 1;
+        flex: 1 1 0;
+    }
+    .topbar-actions {
+        display: contents;
+    }
+    .topbar-actions > .project-filter {
+        order: 3;
+    }
+    .topbar-actions > .saved-views {
+        order: 4;
+        flex: 1 1 auto;
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+    .saved-views select {
+        min-width: 0;
+        flex: 1 1 0;
+    }
+    .label-wide {
+        display: none;
+    }
+    .saved-views .secondary {
+        padding-inline: 10px;
+    }
+}
+
+/* A desk without a project: what to do first. */
+.start-note {
+    display: grid;
+    justify-items: start;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.start-note h2,
+.start-note p {
+    margin: 0;
+}
+.start-note a.primary {
+    margin-top: 4px;
+    text-decoration: none;
+}
+/* The updates of the installation: what is said about the update and the steps it goes through. */
+.update-state {
+    margin: 6px 4px 8px;
+}
+.update-error {
+    margin: 0 4px;
+}
+.update-steps {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.update-steps li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 40px;
+    padding: 8px 16px;
+}
+.update-steps li + li {
+    border-top: 1px solid var(--line);
+}
+.update-steps li[data-state="running"] span {
+    font-weight: 600;
+}
+.update-steps li[data-state="failed"] span {
+    color: var(--danger);
+}
+.update-note {
+    margin: 0;
+    padding: 8px 16px;
+    border-top: 1px solid var(--line);
 }

@@ -11,9 +11,16 @@ import {
   type ConfigDocument,
 } from "../domain/configuration";
 import { permits, type Principal } from "../domain/permissions";
-import { limitsOf } from "../domain/response-clock";
+import { businessSettingsOf, businessValuesOf } from "../domain/business-hours";
+import { limitsOf, priorityLimitKey } from "../domain/response-clock";
+import { categoriesOf, parseCategories } from "../domain/triage";
+import { retentionOf, tightens } from "../domain/retention";
+import { junkSensitivityOf } from "../domain/junk";
+import { rulesOf } from "../domain/notifications";
+import { autoResolveOf, replyPolicyOf } from "../domain/reply-policy";
 import { db } from "./db";
 import { applyConnectionPayload } from "./connections";
+import { applyCannedPayload, cannedProposalStale } from "./canned";
 import { applyTextPayload, textProposalStale } from "./texts";
 import { aiProfileProposalStale, applyAiProfilePayload } from "./ai-profiles";
 import { applyWebhookPayload, emitEvent, webhookProposalStale } from "./webhooks";
@@ -22,9 +29,51 @@ import { DomainError } from "./errors";
 const id = z.uuid();
 type Tx = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
 type Row = typeof projects.$inferSelect;
+// The limits that a priority sets for itself, each as stored when it is a valid number of hours, null otherwise.
+// A pair that would put the warning after the overdue limit is read as no limits of its own.
+const priorityOverrides = (
+  settings: Record<string, unknown>,
+  base: { warnHours: number; overdueHours: number },
+) => {
+  const hours = (key: string) => {
+    const value = settings[key];
+    return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 720
+      ? value
+      : null;
+  };
+  const pair = (priority: "low" | "high" | "urgent") => {
+    const warn = hours(priorityLimitKey("warn", priority));
+    const overdue = hours(priorityLimitKey("overdue", priority));
+    return (warn ?? base.warnHours) <= (overdue ?? base.overdueHours)
+      ? { warn, overdue }
+      : { warn: null, overdue: null };
+  };
+  const [low, high, urgent] = [pair("low"), pair("high"), pair("urgent")];
+  return {
+    warnHoursLow: low.warn,
+    overdueHoursLow: low.overdue,
+    warnHoursHigh: high.warn,
+    overdueHoursHigh: high.overdue,
+    warnHoursUrgent: urgent.warn,
+    overdueHoursUrgent: urgent.overdue,
+  };
+};
+// The periods of the retention as the configuration holds them.
+const retentionValues = (settings: Record<string, unknown>) => {
+  const periods = retentionOf(settings);
+  return {
+    retentionTicketsDays: periods.tickets,
+    retentionAttachmentsDays: periods.attachments,
+    retentionOriginalsDays: periods.originals,
+    retentionTranslationsDays: periods.translations,
+    retentionAiRunsDays: periods.aiRuns,
+  };
+};
 export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "settings">) {
   const settings = row.settings;
   const { warnHours, overdueHours } = limitsOf(settings);
+  const reply = replyPolicyOf(settings);
+  const auto = autoResolveOf(settings);
   return configDocument.parse({
     name: row.name,
     color: row.color,
@@ -40,6 +89,16 @@ export function configOf(row: Pick<Row, "name" | "color" | "defaultLanguage" | "
     pauseOutgoing: settings.pauseOutgoing === true,
     warnHours,
     overdueHours,
+    reopenMode: reply.mode,
+    reopenDays: reply.days,
+    autoResolveDays: auto.days,
+    autoResolveReminderDays: auto.reminderDays,
+    junkSensitivity: junkSensitivityOf(settings.junkSensitivity),
+    ...businessSettingsOf(settings),
+    ...priorityOverrides(settings, { warnHours, overdueHours }),
+    ...retentionValues(settings),
+    ...rulesOf(settings),
+    categories: categoriesOf(settings).join("\n"),
   });
 }
 function readable(principal: Principal, project: string): void {
@@ -85,6 +144,14 @@ async function apply(tx: Tx, project: string, config: ConfigDocument, version: n
   await supersedeOlder(tx, project, next);
   return next;
 }
+// The settings that a configuration document would store, for the parts that are compared before it is written.
+const sqlSettings = (config: ConfigDocument): Record<string, unknown> => ({
+  retentionTicketsDays: config.retentionTicketsDays,
+  retentionAttachmentsDays: config.retentionAttachmentsDays,
+  retentionOriginalsDays: config.retentionOriginalsDays,
+  retentionTranslationsDays: config.retentionTranslationsDays,
+  retentionAiRunsDays: config.retentionAiRunsDays,
+});
 function sqlMerge(config: ConfigDocument) {
   const values = {
     acknowledgements: config.acknowledgements,
@@ -94,6 +161,29 @@ function sqlMerge(config: ConfigDocument) {
     pauseOutgoing: config.pauseOutgoing,
     warnHours: config.warnHours,
     overdueHours: config.overdueHours,
+    reopenMode: config.reopenMode,
+    reopenDays: config.reopenDays,
+    autoResolveDays: config.autoResolveDays,
+    autoResolveReminderDays: config.autoResolveReminderDays,
+    junkSensitivity: config.junkSensitivity,
+    notifyNewTicket: config.notifyNewTicket,
+    notifyAssignment: config.notifyAssignment,
+    notifyMention: config.notifyMention,
+    notifyOverdue: config.notifyOverdue,
+    notifyDraft: config.notifyDraft,
+    ...businessValuesOf(config),
+    warnHoursLow: config.warnHoursLow,
+    overdueHoursLow: config.overdueHoursLow,
+    warnHoursHigh: config.warnHoursHigh,
+    overdueHoursHigh: config.overdueHoursHigh,
+    warnHoursUrgent: config.warnHoursUrgent,
+    overdueHoursUrgent: config.overdueHoursUrgent,
+    categories: (parseCategories(config.categories) ?? []).join("\n"),
+    retentionTicketsDays: config.retentionTicketsDays,
+    retentionAttachmentsDays: config.retentionAttachmentsDays,
+    retentionOriginalsDays: config.retentionOriginalsDays,
+    retentionTranslationsDays: config.retentionTranslationsDays,
+    retentionAiRunsDays: config.retentionAiRunsDays,
   };
   return sql`${projects.settings} || ${JSON.stringify(values)}::jsonb`;
 }
@@ -182,7 +272,13 @@ export async function putConfig(
       (principal.kind !== "human" || !permits(principal, project, "config.approve"))
     )
       throw new DomainError("forbidden", 403);
-    const direct = principal.kind === "human" || current.approvalPolicy === "direct";
+    // A retention period that is set or made shorter removes more than before: only a person with the right to
+    // approve applies it, under every policy; anyone else proposes it.
+    const tightened = tightens(retentionOf(row.settings), retentionOf(sqlSettings(request.config)));
+    const direct =
+      tightened.length > 0
+        ? principal.kind === "human" && permits(principal, project, "config.approve")
+        : principal.kind === "human" || current.approvalPolicy === "direct";
     if (options.validate)
       return {
         outcome: direct ? "applied" : "proposed",
@@ -286,6 +382,8 @@ async function proposalStale(tx: Tx, project: string, proposal: Proposal): Promi
     return textProposalStale(tx, project, proposal.payload, proposal.baseVersion);
   if (proposal.kind === "ai_profile.set")
     return aiProfileProposalStale(tx, project, proposal.target, proposal.baseVersion);
+  if (proposal.kind.startsWith("canned."))
+    return cannedProposalStale(tx, project, proposal.kind, proposal.target, proposal.baseVersion);
   if (proposal.kind.startsWith("webhook.")) {
     if (proposal.kind === "webhook.create") return false;
     return webhookProposalStale(tx, project, proposal.target, proposal.baseVersion);
@@ -308,6 +406,16 @@ async function applyProposal(
     return applyTextPayload(tx, project, proposal.payload, actor, proposal.diff);
   if (proposal.kind === "ai_profile.set")
     return applyAiProfilePayload(tx, project, proposal.payload, actor, proposal.diff);
+  if (proposal.kind.startsWith("canned."))
+    return applyCannedPayload(
+      tx,
+      project,
+      proposal.kind,
+      proposal.target,
+      proposal.payload,
+      actor,
+      proposal.diff,
+    );
   if (proposal.kind.startsWith("webhook."))
     return applyWebhookPayload(
       tx,

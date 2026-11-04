@@ -42,6 +42,13 @@ export function isAutomaticMail(headers: ReadonlyMap<string, HeaderValue>, sende
   const local = sender.slice(0, sender.lastIndexOf("@"));
   return automaticLocalParts.test(local);
 }
+// The text of the reminder before a ticket is resolved for want of an answer, for the customer's language.
+export function reminderText(language: string, number: number, days: number, own?: string): string {
+  return fillText(own ?? textKeys.autoResolveReminder.defaults[baseLanguage(language)], {
+    number,
+    days,
+  });
+}
 // The text of the acknowledgement for a customer's language; a project's own
 // wording replaces the built-in one.
 export function acknowledgementText(language: string, number: number, own?: string): string {

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ArrowUpRight,
+  Bell,
   BellRing,
   Check,
   ChevronDown,
@@ -14,23 +15,23 @@ import {
   LogOut,
   Monitor,
   Moon,
-  Plus,
   Search,
   Send,
   Languages,
   Sparkles,
   Undo2,
+  Ellipsis,
   Settings as SettingsIcon,
   ShieldAlert,
   Sun,
   X,
 } from "lucide-react";
 import { z } from "zod";
-import { Dialog } from "@base-ui/react/dialog";
 import { OriginalPreview } from "./original-preview";
 import { PortalLink } from "./portal-link";
 import { Reminder } from "./reminder";
 import { listCeiling, listStep } from "../domain/paging";
+import { calendarOf } from "../domain/business-hours";
 import { responseState } from "../domain/response-clock";
 import type { Locale } from "../domain/locale";
 import { actions } from "../domain/permissions";
@@ -39,9 +40,21 @@ import { Issues } from "./issues";
 import { Knowledge } from "./knowledge";
 import { Translations } from "./translations";
 import { aiWorkStates, stopLevels } from "../domain/agent-work";
-import { Settings } from "./settings";
+import { areaOf, fromLocation, Settings } from "./settings";
+import { Notifications } from "./notifications";
+import { SavedViews } from "./saved-views";
+import type { SavedView } from "../domain/views";
+import { MentionPicker, type Mention } from "./mention-picker";
+import { notificationPage } from "../domain/notifications";
 import { Junk } from "./junk";
 import { Tags } from "./tags";
+import { CannedPicker } from "./canned-picker";
+import { EraseTicket } from "./erase-ticket";
+import { textOn } from "../domain/branding";
+import { tagStyle } from "../domain/tags";
+import { priorityKey, Triage } from "./triage";
+import { priorities, priorityOf, type Priority } from "../domain/triage";
+import { useZone } from "./time-zone";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -55,6 +68,8 @@ const ticketSchema = z.object({
   pendingSince: z.string().nullable(),
   remindAt: z.string().nullable(),
   tags: z.array(z.string()),
+  priority: z.string(),
+  category: z.string().nullable(),
   junkAt: z.string().nullable(),
   assigneeUserId: z.string().nullable(),
   assigneeAgentId: z.string().nullable(),
@@ -209,6 +224,13 @@ interface Project {
   defaultLanguage: string;
   // After how many hours without an answer a ticket of the project is overdue.
   overdueHours: number;
+  // The business hours of the response clock, in the form of the configuration.
+  clock: Record<string, unknown>;
+  // The limits of the clock for each priority, and the categories that a ticket of the project can have.
+  limits: Record<string, { warnHours: number; overdueHours: number }>;
+  categories: string[];
+  // The colours that the project gave to tags.
+  tagColors: Record<string, string>;
 }
 interface Overview {
   projects: {
@@ -231,6 +253,14 @@ interface Props {
   initialLocale: Locale;
   localePreference: string | null;
   serverTime: number;
+  // The number of unread notifications when the page was made; the desk asks again every minute.
+  initialUnread: number;
+  // The saved views of the operator; the one that is the start is applied when the desk opens without a ticket.
+  initialViews: SavedView[];
+  // The topic and the project of the settings, when the address opened them.
+  initialSettings: { topic: string | null; project: string | null } | null;
+  // Whether the person has settings of the workspace or of a project; the account is theirs in any case.
+  settingsAvailable: boolean;
 }
 type Theme = "system" | "light" | "dark";
 const themes: { value: Theme; icon: typeof Sun; label: string }[] = [
@@ -243,7 +273,17 @@ function applyTheme(theme: Theme): void {
   else document.documentElement.dataset.theme = theme;
 }
 type View =
-  "overview" | "inbox" | "overdue" | "reminders" | "waiting" | "resolved" | "junk" | "settings";
+  | "overview"
+  | "inbox"
+  | "overdue"
+  | "reminders"
+  | "waiting"
+  | "resolved"
+  | "notifications"
+  | "junk"
+  | "settings"
+  // The account of the person (profile, notifications, sign-in): behind their entry at the bottom of the menu.
+  | "account";
 export function Desk({
   projects,
   initialTickets,
@@ -254,15 +294,97 @@ export function Desk({
   initialLocale,
   localePreference,
   serverTime,
+  initialUnread,
+  initialViews,
+  initialSettings,
+  settingsAvailable,
 }: Props) {
   const t = useTranslations();
+  const zone = useZone();
   const router = useRouter();
   const [, transition] = useTransition();
-  const [view, setView] = useState<View>(initialTicketId ? "inbox" : "overview");
-  const [filters, setFilters] = useState<string[]>([]);
+  // The view that the desk opens with, unless it was opened for a ticket; a view with no readable project is left out.
+  const start = initialTicketId
+    ? undefined
+    : initialViews.find((entry) => entry.start && !entry.restricted);
+  const [views, setViews] = useState(initialViews);
+  // The settings view for an address: the account topics are the account, and a person without settings of the
+  // workspace is shown their account for any other topic.
+  const settingsViewOf = (topic: string | null): View =>
+    areaOf(topic) === "account" || !settingsAvailable ? "account" : "settings";
+  const [view, setView] = useState<View>(
+    initialTicketId
+      ? "inbox"
+      : initialSettings
+        ? settingsViewOf(initialSettings.topic)
+        : (start?.list ?? "overview"),
+  );
+  // The topic and the project that the next opening of the settings starts with: those of the address, until the
+  // person has opened another view or followed the browser's back and forward buttons.
+  const [entry, setEntry] = useState(initialSettings);
+  const [unreadNotifications, setUnreadNotifications] = useState(initialUnread);
+  // On a narrow screen the part of the menu below the tabs is closed until the last tab opens it.
+  const [more, setMore] = useState(false);
+  // On a narrow screen the details of a ticket (assignee, tags, reminder, link) are closed until asked for.
+  const [inspector, setInspector] = useState(false);
+  // The settings and the account have an address of their own (the topic is part of it, see settings.tsx); another view
+  // has none. An address of the other area is replaced by the list of the area that is shown.
+  useEffect(() => {
+    const named = new URLSearchParams(window.location.search).get("settings");
+    const wanted = view === "account" ? "account" : view === "settings" ? "workspace" : null;
+    const here = named === null ? null : areaOf(named === "" ? null : named);
+    if (wanted !== null && here !== wanted)
+      window.history.replaceState(
+        window.history.state as unknown,
+        "",
+        wanted === "account" ? "/?settings=account" : "/?settings=",
+      );
+    if (wanted === null && here !== null)
+      window.history.replaceState(window.history.state as unknown, "", "/");
+  }, [view]);
+  // The browser's back and forward buttons between the account and the other settings: the desk shows the area that the
+  // address names, and that area starts with the topic of the address. The listener is put up once and reads the
+  // current rule through a reference, so that no event falls into the gap of a listener that is taken down and put up
+  // again with each render.
+  const settingsView = useRef(settingsViewOf);
+  settingsView.current = settingsViewOf;
+  useEffect(() => {
+    const follow = () => {
+      const named = new URLSearchParams(window.location.search).get("settings");
+      if (named === null) return;
+      // The area comes from the address as it is: the list of the account is `account`, which is no topic.
+      setEntry(fromLocation());
+      setView(settingsView.current(named === "" ? null : named));
+    };
+    window.addEventListener("popstate", follow);
+    return () => {
+      window.removeEventListener("popstate", follow);
+    };
+  }, []);
+  // The number of unread notifications comes with the page and is asked for again every minute; the list asks again
+  // when it opens. Nothing is asked for while the page loads, because a request that a navigation cuts off is reported
+  // as an error by WebKit.
+  useEffect(() => {
+    const run = { current: true };
+    const ask = () =>
+      void fetch("/api/v1/me/notifications?limit=1")
+        .then(async (response) => {
+          const parsed = response.ok ? notificationPage.safeParse(await response.json()) : null;
+          if (parsed?.success && run.current) setUnreadNotifications(parsed.data.unread);
+        })
+        .catch(() => null);
+    const timer = window.setInterval(ask, 60_000);
+    return () => {
+      run.current = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+  const [filters, setFilters] = useState<string[]>(start?.projects ?? []);
   const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(start?.tag ?? null);
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "">(start?.priority ?? "");
+  const [categoryFilter, setCategoryFilter] = useState(start?.category ?? "");
   // The server's answer for a text of two or more characters; it covers all
   // tickets of the authorized projects, not only the loaded list.
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -274,6 +396,8 @@ export function Desk({
   const [errorWait, setErrorWait] = useState<{ key: string; seconds: number } | null>(null);
   const [draft, setDraft] = useState("");
   const [internal, setInternal] = useState(false);
+  // The people that the note in the composer is for (see `MentionPicker`).
+  const [mentions, setMentions] = useState<Mention[]>([]);
   const [sending, setSending] = useState(false);
   // A draft that a model wrote: running, the instruction for the next one, what the
   // field held before (to undo it) and what to tell the person about it.
@@ -288,9 +412,6 @@ export function Desk({
   const [assistSources, setAssistSources] = useState(0);
   const [theme, setTheme] = useState<Theme>("system");
   const [now, setNow] = useState(serverTime);
-  const [creating, setCreating] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [slug, setSlug] = useState("");
   const messageList = useRef<HTMLDivElement>(null);
   // Where the person is now, so that a draft that arrives after they moved on is dropped.
   const place = useRef({ selected: initialTicketId, internal: false });
@@ -320,6 +441,7 @@ export function Desk({
     setError(null);
     setDraft(localStorage.getItem(`aidesk:${operator.id}:${selected}:draft`) ?? "");
     setInternal(false);
+    setMentions([]);
     setUndo(null);
     setAssistNote(null);
     void fetch(`/api/v1/tickets/${selected}`, { signal: controller.signal })
@@ -434,6 +556,8 @@ export function Desk({
     (ticket) =>
       (!filters.length || filters.includes(ticket.projectId)) &&
       (tagFilter === null || ticket.tags.includes(tagFilter)) &&
+      (priorityFilter === "" || priorityOf(ticket.priority) === priorityFilter) &&
+      (categoryFilter === "" || ticket.category === categoryFilter) &&
       (searching ||
         `${ticket.subject} ${ticket.requesterName} ${ticket.requesterEmail}`
           .toLowerCase()
@@ -445,13 +569,23 @@ export function Desk({
       { receivedAt: new Date(ticket.pendingSince), answeredAt: null },
       new Date(now),
       undefined,
-      projectById.get(ticket.projectId)?.overdueHours,
+      projectById.get(ticket.projectId)?.limits[priorityOf(ticket.priority)]?.overdueHours ??
+        projectById.get(ticket.projectId)?.overdueHours,
+      calendarOf(projectById.get(ticket.projectId)?.clock ?? {}),
     ) === "overdue";
   // The list is refreshed after a change, so it is the newer source; a cleared
   // reminder is null there and must not fall back to the older conversation.
   const reminderOf = (ticket: { id: string; remindAt: string | null }) => {
     const entry = initialTickets.find((candidate) => candidate.id === ticket.id);
     return entry ? entry.remindAt : ticket.remindAt;
+  };
+  // The list is refreshed after a change, so it is the newer source for the priority and the category too.
+  const triageOf = (ticket: { id: string; priority: string; category: string | null }) => {
+    const fresh = initialTickets.find((candidate) => candidate.id === ticket.id);
+    return {
+      priority: fresh?.priority ?? ticket.priority,
+      category: fresh ? fresh.category : ticket.category,
+    };
   };
   const tagsOf = (ticket: { id: string; tags: string[] }) =>
     initialTickets.find((candidate) => candidate.id === ticket.id)?.tags ?? ticket.tags;
@@ -465,6 +599,17 @@ export function Desk({
         new Map<string, number>(),
       ),
   ].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  // The categories of the chosen projects and the ones that their loaded tickets have, for the filter.
+  const categoryChoices = [
+    ...new Set([
+      ...projects
+        .filter((project) => !filters.length || filters.includes(project.id))
+        .flatMap((project) => project.categories),
+      ...initialTickets
+        .filter((ticket) => !filters.length || filters.includes(ticket.projectId))
+        .flatMap((ticket) => (ticket.category === null ? [] : [ticket.category])),
+    ]),
+  ].sort((a, b) => a.localeCompare(b));
   // Numbers over every ticket of the chosen projects, counted by the server,
   // and the oldest unanswered ones of those projects.
   const chosen = overview.projects.filter(
@@ -665,6 +810,9 @@ export function Desk({
         body: JSON.stringify({
           markdown: draft,
           internal,
+          ...(internal && mentions.length > 0
+            ? { mentions: mentions.map((entry) => entry.id) }
+            : {}),
           language: conversation.ticket.language,
           expectedRevision: conversation.ticket.revision,
           idempotencyKey: crypto.randomUUID(),
@@ -675,6 +823,7 @@ export function Desk({
         return;
       }
       editDraft("");
+      setMentions([]);
       setUndo(null);
       setAssistNote(null);
       const fresh = await fetch(`/api/v1/tickets/${selected}`);
@@ -690,26 +839,8 @@ export function Desk({
       setSending(false);
     }
   }
-  async function create(): Promise<void> {
-    setSending(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/v1/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: projectName, slug, defaultLanguage: initialLocale }),
-      });
-      if (!response.ok) throw new Error("create_failed");
-      setCreating(false);
-      setProjectName("");
-      setSlug("");
-      router.refresh();
-    } catch {
-      setError("error");
-    } finally {
-      setSending(false);
-    }
-  }
+  // On a narrow screen these views are in the panel of the last tab; the others have a tab.
+  const secondary: View[] = ["reminders", "waiting", "resolved", "junk"];
   const navigation: { view: View; icon: typeof Inbox }[] = [
     { view: "overview", icon: LayoutDashboard },
     { view: "inbox", icon: Inbox },
@@ -717,13 +848,15 @@ export function Desk({
     { view: "reminders", icon: BellRing },
     { view: "waiting", icon: ArrowUpRight },
     { view: "resolved", icon: Check },
+    { view: "notifications", icon: Bell },
     { view: "junk", icon: ShieldAlert },
-    { view: "settings", icon: SettingsIcon },
+    // A person who manages nothing has no settings of the workspace; their account is behind their name.
+    ...(settingsAvailable ? [{ view: "settings" as const, icon: SettingsIcon }] : []),
   ];
   return (
-    <Dialog.Root open={creating} onOpenChange={setCreating}>
+    <>
       <div className="desk-shell">
-        <aside className="sidebar">
+        <aside className={`sidebar${more ? " more" : ""}`}>
           <a className="brand" href="/">
             <span className="brand-mark">
               <Layers3 size={20} />
@@ -734,20 +867,61 @@ export function Desk({
             {navigation.map((item) => (
               <button
                 key={item.view}
-                className={`nav-item ${view === item.view ? "active" : ""}`}
+                className={`nav-item ${view === item.view ? "active" : ""}${secondary.includes(item.view) ? " nav-secondary" : ""}`}
                 onClick={() => {
+                  setMore(false);
+                  setEntry(null);
                   setView(item.view);
                 }}
               >
                 <item.icon size={18} />
-                {t(item.view)}
+                {item.view === "notifications" ? (
+                  <>
+                    <span className="label-full">{t(item.view)}</span>
+                    <span className="label-short">{t("notificationsShort")}</span>
+                  </>
+                ) : (
+                  t(item.view)
+                )}
                 {item.view === "overdue" && sum("overdue") > 0 && (
                   <span className="nav-count">{sum("overdue")}</span>
                 )}
+                {item.view === "notifications" && unreadNotifications > 0 && (
+                  <span className="nav-count">{unreadNotifications}</span>
+                )}
               </button>
             ))}
+            <button
+              type="button"
+              className="nav-item nav-more"
+              aria-expanded={more}
+              onClick={() => {
+                setMore(!more);
+              }}
+            >
+              <Ellipsis size={18} />
+              {t("more")}
+            </button>
           </nav>
           <div className="sidebar-bottom">
+            <div className="more-views">
+              {navigation
+                .filter((item) => secondary.includes(item.view))
+                .map((item) => (
+                  <button
+                    key={item.view}
+                    type="button"
+                    className={`nav-item ${view === item.view ? "active" : ""}`}
+                    onClick={() => {
+                      setMore(false);
+                      setView(item.view);
+                    }}
+                  >
+                    <item.icon size={18} />
+                    {t(item.view)}
+                  </button>
+                ))}
+            </div>
             <label className="locale-select">
               {t("language")}
               <select
@@ -788,8 +962,24 @@ export function Desk({
               ))}
             </div>
             <div className="operator">
-              <span className="avatar">{operator.name.slice(0, 1)}</span>
-              <span>{operator.name}</span>
+              <button
+                type="button"
+                className="operator-link"
+                aria-label={t("accountOpen", { name: operator.name })}
+                aria-current={view === "account" ? "page" : undefined}
+                onClick={() => {
+                  setMore(false);
+                  setEntry(null);
+                  setView("account");
+                }}
+              >
+                <span
+                  className="avatar avatar-initial"
+                  aria-hidden="true"
+                  data-initial={operator.name.slice(0, 1)}
+                />
+                <span>{operator.name}</span>
+              </button>
               <button
                 className="icon-button"
                 aria-label={t("signOut")}
@@ -812,61 +1002,84 @@ export function Desk({
           <header className="topbar">
             <h1>{t(view)}</h1>
             <div className="topbar-actions">
-              <div className="project-filter">
-                <button
-                  className="secondary filter-trigger"
-                  aria-expanded={filterOpen}
-                  onClick={() => {
-                    setFilterOpen(!filterOpen);
-                  }}
-                >
-                  <Layers3 size={16} />
-                  {!filters.length
-                    ? t("allProjects")
-                    : projects
-                        .filter((project) => filters.includes(project.id))
-                        .map((project) => project.name)
-                        .join(", ")}
-                  <ChevronDown size={14} />
-                </button>
-                {filterOpen && (
-                  <div className="filter-menu">
+              {view !== "settings" && view !== "account" && view !== "notifications" && (
+                <>
+                  <div className="project-filter">
                     <button
+                      className="secondary filter-trigger"
+                      aria-expanded={filterOpen}
                       onClick={() => {
-                        setFilters([]);
+                        setFilterOpen(!filterOpen);
                       }}
                     >
-                      <span>{t("allProjects")}</span>
-                      {!filters.length && <Check size={14} />}
+                      <Layers3 size={16} />
+                      {!filters.length
+                        ? t("allProjects")
+                        : projects
+                            .filter((project) => filters.includes(project.id))
+                            .map((project) => project.name)
+                            .join(", ")}
+                      <ChevronDown size={14} />
                     </button>
-                    {projects.map((project) => (
-                      <label key={project.id}>
-                        <input
-                          type="checkbox"
-                          checked={filters.includes(project.id)}
-                          onChange={(event) => {
-                            setFilters(
-                              event.target.checked
-                                ? [...filters, project.id]
-                                : filters.filter((id) => id !== project.id),
-                            );
+                    {filterOpen && (
+                      <div className="filter-menu">
+                        <button
+                          onClick={() => {
+                            setFilters([]);
                           }}
-                        />
-                        <i style={{ background: project.color }} />
-                        {project.name}
-                      </label>
-                    ))}
+                        >
+                          <span>{t("allProjects")}</span>
+                          {!filters.length && <Check size={14} />}
+                        </button>
+                        {projects.map((project) => (
+                          <label key={project.id}>
+                            <input
+                              type="checkbox"
+                              checked={filters.includes(project.id)}
+                              onChange={(event) => {
+                                setFilters(
+                                  event.target.checked
+                                    ? [...filters, project.id]
+                                    : filters.filter((id) => id !== project.id),
+                                );
+                              }}
+                            />
+                            <i style={{ background: project.color }} />
+                            {project.name}
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              {operator.owner && (
-                <Dialog.Trigger className="icon-button" aria-label={t("newProject")}>
-                  <Plus size={20} />
-                </Dialog.Trigger>
+                  <SavedViews
+                    views={views}
+                    current={{
+                      list: view,
+                      projects: filters,
+                      tag: tagFilter,
+                      priority: priorityFilter,
+                      category: categoryFilter,
+                    }}
+                    onChange={setViews}
+                    onApply={(saved) => {
+                      setView(saved.list);
+                      setFilters(saved.projects);
+                      setTagFilter(saved.tag);
+                      setPriorityFilter(saved.priority ?? "");
+                      setCategoryFilter(saved.category ?? "");
+                    }}
+                  />
+                </>
               )}
             </div>
           </header>
-          {view === "junk" ? (
+          {view === "notifications" ? (
+            <Notifications
+              locale={initialLocale}
+              onOpen={select}
+              onUnread={setUnreadNotifications}
+            />
+          ) : view === "junk" ? (
             <Junk
               projects={projects}
               locale={initialLocale}
@@ -876,15 +1089,32 @@ export function Desk({
                 });
               }}
             />
-          ) : view === "settings" ? (
+          ) : view === "settings" || view === "account" ? (
             <Settings
+              key={view}
+              area={view === "account" ? "account" : "workspace"}
               viewerId={operator.id}
               owner={operator.owner}
               projects={projects}
               locale={initialLocale}
+              initialTopic={entry?.topic ?? null}
+              initialProject={entry?.project ?? null}
             />
           ) : view === "overview" ? (
             <section className="overview">
+              {projects.length === 0 && (
+                <div className="start-note">
+                  <h2>{t("noProjectsTitle")}</h2>
+                  <p className="muted">
+                    {t(operator.owner ? "noProjectsOwner" : "noProjectsOther")}
+                  </p>
+                  {operator.owner && (
+                    <a className="primary" href="/?settings=projects">
+                      {t("noProjectsAction")}
+                    </a>
+                  )}
+                </div>
+              )}
               <h2 className="eyebrow">{t("attention")}</h2>
               <div className="metric-grid">
                 <button
@@ -995,6 +1225,12 @@ export function Desk({
                       <button
                         key={tag}
                         type="button"
+                        style={tagStyle(
+                          filters.length === 1
+                            ? projectById.get(filters[0] ?? "")?.tagColors[tag]
+                            : undefined,
+                          textOn,
+                        )}
                         className={`tag-chip ${tagFilter === tag ? "active" : ""}`}
                         aria-pressed={tagFilter === tag}
                         onClick={() => {
@@ -1006,6 +1242,44 @@ export function Desk({
                     ))}
                   </div>
                 )}
+                <div className="triage-filter" role="group" aria-label={t("triageFilter")}>
+                  <label>
+                    {t("priorityLabel")}
+                    <select
+                      value={priorityFilter}
+                      onChange={(event) => {
+                        setPriorityFilter(
+                          event.target.value === "" ? "" : priorityOf(event.target.value),
+                        );
+                      }}
+                    >
+                      <option value="">{t("filterAll")}</option>
+                      {priorities.map((entry) => (
+                        <option key={entry} value={entry}>
+                          {t(priorityKey(entry))}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {categoryChoices.length > 0 && (
+                    <label>
+                      {t("categoryLabel")}
+                      <select
+                        value={categoryFilter}
+                        onChange={(event) => {
+                          setCategoryFilter(event.target.value);
+                        }}
+                      >
+                        <option value="">{t("filterAll")}</option>
+                        {categoryChoices.map((entry) => (
+                          <option key={entry} value={entry}>
+                            {entry}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
                 {searching && hits !== null ? (
                   <>
                     <div className="list-heading" role="status">
@@ -1063,16 +1337,36 @@ export function Desk({
                           <span className={reminderDue(ticket) ? "urgent-text" : "muted"}>
                             {t(reminderDue(ticket) ? "reminderDueShort" : "reminderSetShort", {
                               date: new Intl.DateTimeFormat(initialLocale, {
+                                ...zone,
                                 dateStyle: "medium",
                                 timeStyle: "short",
                               }).format(new Date(ticket.remindAt)),
                             })}
                           </span>
                         )}
+                        {(priorityOf(ticket.priority) !== "normal" || ticket.category !== null) && (
+                          <span className="ticket-row-triage">
+                            {priorityOf(ticket.priority) !== "normal" && (
+                              <span className={`priority-badge ${priorityOf(ticket.priority)}`}>
+                                {t(priorityKey(priorityOf(ticket.priority)))}
+                              </span>
+                            )}
+                            {ticket.category !== null && (
+                              <span className="tag-chip">{ticket.category}</span>
+                            )}
+                          </span>
+                        )}
                         {ticket.tags.length > 0 && (
                           <span className="ticket-row-tags">
                             {ticket.tags.map((tag) => (
-                              <span key={tag} className="tag-chip">
+                              <span
+                                key={tag}
+                                className="tag-chip"
+                                style={tagStyle(
+                                  projectById.get(ticket.projectId)?.tagColors[tag],
+                                  textOn,
+                                )}
+                              >
                                 {tag}
                               </span>
                             ))}
@@ -1136,97 +1430,152 @@ export function Desk({
                       <span className="status-badge">
                         {t(conversation.ticket.junkAt ? "junk" : conversation.ticket.status)}
                       </span>
-                      <div className="ticket-tools">
-                        {!conversation.ticket.junkAt && (
-                          <details className="ticket-knowledge">
-                            <summary>{t("knowledgeToggle")}</summary>
-                            <Knowledge
-                              key={conversation.ticket.id}
+                      <button
+                        type="button"
+                        className="secondary inspector-toggle"
+                        aria-expanded={inspector}
+                        onClick={() => {
+                          setInspector(!inspector);
+                        }}
+                      >
+                        {t("ticketDetails")}
+                      </button>
+                      <div className={`ticket-tools${inspector ? " open" : ""}`}>
+                        <div className="inspector-group">
+                          <span className="inspector-title">{t("ticketGroupHandling")}</span>
+                          {!conversation.ticket.junkAt && (
+                            <Assignment
+                              key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
                               ticketId={conversation.ticket.id}
-                              locale={initialLocale}
-                            />
-                          </details>
-                        )}
-                        {!conversation.ticket.junkAt && (
-                          <Issues
-                            key={`${conversation.ticket.id}:issues`}
-                            ticketId={conversation.ticket.id}
-                            canNote={conversation.actions.includes("ticket.note")}
-                            canPublish={conversation.actions.includes("github.publish")}
-                          />
-                        )}
-                        {!conversation.ticket.junkAt && (
-                          <Assignment
-                            key={`${conversation.ticket.id}:${String(conversation.ticket.revision)}:${conversation.aiWork?.state ?? ""}:${conversation.assignee?.id ?? ""}`}
-                            ticketId={conversation.ticket.id}
-                            revision={conversation.ticket.revision}
-                            assignee={conversation.assignee}
-                            aiWork={conversation.aiWork}
-                            canAssign={conversation.actions.includes("ticket.assign")}
-                            onChanged={() => {
-                              void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
-                                .then(async (response) => {
-                                  if (response.ok)
-                                    setConversation(
-                                      conversationSchema.parse(await response.json()),
-                                    );
-                                })
-                                .catch(() => undefined);
-                              transition(() => {
-                                router.refresh();
-                              });
-                            }}
-                          />
-                        )}
-                        {conversation.actions.includes("ticket.reply") &&
-                          !conversation.ticket.junkAt && (
-                            <PortalLink
-                              key={`${conversation.ticket.id}:portal`}
-                              ticketId={conversation.ticket.id}
-                              locale={initialLocale}
-                            />
-                          )}
-                        {conversation.actions.includes("ticket.note") &&
-                          !conversation.ticket.junkAt && (
-                            <Tags
-                              key={`${conversation.ticket.id}:tags`}
-                              ticketId={conversation.ticket.id}
-                              projectId={conversation.ticket.projectId}
-                              tags={tagsOf(conversation.ticket)}
+                              revision={conversation.ticket.revision}
+                              assignee={conversation.assignee}
+                              aiWork={conversation.aiWork}
+                              canAssign={conversation.actions.includes("ticket.assign")}
                               onChanged={() => {
+                                void fetch(`/api/v1/tickets/${conversation.ticket.id}`)
+                                  .then(async (response) => {
+                                    if (response.ok)
+                                      setConversation(
+                                        conversationSchema.parse(await response.json()),
+                                      );
+                                  })
+                                  .catch(() => undefined);
                                 transition(() => {
                                   router.refresh();
                                 });
                               }}
                             />
                           )}
-                        {conversation.actions.includes("ticket.note") &&
-                          !conversation.ticket.junkAt && (
-                            <Reminder
-                              key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
+                          {conversation.actions.includes("ticket.assign") &&
+                            !conversation.ticket.junkAt && (
+                              <Triage
+                                key={`${conversation.ticket.id}:triage:${triageOf(conversation.ticket).priority}:${triageOf(conversation.ticket).category ?? ""}`}
+                                ticketId={conversation.ticket.id}
+                                priority={triageOf(conversation.ticket).priority}
+                                category={triageOf(conversation.ticket).category}
+                                categories={
+                                  projectById.get(conversation.ticket.projectId)?.categories ?? []
+                                }
+                                onChanged={() => {
+                                  transition(() => {
+                                    router.refresh();
+                                  });
+                                }}
+                              />
+                            )}
+                        </div>
+                        <div className="inspector-group">
+                          <span className="inspector-title">{t("ticketGroupOrganise")}</span>
+                          {conversation.actions.includes("ticket.note") &&
+                            !conversation.ticket.junkAt && (
+                              <Tags
+                                key={`${conversation.ticket.id}:tags`}
+                                ticketId={conversation.ticket.id}
+                                projectId={conversation.ticket.projectId}
+                                tags={tagsOf(conversation.ticket)}
+                                colors={
+                                  projectById.get(conversation.ticket.projectId)?.tagColors ?? {}
+                                }
+                                onChanged={() => {
+                                  transition(() => {
+                                    router.refresh();
+                                  });
+                                }}
+                              />
+                            )}
+                          {conversation.actions.includes("ticket.note") &&
+                            !conversation.ticket.junkAt && (
+                              <Reminder
+                                key={`${conversation.ticket.id}:${reminderOf(conversation.ticket) ?? ""}`}
+                                ticketId={conversation.ticket.id}
+                                remindAt={reminderOf(conversation.ticket)}
+                                now={now}
+                                locale={initialLocale}
+                                onChanged={() => {
+                                  transition(() => {
+                                    router.refresh();
+                                  });
+                                }}
+                              />
+                            )}
+                        </div>
+                        <div className="inspector-group">
+                          <span className="inspector-title">{t("ticketGroupShare")}</span>
+                          {conversation.actions.includes("ticket.reply") &&
+                            !conversation.ticket.junkAt && (
+                              <PortalLink
+                                key={`${conversation.ticket.id}:portal`}
+                                ticketId={conversation.ticket.id}
+                                locale={initialLocale}
+                              />
+                            )}
+                          {!conversation.ticket.junkAt && (
+                            <details className="ticket-knowledge">
+                              <summary>{t("knowledgeToggle")}</summary>
+                              <Knowledge
+                                key={conversation.ticket.id}
+                                ticketId={conversation.ticket.id}
+                                locale={initialLocale}
+                              />
+                            </details>
+                          )}
+                          {!conversation.ticket.junkAt && (
+                            <Issues
+                              key={`${conversation.ticket.id}:issues`}
                               ticketId={conversation.ticket.id}
-                              remindAt={reminderOf(conversation.ticket)}
-                              now={now}
-                              locale={initialLocale}
-                              onChanged={() => {
+                              canNote={conversation.actions.includes("ticket.note")}
+                              canPublish={conversation.actions.includes("github.publish")}
+                            />
+                          )}
+                        </div>
+                        <div className="inspector-group inspector-danger">
+                          {conversation.actions.includes("ticket.junk") &&
+                            !conversation.ticket.junkAt && (
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => {
+                                  void moveToJunk();
+                                }}
+                              >
+                                {t("moveToJunk")}
+                              </button>
+                            )}
+                          {conversation.actions.includes("data.erase") && (
+                            <EraseTicket
+                              key={`${conversation.ticket.id}:erase`}
+                              ticketId={conversation.ticket.id}
+                              onErased={() => {
+                                setSelected(null);
+                                setConversation(null);
+                                window.history.replaceState(null, "", "/");
                                 transition(() => {
                                   router.refresh();
                                 });
                               }}
                             />
                           )}
-                        {conversation.actions.includes("ticket.junk") &&
-                          !conversation.ticket.junkAt && (
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() => {
-                                void moveToJunk();
-                              }}
-                            >
-                              {t("moveToJunk")}
-                            </button>
-                          )}
+                        </div>
                       </div>
                     </header>
                     <div
@@ -1252,6 +1601,7 @@ export function Desk({
                             )}
                             <time dateTime={message.createdAt}>
                               {new Intl.DateTimeFormat(initialLocale, {
+                                ...zone,
                                 dateStyle: "medium",
                                 timeStyle: "short",
                               }).format(new Date(message.createdAt))}
@@ -1449,7 +1799,39 @@ export function Desk({
                           rows={4}
                           readOnly={assisting || translating}
                         />
+                        {internal && (
+                          <MentionPicker
+                            key={conversation.ticket.id}
+                            ticketId={conversation.ticket.id}
+                            selfId={operator.id}
+                            chosen={mentions}
+                            disabled={sending || assisting || translating}
+                            onAdd={(person) => {
+                              setMentions((current) => [...current, person]);
+                              editDraft(
+                                `${draft}${draft && !/\s$/.test(draft) ? " " : ""}@${person.name} `,
+                              );
+                            }}
+                            onRemove={(personId) => {
+                              setMentions((current) =>
+                                current.filter((entry) => entry.id !== personId),
+                              );
+                            }}
+                          />
+                        )}
                         <div className="assist-row">
+                          {!internal && conversation.actions.includes("ticket.reply") && (
+                            <CannedPicker
+                              key={conversation.ticket.id}
+                              ticketId={conversation.ticket.id}
+                              disabled={assisting || translating || sending}
+                              onPick={(text) => {
+                                setUndo(draft);
+                                editDraft(draft.trim() ? `${draft.trimEnd()}\n\n${text}` : text);
+                                setAssistNote(null);
+                              }}
+                            />
+                          )}
                           <input
                             type="text"
                             aria-label={t("assistInstruction")}
@@ -1590,72 +1972,7 @@ export function Desk({
             </div>
           )}
         </main>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="modal-backdrop" />
-          <Dialog.Popup className="modal">
-            <button
-              className="icon-button modal-close"
-              aria-label={t("close")}
-              onClick={() => {
-                setCreating(false);
-              }}
-            >
-              <X size={18} />
-            </button>
-            <Dialog.Title render={<h2 />}>{t("newProject")}</Dialog.Title>
-            <Dialog.Description className="muted">{t("newProjectDescription")}</Dialog.Description>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void create();
-              }}
-            >
-              <label>
-                {t("projectName")}
-                <input
-                  value={projectName}
-                  onChange={(event) => {
-                    setProjectName(event.target.value);
-                  }}
-                  required
-                  maxLength={100}
-                />
-              </label>
-              <label>
-                {t("projectSlug")}
-                <input
-                  value={slug}
-                  onChange={(event) => {
-                    setSlug(event.target.value);
-                  }}
-                  required
-                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                  maxLength={60}
-                />
-              </label>
-              {error && (
-                <p className="error" role="alert">
-                  {t(error)}
-                </p>
-              )}
-              <div className="modal-actions">
-                <button
-                  className="secondary"
-                  type="button"
-                  onClick={() => {
-                    setCreating(false);
-                  }}
-                >
-                  {t("cancel")}
-                </button>
-                <button className="primary" disabled={sending}>
-                  {t("create")}
-                </button>
-              </div>
-            </form>
-          </Dialog.Popup>
-        </Dialog.Portal>
       </div>
-    </Dialog.Root>
+    </>
   );
 }

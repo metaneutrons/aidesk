@@ -90,6 +90,33 @@ describe("reading the configuration", () => {
         pauseOutgoing: false,
         warnHours: 4,
         overdueHours: 24,
+        reopenMode: "reopen",
+        reopenDays: 30,
+        autoResolveDays: null,
+        autoResolveReminderDays: null,
+        junkSensitivity: "standard",
+        notifyNewTicket: "off",
+        notifyAssignment: "assignee",
+        notifyMention: "assignee",
+        notifyOverdue: "assignee",
+        notifyDraft: "assignee",
+        businessDays: null,
+        businessStart: "09:00",
+        businessEnd: "17:00",
+        businessTimeZone: null,
+        holidays: "",
+        warnHoursLow: null,
+        overdueHoursLow: null,
+        warnHoursHigh: null,
+        overdueHoursHigh: null,
+        warnHoursUrgent: null,
+        overdueHoursUrgent: null,
+        categories: "",
+        retentionTicketsDays: null,
+        retentionAttachmentsDays: null,
+        retentionOriginalsDays: null,
+        retentionTranslationsDays: null,
+        retentionAiRunsDays: null,
       },
     });
   });
@@ -386,6 +413,223 @@ describe("the overdue limit", () => {
       .set({ settings: { overdueHours: "garbage" } })
       .where(eq(projects.id, projectId));
     expect((await current()).overdueHours).toBe(24);
+  });
+});
+describe("the policy for a reply to a resolved ticket", () => {
+  it("is part of the document: the mode and the window of 1 to 365 days, 30 days and reopening by default", async () => {
+    await reset();
+    expect(await current()).toMatchObject({ reopenMode: "reopen", reopenDays: 30 });
+    for (const bad of [
+      { reopenMode: "ignore" },
+      { reopenDays: 0 },
+      { reopenDays: 366 },
+      { reopenDays: 1.5 },
+    ])
+      await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(writer, projectId, await edit({ reopenMode: "refuse", reopenDays: 7 })),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [
+        { pointer: "/reopenMode", from: "reopen", to: "refuse" },
+        { pointer: "/reopenDays", from: 30, to: 7 },
+      ],
+    });
+    expect(await current()).toMatchObject({ reopenMode: "refuse", reopenDays: 7 });
+    // A value in the settings that is not valid reads as the default.
+    await db()
+      .update(projects)
+      .set({ settings: { reopenMode: "bogus", reopenDays: "many" } })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({ reopenMode: "reopen", reopenDays: 30 });
+  });
+});
+describe("the automatic resolve of a waiting ticket", () => {
+  it("is off by default, set with its reminder in one change, and a reminder needs the days and comes before them", async () => {
+    await reset();
+    expect(await current()).toMatchObject({ autoResolveDays: null, autoResolveReminderDays: null });
+    for (const bad of [
+      { autoResolveReminderDays: 3 },
+      { autoResolveDays: 14, autoResolveReminderDays: 14 },
+      { autoResolveDays: 0 },
+      { autoResolveDays: 366 },
+    ])
+      await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ autoResolveDays: 14, autoResolveReminderDays: 3 }),
+      ),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [
+        { pointer: "/autoResolveDays", from: null, to: 14 },
+        { pointer: "/autoResolveReminderDays", from: null, to: 3 },
+      ],
+    });
+    expect(await current()).toMatchObject({ autoResolveDays: 14, autoResolveReminderDays: 3 });
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ autoResolveDays: null, autoResolveReminderDays: null }),
+      ),
+    ).toMatchObject({ outcome: "applied" });
+    expect(await current()).toMatchObject({ autoResolveDays: null, autoResolveReminderDays: null });
+  });
+});
+describe("the sensitivity of the junk rules", () => {
+  it("is standard by default, takes off, standard or strict, and reads a bad value as the default", async () => {
+    await reset();
+    expect(await current()).toMatchObject({ junkSensitivity: "standard" });
+    await expect(
+      putConfig(writer, projectId, await edit({ junkSensitivity: "loud" })),
+    ).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(writer, projectId, await edit({ junkSensitivity: "strict" })),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [{ pointer: "/junkSensitivity", from: "standard", to: "strict" }],
+    });
+    expect(await current()).toMatchObject({ junkSensitivity: "strict" });
+    await db()
+      .update(projects)
+      .set({ settings: { junkSensitivity: "bogus" } })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({ junkSensitivity: "standard" });
+  });
+});
+describe("the rules for the notifications of operators", () => {
+  it("are off for a new ticket and on for the person in the other kinds, take only the modes of their kind and read a bad value as the default", async () => {
+    await reset();
+    expect(await current()).toMatchObject({
+      notifyNewTicket: "off",
+      notifyAssignment: "assignee",
+      notifyMention: "assignee",
+      notifyOverdue: "assignee",
+      notifyDraft: "assignee",
+    });
+    // A new ticket has nobody assigned, so "assignee" is not a mode of it; an assignment cannot go to everybody.
+    for (const bad of [
+      { notifyNewTicket: "assignee" },
+      { notifyAssignment: "members" },
+      { notifyMention: "members" },
+      { notifyOverdue: "everybody" },
+    ])
+      await expect(putConfig(writer, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ notifyNewTicket: "members", notifyOverdue: "members", notifyDraft: "off" }),
+      ),
+    ).toMatchObject({
+      outcome: "applied",
+      diff: [
+        { pointer: "/notifyNewTicket", from: "off", to: "members" },
+        { pointer: "/notifyOverdue", from: "assignee", to: "members" },
+        { pointer: "/notifyDraft", from: "assignee", to: "off" },
+      ],
+    });
+    expect(await current()).toMatchObject({
+      notifyNewTicket: "members",
+      notifyOverdue: "members",
+      notifyDraft: "off",
+    });
+    await db()
+      .update(projects)
+      .set({ settings: { notifyNewTicket: "bogus", notifyDraft: 7 } })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({ notifyNewTicket: "off", notifyDraft: "assignee" });
+  });
+});
+describe("the retention periods", () => {
+  it("are off by default and read as off when the stored value is not valid", async () => {
+    await reset();
+    expect(await current()).toMatchObject({
+      retentionTicketsDays: null,
+      retentionAttachmentsDays: null,
+      retentionOriginalsDays: null,
+      retentionTranslationsDays: null,
+      retentionAiRunsDays: null,
+    });
+    await db()
+      .update(projects)
+      .set({
+        settings: {
+          retentionTicketsDays: 0,
+          retentionAiRunsDays: "90",
+          retentionOriginalsDays: 4000,
+        },
+      })
+      .where(eq(projects.id, projectId));
+    expect(await current()).toMatchObject({
+      retentionTicketsDays: null,
+      retentionAiRunsDays: null,
+      retentionOriginalsDays: null,
+    });
+    for (const bad of [
+      { retentionTicketsDays: 0 },
+      { retentionTicketsDays: 3651 },
+      { retentionAiRunsDays: 1.5 },
+    ])
+      await expect(putConfig(manager, projectId, await edit(bad))).rejects.toBeInstanceOf(ZodError);
+  });
+  it("need a person who may approve when one is set or made shorter, and nothing more when made longer or off", async () => {
+    await reset();
+    // Without the right to approve, setting a period is a proposal and changes nothing.
+    const proposed = await putConfig(writer, projectId, await edit({ retentionTicketsDays: 365 }));
+    expect(proposed).toMatchObject({
+      outcome: "proposed",
+      diff: [{ pointer: "/retentionTicketsDays", from: null, to: 365 }],
+    });
+    expect(await current()).toMatchObject({ retentionTicketsDays: null });
+    // A dry run of the write says the same.
+    expect(
+      await putConfig(writer, projectId, await edit({ retentionTicketsDays: 365 }), {
+        validate: true,
+      }),
+    ).toMatchObject({ outcome: "proposed", validated: true });
+    // The proposal is applied by a person who may approve.
+    await decideConfigChange(manager, proposed.changeId ?? "", { decision: "approve" });
+    expect(await current()).toMatchObject({ retentionTicketsDays: 365 });
+    // That person applies a new period at once, and a longer one is applied by a writer.
+    expect(
+      await putConfig(manager, projectId, await edit({ retentionAttachmentsDays: 180 })),
+    ).toMatchObject({ outcome: "applied" });
+    expect(
+      await putConfig(writer, projectId, await edit({ retentionTicketsDays: 730 })),
+    ).toMatchObject({ outcome: "applied" });
+    // Shorter needs approval again; off does not.
+    expect(
+      await putConfig(writer, projectId, await edit({ retentionTicketsDays: 100 })),
+    ).toMatchObject({ outcome: "proposed" });
+    expect(await current()).toMatchObject({ retentionTicketsDays: 730 });
+    expect(
+      await putConfig(
+        writer,
+        projectId,
+        await edit({ retentionTicketsDays: null, retentionAttachmentsDays: null }),
+      ),
+    ).toMatchObject({ outcome: "applied" });
+    expect(await current()).toMatchObject({
+      retentionTicketsDays: null,
+      retentionAttachmentsDays: null,
+    });
+  });
+  it("are never applied by an agent, whatever the policy and the rights of the agent", async () => {
+    await reset();
+    await putConfig(manager, projectId, await edit({ approvalPolicy: "direct" }));
+    for (const who of [agent, approvingAgent]) {
+      const result = await putConfig(who, projectId, await edit({ retentionAiRunsDays: 30 }));
+      expect(result.outcome).toBe("proposed");
+    }
+    expect(await current()).toMatchObject({ retentionAiRunsDays: null });
+    // A change of another key still follows the policy, so that the rule is about retention only.
+    expect(
+      await putConfig(agent, projectId, await edit({ name: "By agent under direct" })),
+    ).toMatchObject({ outcome: "applied" });
   });
 });
 describe("the warning limit", () => {

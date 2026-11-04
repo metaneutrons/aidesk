@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog } from "@base-ui/react/dialog";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 const previewSchema = z.object({
   subject: z.string(),
   from: z.string(),
@@ -17,6 +18,7 @@ type Preview = z.infer<typeof previewSchema>;
 // fallback. The dialog returns focus to its button and closes with Escape.
 export function OriginalPreview({ messageId, locale }: { messageId: string; locale: string }) {
   const t = useTranslations();
+  const zone = useZone();
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [failed, setFailed] = useState(false);
@@ -50,7 +52,7 @@ export function OriginalPreview({ messageId, locale }: { messageId: string; loca
               {preview.subject}
               {preview.from && ` · ${t("originalFrom")}: ${preview.from}`}
               {preview.date &&
-                ` · ${new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(preview.date))}`}
+                ` · ${new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium", timeStyle: "short" }).format(new Date(preview.date))}`}
             </Dialog.Description>
           )}
           {failed && (

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, remote, test } from "./fixtures";
+import { expect, openSettings, remote, test } from "./fixtures";
 // Connections: defined through the API, tested and disabled on the settings
 // page, which never shows a credential.
 test.describe.configure({ mode: "serial" });
@@ -37,8 +37,8 @@ test("tests a connection, shows why a failing one fails and disables one", async
   expect((await define(good, 1025)).status()).toBe(201);
   expect((await define(bad, 1)).status()).toBe(201);
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-  const section = page.getByRole("region", { name: `Connections of ${alpha.name}` });
+  await openSettings(page, "Connections", alpha.name);
+  const section = page.getByRole("region", { name: `Connections` });
   const row = (name: string) => section.getByRole("listitem").filter({ hasText: name });
   await expect(row(good).getByText("Not tested")).toBeVisible();
   await section.getByRole("button", { name: `Test ${good}` }).click();
@@ -58,16 +58,20 @@ test("tests a connection, shows why a failing one fails and disables one", async
   expect(scan.violations.map((violation) => violation.id)).toEqual([]);
   // The configuration offers the new outgoing connection (not saved here, so
   // the project keeps sending through its own).
-  const config = page.getByRole("region", { name: `Configuration of ${alpha.name}` });
+  await openSettings(page, "General", alpha.name);
+  const config = page.getByRole("region", { name: `Configuration` });
   await expect(
     config.getByLabel("Outgoing connection").locator("option", { hasText: good }),
   ).toHaveCount(1);
+  await openSettings(page, "Connections", alpha.name);
   await section.getByRole("button", { name: `Disable ${bad}` }).click();
   await expect(row(bad).getByText("Disabled")).toBeVisible();
   await expect(section.getByRole("button", { name: `Test ${bad}` })).toBeDisabled();
+  await openSettings(page, "General", alpha.name);
   await expect(
     config.getByLabel("Outgoing connection").locator("option", { hasText: bad }),
   ).toHaveCount(0);
+  await openSettings(page, "Connections", alpha.name);
   await section.getByRole("button", { name: `Disable ${good}` }).click();
   await expect(row(good).getByText("Disabled")).toBeVisible();
 });
@@ -80,8 +84,8 @@ test("defines and changes connections in a form, and never shows the credentials
   const { gamma } = desk.projects;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-  const section = page.getByRole("region", { name: `Connections of ${gamma.name}` });
+  await openSettings(page, "Connections", gamma.name);
+  const section = page.getByRole("region", { name: `Connections` });
   const docs = `Guide ${desk.run}`;
   await section.getByRole("button", { name: "Add connection" }).click();
   const form = section.locator("form.connection-form");

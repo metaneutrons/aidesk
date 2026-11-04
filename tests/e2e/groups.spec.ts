@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Single rights and groups in the settings: a right of an operator is ticked and taken away again, and a group is
 // made, given a member, shown in the rights of that member and deleted. The operator is one that only this run has.
 test.describe.configure({ mode: "serial" });
@@ -29,12 +29,12 @@ test("ticks a single right, and makes a group with a member", async ({ page, des
     );
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "People");
   const row = page.getByRole("row").filter({ hasText: person });
   const rights = row.locator("details.rights").filter({ hasText: `in ${alpha.name}` });
   const section = page
     .locator("section.groups")
-    .filter({ has: page.getByRole("heading", { name: `Groups of ${alpha.name}` }) });
+    .filter({ has: page.getByRole("heading", { name: `Groups` }) });
   try {
     // A single right.
     await rights.locator("summary").click();
@@ -46,6 +46,7 @@ test("ticks a single right, and makes a group with a member", async ({ page, des
     await rights.getByLabel("Write notes").click();
     await expect.poll(async () => (await operator())?.grants).toEqual([]);
     // A group with a member.
+    await openSettings(page, "Groups", alpha.name);
     await expect(section).toBeVisible();
     await section.getByLabel("Name of the group").fill(group);
     await section.getByLabel("Reply to customers").click();
@@ -62,6 +63,8 @@ test("ticks a single right, and makes a group with a member", async ({ page, des
       .poll(async () => (await operator())?.effective[0]?.actions)
       .toEqual(expect.arrayContaining(["project.read", "ticket.read", "ticket.reply"]));
     expect((await operator())?.grants).toEqual([]);
+    // What the groups give is listed with the person.
+    await openSettings(page, "People");
     await expect(rights).toContainText("Also through the groups");
     await rights.locator("summary").click();
     await expect(rights).toContainText(group);
@@ -72,6 +75,7 @@ test("ticks a single right, and makes a group with a member", async ({ page, des
       .analyze();
     expect(scan.violations.map((violation) => violation.id)).toEqual([]);
     // Removing the member takes the right away, and so does deleting the group.
+    await openSettings(page, "Groups", alpha.name);
     await item.getByRole("button", { name: `Remove ${person} from ${group}` }).click();
     await expect.poll(async () => (await operator())?.effective).toEqual([]);
     await item.getByRole("button", { name: `Delete ${group}` }).click();

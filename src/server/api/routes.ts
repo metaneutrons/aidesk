@@ -25,6 +25,7 @@ import {
   createManagedAgent,
   getTicket,
   listAssignees,
+  listMentionable,
   grantInput,
   issueAgentToken,
   issueInput,
@@ -174,13 +175,89 @@ import {
 } from "../webhooks";
 import { webhookCreate, webhookDisable, webhookUpdate } from "../../domain/webhooks";
 import { getProfile, setProfile } from "../profile";
+import { createView, deleteView, listViews, setStartView, updateView } from "../views";
+import { currentSession, endOtherSessions, endSession, getSignIn, listSessions } from "../sign-in";
+import { getPreferences, listNotifications, markRead, setPreferences } from "../notifications";
 import { getBranding, readLogo, removeLogo, setBranding, setLogo } from "../branding";
 import { brandingInput, brandingOut, logoInput } from "../../domain/branding";
 import { inviteOperator } from "../invitations";
 import { invitationInput, invitationOut } from "../../domain/invitations";
+import {
+  createRoutingRule,
+  deleteRoutingRule,
+  listRoutingRules,
+  listRoutingTargets,
+  reorderRoutingRules,
+  updateRoutingRule,
+} from "../routing";
+import {
+  routingOrder,
+  routingRuleInput,
+  routingRuleOut,
+  routingTargetsOut,
+} from "../../domain/routing";
+import {
+  cannedForTicket,
+  createCannedReply,
+  deleteCannedReply,
+  listCannedReplies,
+  updateCannedReply,
+} from "../canned";
+import { cannedForTicketOut, cannedInput, cannedOut, cannedRemoval } from "../../domain/canned";
+import { listTagAdmin, mergeTags, removeTag, renameTag, setTagColor } from "../tag-admin";
+import {
+  tagAdminOut,
+  tagChangeOut,
+  tagColorInput,
+  tagMerge,
+  tagRemoval,
+  tagRename,
+} from "../../domain/tags";
+import { exportProcessing, getProcessing, listProcessing } from "../processing";
+import { processingOverview } from "../../domain/processing";
+import {
+  eraseRequester,
+  eraseTicket,
+  previewRequesterErasure,
+  previewTicketErasure,
+} from "../erasure";
+import {
+  erasureConfirm,
+  erasurePreview,
+  erasureResult,
+  requesterConfirm,
+  requesterQuery,
+} from "../../domain/erasure";
+import { exportRequester } from "../requester-export";
+import { requesterExportInput } from "../../domain/requester-export";
+import { previewRetention } from "../retention";
+import { retentionPreviewInput, retentionPreviewOut } from "../../domain/retention";
+import { keyStatus, keyStatusOut, rotateKeys } from "../key-rotation";
+import {
+  applyUpdate,
+  checkUpdates,
+  scheduleInput,
+  setUpdateSchedule,
+  updateStatus,
+  updatesOut,
+} from "../updates";
+import { setTicketTriage } from "../triage";
+import { triageInput, triageOut, priorities } from "../../domain/triage";
+import { addSenderRule, listSenderRules, removeSenderRule } from "../sender-rules";
+import { senderRuleInput, senderRuleOut } from "../../domain/sender-rules";
 import { createGroup, deleteGroup, listGroups, setGroupMember, updateGroup } from "../groups";
 import { groupCreate, groupMemberInput, groupOut, groupUpdate } from "../../domain/groups";
 import { profileInput, profileOut } from "../../domain/profile";
+import { viewCreate, viewListOut, viewStart, viewUpdate } from "../../domain/views";
+import { sessionEnded, sessionList, signInOut } from "../../domain/sign-in";
+import {
+  notificationPage,
+  notificationQuery,
+  preferenceInput,
+  preferenceOut,
+  readInput,
+  readOut,
+} from "../../domain/notifications";
 import { Reply } from "./reply";
 import * as out from "./schemas";
 import { isoDate } from "./rows";
@@ -227,6 +304,8 @@ export interface JsonRoute extends Base {
 }
 export interface BinaryRoute extends Base {
   binary: true;
+  // A file that is made for the request in the body, such as the export of a requester.
+  body?: z.ZodType;
   run: (context: RouteContext) => Promise<Response>;
 }
 export type Route = JsonRoute | BinaryRoute;
@@ -580,6 +659,8 @@ export const routes: Route[] = [
     query: z.object({
       project: projects,
       limit: z.number().int().min(1).max(2000).optional().describe("How many to load"),
+      priority: z.enum(priorities).optional().describe("Only tickets of this priority"),
+      category: z.string().max(40).optional().describe("Only tickets of this category"),
     }),
     response: list(out.ticketRow),
     run: ({ principal, query }) =>
@@ -587,6 +668,10 @@ export const routes: Route[] = [
         principal,
         query.getAll("project"),
         query.has("limit") ? Number(query.get("limit")) : undefined,
+        {
+          priority: query.get("priority") ?? undefined,
+          category: query.get("category") ?? undefined,
+        },
       ),
   },
   {
@@ -790,6 +875,116 @@ export const routes: Route[] = [
     response: groupOut,
     run: ({ principal, params, input }) =>
       setGroupMember(principal, params.projectId ?? "", params.groupId ?? "", input),
+  },
+  {
+    id: "senders.list",
+    mcp: { not: "A list decides which mail reaches the inbox" },
+    method: "GET",
+    path: "/projects/{projectId}/sender-rules",
+    tag: "Junk",
+    summary: "List the senders and domains of a project that are always taken or always kept out",
+    access: "intake.manage",
+    response: z.array(senderRuleOut),
+    run: ({ principal, params }) => listSenderRules(principal, params.projectId ?? ""),
+  },
+  {
+    id: "senders.add",
+    mcp: { not: "A list decides which mail reaches the inbox" },
+    method: "POST",
+    path: "/projects/{projectId}/sender-rules",
+    tag: "Junk",
+    summary: "Always take or always keep out the mail of an address or a domain",
+    access: "intake.manage",
+    body: senderRuleInput,
+    response: senderRuleOut,
+    status: 201,
+    run: ({ principal, params, input }) => addSenderRule(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "senders.remove",
+    mcp: { not: "A list decides which mail reaches the inbox" },
+    method: "POST",
+    path: "/projects/{projectId}/sender-rules/{ruleId}/delete",
+    tag: "Junk",
+    summary: "Take an address or a domain off the lists of a project",
+    access: "intake.manage",
+    response: z.object({ removed: z.boolean() }),
+    run: ({ principal, params }) =>
+      removeSenderRule(principal, params.projectId ?? "", params.ruleId ?? ""),
+  },
+  {
+    id: "routing.list",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "GET",
+    path: "/projects/{projectId}/routing-rules",
+    tag: "Intake",
+    summary: "List the rules that route a new ticket, in the order in which they are tried",
+    access: "intake.manage",
+    response: z.array(routingRuleOut),
+    run: ({ principal, params }) => listRoutingRules(principal, params.projectId ?? ""),
+  },
+  {
+    id: "routing.targets",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "GET",
+    path: "/projects/{projectId}/routing-targets",
+    tag: "Intake",
+    summary: "List the people, groups and agents that a routing rule can name",
+    access: "intake.manage",
+    response: routingTargetsOut,
+    run: ({ principal, params }) => listRoutingTargets(principal, params.projectId ?? ""),
+  },
+  {
+    id: "routing.create",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-rules",
+    tag: "Intake",
+    summary: "Add a routing rule at the end of the order",
+    access: "intake.manage",
+    body: routingRuleInput,
+    response: routingRuleOut,
+    status: 201,
+    run: ({ principal, params, input }) =>
+      createRoutingRule(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "routing.update",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-rules/{ruleId}",
+    tag: "Intake",
+    summary: "Replace a routing rule; its place in the order stays",
+    access: "intake.manage",
+    body: routingRuleInput,
+    response: routingRuleOut,
+    run: ({ principal, params, input }) =>
+      updateRoutingRule(principal, params.projectId ?? "", params.ruleId ?? "", input),
+  },
+  {
+    id: "routing.delete",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-rules/{ruleId}/delete",
+    tag: "Intake",
+    summary: "Remove a routing rule",
+    access: "intake.manage",
+    response: z.object({ removed: z.boolean() }),
+    run: ({ principal, params }) =>
+      deleteRoutingRule(principal, params.projectId ?? "", params.ruleId ?? ""),
+  },
+  {
+    id: "routing.reorder",
+    mcp: { not: "A rule decides who gets the tickets of customers" },
+    method: "POST",
+    path: "/projects/{projectId}/routing-order",
+    tag: "Intake",
+    summary: "Set the order of all routing rules of the project, as the list of their ids",
+    access: "intake.manage",
+    body: routingOrder,
+    response: z.array(routingRuleOut),
+    run: ({ principal, params, input }) =>
+      reorderRoutingRules(principal, params.projectId ?? "", input),
   },
   {
     id: "operators.active",
@@ -1073,6 +1268,166 @@ export const routes: Route[] = [
     run: ({ principal, input }) => setProfile(principal, input),
   },
   {
+    id: "views.list",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/views",
+    tag: "Operators",
+    summary:
+      "The saved views of the inbox of the signed-in operator, by name; the projects of a view are those that the person may read now",
+    access: "human",
+    response: viewListOut,
+    run: ({ principal }) => listViews(principal),
+  },
+  {
+    id: "views.create",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/views",
+    tag: "Operators",
+    summary:
+      "Save the filters of the inbox as a view with a name (at most 20 views; a name is used once, in any case); the projects must be readable by the person",
+    access: "human",
+    body: viewCreate,
+    response: viewListOut,
+    status: 201,
+    run: ({ principal, input }) => createView(principal, input),
+  },
+  {
+    id: "views.update",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "PUT",
+    path: "/me/views/{viewId}",
+    tag: "Operators",
+    summary: "Rename a saved view or replace some of its filters; the other fields stay",
+    access: "human",
+    body: viewUpdate,
+    response: viewListOut,
+    run: ({ principal, params, input }) => updateView(principal, params.viewId ?? "", input),
+  },
+  {
+    id: "views.delete",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/views/{viewId}/delete",
+    tag: "Operators",
+    summary: "Delete a saved view of the signed-in operator",
+    access: "human",
+    response: viewListOut,
+    run: ({ principal, params }) => deleteView(principal, params.viewId ?? ""),
+  },
+  {
+    id: "views.start",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/views/{viewId}/start",
+    tag: "Operators",
+    summary:
+      "Make a saved view the one that the desk opens with (the earlier one stops being it), or take that away",
+    access: "human",
+    body: viewStart,
+    response: viewListOut,
+    run: ({ principal, params, input }) => setStartView(principal, params.viewId ?? "", input),
+  },
+  {
+    id: "signin.get",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/sign-in",
+    tag: "Operators",
+    summary:
+      "How the account of the signed-in operator can be signed in to: password, authenticator app, the number of passkeys and the identity providers that were used",
+    access: "human",
+    response: signInOut,
+    run: ({ principal }) => getSignIn(principal),
+  },
+  {
+    id: "signin.sessions",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/sessions",
+    tag: "Operators",
+    summary:
+      "The open sessions of the signed-in operator, newest first; the one that asks is marked",
+    access: "human",
+    response: sessionList,
+    run: async ({ principal, request }) => listSessions(principal, await currentSession(request)),
+  },
+  {
+    id: "signin.session_end",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/sessions/{sessionId}/end",
+    tag: "Operators",
+    summary:
+      "End one of the other sessions of the signed-in operator; the session that asks is ended by signing out",
+    access: "human",
+    response: sessionEnded,
+    run: async ({ principal, params, request }) =>
+      endSession(principal, await currentSession(request), params.sessionId ?? ""),
+  },
+  {
+    id: "signin.sessions_end_others",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/sessions/end-others",
+    tag: "Operators",
+    summary: "End every other session of the signed-in operator",
+    access: "human",
+    response: sessionEnded,
+    run: async ({ principal, request }) =>
+      endOtherSessions(principal, await currentSession(request)),
+  },
+  {
+    id: "notifications.list",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/notifications",
+    tag: "Operators",
+    summary:
+      "The notifications of the signed-in operator, newest first, with the number of unread ones; the subject of the ticket and no more",
+    access: "human",
+    query: notificationQuery,
+    response: notificationPage,
+    run: ({ principal, query }) => listNotifications(principal, Object.fromEntries(query)),
+  },
+  {
+    id: "notifications.read",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "POST",
+    path: "/me/notifications/read",
+    tag: "Operators",
+    summary: "Mark some notifications, or all of them when none is named, as read",
+    access: "human",
+    body: readInput,
+    response: readOut,
+    run: ({ principal, input }) => markRead(principal, input),
+  },
+  {
+    id: "notifications.preferences_get",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "GET",
+    path: "/me/notification-preferences",
+    tag: "Operators",
+    summary:
+      "For each kind of notification, whether it reaches the signed-in operator in the desk and by mail",
+    access: "human",
+    response: preferenceOut,
+    run: ({ principal }) => getPreferences(principal),
+  },
+  {
+    id: "notifications.preferences_set",
+    mcp: { not: "Concerns the signed-in person" },
+    method: "PUT",
+    path: "/me/notification-preferences",
+    tag: "Operators",
+    summary: "Set the channels for the named kinds of notification",
+    access: "human",
+    body: preferenceInput,
+    response: preferenceOut,
+    run: ({ principal, input }) => setPreferences(principal, input),
+  },
+  {
     id: "config.get",
     mcp: { tool: "config_get" },
     method: "GET",
@@ -1330,6 +1685,305 @@ export const routes: Route[] = [
     },
   },
   {
+    id: "canned.list",
+    mcp: { tool: "canned_list" },
+    method: "GET",
+    path: "/projects/{projectId}/canned-replies",
+    tag: "Canned replies",
+    summary: "The canned replies of a project with their placeholders and the version",
+    access: "config.read",
+    response: list(cannedOut),
+    run: ({ principal, params }) => listCannedReplies(principal, params.projectId ?? ""),
+  },
+  {
+    id: "canned.create",
+    mcp: { tool: "canned_create" },
+    method: "POST",
+    path: "/projects/{projectId}/canned-replies",
+    tag: "Canned replies",
+    summary:
+      "Add a canned reply (name, language, body with {{customer_name}}, {{ticket_number}} and {{operator_name}}). Applies at once (201) or, for an agent under the review policy, becomes a proposal (202); with validate=true nothing is written (200)",
+    access: "config.write",
+    query: validateQuery,
+    body: cannedInput,
+    response: out.cannedResult,
+    status: 201,
+    alsoStatus: [200, 202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await createCannedReply(principal, params.projectId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        201,
+      ),
+  },
+  {
+    id: "canned.update",
+    mcp: { tool: "canned_update" },
+    method: "PUT",
+    path: "/projects/{projectId}/canned-replies/{replyId}",
+    tag: "Canned replies",
+    summary: "Change a canned reply; names the version that was read",
+    access: "config.write",
+    query: validateQuery,
+    body: cannedInput,
+    response: out.cannedResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await updateCannedReply(principal, params.projectId ?? "", params.replyId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        200,
+      ),
+  },
+  {
+    id: "canned.delete",
+    mcp: { tool: "canned_delete" },
+    method: "POST",
+    path: "/projects/{projectId}/canned-replies/{replyId}/delete",
+    tag: "Canned replies",
+    summary: "Remove a canned reply; names the version that was read",
+    access: "config.write",
+    query: validateQuery,
+    body: cannedRemoval,
+    response: out.cannedResult,
+    alsoStatus: [202],
+    run: async ({ principal, params, query, input }) =>
+      changeReply(
+        await deleteCannedReply(principal, params.projectId ?? "", params.replyId ?? "", input, {
+          validate: query.get("validate") === "true",
+        }),
+        200,
+      ),
+  },
+  {
+    id: "canned.for_ticket",
+    mcp: { tool: "tickets_canned_replies" },
+    method: "GET",
+    path: "/tickets/{ticketId}/canned-replies",
+    tag: "Canned replies",
+    summary:
+      "The canned replies of the project of a ticket with the placeholders filled in for the ticket and the caller, the language of the ticket first",
+    access: "ticket.reply",
+    response: list(cannedForTicketOut),
+    run: ({ principal, params }) => cannedForTicket(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "tagadmin.list",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "GET",
+    path: "/projects/{projectId}/tag-admin",
+    tag: "Tags",
+    summary: "List the tags of a project with the number of tickets and the colour of each",
+    access: "project.manage",
+    response: list(tagAdminOut),
+    run: ({ principal, params }) => listTagAdmin(principal, params.projectId ?? ""),
+  },
+  {
+    id: "tagadmin.rename",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/rename",
+    tag: "Tags",
+    summary:
+      "Rename a tag in all tickets of the project; a name that is in use is a conflict (merge instead)",
+    access: "project.manage",
+    body: tagRename,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => renameTag(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "tagadmin.merge",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/merge",
+    tag: "Tags",
+    summary:
+      "Merge tags into one in all tickets of the project; a ticket that has several of them keeps one",
+    access: "project.manage",
+    body: tagMerge,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => mergeTags(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "tagadmin.color",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/color",
+    tag: "Tags",
+    summary: "Give a tag a colour for its chips, or take the colour away with null",
+    access: "project.manage",
+    body: tagColorInput,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => setTagColor(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "tagadmin.remove",
+    mcp: { not: "Tags are changed in all tickets at once, so people do it" },
+    method: "POST",
+    path: "/projects/{projectId}/tag-admin/remove",
+    tag: "Tags",
+    summary:
+      "Remove a tag from all tickets of the project; names the number of tickets that was shown, and a different number is a conflict",
+    access: "project.manage",
+    body: tagRemoval,
+    response: tagChangeOut,
+    run: ({ principal, params, input }) => removeTag(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "processing.list",
+    mcp: { tool: "processing_list" },
+    method: "GET",
+    path: "/processing",
+    tag: "Privacy",
+    summary:
+      "For every project whose configuration the caller may read: where the content of its tickets goes (mail connection, models by task, sources of knowledge, webhooks), what each receives and what is missing",
+    access: "config.read",
+    response: z.array(processingOverview),
+    run: ({ principal }) => listProcessing(principal),
+  },
+  {
+    id: "processing.get",
+    mcp: { tool: "processing_get" },
+    method: "GET",
+    path: "/projects/{projectId}/processing",
+    tag: "Privacy",
+    summary:
+      "Where the content of the tickets of a project goes: the entries with host, content classes, state and issues",
+    access: "config.read",
+    response: processingOverview,
+    run: ({ principal, params }) => getProcessing(principal, params.projectId ?? ""),
+  },
+  {
+    id: "processing.export",
+    mcp: { not: "A file is not a tool result; processing_get reads the entries as data" },
+    method: "GET",
+    path: "/projects/{projectId}/processing/export",
+    tag: "Privacy",
+    summary:
+      "The same list as a CSV file for the records of processing; the export is an entry of the audit",
+    access: "config.read",
+    binary: true,
+    run: async ({ principal, params }) =>
+      csv(await exportProcessing(principal, params.projectId ?? "")),
+  },
+  {
+    id: "erasure.ticket_preview",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "GET",
+    path: "/tickets/{ticketId}/erasure",
+    tag: "Privacy",
+    summary:
+      "What erasing a ticket would remove, and what is out of reach (webhook events delivered, issues created, exports)",
+    access: "data.erase",
+    response: erasurePreview,
+    run: ({ principal, params }) => previewTicketErasure(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "erasure.ticket",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "POST",
+    path: "/tickets/{ticketId}/erase",
+    tag: "Privacy",
+    summary:
+      "Erase a ticket from the database and the storage; names the counts that the preview gave, and a different count is a conflict",
+    access: "data.erase",
+    body: erasureConfirm,
+    response: erasureResult,
+    run: ({ principal, params, input }) => eraseTicket(principal, params.ticketId ?? "", input),
+  },
+  {
+    id: "erasure.requester_preview",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "GET",
+    path: "/projects/{projectId}/erasure/requester",
+    tag: "Privacy",
+    summary:
+      "What erasing everything about a requester (their tickets, portal records and mail) would remove",
+    access: "data.erase",
+    query: requesterQuery,
+    response: erasurePreview,
+    run: ({ principal, params, query }) =>
+      previewRequesterErasure(principal, params.projectId ?? "", Object.fromEntries(query)),
+  },
+  {
+    id: "erasure.requester",
+    mcp: { not: "An erasure cannot be undone, so a person does it after reading what goes" },
+    method: "POST",
+    path: "/projects/{projectId}/erasure/requester",
+    tag: "Privacy",
+    summary:
+      "Erase everything about a requester; names the counts that the preview gave, and a different count is a conflict",
+    access: "data.erase",
+    body: requesterConfirm,
+    response: erasureResult,
+    run: ({ principal, params, input }) => eraseRequester(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "requester.export",
+    mcp: { not: "A file is not a tool result, and it holds the personal data of one person" },
+    method: "POST",
+    path: "/projects/{projectId}/requester-export",
+    tag: "Privacy",
+    summary:
+      "What the system holds about one requester of the project (tickets with their messages and notes, files, original mails, translations, portal records, mail that no ticket holds, entries of the audit about their tickets) as a .zip file for a request for information. The file is made for the request and kept nowhere; the export is an entry of the audit with the digest of the address",
+    access: "data.export",
+    body: requesterExportInput,
+    binary: true,
+    run: async ({ principal, params, input }) => {
+      const file = await exportRequester(principal, params.projectId ?? "", input);
+      return new Response(new Uint8Array(file.content), {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Length": String(file.content.length),
+          "Content-Disposition": `attachment; filename="${file.filename}"`,
+          "X-Export-Digest": file.digest,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+        },
+      });
+    },
+  },
+  {
+    id: "retention.preview",
+    mcp: { tool: "retention_preview" },
+    method: "POST",
+    path: "/projects/{projectId}/retention/preview",
+    tag: "Privacy",
+    summary:
+      "A dry run: what the given retention periods (days, or null for none, for tickets, attachments, originals, translations and aiRuns) would remove now. Nothing is changed. Setting or shortening a period in the configuration needs a person with config.approve",
+    access: "config.read",
+    body: retentionPreviewInput,
+    response: retentionPreviewOut,
+    run: ({ principal, params, input }) =>
+      previewRetention(principal, params.projectId ?? "", input),
+  },
+  {
+    id: "keys.status",
+    mcp: { not: "The keys of the installation are the owner's" },
+    method: "GET",
+    path: "/workspace/keys",
+    tag: "Workspace",
+    summary:
+      "What still depends on the previous encryption key and the previous secret of the installation, by group of stored values; only the owner. Nothing is changed",
+    access: "owner",
+    response: keyStatusOut,
+    run: ({ principal }) => keyStatus(principal),
+  },
+  {
+    id: "keys.rotate",
+    mcp: { not: "The keys of the installation are the owner's" },
+    method: "POST",
+    path: "/workspace/keys/rotate",
+    tag: "Workspace",
+    summary:
+      "Re-protect every stored value that still depends on the previous key with the current one, one by one; only the owner, and only while a previous key is set in the environment. A value that no key opens is left as it is, and a run that stops can be repeated",
+    access: "owner",
+    response: keyStatusOut,
+    run: ({ principal }) => rotateKeys(principal),
+  },
+  {
     id: "tickets.status",
     mcp: { tool: "tickets_set_status" },
     method: "POST",
@@ -1355,6 +2009,19 @@ export const routes: Route[] = [
     run: ({ principal, params, input }) => assignTicket(principal, params.ticketId ?? "", input),
   },
   {
+    id: "tickets.triage",
+    mcp: { tool: "tickets_set_triage" },
+    method: "POST",
+    path: "/tickets/{ticketId}/triage",
+    tag: "Tickets",
+    summary:
+      "Set the priority (low, normal, high, urgent) or the category (from the list of the project, null takes it off) of a ticket",
+    access: "ticket.assign",
+    body: triageInput,
+    response: triageOut,
+    run: ({ principal, params, input }) => setTicketTriage(principal, params.ticketId ?? "", input),
+  },
+  {
     id: "tickets.assignees",
     mcp: { tool: "tickets_assignees" },
     method: "GET",
@@ -1367,6 +2034,20 @@ export const routes: Route[] = [
       agents: z.array(z.object({ id: z.uuid(), name: z.string(), managed: z.boolean() })),
     }),
     run: ({ principal, params }) => listAssignees(principal, params.ticketId ?? ""),
+  },
+  {
+    id: "tickets.mentionable",
+    mcp: {
+      not: "A note names a person through the desk or the API; an agent does not name people",
+    },
+    method: "GET",
+    path: "/tickets/{ticketId}/mentionable",
+    tag: "Tickets",
+    summary:
+      "The people that an internal note on the ticket can name (those who may read it). Needs ticket.note",
+    access: "ticket.note",
+    response: z.object({ users: z.array(z.object({ id: z.string(), name: z.string() })) }),
+    run: ({ principal, params }) => listMentionable(principal, params.ticketId ?? ""),
   },
   {
     id: "tickets.agent_runs",
@@ -1730,6 +2411,55 @@ export const routes: Route[] = [
     body: limitsInput,
     response: out.workspaceLimits,
     run: ({ principal, input }) => setLimits(principal, input),
+  },
+  {
+    id: "updates.status",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "GET",
+    path: "/workspace/updates",
+    tag: "Workspace",
+    summary:
+      "The version that runs, the latest release, the step of an update that is under way and the maintenance window, as the updater of a Compose installation reports them; only the owner. Without an updater, or when it does not answer, the answer says which. Where Coolify runs the installation, `managedBy` is `coolify`, no updater is asked, and nothing can be installed or scheduled: it is updated there by deploying again. Nothing is changed",
+    access: "owner",
+    response: updatesOut,
+    run: ({ principal }) => updateStatus(principal),
+  },
+  {
+    id: "updates.check",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "POST",
+    path: "/workspace/updates/check",
+    tag: "Workspace",
+    summary:
+      "Ask the updater to look for a new release now. The result is in the status that follows; only the owner",
+    access: "owner",
+    response: updatesOut,
+    run: ({ principal }) => checkUpdates(principal),
+  },
+  {
+    id: "updates.apply",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "POST",
+    path: "/workspace/updates/apply",
+    tag: "Workspace",
+    summary:
+      "Install the release that the updater found: the image is checked by its signature, the database is backed up, the web server and the worker are replaced, and the previous image comes back if the new one does not become ready. The desk is unavailable for a short time. Only the owner, only when a release is waiting and nothing else runs; audited",
+    access: "owner",
+    response: updatesOut,
+    run: ({ principal }) => applyUpdate(principal),
+  },
+  {
+    id: "updates.schedule",
+    mcp: { not: "The updates of the installation are the owner's" },
+    method: "PUT",
+    path: "/workspace/updates/schedule",
+    tag: "Workspace",
+    summary:
+      "Set whether a release that is waiting is installed by itself, and the time of day and the time zone of that maintenance window. Only the owner, not while an operation runs; audited",
+    access: "owner",
+    body: scheduleInput,
+    response: updatesOut,
+    run: ({ principal, input }) => setUpdateSchedule(principal, input),
   },
   {
     id: "translations.request",

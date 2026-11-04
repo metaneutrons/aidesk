@@ -5,7 +5,9 @@ import { connectionDirections, connectionKinds } from "../../domain/connections"
 import { emailDesignConfig } from "../../domain/email-design";
 import { aiWorkStates, stopLevels } from "../../domain/agent-work";
 import { actions } from "../../domain/permissions";
+import { priorities } from "../../domain/triage";
 import { translationStatuses } from "../../domain/translation";
+import { webhookFormats } from "../../domain/webhooks";
 import { agentRuns, agents, ingress, messages, projects, tickets } from "../db/schema";
 import { isoDate, rowSchema } from "./rows";
 // What the REST API answers, as JSON. The schemas describe the response after
@@ -36,6 +38,22 @@ export const projectSummary = z
     portalLinks: z.boolean(),
     warnHours: z.number(),
     overdueHours: z.number(),
+    // The business hours of the response clock in the form of the configuration; no days means no business hours.
+    clock: z.object({
+      businessDays: z.string().nullable(),
+      businessStart: z.string(),
+      businessEnd: z.string(),
+      businessTimeZone: z.string().nullable(),
+      holidays: z.string(),
+    }),
+    // The limits of the response clock for each priority, and the categories that a ticket of the project can have.
+    limits: z.record(
+      z.enum(priorities),
+      z.object({ warnHours: z.number(), overdueHours: z.number() }),
+    ),
+    categories: z.array(z.string()),
+    // The colours that the project gave to tags, by tag.
+    tagColors: z.record(z.string(), z.string()),
     archivedAt: isoDate.nullable(),
   })
   .meta({ id: "ProjectSummary" });
@@ -463,17 +481,33 @@ export const webhookOut = z.object({
   id: z.uuid(),
   projectId: z.uuid(),
   name: z.string(),
-  url: z.string(),
+  url: z
+    .string()
+    .describe(
+      "The address of the endpoint; for a channel only its scheme and host, because the rest carries a key",
+    ),
   events: z.array(z.string()),
+  format: z
+    .enum(webhookFormats)
+    .describe(
+      "aidesk is the signed JSON body of the event; any other format is a channel of a messenger",
+    ),
+  withSubject: z
+    .boolean()
+    .describe(
+      "A channel names the subject of the ticket in its message; always false for the format aidesk",
+    ),
   developmentOnly: z.boolean(),
   status: z.enum(["active", "disabled"]),
   version: z.number(),
-  secretSet: z.boolean().describe("The signing secret is stored; it is never returned"),
+  secretSet: z
+    .boolean()
+    .describe("The signing secret (for a channel: the address) is stored; it is never returned"),
   lastDelivery: z
     .object({
       at: isoDate,
       event: z.string(),
-      outcome: z.enum(["succeeded", "retry", "failed"]),
+      outcome: z.enum(["succeeded", "retry", "failed", "skipped"]),
       responseStatus: z.number().nullable(),
       code: z.string().nullable(),
     })
@@ -486,7 +520,7 @@ export const webhookDelivery = z.object({
   eventId: z.uuid(),
   event: z.string(),
   attempt: z.number(),
-  outcome: z.enum(["succeeded", "retry", "failed"]),
+  outcome: z.enum(["succeeded", "retry", "failed", "skipped"]),
   responseStatus: z.number().nullable(),
   code: z.string().nullable(),
   durationMs: z.number(),
@@ -608,6 +642,7 @@ export const auditPage = z.object({
   next: z.string().nullable().describe("The cursor for the next page, null at the end"),
 });
 export const webhookResult = textResult;
+export const cannedResult = textResult;
 export const webhookPing = z.object({ eventId: z.uuid() });
 export const translationOut = z.object({
   id: z.uuid(),

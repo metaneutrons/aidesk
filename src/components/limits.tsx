@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 import { limitBounds, limitDefaults, limitKeys, type LimitKey } from "../domain/limits";
 // The limits of the whole installation, for an owner: files at intake and in the portal, how long a
 // session and a link to the customer page last. A change applies to what comes after it; the page says so
@@ -68,42 +69,50 @@ export function Limits() {
       <h3 id={`${titleId}-title`}>{t("limitsTitle")}</h3>
       <p className="muted">{t("limitsHint")}</p>
       <form
-        className="limits-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void save(Object.fromEntries(changed.map((key) => [key, parsed(key)])));
         }}
       >
-        {limitKeys.map((key) => (
-          <label key={key}>
-            <span>{t(label(key))}</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={limitBounds[key][0]}
-              max={limitBounds[key][1]}
-              step={1}
-              value={shown(key)}
-              aria-invalid={parsed(key) === null}
-              aria-describedby={`${titleId}-${key}`}
-              onChange={(event) => {
-                setDraft({ ...draft, [key]: event.target.value });
-              }}
-            />
-            <small id={`${titleId}-${key}`} className="muted">
-              {t("limitRange", {
+        <Group>
+          {limitKeys.map((key) => (
+            <Row
+              key={key}
+              label={t(label(key))}
+              hint={`${t("limitRange", {
                 low: limitBounds[key][0],
                 high: limitBounds[key][1],
                 standard: limitDefaults[key],
-              })}{" "}
-              {t(`limit_${key}_note`)}
-            </small>
-          </label>
-        ))}
-        <span className="configuration-actions">
-          <button type="submit" className="primary" disabled={changed.length === 0 || invalid}>
-            {t("limitsSave")}
-          </button>
+              })} ${t(`limit_${key}_note`)}`}
+            >
+              {(props) => (
+                <input
+                  {...props}
+                  type="number"
+                  inputMode="numeric"
+                  min={limitBounds[key][0]}
+                  max={limitBounds[key][1]}
+                  step={1}
+                  value={shown(key)}
+                  aria-invalid={parsed(key) === null}
+                  onChange={(event) => {
+                    setDraft({ ...draft, [key]: event.target.value });
+                  }}
+                />
+              )}
+            </Row>
+          ))}
+        </Group>
+        <Actions
+          status={
+            message && (
+              <span className={message === "error" ? "error" : undefined}>
+                {t(message === "error" ? "limitsError" : "limitsSaved")}
+              </span>
+            )
+          }
+        >
           <button
             type="button"
             className="secondary"
@@ -113,13 +122,11 @@ export function Limits() {
           >
             {t("limitsStandard")}
           </button>
-        </span>
+          <button type="submit" className="primary" disabled={changed.length === 0 || invalid}>
+            {t("limitsSave")}
+          </button>
+        </Actions>
       </form>
-      {message && (
-        <p className={message === "error" ? "error" : "muted"} role="status">
-          {t(message === "error" ? "limitsError" : "limitsSaved")}
-        </p>
-      )}
     </section>
   );
 }

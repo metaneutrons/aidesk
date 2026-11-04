@@ -32,12 +32,11 @@ import {
 import { checkHost, developmentStack } from "./host-guard";
 import { permits, type Principal } from "../domain/permissions";
 import type { ConfigDiffEntry } from "../domain/configuration";
-import { seal, unseal } from "./crypto";
 import { db } from "./db";
 import { audit, connections, projects } from "./db/schema";
 import { submitChange } from "./changes";
 import { DomainError } from "./errors";
-import { env } from "./env";
+import { sealSecret, unsealSecret } from "./secrets";
 const id = z.uuid();
 type AiKey = "anthropic:ai" | "openai:ai" | "google:ai";
 const isAi = (key: ConnectionTypeKey): key is AiKey => key.endsWith(":ai");
@@ -179,8 +178,7 @@ function parseSecret(key: ConnectionTypeKey, value: unknown): Record<string, unk
   const parsed: Record<string, unknown> = connectionTypes[key].secret.parse(value);
   return parsed;
 }
-const sealed = (secret: Record<string, unknown>) =>
-  seal(JSON.stringify(secret), env().ENCRYPTION_KEY);
+const sealed = (secret: Record<string, unknown>) => sealSecret(JSON.stringify(secret));
 function fieldDiff(
   prefix: string,
   from: Record<string, unknown>,
@@ -484,7 +482,7 @@ async function probe(row: Row): Promise<void> {
   const key = typeKey(row.kind, row.direction);
   if (!key) throw new Error("unknown_kind");
   const secretText = row.secretCiphertext
-    ? (JSON.parse(unseal(row.secretCiphertext, env().ENCRYPTION_KEY)) as unknown)
+    ? (JSON.parse(unsealSecret(row.secretCiphertext)) as unknown)
     : undefined;
   if (key === "imap:inbound") {
     const config = imapConfig.parse(row.config);

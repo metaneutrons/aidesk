@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Assigning a ticket to a managed agent, the state of its work and the stops that a person
 // sets for one ticket, a project and the workspace.
 test.describe.configure({ mode: "serial" });
@@ -80,8 +80,8 @@ test("stops the agents of a project from the settings and shows the switches of 
     ).ok(),
   ).toBe(true);
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-  const section = page.getByRole("region", { name: `AI agents: ${alpha.name}` });
+  await openSettings(page, "Agents and tokens", alpha.name);
+  const section = page.getByRole("region", { name: `AI agents` });
   await expect(section.getByText("The agents of this project work.")).toBeVisible();
   await section.getByRole("button", { name: "Stop all agents" }).click();
   await expect(section.getByText("The agents of this project are stopped.")).toBeVisible();
@@ -96,11 +96,13 @@ test("stops the agents of a project from the settings and shows the switches of 
   // The switches of the whole workspace are for the owner and are shown. They are global to the
   // installation, so a test that sets one would stop the agents and the mail of the tests that run
   // beside it; the API tests set them.
+  await openSettings(page, "Limits and controls");
   const workspace = page.getByRole("region", { name: "Whole workspace" });
   await expect(workspace.getByRole("checkbox", { name: "Stop all AI agents" })).not.toBeChecked();
   await expect(
     workspace.getByRole("checkbox", { name: "Pause all outgoing mail" }),
   ).not.toBeChecked();
+  await openSettings(page, "Agents and tokens", alpha.name);
   // Letting the agents work again queues nothing; the waiting tickets are queued on request.
   await section.getByRole("button", { name: "Let agents work again" }).click();
   await expect(section.getByText("The agents of this project work.")).toBeVisible();

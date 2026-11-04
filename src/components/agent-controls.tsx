@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Group, Switch } from "./form";
 // The stops of the managed agents and the pause of outgoing mail. A project stop is for people
 // who may assign tickets, the switches of the whole workspace for an owner. A stop takes back
 // the work that is queued or running; lifting it queues nothing, so the tickets that wait are
@@ -50,37 +51,45 @@ export function ProjectAgentControls({ projectId, name }: { projectId: string; n
     <section className="connections" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("agentControlsTitle", { project: name })}</h3>
       <p className="muted">{t("agentControlsHint")}</p>
-      <p>
-        {t(
-          controls.workspace.stopAutonomous
-            ? "agentControlsWorkspaceStopped"
-            : stopped
-              ? "agentControlsStopped"
-              : "agentControlsRunning",
-        )}
-      </p>
-      {controls.workspace.pauseOutgoing && <p>{t("agentControlsWorkspacePaused")}</p>}
-      <div className="configuration-actions">
-        <button
-          type="button"
-          className={stopped ? "secondary" : "primary"}
-          onClick={() => {
-            void stop(!stopped);
-          }}
-        >
-          {t(stopped ? "agentControlsRelease" : "agentControlsStop")}
-        </button>
-        <button
-          type="button"
-          className="secondary"
-          disabled={held}
-          onClick={() => {
-            void resume();
-          }}
-        >
-          {t("agentControlsResume")}
-        </button>
-      </div>
+      <Group>
+        <div className="row">
+          <div className="row-label">
+            <span>
+              {t(
+                controls.workspace.stopAutonomous
+                  ? "agentControlsWorkspaceStopped"
+                  : stopped
+                    ? "agentControlsStopped"
+                    : "agentControlsRunning",
+              )}
+            </span>
+            {controls.workspace.pauseOutgoing && (
+              <small className="row-hint">{t("agentControlsWorkspacePaused")}</small>
+            )}
+          </div>
+          <div className="row-control">
+            <button
+              type="button"
+              className={stopped ? "secondary" : "primary"}
+              onClick={() => {
+                void stop(!stopped);
+              }}
+            >
+              {t(stopped ? "agentControlsRelease" : "agentControlsStop")}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={held}
+              onClick={() => {
+                void resume();
+              }}
+            >
+              {t("agentControlsResume")}
+            </button>
+          </div>
+        </div>
+      </Group>
       {message === "error" && (
         <small className="error" role="alert">
           {t("agentControlsError")}
@@ -120,26 +129,22 @@ export function WorkspaceControls() {
     <section className="connections" aria-labelledby={`${titleId}-title`}>
       <h3 id={`${titleId}-title`}>{t("workspaceControlsTitle")}</h3>
       <p className="muted">{t("workspaceControlsHint")}</p>
-      <label className="configuration-check">
-        <input
-          type="checkbox"
+      <Group>
+        <Switch
+          label={t("workspaceStopAgents")}
           checked={controls.stopAutonomous}
-          onChange={(event) => {
-            void set({ stopAutonomous: event.target.checked });
+          onChange={(checked) => {
+            void set({ stopAutonomous: checked });
           }}
         />
-        {t("workspaceStopAgents")}
-      </label>
-      <label className="configuration-check">
-        <input
-          type="checkbox"
+        <Switch
+          label={t("workspacePauseOutgoing")}
           checked={controls.pauseOutgoing}
-          onChange={(event) => {
-            void set({ pauseOutgoing: event.target.checked });
+          onChange={(checked) => {
+            void set({ pauseOutgoing: checked });
           }}
         />
-        {t("workspacePauseOutgoing")}
-      </label>
+      </Group>
       {failed && (
         <small className="error" role="alert">
           {t("agentControlsError")}

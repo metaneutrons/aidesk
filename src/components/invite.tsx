@@ -1,9 +1,10 @@
 "use client";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import type { Action } from "../domain/permissions";
 import { operatorRoles, within, type OperatorRole } from "../domain/roles";
+import { Actions, Group, Row, Switch } from "./form";
 // Adding an operator by address. A person who manages a project gives a name, an address and a role, and the person
 // is told by mail. The role is limited to what the one who invites holds.
 const answerSchema = z.object({
@@ -25,7 +26,6 @@ export function Invite({
   onInvited: () => void;
 }) {
   const t = useTranslations();
-  const fieldId = useId();
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,7 +40,7 @@ export function Invite({
   const actions = within(operatorRoles[role], held(current));
   return (
     <form
-      className="settings-form invite"
+      className="stack invite"
       onSubmit={(event) => {
         event.preventDefault();
         void (async () => {
@@ -62,99 +62,108 @@ export function Invite({
     >
       <h3>{t("inviteTitle")}</h3>
       <p className="muted">{t("inviteHint")}</p>
-      {projects.length > 1 && (
-        <label htmlFor={`${fieldId}-project`}>
-          {t("project")}
-          <select
-            id={`${fieldId}-project`}
-            value={current}
-            onChange={(event) => {
-              setProjectId(event.target.value);
-            }}
-          >
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <label>
-        {t("name")}
-        <input
-          value={name}
-          maxLength={100}
-          required
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        {t("email")}
-        <input
-          type="email"
-          value={email}
-          required
-          onChange={(event) => {
-            setEmail(event.target.value);
-          }}
-        />
-      </label>
-      <label>
-        {t("role")}
-        <select
-          value={role}
-          onChange={(event) => {
-            setRole(event.target.value as OperatorRole);
-          }}
-        >
-          {roles.map((option) => (
-            <option key={option} value={option}>
-              {t(`role${option[0]?.toUpperCase() ?? ""}${option.slice(1)}`)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t("inviteLanguage")}
-        <select
-          value={language}
-          onChange={(event) => {
-            setLanguage(event.target.value);
-          }}
-        >
-          <option value="en">English</option>
-          <option value="de">Deutsch</option>
-        </select>
-      </label>
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={sendMail}
-          onChange={(event) => {
-            setSendMail(event.target.checked);
-          }}
-        />
-        <span>{t("inviteSendMail")}</span>
-      </label>
-      <button className="primary" type="submit" disabled={actions.length === 0}>
-        {t("inviteSubmit")}
-      </button>
-      {answer && (
-        <div className={answer === "error" ? "error" : "muted"} role="status">
-          {answer === "error" ? (
-            <p>{t("inviteError")}</p>
+      <Group>
+        {projects.length > 1 && (
+          <Row label={t("project")}>
+            {(props) => (
+              <select
+                {...props}
+                value={current}
+                onChange={(event) => {
+                  setProjectId(event.target.value);
+                }}
+              >
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Row>
+        )}
+        <Row label={t("name")}>
+          {(props) => (
+            <input
+              {...props}
+              value={name}
+              maxLength={100}
+              required
+              onChange={(event) => {
+                setName(event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        <Row label={t("email")}>
+          {(props) => (
+            <input
+              {...props}
+              type="email"
+              value={email}
+              required
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
+            />
+          )}
+        </Row>
+        <Row label={t("role")}>
+          {(props) => (
+            <select
+              {...props}
+              value={role}
+              onChange={(event) => {
+                setRole(event.target.value as OperatorRole);
+              }}
+            >
+              {roles.map((option) => (
+                <option key={option} value={option}>
+                  {t(`role${option[0]?.toUpperCase() ?? ""}${option.slice(1)}`)}
+                </option>
+              ))}
+            </select>
+          )}
+        </Row>
+        <Row label={t("inviteLanguage")}>
+          {(props) => (
+            <select
+              {...props}
+              value={language}
+              onChange={(event) => {
+                setLanguage(event.target.value);
+              }}
+            >
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+            </select>
+          )}
+        </Row>
+        <Switch label={t("inviteSendMail")} checked={sendMail} onChange={setSendMail} />
+      </Group>
+      <Actions
+        status={
+          answer &&
+          (answer === "error" ? (
+            <span className="error">{t("inviteError")}</span>
           ) : (
             <>
-              <p>{t(answer.created ? "inviteCreated" : "inviteExisting")}</p>
-              <p>{t(`inviteMail_${answer.mail}`)}</p>
-              {!answer.canSignIn && <p className="attention">{t("inviteNoProvider")}</p>}
+              <span>{t(answer.created ? "inviteCreated" : "inviteExisting")}</span>{" "}
+              <span>{t(`inviteMail_${answer.mail}`)}</span>
+              {!answer.canSignIn && (
+                <>
+                  {" "}
+                  <span className="attention">{t("inviteNoProvider")}</span>
+                </>
+              )}
             </>
-          )}
-        </div>
-      )}
+          ))
+        }
+      >
+        <button className="primary" type="submit" disabled={actions.length === 0}>
+          {t("inviteSubmit")}
+        </button>
+      </Actions>
     </form>
   );
 }

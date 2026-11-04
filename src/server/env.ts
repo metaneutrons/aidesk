@@ -14,7 +14,27 @@ const schema = z.object({
     z.enum(["true", "false"]).default("true"),
   ),
   BETTER_AUTH_SECRET: z.string().min(32),
+  // While the secret is rotated the previous one stays here, so that nothing that it protects is lost before the
+  // keys job has re-protected it; `BETTER_AUTH_SECRET_VERSION` numbers the current secret (the previous one is one
+  // less) and is raised by one with each rotation. An empty value is no previous secret.
+  BETTER_AUTH_SECRET_PREVIOUS: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
+  BETTER_AUTH_SECRET_VERSION: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(1_000_000).default(1),
+  ),
   ENCRYPTION_KEY: z.string().regex(/^[a-f0-9]{64}$/),
+  // The key that sealed the stored secrets before the last rotation; it is only used to read what the keys job has not
+  // re-sealed yet. An empty value is no previous key.
+  ENCRYPTION_KEY_PREVIOUS: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  ),
   S3_ENDPOINT: z.url(),
   S3_REGION: z.string().default("us-east-1"),
   S3_BUCKET: z.string().min(1),
@@ -32,8 +52,29 @@ const schema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(32).optional(),
   ),
+  // The updater of a Compose installation (profile `updater` of compose.production.yaml), which the owner talks to on the
+  // settings page. Without a token there is no updater and the page says so; the address is the service of the same
+  // project. The token is the one the updater was started with. An empty value is none.
+  UPDATER_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url().default("http://updater:8080"),
+  ),
+  UPDATER_TOKEN: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(32).optional(),
+  ),
+  // Set by Coolify in the containers of an application that it deploys itself. Such an installation is updated by
+  // deploying it again there, and the updates of the settings do not apply (see src/server/updates.ts).
+  COOLIFY_RESOURCE_UUID: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().optional(),
+  ),
 });
 let cached: z.infer<typeof schema> | undefined;
+// The values are read once; a test that changes the environment reads them again.
+export function resetEnv(): void {
+  cached = undefined;
+}
 export function env(): z.infer<typeof schema> {
   cached ??= schema.parse(process.env);
   return cached;

@@ -58,6 +58,8 @@ const publishedDefinition = async (request: APIRequestContext) =>
 // What is not exercised with a success answer, and why. A route that is not here
 // and not called below fails the test that counts them.
 const notCalled: Record<string, string> = {
+  "signin.session_end":
+    "ends a session of the person and needs a second one; covered by the sign-in tests and the sign-in spec",
   "projects.create": "creates a project of the instance; the shape is checked by the invalid call",
   "operators.create":
     "creates an operator of the instance; the shape is checked by the invalid call",
@@ -81,6 +83,20 @@ const notCalled: Record<string, string> = {
   "tickets.restore": "needs a ticket in the junk folder",
   "audit.export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
+  "keys.rotate":
+    "needs a previous key in the environment of the installation; covered by the key rotation tests",
+  "updates.check": "asks the updater of the installation; covered by the updates tests and spec",
+  "updates.apply":
+    "replaces the containers of the installation; covered by the updates tests and spec",
+  "updates.schedule":
+    "sets the maintenance window of the installation; covered by the updates tests and spec",
+  "requester.export":
+    "answers a zip file and not JSON, and the export is an entry of the audit; covered by the export tests and the requester export spec",
+  "erasure.ticket": "erases a ticket for good; covered by the erasure tests and the erase spec",
+  "erasure.requester":
+    "erases a requester for good; covered by the erasure tests and the erase spec",
+  "processing.export":
+    "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the processing spec",
   "audit.workspace_export":
     "answers a CSV file and not JSON, and the export is an entry of the audit; covered by the audit spec",
   "workspace.limits_set":
@@ -191,6 +207,8 @@ test("answers every documented route in the published shape, with real data", as
   // Ticket work.
   await call("tickets.tags", { params: { ticketId: ticket }, data: { tags: ["contract"] } });
   await call("tickets.tags", { params: { ticketId: ticket }, data: { tags: [] } });
+  await call("tickets.triage", { params: { ticketId: ticket }, data: { priority: "high" } });
+  await call("tickets.triage", { params: { ticketId: ticket }, data: { priority: "normal" } });
   await call("tickets.reminder", { params: { ticketId: ticket }, data: { remindAt: null } });
   await call("tickets.assign", {
     params: { ticketId: ticket },
@@ -242,6 +260,34 @@ test("answers every documented route in the published shape, with real data", as
   await call("operator.locale", { data: { locale: null } });
   await call("operator.profile_get");
   await call("operator.profile_set", { data: { displayName: null, signature: null } });
+  // Notifications: the list, the choice of channels (put back as found) and the marking as read.
+  await call("notifications.list", { query: { limit: "5" } });
+  const chosen = await call("notifications.preferences_get");
+  await call("notifications.preferences_set", { data: { preferences: chosen.preferences } });
+  await call("notifications.read", { data: {} });
+  // Views: save the current filters, list, change, make it the start, take that away and delete it.
+  const saved = await call("views.create", {
+    data: {
+      name: `Contract view ${desk.run}`,
+      list: "inbox",
+      projects: [],
+      tag: null,
+      priority: null,
+      category: null,
+    },
+  });
+  const viewId =
+    (saved.views as { id: string; name: string }[]).find(
+      (view) => view.name === `Contract view ${desk.run}`,
+    )?.id ?? "";
+  await call("views.list");
+  await call("views.update", { params: { viewId }, data: { priority: "high" } });
+  await call("views.start", { params: { viewId }, data: { start: true } });
+  await call("views.start", { params: { viewId }, data: { start: false } });
+  await call("views.delete", { params: { viewId } });
+  await call("signin.get");
+  await call("signin.sessions");
+  await call("signin.sessions_end_others", { data: {} });
   // Designs, on a project that no other spec uses for designs: the designs spec counts the versions of
   // alpha and finds the one that this selects.
   const designProject = desk.projects.gamma.id;
@@ -306,6 +352,7 @@ test("answers every documented route in the published shape, with real data", as
     data: { name: `Contract managed ${desk.run}`, actions: ["ticket.read"] },
   });
   await call("tickets.assignees", { params: { ticketId: ticket } });
+  await call("tickets.mentionable", { params: { ticketId: ticket } });
   await call("tickets.assign", {
     params: { ticketId: ticket },
     data: { userId: null, agentId: String(managedAgent.id) },
@@ -390,6 +437,95 @@ test("answers every documented route in the published shape, with real data", as
     data: { userId: self?.id ?? "", member: true },
   });
   await call("groups.delete", { params: { projectId: project, groupId } });
+  // The lists of senders: a domain is blocked, listed and taken off again.
+  const rule = await call("senders.add", {
+    params: { projectId: project },
+    data: { kind: "block", value: `contract-${desk.run}.example.test` },
+  });
+  await call("senders.list", { params: { projectId: project } });
+  await call("senders.remove", { params: { projectId: project, ruleId: String(rule.id) } });
+  // The routing rules: made, listed, changed, ordered and removed.
+  await call("routing.targets", { params: { projectId: project } });
+  const routing = await call("routing.create", {
+    params: { projectId: project },
+    data: {
+      name: `Contract ${desk.run}`,
+      conditions: { subjectWords: ["contract"] },
+      priority: "high",
+    },
+  });
+  const ruleId = String(routing.id);
+  await call("routing.list", { params: { projectId: project } });
+  await call("routing.update", {
+    params: { projectId: project, ruleId },
+    data: { name: `Contract ${desk.run} renamed`, priority: "low" },
+  });
+  await call("routing.reorder", { params: { projectId: project }, data: { ids: [ruleId] } });
+  await call("routing.delete", { params: { projectId: project, ruleId } });
+  // What still depends on a previous key; nothing is changed.
+  await call("keys.status");
+  await call("updates.status");
+  // What the periods of a retention would remove now; nothing is changed.
+  await call("retention.preview", {
+    params: { projectId: project },
+    data: { tickets: 730, attachments: null, originals: null, translations: null, aiRuns: 90 },
+  });
+  // What an erasure would remove, for a ticket and for a requester; nothing is erased.
+  await call("erasure.ticket_preview", { params: { ticketId: ticket } });
+  await call("erasure.requester_preview", {
+    params: { projectId: project },
+    query: { email: "kim@example.test" },
+  });
+  // Where the content of the tickets goes: for all projects and for this one.
+  await call("processing.list");
+  await call("processing.get", { params: { projectId: project } });
+  // The tags of the project: renamed, merged, coloured and removed again.
+  await call("tickets.tags", {
+    params: { ticketId: ticket },
+    data: { tags: ["contract-a", "contract-b"] },
+  });
+  await call("tagadmin.list", { params: { projectId: project } });
+  await call("tagadmin.rename", {
+    params: { projectId: project },
+    data: { from: "contract-a", to: "contract-c" },
+  });
+  await call("tagadmin.merge", {
+    params: { projectId: project },
+    data: { from: ["contract-b"], into: "contract-c" },
+  });
+  await call("tagadmin.color", {
+    params: { projectId: project },
+    data: { tag: "contract-c", color: "#336699" },
+  });
+  await call("tagadmin.remove", {
+    params: { projectId: project },
+    data: { tag: "contract-c", expectedTickets: 1 },
+  });
+  // The canned replies: made, listed, changed, rendered for a ticket and removed.
+  const canned = await call("canned.create", {
+    params: { projectId: project },
+    data: { name: `Contract ${desk.run}`, language: "en", body: "Hello {{customer_name}}" },
+  });
+  const cannedId = String(canned.target);
+  const cannedList = (await call("canned.list", { params: { projectId: project } })) as unknown as {
+    id: string;
+    version: number;
+  }[];
+  const version = cannedList.find((entry) => entry.id === cannedId)?.version ?? 1;
+  await call("canned.update", {
+    params: { projectId: project, replyId: cannedId },
+    data: {
+      name: `Contract ${desk.run}`,
+      language: "en",
+      body: "Hello {{customer_name}}, ticket {{ticket_number}}",
+      expectedVersion: version,
+    },
+  });
+  await call("canned.for_ticket", { params: { ticketId: ticket } });
+  await call("canned.delete", {
+    params: { projectId: project, replyId: cannedId },
+    data: { expectedVersion: version + 1 },
+  });
   // Archived and restored at once, so that nothing after it meets a read-only project.
   // An export is made and listed; the file itself and the deletion are covered by their own tests.
   await call("projects.export_create", { params: { projectId: project } });

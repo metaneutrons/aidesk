@@ -18,6 +18,7 @@ import { db } from "./db";
 import { audit, messages, tickets } from "./db/schema";
 import { DomainError } from "./errors";
 import { searchKnowledge, type KnowledgeDeps } from "./knowledge";
+import { cannedForTicket } from "./canned";
 import { activeTexts } from "./texts";
 // How a run that ended without an answer is shown to the caller.
 const statusOf: Record<AiFailure, number> = {
@@ -82,6 +83,11 @@ export async function assistDraft(
         knowledgeDeps,
       ).catch(() => null)
     : null;
+  // The canned replies of the project, filled in for the ticket, for a draft of a reply. A failure leaves them out.
+  const canned =
+    request.mode === "reply"
+      ? (await cannedForTicket(principal, ticket.id).catch(() => [])).slice(0, 20)
+      : [];
   const boundary = `ticket-data-${randomUUID()}`;
   const standard = effectiveText(
     assistKey[request.mode],
@@ -101,6 +107,7 @@ export async function assistDraft(
         language: ticket.language,
         messages: conversation,
         current: request.current,
+        ...(canned.length ? { canned: canned.map(({ name, text }) => ({ name, text })) } : {}),
         ...(found ? { knowledge: found.passages } : {}),
       }),
       actor: { id: principal.id, kind: principal.kind },
@@ -126,6 +133,7 @@ export async function assistDraft(
         withInstruction: Boolean(request.instruction),
         withText: Boolean(request.current),
         knowledgePassages: found?.passages.length ?? 0,
+        cannedReplies: canned.length,
         truncated: outcome.truncated,
       },
     });

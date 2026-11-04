@@ -1,0 +1,50 @@
+# The routing of the product on the Traefik of a Coolify instance, for compose.coolify.yaml. Copy it to the
+# directory that Traefik watches (on a standard Coolify: /data/coolify/proxy/dynamic/aidesk.yml), replace the
+# names and the resolver, and Traefik reads it without a restart. The names of an installation are not
+# written into this repository: the copy on the server is the only place that holds them.
+#
+# aidesk-desk: the desk (operators' interface, API, sign-in), at one name and only from the ranges below, so
+#   that a name that resolves to a private address stays private when the Traefik is reachable from the
+#   internet (any other source gets 403, also with a forged Host header). Set APP_URL to https://<this name>.
+# aidesk-portal: the customer pages, at the names that the product has proved for them. Only the paths
+#   that src/domain/portal-domains.ts lists are passed; the application checks the same list by itself
+#   (src/proxy.ts). tests/coolify-compose.test.ts keeps this file and that list equal.
+# certResolver: a resolver of the instance that is allowed to issue for every name used here. An instance
+#   whose Traefik publishes no port 80 needs one that works with the DNS challenge, with a token that covers
+#   the zone of every name, also those of the customer pages.
+http:
+  middlewares:
+    aidesk-desk-only:
+      ipAllowList:
+        sourceRange:
+          ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7", "127.0.0.1/32", "::1/128"]
+    aidesk-headers:
+      headers:
+        stsSeconds: 31536000
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        customFrameOptionsValue: SAMEORIGIN
+    aidesk-compress:
+      compress: {}
+  routers:
+    aidesk-desk:
+      rule: "Host(`desk.example.org`)"
+      entryPoints: [https]
+      service: aidesk
+      middlewares: [aidesk-desk-only, aidesk-headers, aidesk-compress]
+      tls:
+        certResolver: letsencrypt
+    aidesk-portal:
+      rule: "(Host(`help.example.org`) || Host(`desk.example.net`)) && (Path(`/portal`) || PathPrefix(`/portal/`) || PathPrefix(`/api/portal/`) || PathPrefix(`/_next/`) || Path(`/favicon.ico`) || Path(`/icon.svg`) || Path(`/robots.txt`))"
+      entryPoints: [https]
+      service: aidesk
+      middlewares: [aidesk-headers, aidesk-compress]
+      tls:
+        certResolver: letsencrypt
+  services:
+    aidesk:
+      loadBalancer:
+        # The alias of the web server on the network `coolify` (compose.coolify.yaml). The body is not limited
+        # here: the route of a reply reads at most the limit of the settings plus 1 MiB, and a buffering
+        # middleware would hold back the streaming of MCP.
+        servers: [{ url: "http://aidesk-app:3000" }]

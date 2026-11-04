@@ -1,3 +1,4 @@
+import { mayReopen, replyPolicyOf, type ReplyPolicy } from "../domain/reply-policy";
 import { queueAgentRun } from "./agent-runs";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
@@ -31,14 +32,14 @@ import { permits, type Principal } from "../domain/permissions";
 // with a key derived from the encryption key. So every mail about the ticket
 // can carry the same link, a database copy does not contain any link, and a
 // new link (a higher epoch) replaces the earlier one. A grant also expires and
-// can be revoked. Changing the encryption key ends all links.
-const subkey = () =>
-  createHmac("sha256", Buffer.from(env().ENCRYPTION_KEY, "hex"))
-    .update("aidesk portal links v1")
-    .digest();
+// can be revoked. Changing the encryption key ends all links, unless the previous key is kept in
+// `ENCRYPTION_KEY_PREVIOUS`: the links that were issued under it then stay valid (a link cannot be derived again for
+// a customer who holds it), and new links are issued under the current key.
+const subkey = (key: string = env().ENCRYPTION_KEY) =>
+  createHmac("sha256", Buffer.from(key, "hex")).update("aidesk portal links v1").digest();
 const uuidBytes = (value: string) => Buffer.from(value.replaceAll("-", ""), "hex");
-function mac(participantId: string, epoch: number): Buffer {
-  return createHmac("sha256", subkey())
+function mac(participantId: string, epoch: number, key?: string): Buffer {
+  return createHmac("sha256", subkey(key))
     .update(`portal:${participantId}:${String(epoch)}`)
     .digest();
 }
@@ -183,8 +184,15 @@ export async function resolvePortalGrant(token: unknown, host: PortalHost | null
       ),
     );
   if (!grant) return null;
-  const expected = mac(grant.participantId, grant.epoch);
-  if (parsed.mac.length !== expected.length || !timingSafeEqual(parsed.mac, expected)) return null;
+  // A link issued before a rotation of the encryption key stays valid while the previous key is kept.
+  const previous = env().ENCRYPTION_KEY_PREVIOUS;
+  const matches = (expected: Buffer) =>
+    parsed.mac.length === expected.length && timingSafeEqual(parsed.mac, expected);
+  if (
+    !matches(mac(grant.participantId, grant.epoch)) &&
+    !(previous && matches(mac(grant.participantId, grant.epoch, previous)))
+  )
+    return null;
   if (!(await hostServesProject(host, grant.projectId))) return null;
   return {
     participantId: grant.participantId,
@@ -214,6 +222,7 @@ export async function getPortalTicket(
       project: projects.name,
       projectId: projects.id,
       archivedAt: projects.archivedAt,
+      settings: projects.settings,
     })
     .from(tickets)
     .innerJoin(projects, eq(projects.id, tickets.projectId))
@@ -282,7 +291,9 @@ export async function getPortalTicket(
       createdAt: row.createdAt,
     },
     // An archived project takes no reply; its page can still be read.
-    canReply: row.archivedAt === null && repliesAllowed(row.status, row.resolvedAt),
+    canReply:
+      row.archivedAt === null &&
+      repliesAllowed(row.status, row.resolvedAt, replyPolicyOf(row.settings)),
     messages: conversation.map((message) => ({
       id: message.id,
       from: message.authorType === "customer" ? ("you" as const) : ("team" as const),
@@ -301,13 +312,11 @@ export async function getPortalTicket(
   };
 }
 
-// A resolved ticket can be answered for 30 days, like by mail; after that the
-// customer starts a new request.
-const reopenWindowMs = 30 * 86_400_000;
-function repliesAllowed(status: string, resolvedAt: Date | null): boolean {
+// A resolved ticket can be answered in the window that the project sets (30 days until it changes it), like by
+// mail; after that, and when the project does not reopen at all, the customer starts a new request.
+function repliesAllowed(status: string, resolvedAt: Date | null, policy: ReplyPolicy): boolean {
   if (status !== "resolved") return true;
-  if (!resolvedAt) return false;
-  return Date.now() - resolvedAt.getTime() <= reopenWindowMs;
+  return mayReopen(policy, resolvedAt, new Date());
 }
 const replyLimit = 20;
 // A reply written in the portal by the holder of a token. It becomes a message
@@ -386,7 +395,12 @@ export async function portalReply(
         ),
       );
     if (again) return { id: again.id, duplicate: true };
-    if (!repliesAllowed(ticket.status, ticket.resolvedAt)) throw new DomainError("conflict", 409);
+    const [owner] = await tx
+      .select({ settings: projects.settings })
+      .from(projects)
+      .where(eq(projects.id, ticket.projectId));
+    if (!repliesAllowed(ticket.status, ticket.resolvedAt, replyPolicyOf(owner?.settings ?? {})))
+      throw new DomainError("conflict", 409);
     const [recent] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(messages)

@@ -2,6 +2,7 @@
 import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
 import { logoMaxBytes } from "../domain/branding";
 // How the customer page of a project looks: its name, a line of text, the colour of the buttons, the language and
 // the logo. What is left empty is not shown, and the page looks as it did before.
@@ -123,104 +124,111 @@ export function PortalBranding({
   }
   return (
     <section className="connections portal-branding" aria-labelledby={`${titleId}-title`}>
-      <details>
-        <summary>
-          <h3 id={`${titleId}-title`}>{t("brandingTitle", { project: name })}</h3>
-        </summary>
-        <p className="muted">{t("brandingHint")}</p>
-        <form
-          className="settings-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save();
-          }}
-        >
-          <fieldset disabled={!canWrite}>
-            <label>
-              {t("brandingName")}
-              <input
-                value={displayName}
-                maxLength={80}
-                onChange={(event) => {
-                  setDisplayName(event.target.value);
-                }}
-              />
-            </label>
-            <label>
-              {t("brandingHeader")}
-              <input
-                value={headerText}
-                maxLength={300}
-                onChange={(event) => {
-                  setHeaderText(event.target.value);
-                }}
-              />
-            </label>
-            <label>
-              {t("brandingColor")}
-              <span className="color-field">
+      <h3 id={`${titleId}-title`}>{t("brandingTitle", { project: name })}</h3>
+      <p className="muted">{t("brandingHint")}</p>
+      <form
+        className="stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <fieldset className="plain" disabled={!canWrite}>
+          <Group>
+            <Row label={t("brandingName")}>
+              {(props) => (
                 <input
-                  type="color"
-                  value={/^#[0-9a-fA-F]{6}$/.test(accent) ? accent : "#5167ed"}
-                  aria-label={t("brandingColorPick")}
+                  {...props}
+                  value={displayName}
+                  maxLength={80}
                   onChange={(event) => {
-                    setAccent(event.target.value);
+                    setDisplayName(event.target.value);
                   }}
                 />
+              )}
+            </Row>
+            <Row label={t("brandingHeader")}>
+              {(props) => (
                 <input
-                  value={accent}
-                  placeholder="#5167ed"
-                  maxLength={7}
-                  aria-invalid={!colourValid}
+                  {...props}
+                  value={headerText}
+                  maxLength={300}
                   onChange={(event) => {
-                    setAccent(event.target.value);
+                    setHeaderText(event.target.value);
                   }}
                 />
-              </span>
-            </label>
-            <label>
-              {t("brandingLanguage")}
-              <select
-                value={language}
-                onChange={(event) => {
-                  setLanguage(event.target.value);
-                }}
-              >
-                <option value="">{t("brandingLanguageAuto")}</option>
-                <option value="en">English</option>
-                <option value="de">Deutsch</option>
-              </select>
-            </label>
+              )}
+            </Row>
+            <Row label={t("brandingColor")}>
+              {(props) => (
+                <span className="color-field">
+                  <input
+                    type="color"
+                    value={/^#[0-9a-fA-F]{6}$/.test(accent) ? accent : "#5167ed"}
+                    aria-label={t("brandingColorPick")}
+                    onChange={(event) => {
+                      setAccent(event.target.value);
+                    }}
+                  />
+                  <input
+                    {...props}
+                    value={accent}
+                    placeholder="#5167ed"
+                    maxLength={7}
+                    aria-invalid={!colourValid}
+                    onChange={(event) => {
+                      setAccent(event.target.value);
+                    }}
+                  />
+                </span>
+              )}
+            </Row>
+            <Row label={t("brandingLanguage")}>
+              {(props) => (
+                <select
+                  {...props}
+                  value={language}
+                  onChange={(event) => {
+                    setLanguage(event.target.value);
+                  }}
+                >
+                  <option value="">{t("brandingLanguageAuto")}</option>
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                </select>
+              )}
+            </Row>
+          </Group>
+          <Actions
+            status={
+              message && (
+                <span className={message === "error" ? "error" : undefined}>
+                  {t(`brandingMessage_${message}`)}
+                </span>
+              )
+            }
+          >
             <button className="primary" type="submit" disabled={!changed || !colourValid}>
               {t("brandingSave")}
             </button>
-          </fieldset>
-        </form>
-        <div className="branding-logo">
-          <h4>{t("brandingLogo")}</h4>
-          {stored.hasLogo ? (
-            <img
-              src={`/api/v1/projects/${projectId}/portal-branding/logo?v=${String(logoVersion)}`}
-              alt={t("brandingLogoAlt", { project: name })}
-              height={48}
-            />
-          ) : (
-            <p className="muted">{t("brandingLogoNone")}</p>
-          )}
+          </Actions>
+        </fieldset>
+      </form>
+      <Group title={t("brandingLogo")}>
+        <div className="row">
+          <div className="row-label">
+            {stored.hasLogo ? (
+              <img
+                src={`/api/v1/projects/${projectId}/portal-branding/logo?v=${String(logoVersion)}`}
+                alt={t("brandingLogoAlt", { project: name })}
+                height={48}
+              />
+            ) : (
+              <span className="muted">{t("brandingLogoNone")}</span>
+            )}
+          </div>
           {canWrite && (
-            <>
-              <label>
-                {t("brandingLogoUpload")}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void upload(file);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
+            <div className="row-control">
               {stored.hasLogo && (
                 <button
                   type="button"
@@ -232,15 +240,26 @@ export function PortalBranding({
                   {t("brandingLogoRemove")}
                 </button>
               )}
-            </>
+            </div>
           )}
         </div>
-        {message && (
-          <p className={message === "error" ? "error" : "muted"} role="status">
-            {t(`brandingMessage_${message}`)}
-          </p>
+        {canWrite && (
+          <Row label={t("brandingLogoUpload")}>
+            {(props) => (
+              <input
+                {...props}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void upload(file);
+                  event.target.value = "";
+                }}
+              />
+            )}
+          </Row>
         )}
-      </details>
+      </Group>
     </section>
   );
 }

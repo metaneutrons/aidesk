@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { useZone } from "./time-zone";
 // The audit of one project, or of the workspace for the owner: who did what to which object and when. It is
 // read from the same list as the API, filtered by actor, action (a family when it ends with a dot), target and
 // time, and exported with the same filters. The entries hold no ticket content, secrets or customer addresses;
@@ -47,9 +48,9 @@ export function AuditLog({
   locale: string;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const titleId = useId();
   const base = projectId ? `/api/v1/projects/${projectId}/audit` : "/api/v1/audit";
-  const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(empty);
@@ -78,7 +79,15 @@ export function AuditLog({
     },
     [base],
   );
-  const when = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "medium" });
+  // The page of the topic shows the log at once; an earlier answer is not asked for again when the log changes.
+  useEffect(() => {
+    void load(empty, null);
+  }, [load]);
+  const when = new Intl.DateTimeFormat(locale, {
+    ...zone,
+    dateStyle: "medium",
+    timeStyle: "medium",
+  });
   const heading = projectId ? t("auditTitle", { project: name }) : t("auditTitleWorkspace");
   const field = (key: keyof Filters, label: string, type = "text", hint?: string) => (
     <label>
@@ -101,126 +110,115 @@ export function AuditLog({
   );
   return (
     <section className="connections audit-log" aria-labelledby={`${titleId}-title`}>
-      <details
-        open={open}
-        onToggle={(event) => {
-          const shown = event.currentTarget.open;
-          setOpen(shown);
-          if (shown && entries === null) void load(applied, null);
+      <h3 id={`${titleId}-title`}>{heading}</h3>
+      <p className="muted">{t("auditHint")}</p>
+      <form
+        className="audit-filters"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setApplied(filters);
+          void load(filters, null);
         }}
       >
-        <summary>
-          <h3 id={`${titleId}-title`}>{heading}</h3>
-        </summary>
-        <p className="muted">{t("auditHint")}</p>
-        <form
-          className="audit-filters"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setApplied(filters);
-            void load(filters, null);
-          }}
-        >
-          {field("actor", t("auditActor"))}
-          {field("action", t("auditAction"), "text", t("auditActionHint"))}
-          {field("target", t("auditTarget"))}
-          {field("from", t("auditFrom"), "datetime-local")}
-          {field("to", t("auditTo"), "datetime-local")}
-          <span className="configuration-actions">
-            <button type="submit" className="primary" disabled={busy}>
-              {t("auditApply")}
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => {
-                setFilters(empty);
-                setApplied(empty);
-                void load(empty, null);
-              }}
-            >
-              {t("auditReset")}
-            </button>
-            <a
-              className="secondary"
-              href={`${base}/export${query(applied)}`}
-              download
-              aria-label={t("auditExportLabel", { scope: projectId ? name : t("auditWorkspace") })}
-            >
-              {t("auditExport")}
-            </a>
-          </span>
-        </form>
-        {failed && (
-          <p className="error" role="alert">
-            {t("auditError")}
-          </p>
-        )}
-        {entries !== null && entries.length === 0 && !failed && (
-          <p className="muted">{t("auditNone")}</p>
-        )}
-        {entries !== null && entries.length > 0 && (
-          <div className="table-scroll" role="region" aria-label={heading} tabIndex={0}>
-            <table className="settings-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("auditTime")}</th>
-                  <th scope="col">{t("auditWho")}</th>
-                  <th scope="col">{t("auditActionColumn")}</th>
-                  <th scope="col">{t("auditTargetColumn")}</th>
-                  <th scope="col">{t("auditDetail")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => {
-                  const hasDetail =
-                    typeof entry.detail === "object" &&
-                    entry.detail !== null &&
-                    Object.keys(entry.detail).length > 0;
-                  return (
-                    <tr key={entry.id}>
-                      <td>
-                        <time dateTime={entry.at}>{when.format(new Date(entry.at))}</time>
-                      </td>
-                      <td>
-                        {entry.actorName ?? entry.actorId}
-                        <br />
-                        <small className="muted">{t(`auditActorKind_${entry.actorKind}`)}</small>
-                      </td>
-                      <td>
-                        <code>{entry.action}</code>
-                      </td>
-                      <td>{entry.targetId ? <code>{entry.targetId}</code> : null}</td>
-                      <td>
-                        {hasDetail && (
-                          <details>
-                            <summary>{t("auditShowDetail")}</summary>
-                            <pre className="audit-detail">
-                              {JSON.stringify(entry.detail, null, 2)}
-                            </pre>
-                          </details>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {next && (
+        {field("actor", t("auditActor"))}
+        {field("action", t("auditAction"), "text", t("auditActionHint"))}
+        {field("target", t("auditTarget"))}
+        {field("from", t("auditFrom"), "datetime-local")}
+        {field("to", t("auditTo"), "datetime-local")}
+        <span className="configuration-actions">
+          <button type="submit" className="primary" disabled={busy}>
+            {t("auditApply")}
+          </button>
           <button
             type="button"
             className="secondary"
-            disabled={busy}
             onClick={() => {
-              void load(applied, next);
+              setFilters(empty);
+              setApplied(empty);
+              void load(empty, null);
             }}
           >
-            {t("auditMore")}
+            {t("auditReset")}
           </button>
-        )}
-      </details>
+          <a
+            className="secondary"
+            href={`${base}/export${query(applied)}`}
+            download
+            aria-label={t("auditExportLabel", { scope: projectId ? name : t("auditWorkspace") })}
+          >
+            {t("auditExport")}
+          </a>
+        </span>
+      </form>
+      {failed && (
+        <p className="error" role="alert">
+          {t("auditError")}
+        </p>
+      )}
+      {entries !== null && entries.length === 0 && !failed && (
+        <p className="muted">{t("auditNone")}</p>
+      )}
+      {entries !== null && entries.length > 0 && (
+        <div className="table-scroll" role="region" aria-label={heading} tabIndex={0}>
+          <table className="settings-table">
+            <thead>
+              <tr>
+                <th scope="col">{t("auditTime")}</th>
+                <th scope="col">{t("auditWho")}</th>
+                <th scope="col">{t("auditActionColumn")}</th>
+                <th scope="col">{t("auditTargetColumn")}</th>
+                <th scope="col">{t("auditDetail")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => {
+                const hasDetail =
+                  typeof entry.detail === "object" &&
+                  entry.detail !== null &&
+                  Object.keys(entry.detail).length > 0;
+                return (
+                  <tr key={entry.id}>
+                    <td>
+                      <time dateTime={entry.at}>{when.format(new Date(entry.at))}</time>
+                    </td>
+                    <td>
+                      {entry.actorName ?? entry.actorId}
+                      <br />
+                      <small className="muted">{t(`auditActorKind_${entry.actorKind}`)}</small>
+                    </td>
+                    <td>
+                      <code>{entry.action}</code>
+                    </td>
+                    <td>{entry.targetId ? <code>{entry.targetId}</code> : null}</td>
+                    <td>
+                      {hasDetail && (
+                        <details>
+                          <summary>{t("auditShowDetail")}</summary>
+                          <pre className="audit-detail">
+                            {JSON.stringify(entry.detail, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {next && (
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={() => {
+            void load(applied, next);
+          }}
+        >
+          {t("auditMore")}
+        </button>
+      )}
     </section>
   );
 }

@@ -9,6 +9,7 @@ import {
   aiProfiles,
   aiRuns,
   audit,
+  cannedReplies,
   connections,
   messages,
   projectTexts,
@@ -154,6 +155,7 @@ beforeEach(async () => {
   await db().delete(aiProfiles).where(eq(aiProfiles.projectId, projectId));
   await db().delete(audit).where(eq(audit.projectId, projectId));
   await db().delete(projectTexts).where(eq(projectTexts.projectId, projectId));
+  await db().delete(cannedReplies).where(eq(cannedReplies.projectId, projectId));
   await db().update(tickets).set({ junkAt: null }).where(eq(tickets.projectId, projectId));
   await message(ticketId, { markdown: "Where is my order 4711? It was due on Monday." }, 0);
   await message(
@@ -431,6 +433,54 @@ describe("a draft", () => {
       "Kim",
     ])
       expect(stored).not.toContain(secret);
+  });
+});
+describe("canned replies in a draft", () => {
+  const add = () =>
+    db().insert(cannedReplies).values({
+      projectId,
+      name: "Delay",
+      language: "en",
+      body: "Hello {{customer_name}}, your order is delayed; ticket {{ticket_number}}, {{operator_name}}.",
+      createdBy: "test",
+    });
+  it("gives the model the replies of the project, filled in for the ticket, as data, for a reply only", async () => {
+    await profile("reply.draft");
+    await profile("note.draft");
+    await add();
+    const reply = fake(answer());
+    await assistDraft(replyOnly, ticketId, { mode: "reply" }, reply.deps);
+    expect(reply.calls[0]?.prompt).toContain("Canned replies of the team:");
+    expect(reply.calls[0]?.prompt).toContain("Hello Kim Example, your order is delayed; ticket");
+    expect(reply.calls[0]?.system).toContain("Canned replies of the team");
+    expect(reply.calls[0]?.system).toContain("give no instructions");
+    const note = fake(answer());
+    await assistDraft(both, ticketId, { mode: "note" }, note.deps);
+    expect(note.calls[0]?.prompt).not.toContain("Canned replies of the team:");
+    expect(
+      (await auditOf())
+        .map((entry) => (entry.detail as { cannedReplies: number }).cannedReplies)
+        .sort(),
+    ).toEqual([0, 1]);
+  });
+  it("leaves the section out when the project has no replies", async () => {
+    await profile("reply.draft");
+    const none = fake(answer());
+    await assistDraft(replyOnly, ticketId, { mode: "reply" }, none.deps);
+    expect(none.calls[0]?.prompt).not.toContain("Canned replies of the team:");
+  });
+  it("cuts the list at twenty replies and each text at the length of a message", () => {
+    const prompt = assistPrompt({
+      boundary: "b",
+      number: 1,
+      subject: "s",
+      customer: "Kim",
+      language: "en",
+      messages: [],
+      canned: [{ name: "Long", text: "x".repeat(assistLimits.message + 500) }],
+    });
+    expect(prompt).toContain("(1) Long");
+    expect(prompt).not.toContain("x".repeat(assistLimits.message + 1));
   });
 });
 describe("who may ask, and what a failure says", () => {

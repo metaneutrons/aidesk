@@ -1,7 +1,9 @@
 "use client";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
+import { useZone } from "./time-zone";
 const designSchema = z.object({
   version: z.number(),
   active: z.boolean(),
@@ -80,6 +82,7 @@ export function Designs({
   locale: string;
 }) {
   const t = useTranslations();
+  const zone = useZone();
   const fieldId = useId();
   // The list of projects arrives after the first render, so the choice is
   // kept apart and falls back to the first project.
@@ -93,9 +96,12 @@ export function Designs({
   const [language, setLanguage] = useState<Language>("en");
   // The version shown in the preview: 0 is the built-in design, "draft" the form.
   const [shown, setShown] = useState<number | "draft">(0);
-  const [preview, setPreview] = useState<{ version: number; html: string; text: string } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<{
+    version: number;
+    html: string;
+    text: string;
+    request: number;
+  } | null>(null);
   const [test, setTest] = useState<"idle" | "queued" | "sent" | "failed">("idle");
   const [testCode, setTestCode] = useState<string | null>(null);
   // Only the newest request may apply its answer.
@@ -128,7 +134,7 @@ export function Designs({
       const parsed = response?.ok ? previewSchema.safeParse(await response.json()) : null;
       if (request !== previewRequest.current) return;
       if (parsed?.success) {
-        setPreview(parsed.data);
+        setPreview({ ...parsed.data, request });
         setFailure(false);
       } else setFailure(true);
     },
@@ -170,7 +176,7 @@ export function Designs({
   }
   if (projects.length === 0) return null;
   const date = (value: string) =>
-    new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Intl.DateTimeFormat(locale, { ...zone, dateStyle: "medium", timeStyle: "short" }).format(
       new Date(value),
     );
   const label = (version: number) =>
@@ -188,7 +194,7 @@ export function Designs({
   ];
   return (
     <section className="designs" aria-labelledby={`${fieldId}-title`}>
-      <h2 id={`${fieldId}-title`}>{t("designsTitle")}</h2>
+      <h3 id={`${fieldId}-title`}>{t("designsTitle")}</h3>
       {failure && (
         <p className="error" role="alert">
           {t("error")}
@@ -303,7 +309,9 @@ export function Designs({
         </select>
         {preview && (
           <>
+            {/* A new frame for each answer: a changed srcdoc on a frame that still loads can leave it blank. */}
             <iframe
+              key={preview.request}
               className="design-frame"
               title={t("designPreview")}
               sandbox=""
@@ -317,7 +325,7 @@ export function Designs({
         )}
       </div>
       <form
-        className="settings-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void post(`/projects/${projectId}/designs`, configOf(draft)).then(async (response) => {
@@ -327,90 +335,114 @@ export function Designs({
         }}
       >
         <h3>{t("designNew")}</h3>
-        <label htmlFor={`${fieldId}-accent`}>{t("designAccent")}</label>
-        <input
-          id={`${fieldId}-accent`}
-          value={draft.accent}
-          placeholder="#5668e8"
-          pattern="#[0-9a-fA-F]{6}"
-          onChange={(event) => {
-            setField("accent", event.target.value);
-          }}
-        />
-        <label htmlFor={`${fieldId}-font`}>{t("designFont")}</label>
-        <select
-          id={`${fieldId}-font`}
-          value={draft.fontFamily}
-          onChange={(event) => {
-            setField("fontFamily", event.target.value as Draft["fontFamily"]);
-          }}
-        >
-          {fonts.map((font) => (
-            <option key={font} value={font}>
-              {t(`designFont_${font}`)}
-            </option>
+        <Group>
+          <Row label={t("designAccent")}>
+            {(props) => (
+              <input
+                {...props}
+                value={draft.accent}
+                placeholder="#5668e8"
+                pattern="#[0-9a-fA-F]{6}"
+                onChange={(event) => {
+                  setField("accent", event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <Row label={t("designFont")}>
+            {(props) => (
+              <select
+                {...props}
+                value={draft.fontFamily}
+                onChange={(event) => {
+                  setField("fontFamily", event.target.value as Draft["fontFamily"]);
+                }}
+              >
+                {fonts.map((font) => (
+                  <option key={font} value={font}>
+                    {t(`designFont_${font}`)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Row>
+          <Row label={t("designHeader")}>
+            {(props) => (
+              <input
+                {...props}
+                value={draft.headerText}
+                maxLength={100}
+                onChange={(event) => {
+                  setField("headerText", event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          <Row label={t("designLogo")}>
+            {(props) => (
+              <input
+                {...props}
+                type="url"
+                value={draft.logoUrl}
+                placeholder="https://"
+                onChange={(event) => {
+                  setField("logoUrl", event.target.value);
+                }}
+              />
+            )}
+          </Row>
+          {languages.map((entry) => (
+            <Fragment key={entry}>
+              <Row
+                label={`${t("designFooter")} (${entry === "en" ? "English" : "Deutsch"})`}
+                stacked
+              >
+                {(props) => (
+                  <textarea
+                    {...props}
+                    value={draft.footer[entry]}
+                    maxLength={500}
+                    rows={2}
+                    onChange={(event) => {
+                      setField("footer", { ...draft.footer, [entry]: event.target.value });
+                    }}
+                  />
+                )}
+              </Row>
+              <Row
+                label={`${t("designSignature")} (${entry === "en" ? "English" : "Deutsch"})`}
+                stacked
+              >
+                {(props) => (
+                  <textarea
+                    {...props}
+                    value={draft.signature[entry]}
+                    maxLength={1000}
+                    rows={3}
+                    onChange={(event) => {
+                      setField("signature", { ...draft.signature, [entry]: event.target.value });
+                    }}
+                  />
+                )}
+              </Row>
+            </Fragment>
           ))}
-        </select>
-        <label htmlFor={`${fieldId}-header`}>{t("designHeader")}</label>
-        <input
-          id={`${fieldId}-header`}
-          value={draft.headerText}
-          maxLength={100}
-          onChange={(event) => {
-            setField("headerText", event.target.value);
-          }}
-        />
-        <label htmlFor={`${fieldId}-logo`}>{t("designLogo")}</label>
-        <input
-          id={`${fieldId}-logo`}
-          type="url"
-          value={draft.logoUrl}
-          placeholder="https://"
-          onChange={(event) => {
-            setField("logoUrl", event.target.value);
-          }}
-        />
-        {languages.map((entry) => (
-          <div key={entry} className="design-language">
-            <label htmlFor={`${fieldId}-footer-${entry}`}>
-              {t("designFooter")} ({entry === "en" ? "English" : "Deutsch"})
-            </label>
-            <textarea
-              id={`${fieldId}-footer-${entry}`}
-              value={draft.footer[entry]}
-              maxLength={500}
-              rows={2}
-              onChange={(event) => {
-                setField("footer", { ...draft.footer, [entry]: event.target.value });
-              }}
-            />
-            <label htmlFor={`${fieldId}-signature-${entry}`}>
-              {t("designSignature")} ({entry === "en" ? "English" : "Deutsch"})
-            </label>
-            <textarea
-              id={`${fieldId}-signature-${entry}`}
-              value={draft.signature[entry]}
-              maxLength={1000}
-              rows={3}
-              onChange={(event) => {
-                setField("signature", { ...draft.signature, [entry]: event.target.value });
-              }}
-            />
-          </div>
-        ))}
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            setShown("draft");
-            void render("draft", language, draft);
-          }}
-        >
-          {t("designPreviewDraft")}
-        </button>
-        <button className="primary" type="submit">
-          {t("designCreate")}
-        </button>
+        </Group>
+        <Actions>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setShown("draft");
+              void render("draft", language, draft);
+            }}
+          >
+            {t("designPreviewDraft")}
+          </button>
+          <button className="primary" type="submit">
+            {t("designCreate")}
+          </button>
+        </Actions>
       </form>
     </section>
   );

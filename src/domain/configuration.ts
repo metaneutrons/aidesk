@@ -1,7 +1,21 @@
 import { z } from "zod";
+import {
+  defaultBusinessEnd,
+  defaultBusinessStart,
+  isTimeZone,
+  minuteOf,
+  parseDays,
+  parseHolidays,
+} from "./business-hours";
+import { junkSensitivities } from "./junk";
+import { ruleShape } from "./notifications";
+import { retentionPeriod } from "./retention";
+import { maxCategories, maxCategoryLength, parseCategories } from "./triage";
+import { maxAutoResolveDays, maxReopenDays, replyModes } from "./reply-policy";
 // The configuration of a project that people and agents may edit as one
 // document. Connections, secrets and texts are not part of it; they follow with
 // their own rules. The slug identifies the project and cannot be changed.
+const limit = z.number().int().min(1).max(720).nullable();
 export const configDocument = z
   .object({
     name: z.string().trim().min(1).max(100),
@@ -23,12 +37,106 @@ export const configDocument = z
     // counts as overdue. The first is never longer than the second.
     warnHours: z.number().int().min(1).max(720),
     overdueHours: z.number().int().min(1).max(720),
+    // What a reply of a customer does to a resolved ticket (see `reply-policy.ts`), and for how many
+    // days after the resolution a reply reopens it when the mode is "reopen".
+    reopenMode: z.enum(replyModes),
+    reopenDays: z.number().int().min(1).max(maxReopenDays),
+    // A ticket that waits for the customer is resolved after this many days without an answer; null never
+    // resolves it. The customer is reminded this many days before; null sends no reminder, and a reminder
+    // comes before the resolve.
+    autoResolveDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
+    autoResolveReminderDays: z.number().int().min(1).max(maxAutoResolveDays).nullable(),
+    // How much the junk rules trust the headers of a mail (see `junk.ts`); the lists of senders come first.
+    junkSensitivity: z.enum(junkSensitivities),
+    // Business hours of the response clock (see `business-hours.ts`). Days are ISO weekdays such as "1,2,3,4,5";
+    // null means no business hours, and the clock counts every hour. Holidays are dates, separated by commas
+    // or line breaks.
+    // Limits of the response clock for the priorities low, high and urgent; null takes the limit of the project.
+    // The normal priority has the limits of the project.
+    warnHoursLow: limit,
+    overdueHoursLow: limit,
+    warnHoursHigh: limit,
+    overdueHoursHigh: limit,
+    warnHoursUrgent: limit,
+    overdueHoursUrgent: limit,
+    // How long the project keeps what it holds, in days; null keeps it for good (see `retention.ts`). A period that
+    // is set or made shorter needs a person with the right to approve changes.
+    retentionTicketsDays: retentionPeriod,
+    retentionAttachmentsDays: retentionPeriod,
+    retentionOriginalsDays: retentionPeriod,
+    retentionTranslationsDays: retentionPeriod,
+    retentionAiRunsDays: retentionPeriod,
+    // Which events tell operators, and whom (see `notifications.ts`): a new ticket, an assignment, a note that names
+    // someone, an overdue ticket and a draft of an agent that waits for a person.
+    ...ruleShape,
+    // The categories that a ticket can have, one name per line (see `triage.ts`).
+    categories: z.string().max(maxCategories * (maxCategoryLength + 1)),
+    businessDays: z.string().max(13).nullable(),
+    businessStart: z.string().max(5),
+    businessEnd: z.string().max(5),
+    businessTimeZone: z.string().max(64).nullable(),
+    holidays: z.string().max(2400),
   })
   .strict()
   .refine((config) => config.warnHours <= config.overdueHours, {
     message: "The warning comes before the overdue limit or at the same time",
     path: ["warnHours"],
-  });
+  })
+  .refine((config) => parseCategories(config.categories) !== null, {
+    message: `At most ${String(maxCategories)} names, each up to ${String(maxCategoryLength)} characters, none twice`,
+    path: ["categories"],
+  })
+  .refine(
+    (config) =>
+      [
+        ["Low", config.warnHoursLow, config.overdueHoursLow],
+        ["High", config.warnHoursHigh, config.overdueHoursHigh],
+        ["Urgent", config.warnHoursUrgent, config.overdueHoursUrgent],
+      ].every(
+        ([, warn, overdue]) =>
+          (typeof warn === "number" ? warn : config.warnHours) <=
+          (typeof overdue === "number" ? overdue : config.overdueHours),
+      ),
+    {
+      message: "For each priority the warning comes before the overdue limit or at the same time",
+      path: ["warnHours"],
+    },
+  )
+  .refine((config) => parseHolidays(config.holidays) !== null, {
+    message: "Dates like 2026-12-25, separated by commas or line breaks, at most 200",
+    path: ["holidays"],
+  })
+  .refine((config) => config.businessDays === null || parseDays(config.businessDays) !== null, {
+    message: "Weekdays from 1 (Monday) to 7 (Sunday), each once",
+    path: ["businessDays"],
+  })
+  .refine(
+    (config) =>
+      config.businessDays === null ||
+      (config.businessTimeZone !== null && isTimeZone(config.businessTimeZone)),
+    {
+      message: "Business hours need a time zone such as Europe/Berlin",
+      path: ["businessTimeZone"],
+    },
+  )
+  .refine(
+    (config) => {
+      const start = minuteOf(config.businessStart);
+      const end = minuteOf(config.businessEnd);
+      return start !== null && end !== null && (config.businessDays === null || start < end);
+    },
+    { message: "Times like 09:00, the end after the start", path: ["businessEnd"] },
+  )
+  .refine(
+    (config) =>
+      config.autoResolveReminderDays === null ||
+      (config.autoResolveDays !== null && config.autoResolveReminderDays < config.autoResolveDays),
+    {
+      message: "A reminder needs a time to resolve, and comes before it",
+      path: ["autoResolveReminderDays"],
+    },
+  );
+export { defaultBusinessEnd, defaultBusinessStart };
 export type ConfigDocument = z.infer<typeof configDocument>;
 export const configWrite = z
   .object({

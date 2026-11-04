@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, mailpit, test } from "./fixtures";
+import { expect, mailpit, openSettings, test } from "./fixtures";
 // Mail design settings: draft preview, versions, selection and the test mail
 // that goes to the signed-in person.
 test.describe.configure({ mode: "serial" });
@@ -12,10 +12,14 @@ test("previews a draft, saves a version, uses it and sends a test mail", async (
   desk,
   signIn,
 }) => {
+  // The test mail waits for the worker and for the mailbox of the stack, up to 45 seconds each; the test has to be allowed
+  // to wait that long, so that a slow worker is reported as the assertion that did not come true and not as a test that
+  // ran out of time somewhere.
+  test.setTimeout(150_000);
   const header = `Design ${desk.run}`;
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Mail design");
   const section = page.getByRole("region", { name: "Mail design" });
   await expect(section.getByText("Built-in design", { exact: true })).toBeVisible();
   await expect(section.getByText("In use", { exact: true })).toBeVisible();

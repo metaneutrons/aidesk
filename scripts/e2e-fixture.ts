@@ -9,7 +9,7 @@
 //   github-source <projectId> gives a fixture project a repository that refuses every request
 import { randomBytes, randomUUID } from "node:crypto";
 import { hashPassword, symmetricEncrypt } from "better-auth/crypto";
-import { and, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import { db, sqlClient } from "../src/server/db";
 import {
   account,
@@ -19,6 +19,7 @@ import {
   jobs,
   memberships,
   messages,
+  notifications,
   projectExports,
   projects,
   session,
@@ -271,6 +272,34 @@ async function ssoSignIns(email: string) {
     ),
   };
 }
+// The kinds of the notifications that a fixture operator has, newest first.
+async function notificationsOf(email: string) {
+  const [person] = await db().select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (!person) return { kinds: [] as string[] };
+  const rows = await db()
+    .select({ kind: notifications.kind })
+    .from(notifications)
+    .where(eq(notifications.userId, person.id))
+    .orderBy(desc(notifications.createdAt));
+  return { kinds: rows.map((row) => row.kind) };
+}
+// A second session of a fixture operator, as a sign-in from another browser would have made it.
+async function addSession(email: string) {
+  const [person] = await db().select({ id: user.id }).from(user).where(eq(user.email, email));
+  if (!person) throw new Error("No such fixture user.");
+  const id = randomUUID();
+  await db()
+    .insert(session)
+    .values({
+      id,
+      userId: person.id,
+      token: randomBytes(24).toString("hex"),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      userAgent: "E2E Other Browser",
+      ipAddress: "192.0.2.44",
+    });
+  return { id };
+}
 async function userCount(email: string) {
   return { count: (await db().select().from(user).where(eq(user.email, email))).length };
 }
@@ -306,6 +335,32 @@ async function githubSource(projectId: string) {
     .returning({ id: connections.id });
   return { connectionId: row?.id };
 }
+// A notification of the kind "mention" (which the system writes on its own for nothing else in a browser test, unlike
+// "overdue") for every fixture operator of the project of a ticket, as the rules of the
+// project would have written it; the browser test looks at what the desk makes of it.
+async function notify(ticketId: string) {
+  const [ticket] = await db().select().from(tickets).where(eq(tickets.id, ticketId));
+  const [project] = ticket
+    ? await db().select().from(projects).where(eq(projects.id, ticket.projectId))
+    : [];
+  if (!ticket || !project?.slug.startsWith("e2e-")) throw new Error("Only fixture tickets.");
+  const members = await db()
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(eq(memberships.projectId, project.id));
+  if (members.length > 0)
+    await db()
+      .insert(notifications)
+      .values(
+        members.map((member) => ({
+          userId: member.userId,
+          projectId: project.id,
+          kind: "mention",
+          ticketId: ticket.id,
+        })),
+      );
+  return { notified: members.length };
+}
 const [command, argument] = process.argv.slice(2);
 const write = (value: unknown) => process.stdout.write(JSON.stringify(value) + "\n");
 try {
@@ -316,6 +371,9 @@ try {
   else if (command === "disable") write(await disable(fixtureEmail(argument)));
   else if (command === "revoke-sessions") write(await revokeSessions(fixtureEmail(argument)));
   else if (command === "github-source" && argument) write(await githubSource(argument));
+  else if (command === "notify" && argument) write(await notify(argument));
+  else if (command === "add-session") write(await addSession(fixtureEmail(argument)));
+  else if (command === "notifications-of") write(await notificationsOf(fixtureEmail(argument)));
   else
     throw new Error(
       "Usage: e2e-fixture.ts setup | teardown <run> | user-count|disable|revoke-sessions <email>",

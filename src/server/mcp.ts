@@ -5,6 +5,7 @@ import { identify } from "./principal";
 import { DomainError } from "./errors";
 import { env } from "./env";
 import { getTicket, listProjects, listTickets, reply, searchTickets } from "./operations";
+import { priorities } from "../domain/triage";
 import { allowedProjectIds, isAction, type Principal } from "../domain/permissions";
 import { errorOf } from "./api/router";
 import { Reply } from "./api/reply";
@@ -106,9 +107,14 @@ export async function mcpRequest(request: Request): Promise<Response> {
         "tickets_list",
         {
           description: "List authorized tickets by oldest unanswered receipt.",
-          inputSchema: { projectIds: z.array(z.uuid()).optional() },
+          inputSchema: {
+            projectIds: z.array(z.uuid()).optional(),
+            priority: z.enum(priorities).optional(),
+            category: z.string().max(40).optional(),
+          },
         },
-        async ({ projectIds }) => result(await listTickets(principal, projectIds)),
+        async ({ projectIds, priority, category }) =>
+          result(await listTickets(principal, projectIds, undefined, { priority, category })),
       );
       server.registerTool(
         "tickets_search",

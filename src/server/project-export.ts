@@ -21,7 +21,11 @@ import {
   operatorGroupMembers,
   operatorGroups,
   participants,
+  cannedReplies,
   portalBranding,
+  projectTags,
+  routingRules,
+  senderRules,
   portalDomains,
   projectExports,
   projects,
@@ -47,9 +51,9 @@ function without<T extends PgTable>(table: T, ...omit: string[]) {
   const columns = Object.entries(getTableColumns(table)).filter(([name]) => !omit.includes(name));
   return Object.fromEntries(columns) as ReturnType<typeof getTableColumns<T>>;
 }
-const lines = (rows: unknown[]) =>
+export const lines = (rows: unknown[]) =>
   strToU8(rows.map((row) => JSON.stringify(row)).join("\n") + (rows.length ? "\n" : ""));
-const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
+export const sha256 = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
 async function mayExport(principal: Principal, projectId: string): Promise<string> {
   if (principal.kind !== "human" || !principal.active) throw new DomainError("forbidden", 403);
   const project = id.parse(projectId);
@@ -97,6 +101,10 @@ export async function createProjectExport(
     groupRows,
     groupMemberRows,
     brandingRows,
+    senderRuleRows,
+    routingRuleRows,
+    cannedRows,
+    tagRows,
   ] = await Promise.all([
     db().select().from(tickets).where(eq(tickets.projectId, project)).orderBy(asc(tickets.number)),
     db()
@@ -152,6 +160,10 @@ export async function createProjectExport(
       .innerJoin(user, eq(user.id, operatorGroupMembers.userId))
       .where(eq(operatorGroups.projectId, project)),
     db().select().from(portalBranding).where(eq(portalBranding.projectId, project)),
+    db().select().from(senderRules).where(eq(senderRules.projectId, project)),
+    db().select().from(routingRules).where(eq(routingRules.projectId, project)),
+    db().select().from(cannedReplies).where(eq(cannedReplies.projectId, project)),
+    db().select().from(projectTags).where(eq(projectTags.projectId, project)),
   ]);
   // The objects that the rows name, once each.
   const keys = [
@@ -192,6 +204,10 @@ export async function createProjectExport(
           aiProfiles: profileRows,
           portalDomains: domainRows,
           portalBranding: brandingRows,
+          senderRules: senderRuleRows,
+          routingRules: routingRuleRows,
+          cannedReplies: cannedRows,
+          tagColors: tagRows,
           configChanges: changeRows,
         },
         null,

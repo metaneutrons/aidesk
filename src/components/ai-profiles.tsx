@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { aiTasks } from "../domain/ai";
+import { Disclosure, Group, Row, Switch } from "./form";
 // The AI tasks of one project: which model provider and model each task uses, its
 // limits, and whether it may run. A task that is on sends ticket content to the
 // provider of its connection, so the switch says so, and switching on is applied
@@ -146,140 +147,158 @@ export function AiProfiles({
           (shown.fallbackModel === "" || modelName.test(shown.fallbackModel));
         const known = providers.some((row) => row.id === shown.connectionId);
         return (
-          <fieldset key={id} className="ai-profile" disabled={!canWrite}>
-            <legend>{t(taskLabel(profile.task))}</legend>
-            <label>
-              <span>{t("aiConnection")}</span>
-              <select
-                value={shown.connectionId}
-                onChange={(event) => {
-                  change({ connectionId: event.target.value });
-                }}
-              >
-                {!known && shown.connectionId !== "" && (
-                  <option value={shown.connectionId}>{t("aiConnectionCurrent")}</option>
-                )}
-                {providers.length === 0 && shown.connectionId === "" && (
-                  <option value="">{t("aiConnectionNone")}</option>
-                )}
-                {providers.map((row) => (
-                  <option key={row.id} value={row.id} disabled={row.status === "disabled"}>
-                    {`${row.name} (${t(`connectionKind_${row.kind}`)})`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>{t("aiModel")}</span>
-              <input
-                type="text"
-                value={shown.model}
-                maxLength={100}
-                onChange={(event) => {
-                  change({ model: event.target.value });
-                }}
-              />
-            </label>
-            <label>
-              <span>{t("aiFallbackConnection")}</span>
-              <select
-                value={shown.fallbackConnectionId}
-                onChange={(event) => {
-                  change({
-                    fallbackConnectionId: event.target.value,
-                    ...(event.target.value === "" ? { fallbackModel: "" } : {}),
-                  });
-                }}
-              >
-                <option value="">{t("aiFallbackNone")}</option>
-                {shown.fallbackConnectionId !== "" &&
-                  !providers.some((row) => row.id === shown.fallbackConnectionId) && (
-                    <option value={shown.fallbackConnectionId}>{t("aiConnectionCurrent")}</option>
-                  )}
-                {providers.map((row) => (
-                  <option key={row.id} value={row.id} disabled={row.status === "disabled"}>
-                    {`${row.name} (${t(`connectionKind_${row.kind}`)})`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>{t("aiFallbackModel")}</span>
-              <input
-                type="text"
-                value={shown.fallbackModel}
-                maxLength={100}
-                disabled={shown.fallbackConnectionId === ""}
-                onChange={(event) => {
-                  change({ fallbackModel: event.target.value });
-                }}
-              />
-            </label>
-            <p className="muted">{t("aiFallbackHint")}</p>
-            <label>
-              <span>{t("aiTimeout")}</span>
-              <input
-                type="number"
-                min={1}
-                max={300}
-                value={shown.timeoutSeconds}
-                onChange={(event) => {
-                  change({ timeoutSeconds: Number(event.target.value) });
-                }}
-              />
-            </label>
-            <label>
-              <span>{t("aiMaxOutput")}</span>
-              <input
-                type="number"
-                min={1}
-                max={16000}
-                value={shown.maxOutputTokens}
-                onChange={(event) => {
-                  change({ maxOutputTokens: Number(event.target.value) });
-                }}
-              />
-            </label>
-            <label>
-              <span>{t("aiDailyBudget")}</span>
-              <input
-                type="number"
-                min={1}
-                max={100000000}
-                value={shown.dailyTokenBudget}
-                onChange={(event) => {
-                  change({ dailyTokenBudget: Number(event.target.value) });
-                }}
-              />
-            </label>
-            <label className="checkbox">
-              <input
-                type="checkbox"
+          <fieldset key={id} className="plain" disabled={!canWrite}>
+            <Group
+              title={t(taskLabel(profile.task))}
+              note={t(profile.task === "image.read" ? "aiModelHintImage" : "aiModelHintDraft")}
+            >
+              <Switch
+                label={t("aiEnabled")}
+                hint={t("aiEnabledHint")}
                 checked={shown.enabled}
-                onChange={(event) => {
-                  change({ enabled: event.target.checked });
+                onChange={(checked) => {
+                  change({ enabled: checked });
                 }}
               />
-              <span>{t("aiEnabled")}</span>
-            </label>
-            <p className="muted">{t("aiEnabledHint")}</p>
-            <p className="muted">
-              {t(profile.task === "image.read" ? "aiModelHintImage" : "aiModelHintDraft")}
-            </p>
-            {canWrite && (
-              <span className="configuration-actions">
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={!changed || !ready}
-                  onClick={() => {
-                    void save(profile, shown);
-                  }}
-                >
-                  {t(needsApproval && !canApprove ? "aiPropose" : "aiSave")}
-                </button>
-              </span>
-            )}
+              <Row label={t("aiConnection")}>
+                {(props) => (
+                  <select
+                    {...props}
+                    value={shown.connectionId}
+                    onChange={(event) => {
+                      change({ connectionId: event.target.value });
+                    }}
+                  >
+                    {!known && shown.connectionId !== "" && (
+                      <option value={shown.connectionId}>{t("aiConnectionCurrent")}</option>
+                    )}
+                    {providers.length === 0 && shown.connectionId === "" && (
+                      <option value="">{t("aiConnectionNone")}</option>
+                    )}
+                    {providers.map((row) => (
+                      <option key={row.id} value={row.id} disabled={row.status === "disabled"}>
+                        {`${row.name} (${t(`connectionKind_${row.kind}`)})`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Row>
+              <Row label={t("aiModel")}>
+                {(props) => (
+                  <input
+                    {...props}
+                    type="text"
+                    value={shown.model}
+                    maxLength={100}
+                    onChange={(event) => {
+                      change({ model: event.target.value });
+                    }}
+                  />
+                )}
+              </Row>
+              <Disclosure title={t("aiMore")} hint={t("aiMoreHint")}>
+                <Row label={t("aiFallbackConnection")} hint={t("aiFallbackHint")}>
+                  {(props) => (
+                    <select
+                      {...props}
+                      value={shown.fallbackConnectionId}
+                      onChange={(event) => {
+                        change({
+                          fallbackConnectionId: event.target.value,
+                          ...(event.target.value === "" ? { fallbackModel: "" } : {}),
+                        });
+                      }}
+                    >
+                      <option value="">{t("aiFallbackNone")}</option>
+                      {shown.fallbackConnectionId !== "" &&
+                        !providers.some((row) => row.id === shown.fallbackConnectionId) && (
+                          <option value={shown.fallbackConnectionId}>
+                            {t("aiConnectionCurrent")}
+                          </option>
+                        )}
+                      {providers.map((row) => (
+                        <option key={row.id} value={row.id} disabled={row.status === "disabled"}>
+                          {`${row.name} (${t(`connectionKind_${row.kind}`)})`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Row>
+                <Row label={t("aiFallbackModel")}>
+                  {(props) => (
+                    <input
+                      {...props}
+                      type="text"
+                      value={shown.fallbackModel}
+                      maxLength={100}
+                      disabled={shown.fallbackConnectionId === ""}
+                      onChange={(event) => {
+                        change({ fallbackModel: event.target.value });
+                      }}
+                    />
+                  )}
+                </Row>
+                <Row label={t("aiTimeout")}>
+                  {(props) => (
+                    <input
+                      {...props}
+                      type="number"
+                      min={1}
+                      max={300}
+                      value={shown.timeoutSeconds}
+                      onChange={(event) => {
+                        change({ timeoutSeconds: Number(event.target.value) });
+                      }}
+                    />
+                  )}
+                </Row>
+                <Row label={t("aiMaxOutput")}>
+                  {(props) => (
+                    <input
+                      {...props}
+                      type="number"
+                      min={1}
+                      max={16000}
+                      value={shown.maxOutputTokens}
+                      onChange={(event) => {
+                        change({ maxOutputTokens: Number(event.target.value) });
+                      }}
+                    />
+                  )}
+                </Row>
+                <Row label={t("aiDailyBudget")}>
+                  {(props) => (
+                    <input
+                      {...props}
+                      type="number"
+                      min={1}
+                      max={100000000}
+                      value={shown.dailyTokenBudget}
+                      onChange={(event) => {
+                        change({ dailyTokenBudget: Number(event.target.value) });
+                      }}
+                    />
+                  )}
+                </Row>
+              </Disclosure>
+              {canWrite && (
+                <div className="row">
+                  <span />
+                  <div className="row-control">
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={!changed || !ready}
+                      onClick={() => {
+                        void save(profile, shown);
+                      }}
+                    >
+                      {t(needsApproval && !canApprove ? "aiPropose" : "aiSave")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Group>
           </fieldset>
         );
       })}

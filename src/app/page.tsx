@@ -3,9 +3,13 @@ import { redirect } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { identify } from "../server/principal";
 import { getOverview, listProjects, listTickets, operatorInfo } from "../server/operations";
+import { listNotifications } from "../server/notifications";
+import { listViews } from "../server/views";
+import { TimeZone } from "../components/time-zone";
 import { listCeiling, listStep } from "../domain/paging";
 import { DomainError } from "../server/errors";
 import { effectiveLocale } from "../domain/locale";
+import { allowedProjectIds } from "../domain/permissions";
 import { Desk } from "../components/desk";
 import english from "../i18n/en.json";
 import german from "../i18n/de.json";
@@ -13,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ ticket?: string; limit?: string }>;
+  searchParams: Promise<{ ticket?: string; limit?: string; settings?: string; project?: string }>;
 }) {
   const parameters = await searchParams;
   const requestHeaders = new Headers(await headers());
@@ -32,11 +36,13 @@ export default async function Home({
   const limit = Number.isInteger(requested)
     ? Math.min(Math.max(requested, listStep), listCeiling)
     : listStep;
-  const [projectList, ticketList, overview, operator] = await Promise.all([
+  const [projectList, ticketList, overview, operator, notified, saved] = await Promise.all([
     listProjects(principal),
     listTickets(principal, [], limit),
     getOverview(principal),
     operatorInfo(principal),
+    listNotifications(principal, { limit: "1" }),
+    listViews(principal),
   ]);
   const locale = effectiveLocale(operator.locale, requestHeaders.get("accept-language"));
   const serialize = (ticket: (typeof ticketList)[number]) => ({
@@ -57,19 +63,31 @@ export default async function Home({
     <NextIntlClientProvider
       locale={locale}
       messages={locale === "de" ? german : english}
-      timeZone="UTC"
+      timeZone={operator.timeZone ?? "UTC"}
     >
-      <Desk
-        projects={projectList}
-        initialTickets={initialTickets}
-        overview={overviewData}
-        listLimit={limit}
-        operator={{ ...operator, id: principal.id }}
-        initialTicketId={parameters.ticket ?? null}
-        initialLocale={locale}
-        localePreference={operator.locale}
-        serverTime={Date.now()}
-      />
+      <TimeZone zone={operator.timeZone}>
+        <Desk
+          projects={projectList}
+          initialTickets={initialTickets}
+          overview={overviewData}
+          listLimit={limit}
+          operator={{ ...operator, id: principal.id }}
+          initialTicketId={parameters.ticket ?? null}
+          initialLocale={locale}
+          localePreference={operator.locale}
+          serverTime={Date.now()}
+          initialUnread={notified.unread}
+          initialViews={saved.views}
+          settingsAvailable={
+            principal.owner || allowedProjectIds(principal, "project.manage").length > 0
+          }
+          initialSettings={
+            parameters.settings === undefined || parameters.ticket
+              ? null
+              : { topic: parameters.settings || null, project: parameters.project ?? null }
+          }
+        />
+      </TimeZone>
     </NextIntlClientProvider>
   );
 }

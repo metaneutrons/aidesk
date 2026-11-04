@@ -3,6 +3,8 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { startRegistration } from "@simplewebauthn/browser";
 import { z } from "zod";
+import { Actions, Group, Row } from "./form";
+import { useZone } from "./time-zone";
 // The passkeys of the owner who is signed in: the second factor after the password, in the place of the
 // code of the authenticator app, which stays as the way back.
 const listSchema = z.array(
@@ -16,6 +18,7 @@ const listSchema = z.array(
 type Message = "passkeyAdded" | "passkeyAddError" | "passkeyRemoved" | null;
 export function OwnerPasskeys({ locale }: { locale: string }) {
   const t = useTranslations();
+  const zone = useZone();
   const nameId = useId();
   const [passkeys, setPasskeys] = useState<z.infer<typeof listSchema> | null>(null);
   const [name, setName] = useState("");
@@ -84,9 +87,10 @@ export function OwnerPasskeys({ locale }: { locale: string }) {
                 {entry.createdAt && (
                   <span>
                     {t("passkeyCreated", {
-                      date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
-                        new Date(entry.createdAt),
-                      ),
+                      date: new Intl.DateTimeFormat(locale, {
+                        ...zone,
+                        dateStyle: "medium",
+                      }).format(new Date(entry.createdAt)),
                     })}
                   </span>
                 )}
@@ -107,29 +111,39 @@ export function OwnerPasskeys({ locale }: { locale: string }) {
         </ul>
       )}
       <form
-        className="settings-form"
+        className="stack"
         onSubmit={(event) => {
           event.preventDefault();
           void add();
         }}
       >
-        <label htmlFor={`${nameId}-name`}>{t("passkeyName")}</label>
-        <input
-          id={`${nameId}-name`}
-          value={name}
-          maxLength={60}
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
-        />
-        <button className="primary" type="submit" disabled={busy}>
-          {t("passkeyAdd")}
-        </button>
-        {message && (
-          <p className={message === "passkeyAddError" ? "error" : "muted"} role="status">
-            {t(message)}
-          </p>
-        )}
+        <Group>
+          <Row label={t("passkeyName")}>
+            {(props) => (
+              <input
+                {...props}
+                value={name}
+                maxLength={60}
+                onChange={(event) => {
+                  setName(event.target.value);
+                }}
+              />
+            )}
+          </Row>
+        </Group>
+        <Actions
+          status={
+            message && (
+              <span className={message === "passkeyAddError" ? "error" : undefined}>
+                {t(message)}
+              </span>
+            )
+          }
+        >
+          <button className="primary" type="submit" disabled={busy}>
+            {t("passkeyAdd")}
+          </button>
+        </Actions>
       </form>
     </section>
   );

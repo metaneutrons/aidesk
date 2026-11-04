@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { z } from "zod";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 import { certificates } from "../support/certificates";
 // The identity providers in the settings: a SAML provider is registered with its certificate, waits for the record
 // of its domain, is looked for and tested, switched off and on, and deleted by typing its identifier. The proof of
@@ -14,7 +14,7 @@ test("registers a provider, switches it off and on, tests it and deletes it", as
   const id = `ui-${desk.run}`.toLowerCase();
   await signIn();
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+  await openSettings(page, "Identity providers");
   const section = page
     .locator("section.sso-providers")
     .filter({ has: page.getByRole("heading", { name: "Identity providers" }) });

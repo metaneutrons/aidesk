@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "./fixtures";
+import { expect, openSettings, test } from "./fixtures";
 // Webhooks: defined through the API, shown on the settings page with the outcome
 // of the last delivery, tested with an event and disabled. The page never shows
 // the signing secret.
@@ -31,8 +31,8 @@ test("shows a webhook with its last delivery, sends a test event and disables it
   });
   expect(created.status(), await created.text()).toBe(201);
   await page.goto("/");
-  await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
-  const section = page.getByRole("region", { name: `Webhooks of ${alpha.name}` });
+  await openSettings(page, "Webhooks", alpha.name);
+  const section = page.getByRole("region", { name: `Webhooks` });
   const row = section.getByRole("listitem").filter({ hasText: name });
   await expect(row.getByText("Nothing delivered yet")).toBeVisible();
   await expect(page.getByText("never-shown-signing-secret")).toHaveCount(0);
@@ -45,7 +45,7 @@ test("shows a webhook with its last delivery, sends a test event and disables it
   try {
     await expect(async () => {
       await page.reload();
-      await page.getByRole("navigation").getByRole("button", { name: "Settings" }).click();
+      await openSettings(page, "Webhooks", alpha.name);
       await expect(
         section
           .getByRole("listitem")
