@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS development
+FROM node:26-bookworm-slim@sha256:298992629d69bbd5b2b03ad57094d8e4fcb3a8eeb7c4e25d29de656519568913 AS development
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=secret,id=proxy_ca,uid=1000,gid=1000,mode=0400 \
@@ -23,7 +23,7 @@ CMD ["sh", "scripts/boot-dev.sh"]
 # of documents with esbuild when it starts), and the reader runs in a closed process of
 # Node's permission model started through /bin/sh, so the base is a full Debian image
 # and not a distroless one.
-FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS build
+FROM node:26-bookworm-slim@sha256:298992629d69bbd5b2b03ad57094d8e4fcb3a8eeb7c4e25d29de656519568913 AS build
 WORKDIR /app
 RUN --mount=type=secret,id=proxy_ca,uid=1000,gid=1000,mode=0400 \
     if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
@@ -41,7 +41,7 @@ RUN NEXT_TELEMETRY_DISABLED=1 pnpm build
 # What the process needs is a dependency; the tools of development stay behind.
 RUN CI=true pnpm prune --prod
 
-FROM node:26-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS production
+FROM node:26-bookworm-slim@sha256:298992629d69bbd5b2b03ad57094d8e4fcb3a8eeb7c4e25d29de656519568913 AS production
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 # The application files belong to root and are read-only for the process; it writes
