@@ -25,6 +25,15 @@ import { unsealSecret } from "./secrets";
 export function inboundPrefix(address: string): string {
   return `inbound/${address.toLowerCase()}/`;
 }
+// The Email Worker puts the id of the delivery on the object when it could not hand the message over through
+// the HTTPS endpoint (a connection of kind push). The endpoint keys a message by the same id, so a message that
+// was taken there and then also left in the bucket (the answer was lost) is recognised and only removed.
+const deliveryId = /^[A-Za-z0-9._-]{8,100}$/;
+export function externalKeyOf(connectionId: string, objectKey: string, delivery?: string): string {
+  return delivery !== undefined && deliveryId.test(delivery)
+    ? `delivery:${delivery}`
+    : `cloudflare:${connectionId}:${objectKey}`;
+}
 export interface CloudflarePollResult {
   accepted: number;
   duplicates: number;
@@ -81,7 +90,7 @@ export async function pollCloudflareConnection(
     const accepted = await acceptInbound({
       projectId: connection.projectId,
       connectionId: connection.id,
-      externalKey: `cloudflare:${connection.id}:${object.Key}`,
+      externalKey: externalKeyOf(connection.id, object.Key, body.Metadata?.delivery),
       raw: Buffer.from(await body.Body.transformToByteArray()),
     });
     if (accepted.duplicate) result.duplicates += 1;
