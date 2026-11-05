@@ -44,6 +44,17 @@ export const pushInboundConfig = z.object({
   allowedSources: z.array(sourceRange).max(20).default([]),
 });
 export const pushInboundSecret = z.object({ token: z.string().min(32).max(200) });
+// Mail that the product's own SMTP receiver takes (it is switched on for the installation with
+// SMTP_INBOUND_PORT). It takes mail for these addresses and for no others, and sends none. The receiver
+// has no login: a sender is told apart by the address it writes to and, when the list is not empty, by
+// where it connects from.
+export const smtpInboundConfig = z.object({
+  addresses: z.array(z.email()).min(1).max(20),
+  allowedSources: z.array(sourceRange).max(20).default([]),
+  // A sender has to use STARTTLS before it hands over a message.
+  requireTls: z.boolean().default(false),
+});
+export const smtpInboundSecret = z.object({}).strict();
 export const cloudflareOutboundConfig = z.object({
   accountId: z.string().regex(/^[a-f0-9]{32}$/),
   from: z.email(),
@@ -120,6 +131,7 @@ export const connectionTypes = {
     secretRequired: true,
   },
   "push:inbound": { config: pushInboundConfig, secret: pushInboundSecret, secretRequired: true },
+  "smtp:inbound": { config: smtpInboundConfig, secret: smtpInboundSecret, secretRequired: false },
   "smtp:outbound": { config: smtpConfig, secret: smtpSecret, secretRequired: false },
   "cloudflare:outbound": {
     config: cloudflareOutboundConfig,
@@ -181,6 +193,7 @@ const members = {
     true,
   ),
   "push:inbound": define("push", "inbound", pushInboundConfig, pushInboundSecret, true),
+  "smtp:inbound": define("smtp", "inbound", smtpInboundConfig, smtpInboundSecret, false),
   "smtp:outbound": define("smtp", "outbound", smtpConfig, smtpSecret, false),
   "cloudflare:outbound": define(
     "cloudflare",
@@ -200,6 +213,7 @@ export const connectionCreate = z.union([
   members["imap:inbound"],
   members["cloudflare:inbound"],
   members["push:inbound"],
+  members["smtp:inbound"],
   members["smtp:outbound"],
   members["cloudflare:outbound"],
   members["anthropic:ai"],
@@ -221,7 +235,7 @@ export function parseConnectionCreate(input: unknown): ConnectionCreate {
         code: "custom",
         path: ["kind"],
         message:
-          "One of imap/inbound, cloudflare/inbound, push/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
+          "One of imap/inbound, cloudflare/inbound, push/inbound, smtp/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
       },
     ]);
   return members[key].parse(input);

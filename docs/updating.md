@@ -75,7 +75,8 @@ maintenance window (manual or automatic). Nothing is installed without the owner
 3. It dumps the bundled database (`pg_dump --format custom`) into the volume `updater-backups` and keeps the dumps of the last
    14 days. Without a bundled database and without `UPDATER_BACKUP_ENABLED=false` it stops here.
 4. It runs the migrations in a container of their own, and only when they end well replaces the web server and the worker with
-   the new image. The database and the storage are not touched.
+   the new image, and the SMTP receiver (`smtp-receiver`, profile `smtp-inbound`) when it is running; a receiver that is off is
+   not started. The database and the storage are not touched.
 5. It waits until `/api/health/ready` answers. Only then it writes `AIDESK_IMAGE` into the environment file, so that a later
    `docker compose up` keeps the version that was installed.
 6. It replaces itself with the image of the same release (see below).

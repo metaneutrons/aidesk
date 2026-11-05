@@ -19,6 +19,7 @@ const filled: Record<string, Record<string, string>> = {
     bucket: "mail",
     address: "support@example.com",
   },
+  "smtp:inbound": { addresses: "support@example.com" },
   "push:inbound": { addresses: "support@example.com\n\n  hello@example.com  \n" },
   "smtp:outbound": {
     host: "smtp.example.com",

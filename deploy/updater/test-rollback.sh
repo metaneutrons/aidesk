@@ -142,6 +142,10 @@ running_version() {
     "$(docker inspect --format '{{.Image}}' "$(container app)")"
 }
 worker_running() { [[ "$(docker inspect --format '{{.State.Status}}' "$(container worker)")" == running ]]; }
+receiver_version() {
+  docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' \
+    "$(docker inspect --format '{{.Image}}' "$(container smtp-receiver)")"
+}
 # The database is asked through its container: its profile is not one that Compose is told about here.
 sql() { docker exec "$(container postgres)" psql --username aidesk --dbname aidesk --tuples-only --no-align --command "$1"; }
 pin() { sed -n 's/^AIDESK_IMAGE=//p' "$work/env.production"; }
@@ -182,6 +186,13 @@ dump_readable() {
 check "the backup can be read by pg_restore" dump_readable
 check "the web server is ready" wait_ready 60
 check "the worker runs" worker_running
+check "a receiver that is switched off is not started by an update" test -z "$(container smtp-receiver)"
+
+# The SMTP receiver is a service of the profile smtp-inbound that runs the same image. Switched on, it has to follow the
+# updates and the rollbacks of the others: it reads the database and calls the inbound core of its own image.
+say "Switch on the SMTP receiver"
+compose --profile bundled --profile smtp-inbound up --detach --no-build --no-deps smtp-receiver >/dev/null 2>&1
+check "the receiver runs the image of 0.2.0" test "$(receiver_version)" = 0.2.0
 
 # The documented restore of the dump of an update (docs/updating.md): stop the web server and the worker, put the dump
 # back with --clean, start them again.
@@ -206,6 +217,7 @@ else
 fi
 check "the web server is ready again" wait_ready 120
 check "0.2.0 runs again" test "$(running_version)" = 0.2.0
+check "the receiver runs the old image again" test "$(receiver_version)" = 0.2.0
 check "the broken image is not pinned" test "$(pin)" = "${repository}:0.2.0"
 check "the journal names the step that failed and the rollback" test "$(journal '[.phase, .failedPhase, .rollbackAttempted] | join(",")')" = "failed,waiting-for-health,true"
 check "the worker runs" worker_running
@@ -230,6 +242,7 @@ check "the worker runs" worker_running
 say "Update to 0.5.0 (the migration is good)"
 check "the update succeeds" update_to 0.5.0 120
 check "0.5.0 runs" test "$(running_version)" = 0.5.0
+check "the receiver that was switched on runs 0.5.0 as well" test "$(receiver_version)" = 0.5.0
 check "the image is pinned" test "$(pin)" = "${repository}:0.5.0"
 check "the table of the migration is there" test "$(sql "select to_regclass('public.rollback_probe')" | tr -d '[:space:]')" = "rollback_probe"
 check "one more migration is applied" test "$(sql 'select count(*) from drizzle.__drizzle_migrations' | tr -d '[:space:]')" = "$((migrations_before + 1))"

@@ -100,6 +100,9 @@ importers:
       sanitize-html:
         specifier: 2.18.1
         version: 2.18.1
+      smtp-server:
+        specifier: 3.20.2
+        version: 3.20.2
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -146,6 +149,9 @@ importers:
       '@types/sanitize-html':
         specifier: 2.16.2
         version: 2.16.2
+      '@types/smtp-server':
+        specifier: 3.5.13
+        version: 3.5.13
       '@types/turndown':
         specifier: 5.0.6
         version: 5.0.6
@@ -1710,6 +1716,9 @@ packages:
   '@types/sanitize-html@2.16.2':
     resolution: {integrity: sha512-kuAbgDCFv418flrp3z4o/4ufLA/5ovmXRH0L419iZCPGO7w00znjeDI5Wy/KZWNIBpDQc7hucCK+J5almB6FyA==}
 
+  '@types/smtp-server@3.5.13':
+    resolution: {integrity: sha512-S3rGl2KbViH+98/CgHipPIWgtAFnjxLsppxIRbgJHNuZL7Y+py+7kZjT7xS+wOmCxYTn4O7IqLqkvekg99MDVQ==}
+
   '@types/turndown@5.0.6':
     resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
 
@@ -2508,6 +2517,9 @@ packages:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
 
+  ipv6-normalize@1.0.1:
+    resolution: {integrity: sha512-Bm6H79i01DjgGTCWjUuCjJ6QDo1HB96PT/xCYuyJUP9WFbVDrLSbG4EZCvOCun2rNswZb0c3e4Jt/ws795esHA==}
+
   is-extglob@2.1.1:
     resolution: {integrity: sha512-SbKbANkN603Vi4jEZv49LeVJMn4yGwsbzZworEoyEiutsN3nJYdbO36zfhGJ6QEDpOZIFkDtnq5JRxmvl3jsoQ==}
     engines: {node: '>=0.10.0'}
@@ -3200,6 +3212,10 @@ packages:
   smart-buffer@4.2.0:
     resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
     engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
+
+  smtp-server@3.20.2:
+    resolution: {integrity: sha512-94VrO5MWy6IJ1RjCEj4bjvIQCpp2z05SBueZ72c8g1ZEoXG/OVbX1RvuZRkO2WqP0AJgC81V1sv6UxQyIN7OHw==}
+    engines: {node: '>=20.0.0'}
 
   socks@2.8.10:
     resolution: {integrity: sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==}
@@ -4805,6 +4821,11 @@ snapshots:
     dependencies:
       htmlparser2: 12.0.0
 
+  '@types/smtp-server@3.5.13':
+    dependencies:
+      '@types/node': 26.6.6
+      '@types/nodemailer': 8.0.2
+
   '@types/turndown@5.0.6': {}
 
   '@typescript-eslint/eslint-plugin@8.72.1(@typescript-eslint/parser@8.72.1(eslint@10.14.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.14.0(jiti@2.7.0))(typescript@6.0.3)':
@@ -5589,6 +5610,8 @@ snapshots:
 
   ipaddr.js@1.9.1: {}
 
+  ipv6-normalize@1.0.1: {}
+
   is-extglob@2.1.1: {}
 
   is-glob@4.0.3:
@@ -6249,6 +6272,12 @@ snapshots:
       side-channel-weakmap: 1.0.2
 
   smart-buffer@4.2.0: {}
+
+  smtp-server@3.20.2:
+    dependencies:
+      ipv6-normalize: 1.0.1
+      nodemailer: 10.1.4
+      punycode.js: 2.3.1
 
   socks@2.8.10:
     dependencies:
