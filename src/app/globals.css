@@ -137,8 +137,10 @@ label {
     color: var(--accent-text);
     border: 0;
 }
-.secondary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+@media (hover: hover) {
+    .secondary:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+    }
 }
 .icon-button {
     display: inline-flex;
@@ -148,9 +150,11 @@ label {
     border-radius: 8px;
     flex-shrink: 0;
 }
-.icon-button:hover,
-.nav-item:hover {
-    background: var(--accent-soft);
+@media (hover: hover) {
+    .icon-button:hover,
+    .nav-item:hover {
+        background: var(--accent-soft);
+    }
 }
 .brand-mark {
     width: 34px;
@@ -194,6 +198,7 @@ label {
 }
 .sidebar nav {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 5px;
 }
 .nav-item {
@@ -207,6 +212,9 @@ label {
     font-size: 13px;
     font-weight: 500;
     color: var(--muted);
+    /* A long word in another language wraps in the item and does not run over the edge of the menu. */
+    hyphens: auto;
+    overflow-wrap: anywhere;
 }
 .nav-item.active {
     background: var(--panel);
@@ -252,8 +260,10 @@ label {
     border-radius: 7px;
     color: var(--muted);
 }
-.theme-switch button:hover {
-    background: var(--accent-soft);
+@media (hover: hover) {
+    .theme-switch button:hover {
+        background: var(--accent-soft);
+    }
 }
 .theme-switch button[aria-pressed="true"] {
     background: var(--panel);
@@ -289,9 +299,13 @@ label {
     text-align: left;
     cursor: pointer;
 }
-.operator-link:hover,
 .operator-link[aria-current="page"] {
     background: var(--accent-soft);
+}
+@media (hover: hover) {
+    .operator-link:hover {
+        background: var(--accent-soft);
+    }
 }
 .avatar {
     display: inline-flex;
@@ -423,8 +437,10 @@ label {
 .metric.warning strong {
     color: var(--warning);
 }
-.metric:hover {
-    border-color: var(--accent);
+@media (hover: hover) {
+    .metric:hover {
+        border-color: var(--accent);
+    }
 }
 .section-heading {
     display: flex;
@@ -460,8 +476,10 @@ label {
 .overview-row:last-child {
     border: 0;
 }
-.overview-row:hover {
-    background: var(--accent-soft);
+@media (hover: hover) {
+    .overview-row:hover {
+        background: var(--accent-soft);
+    }
 }
 .row-subject {
     display: grid;
@@ -532,8 +550,10 @@ label {
     background: var(--accent-soft);
     box-shadow: inset 3px 0 var(--accent);
 }
-.ticket-row:hover {
-    background: var(--bg);
+@media (hover: hover) {
+    .ticket-row:hover {
+        background: var(--bg);
+    }
 }
 .ticket-row-top {
     display: flex;
@@ -927,8 +947,14 @@ label {
     }
 }
 @media (max-width: 1100px) {
+    /* The longest entry of the menu in German ("Benachrichtigungen") needs about 175 px next to its icon. */
     .sidebar {
-        width: 180px;
+        width: 200px;
+        padding-inline: 8px;
+    }
+    .nav-item {
+        gap: 9px;
+        padding-inline: 10px;
     }
     .ticket-list {
         width: 290px;
@@ -941,6 +967,40 @@ label {
     }
     .conversation-header {
         padding: 20px;
+    }
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+    .sidebar .brand {
+        padding-inline: 10px;
+    }
+    .locale-select,
+    .theme-switch {
+        margin-inline: 10px;
+    }
+}
+@media (min-width: 761px) {
+    /* On a low screen (a tablet in landscape with the browser bars) the menu scrolls, so that language and appearance
+       stay within reach. */
+    .sidebar {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+@media (min-width: 761px) and (max-height: 760px) {
+    .sidebar {
+        padding-top: 16px;
+    }
+    .sidebar .brand {
+        margin-bottom: 20px;
+    }
+    .sidebar nav {
+        gap: 2px;
+    }
+    .nav-item {
+        padding-block: 7px;
+    }
+    .locale-select {
+        margin-block: 10px;
     }
 }
 @media (max-width: 760px) {
@@ -1214,8 +1274,10 @@ label {
     font-weight: 500;
     text-decoration: none;
 }
-.settings-topic:hover {
-    background: var(--accent-soft);
+@media (hover: hover) {
+    .settings-topic:hover {
+        background: var(--accent-soft);
+    }
 }
 .settings-topic[aria-current="page"] {
     background: var(--accent);
@@ -3037,8 +3099,10 @@ select:not([multiple]) {
     color: var(--danger);
     background: none;
 }
-.inspector-danger button:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+@media (hover: hover) {
+    .inspector-danger button:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+    }
 }
 .reminder-custom summary {
     cursor: pointer;
