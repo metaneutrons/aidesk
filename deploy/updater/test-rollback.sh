@@ -76,6 +76,7 @@ S3_SECRET_KEY=$(secret 16)
 BETTER_AUTH_SECRET=$(secret 24)
 ENCRYPTION_KEY=$(secret 32)
 AIDESK_IMAGE=${repository}:0.1.0
+SMTP_INBOUND_PORT=$((port + 1))
 EOF
 chmod 600 "$work/env.production"
 
