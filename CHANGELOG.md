@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/metaneutrons/aidesk/compare/v0.3.0...v0.4.0) (2026-11-05)
+
+
+### Features
+
+* **cloudflare:** deliver mail to the HTTPS endpoint, with the bucket as the fallback ([#289](https://github.com/metaneutrons/aidesk/issues/289)) ([4bdff51](https://github.com/metaneutrons/aidesk/commit/4bdff51ffec6b08bd8229c3e2e0f5e2f01baf86a))
+* **inbound:** take mail through an HTTPS endpoint with a token per connection ([#287](https://github.com/metaneutrons/aidesk/issues/287)) ([582a4fb](https://github.com/metaneutrons/aidesk/commit/582a4fb42e8b1dc5c3ba667f876d20e1f4ae203f))
+* **inbound:** take mail with a built-in SMTP receiver that only receives ([#288](https://github.com/metaneutrons/aidesk/issues/288)) ([ec788a0](https://github.com/metaneutrons/aidesk/commit/ec788a051075357bed58510d0d2190c7666d604b))
+
+
+### Bug Fixes
+
+* **ui:** keep the menu inside its column and reachable on a tablet in landscape ([#285](https://github.com/metaneutrons/aidesk/issues/285)) ([2804313](https://github.com/metaneutrons/aidesk/commit/2804313065fa5eda1386a1cf8f7025fd7b1d3ade))
+
 ## [0.3.0](https://github.com/metaneutrons/aidesk/compare/v0.2.0...v0.3.0) (2026-11-04)
 
 
