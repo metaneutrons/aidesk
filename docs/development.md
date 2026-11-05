@@ -955,6 +955,41 @@ does not serve it (see `src/proxy.ts`). A test of the connection checks that the
 definition is complete; it cannot call the endpoint for you, because the sender is
 outside. Rate limits belong to the proxy in front of the product.
 
+## SMTP inbound
+
+The product can take mail itself, with a small SMTP receiver that only receives. It is switched
+on for the installation (a process of its own) and configured per project (connections of kind
+`smtp`, direction `inbound`); each of the two can be off without the other.
+
+- **Installation.** `src/worker/smtp-receiver.ts` listens on `SMTP_INBOUND_PORT` (default 2525 in
+  the container). In `compose.production.yaml` it is the service `smtp-receiver` of the profile
+  `smtp-inbound` (`COMPOSE_PROFILES=bundled,proxy,smtp-inbound`). It is published to
+  `127.0.0.1:2525` only; `SMTP_INBOUND_BIND` and `SMTP_INBOUND_PORT` set the address and the
+  port on the machine (for the mail exchanger of a domain, for example `0.0.0.0` and `25`). The
+  updater replaces it with the web server and the worker when it is running, and does not start it
+  when it is off. The development stack runs it on `127.0.0.1:2525`.
+- **TLS.** STARTTLS is offered when `SMTP_INBOUND_TLS_KEY_FILE` and `SMTP_INBOUND_TLS_CERT_FILE`
+  name the files of a certificate in the container (mount them yourself). Without them the
+  receiver does not offer STARTTLS, and a connection with `requireTls` refuses every sender.
+  `SMTP_INBOUND_NAME` is the name in the greeting.
+- **Connection.** `addresses` (1 to 20): the recipients it takes mail for. `allowedSources`
+  (up to 20 ranges, empty allows every source): the address the sender connects from. The
+  receiver sees the socket address itself, so the list is meaningful where the port is
+  published directly; behind a proxy it sees the proxy. `requireTls`: the sender has to use
+  STARTTLS before it hands over a message (answer `530` to the recipient until it does). There is
+  no secret. A connection takes mail once a test has made it `ready`.
+- **What it answers.** A recipient that no connection that is `ready` names gets `550`, and so does
+  a source that is not allowed: nobody learns which addresses exist. An archived project answers
+  `450`, so the sender tries again. A message over 25 MiB gets `552`. A failure on our side gets
+  `451`, and the message is answered `250` only after the inbound core has committed it. A message
+  to addresses of two projects is taken once for each project, and a repeat of the same bytes is
+  taken once (the key is the checksum).
+- **Narrow by design.** No login (`AUTH` is off), no relay (it sends nothing), a client that talks
+  before the greeting is refused, 50 clients at a time and 10 from one address. The message is
+  stored as it came; the receiver adds no `Received` header. It does not check SPF, DKIM or
+  DMARC and does not filter spam: put a filter in front of it, or accept mail only from the
+  ranges of the one that forwards it.
+
 ## What the slice supports
 
 Staff can log in with the generated development credentials, see only explicitly
@@ -1247,7 +1282,7 @@ diff in `config_change` and audited. The older settings route
 ## Connections
 
 A project reads mail through inbound connections (IMAP, Cloudflare Email
-Routing through R2, or the HTTPS endpoint) and sends it through one outgoing connection (SMTP, or the
+Routing through R2, the HTTPS endpoint, or the SMTP receiver) and sends it through one outgoing connection (SMTP, or the
 Cloudflare Email Sending API). Connections are managed through the API under the
 action `integration.manage`:
 
@@ -1273,7 +1308,7 @@ action `integration.manage`:
   to `draft`, and nothing is sent or read through a `draft` connection until a test
   succeeds. Leaving the secret out keeps the stored one.
 - `POST .../connections/{id}/test` checks login and mailbox (IMAP), the bucket
-  (Cloudflare inbound), that the definition is complete (HTTPS inbound), the login (SMTP) or that the token is active (Cloudflare
+  (Cloudflare inbound), that the definition is complete (HTTPS and SMTP inbound), the login (SMTP) or that the token is active (Cloudflare
   outbound) and records `ready`, or `degraded` with a code (`auth_failed`,
   `connect_failed`, `timeout`, `tls_failed`, `host_refused`, `not_found`, `failed`) that names no host
   or credential. It sends and reads no mail. For Cloudflare outbound it cannot tell

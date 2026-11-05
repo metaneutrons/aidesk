@@ -134,6 +134,33 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       storage: { condition: service_healthy, required: false }
+  # The SMTP receiver takes mail for the addresses of the inbound connections of kind smtp (and sends none), in a
+  # process of its own so that it is switched on on its own: COMPOSE_PROFILES=bundled,proxy,smtp-inbound. It is
+  # published to this machine only; to be the mail exchanger of a domain, publish it on the address that the
+  # records of the domain name (SMTP_INBOUND_BIND, SMTP_INBOUND_PORT, for example 0.0.0.0 and 25). STARTTLS is
+  # offered when the files of a certificate are mounted and named (SMTP_INBOUND_TLS_KEY_FILE and
+  # SMTP_INBOUND_TLS_CERT_FILE); see "SMTP inbound" in docs/development.md. The updater replaces it with the
+  # others when it is running.
+  smtp-receiver:
+    profiles: [smtp-inbound]
+    <<: *image
+    command: ["node_modules/.bin/tsx", "src/worker/smtp-receiver.ts"]
+    restart: unless-stopped
+    healthcheck: { disable: true }
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      <<: *environment
+      SMTP_INBOUND_PORT: "2525"
+      SMTP_INBOUND_NAME: ${SMTP_INBOUND_NAME:-}
+      SMTP_INBOUND_TLS_KEY_FILE: ${SMTP_INBOUND_TLS_KEY_FILE:-}
+      SMTP_INBOUND_TLS_CERT_FILE: ${SMTP_INBOUND_TLS_CERT_FILE:-}
+    ports: ["${SMTP_INBOUND_BIND:-127.0.0.1}:${SMTP_INBOUND_PORT:-2525}:2525"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      storage: { condition: service_healthy, required: false }
   proxy:
     profiles: [proxy]
     image: caddy@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f

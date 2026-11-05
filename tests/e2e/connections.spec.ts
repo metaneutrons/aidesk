@@ -1,3 +1,4 @@
+import { connect } from "node:net";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, openSettings, remote, test } from "./fixtures";
 // Connections: defined through the API, tested and disabled on the settings
@@ -190,4 +191,66 @@ test("makes a token for the HTTPS endpoint, shows it once and answers the sender
   await section.getByRole("button", { name: `Disable ${name}` }).click();
   await expect(row.getByText("Disabled")).toBeVisible();
   expect((await send(good)).status()).toBe(401);
+});
+// The code of the answer to RCPT TO, from the receiver of the development stack. No message follows, so nothing is made.
+function recipientCode(address: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(2525, "127.0.0.1");
+    const steps = ["EHLO e2e.example", "MAIL FROM:<sender@e2e.example>", `RCPT TO:<${address}>`];
+    let buffer = "";
+    let step = -1;
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString();
+      const last = buffer.trimEnd().split("\r\n").at(-1) ?? "";
+      if (!/^\d{3} /.test(last)) return;
+      const code = Number(last.slice(0, 3));
+      buffer = "";
+      step += 1;
+      const next = steps[step];
+      if (next === undefined) {
+        socket.end("QUIT\r\n");
+        resolve(code);
+        return;
+      }
+      socket.write(`${next}\r\n`);
+    });
+    socket.on("error", reject);
+  });
+}
+test("defines an SMTP receiver in the form and takes recipients only for its addresses", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  test.skip(remote, "The receiver of this test is the one of the development stack.");
+  const { gamma } = desk.projects;
+  await signIn();
+  await page.goto("/");
+  await openSettings(page, "Connections", gamma.name);
+  const section = page.getByRole("region", { name: `Connections` });
+  const name = `Receiver ${desk.run}`;
+  const address = `receiver-${desk.run}@example.test`;
+  await section.getByRole("button", { name: "Add connection" }).click();
+  const form = section.locator("form.connection-form");
+  await form.getByLabel("Type").selectOption({ label: "SMTP · incoming" });
+  await form.getByLabel("Name", { exact: true }).fill(name);
+  await form.getByLabel("Receiving addresses").fill(address);
+  // The receiver has no login, so there are no credentials to type.
+  await expect(form.getByText("Credentials are stored sealed")).toHaveCount(0);
+  await form.getByRole("button", { name: "Create connection" }).click();
+  await expect(section.locator("li strong").filter({ hasText: name })).toBeVisible();
+  // Until a test has made the connection ready, the receiver does not know the address.
+  expect(await recipientCode(address)).toBe(550);
+  await section.getByRole("button", { name: `Test ${name}` }).click();
+  await expect(
+    section.getByRole("listitem").filter({ hasText: name }).getByText("Ready"),
+  ).toBeVisible();
+  expect(await recipientCode(address)).toBe(250);
+  expect(await recipientCode(address.toUpperCase())).toBe(250);
+  expect(await recipientCode(`other-${desk.run}@example.test`)).toBe(550);
+  await section.getByRole("button", { name: `Disable ${name}` }).click();
+  await expect(
+    section.getByRole("listitem").filter({ hasText: name }).getByText("Disabled"),
+  ).toBeVisible();
+  expect(await recipientCode(address)).toBe(550);
 });

@@ -15,6 +15,7 @@ import {
   cloudflareOutboundSecret,
   pushInboundConfig,
   pushInboundSecret,
+  smtpInboundConfig,
   connectionDisable,
   connectionTypes,
   contextConfig,
@@ -115,7 +116,7 @@ async function checkDefinition(key: ConnectionTypeKey, config: Record<string, un
   const development = developmentStack();
   if (config.developmentOnly === true && !development)
     invalid(["config", "developmentOnly"], "Only a development stack accepts this");
-  if (key === "push:inbound")
+  if (key === "push:inbound" || key === "smtp:inbound")
     for (const [index, range] of (config.allowedSources as string[]).entries()) {
       const [base = "", prefix = ""] = range.split("/");
       const family = isIP(base);
@@ -530,6 +531,11 @@ async function probe(row: Row): Promise<void> {
     await client.send(new ListObjectsV2Command({ Bucket: config.bucket, MaxKeys: 1 }), {
       abortSignal: AbortSignal.timeout(timeout),
     });
+    return;
+  }
+  if (key === "smtp:inbound") {
+    // The receiver runs in the worker of the installation and is switched on there; a test checks the definition.
+    smtpInboundConfig.parse(row.config);
     return;
   }
   if (key === "push:inbound") {

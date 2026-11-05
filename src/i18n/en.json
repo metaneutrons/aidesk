@@ -565,6 +565,7 @@
   "connField_address": "Receiving address",
   "connField_addresses": "Receiving addresses",
   "connField_allowedSources": "Allowed sources",
+  "connField_requireTls": "Require STARTTLS before a message",
   "connHint_addresses": "One address per line. The connection takes mail for these addresses and for no others.",
   "connHint_allowedSources": "Network ranges, one per line, for example 192.0.2.0/24. Empty allows every source.",
   "connField_region": "Region",
