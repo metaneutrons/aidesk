@@ -67,6 +67,17 @@ export const definitions: Definition[] = [
     secret: [secret("token", false, true)],
   },
   {
+    key: "smtp:inbound",
+    kind: "smtp",
+    direction: "inbound",
+    config: [
+      { name: "addresses", type: "lines" },
+      { name: "allowedSources", type: "lines", optional: true },
+      { name: "requireTls", type: "boolean", fallback: false },
+    ],
+    secret: [],
+  },
+  {
     key: "smtp:outbound",
     kind: "smtp",
     direction: "outbound",
@@ -366,45 +377,47 @@ export function ConnectionForm({
           ),
         )}
       </Group>
-      <Group note={t("connSecretNote")}>
-        {definition.secret.map((field) => (
-          <Row key={`${id}:${field.name}`} label={label(field, true)}>
-            {(props) => (
-              <>
-                <input
-                  {...props}
-                  type={revealed.includes(field.name) ? "text" : "password"}
-                  autoComplete="off"
-                  value={secrets[field.name] ?? ""}
-                  placeholder={existing?.secretSet ? t("connSecretKept") : ""}
-                  onChange={(event) => {
-                    setSecrets({ ...secrets, [field.name]: event.target.value });
-                  }}
-                />
-                {field.generate && (
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => {
-                      const bytes = crypto.getRandomValues(new Uint8Array(32));
-                      const token = Array.from(bytes, (byte) =>
-                        byte.toString(16).padStart(2, "0"),
-                      ).join("");
-                      setSecrets({ ...secrets, [field.name]: token });
-                      setRevealed([...revealed, field.name]);
+      {definition.secret.length > 0 && (
+        <Group note={t("connSecretNote")}>
+          {definition.secret.map((field) => (
+            <Row key={`${id}:${field.name}`} label={label(field, true)}>
+              {(props) => (
+                <>
+                  <input
+                    {...props}
+                    type={revealed.includes(field.name) ? "text" : "password"}
+                    autoComplete="off"
+                    value={secrets[field.name] ?? ""}
+                    placeholder={existing?.secretSet ? t("connSecretKept") : ""}
+                    onChange={(event) => {
+                      setSecrets({ ...secrets, [field.name]: event.target.value });
                     }}
-                  >
-                    {t("connSecretGenerate")}
-                  </button>
-                )}
-                {revealed.includes(field.name) && (
-                  <span role="status">{t("connSecretGenerated")}</span>
-                )}
-              </>
-            )}
-          </Row>
-        ))}
-      </Group>
+                  />
+                  {field.generate && (
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => {
+                        const bytes = crypto.getRandomValues(new Uint8Array(32));
+                        const token = Array.from(bytes, (byte) =>
+                          byte.toString(16).padStart(2, "0"),
+                        ).join("");
+                        setSecrets({ ...secrets, [field.name]: token });
+                        setRevealed([...revealed, field.name]);
+                      }}
+                    >
+                      {t("connSecretGenerate")}
+                    </button>
+                  )}
+                  {revealed.includes(field.name) && (
+                    <span role="status">{t("connSecretGenerated")}</span>
+                  )}
+                </>
+              )}
+            </Row>
+          ))}
+        </Group>
+      )}
       {failed && (
         <div className="error" role="alert">
           {t(failed === "stale" ? "connStale" : "connError")}

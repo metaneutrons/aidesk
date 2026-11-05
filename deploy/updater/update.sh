@@ -21,6 +21,8 @@ readonly COMPOSE_PROJECT="${COMPOSE_PROJECT:-aidesk}"
 readonly MIGRATE_SERVICE="${MIGRATE_SERVICE:-migrate}"
 readonly APP_SERVICE="${APP_SERVICE:-app}"
 readonly WORKER_SERVICE="${WORKER_SERVICE:-worker}"
+# The SMTP receiver (profile smtp-inbound) runs the same image and is replaced with the others when it is running.
+readonly RECEIVER_SERVICE="${RECEIVER_SERVICE:-smtp-receiver}"
 readonly DATABASE_SERVICE="${DATABASE_SERVICE:-postgres}"
 readonly UPDATER_SERVICE="${UPDATER_SERVICE:-updater}"
 readonly DATABASE_USER="${POSTGRES_USER:-aidesk}"
@@ -276,13 +278,20 @@ backup_database() {
   log "database backup stored at $destination"
 }
 
-# Migrations first, in a container of their own that has to end well, then the web server and
-# the worker from the same image. The database and the storage are not touched.
+# Migrations first, in a container of their own that has to end well, then the web server, the
+# worker and a running SMTP receiver from the same image. The database and the storage are not touched.
 compose_deploy() {
-  local image="$1"
+  local image="$1" replaced=("$APP_SERVICE" "$WORKER_SERVICE")
   AIDESK_IMAGE="$image" compose_stack run --rm --no-deps -T "$MIGRATE_SERVICE" || return 1
+  # Naming a service of a profile that is off would switch it on, so only a receiver that is running is named.
+  # It is looked for by the labels of Compose: a service of a profile that is off is unknown to `compose ps`.
+  if [[ -n "$(docker ps --quiet \
+    --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
+    --filter "label=com.docker.compose.service=${RECEIVER_SERVICE}" 2>/dev/null || true)" ]]; then
+    replaced+=("$RECEIVER_SERVICE")
+  fi
   AIDESK_IMAGE="$image" compose_stack \
-    up --detach --no-deps --no-build --pull never --force-recreate "$APP_SERVICE" "$WORKER_SERVICE"
+    up --detach --no-deps --no-build --pull never --force-recreate "${replaced[@]}"
 }
 
 # Set exactly one KEY=value line in the environment file (added when it is not there),

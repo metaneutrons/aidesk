@@ -565,6 +565,7 @@
   "connField_address": "Empfangsadresse",
   "connField_addresses": "Empfangsadressen",
   "connField_allowedSources": "Erlaubte Quellen",
+  "connField_requireTls": "STARTTLS vor der Nachricht verlangen",
   "connHint_addresses": "Eine Adresse pro Zeile. Die Verbindung nimmt Mail für diese Adressen an und für keine anderen.",
   "connHint_allowedSources": "Netzbereiche, einer pro Zeile, zum Beispiel 192.0.2.0/24. Leer erlaubt jede Quelle.",
   "connField_region": "Region",

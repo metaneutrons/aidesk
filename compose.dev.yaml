@@ -177,6 +177,23 @@ services:
     depends_on:
       app:
         condition: service_healthy
+  # The SMTP receiver of the product on the development stack, for the tests that send mail to it.
+  smtp-receiver:
+    build:
+      context: .
+      target: development
+    environment:
+      <<: *app-environment
+      SMTP_INBOUND_PORT: "2525"
+    command: ["pnpm", "exec", "tsx", "src/worker/smtp-receiver.ts"]
+    ports: ["127.0.0.1:2525:2525"]
+    volumes:
+      - .:/app
+      - app-dependencies:/app/node_modules
+      - app-store:/pnpm/store
+    depends_on:
+      app:
+        condition: service_healthy
 volumes:
   caddy-data:
   postgres-data:
