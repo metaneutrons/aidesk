@@ -1,5 +1,13 @@
 // Deploy with: pnpm dlx wrangler@4.143.0 deploy --config cloudflare/mail-ingest/wrangler.jsonc
-// The bucket and the routing rule are described in docs/development.md.
+// The bucket, the routes of the addresses, the tunnel and the routing rules are described in docs/development.md
+// ("Email Worker of Cloudflare").
+//
+// Secret (set with `wrangler secret put AIDESK_ROUTES`, never in this file):
+//   AIDESK_ROUTES  {"<recipient>": {"connection": "<connection id>", "token": "<token>"}}
+// Optional, as variables below or in the dashboard:
+//   AIDESK_URL      the address of aidesk by name, when there is no VPC binding
+//   COPY_TO         a verified destination address of the account that also gets a copy
+//   AIDESK_TIMEOUT_SECONDS
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "aidesk-mail-ingest",
@@ -10,7 +18,9 @@
     {
       "binding": "MAIL",
       "bucket_name": "aidesk-mail",
-      "jurisdiction": "eu"
-    }
-  ]
+      "jurisdiction": "eu",
+    },
+  ],
+  // Delivery through a tunnel without a public name (Workers VPC, a beta): add the id of the VPC service.
+  // , "vpc_services": [{ "binding": "AIDESK", "service_id": "<service id>" }]
 }

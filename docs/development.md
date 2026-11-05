@@ -757,7 +757,8 @@ every admitted mail from both adapters (IMAP and Cloudflare), because both end i
 Inbound, Cloudflare Email Routing hands each message for a routed address to
 the Email Worker in `cloudflare/mail-ingest`. The worker stores the message
 unchanged in an R2 bucket under `inbound/<recipient>/<receipt time>-<random>.eml`
-and does nothing else. aidesk collects these objects through the S3 API at the
+and does nothing else (with routes it first tries the HTTPS endpoint, see "Email
+Worker of Cloudflare" below). aidesk collects these objects through the S3 API at the
 same interval as IMAP, accepts each one through `acceptInbound` and deletes it
 only afterwards. While aidesk is unreachable, mail waits in the bucket. A crash
 between acceptance and deletion leaves the object in place; the next poll
@@ -814,6 +815,88 @@ sh scripts/dev.sh exec -T -e CLOUDFLARE_ACCOUNT_ID -e CLOUDFLARE_R2_ACCESS_KEY_I
   pnpm exec tsx scripts/cloudflare-mail.ts --project <slug> --name <name> \
   --address <address> --grant <operator email>
 ```
+
+## Email Worker of Cloudflare
+
+The worker in `cloudflare/mail-ingest` takes each message that Email Routing sends to it and
+delivers it in one of two ways, in this order:
+
+1. **Directly** to the HTTPS endpoint of a connection of kind `push` (see "HTTPS inbound"), if
+   the address has a route and aidesk can be reached: through a VPC service (Workers VPC, a beta,
+   through a tunnel without a public name) or by name (`AIDESK_URL`). Any `2xx` counts as taken.
+2. **Into the bucket** (`inbound/<recipient>/...eml`, EU jurisdiction) on any failure of the first
+   way, and for an address without a route. aidesk collects the objects as before (see
+   "Cloudflare mail"), so a message waits there while aidesk is unreachable.
+
+If neither works, the worker throws and Email Routing does not count the message as delivered.
+Both ways carry the same delivery id (the header `X-Aidesk-Delivery-Id`, and the metadata
+`delivery` of the object), so a message that aidesk took but whose answer was lost, and that was
+then left in the bucket as well, is taken once: the poller recognises the id and only removes the
+object. Nothing is parsed or answered in the worker.
+
+Configuration of the worker (`cloudflare/mail-ingest/wrangler.jsonc`):
+
+| Name                     | Kind                         | Meaning                                                                                                                                                                    |
+| ------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAIL`                   | R2 binding                   | The bucket of the fallback. Without it a failure of the direct way is a failure of the worker.                                                                             |
+| `AIDESK_ROUTES`          | secret                       | JSON, `{"<recipient>": {"connection": "<connection id>", "token": "<token>"}}`, one entry per address. Addresses are written in lower case.                                |
+| `AIDESK`                 | VPC binding (`vpc_services`) | A VPC service that reaches aidesk through a tunnel.                                                                                                                        |
+| `AIDESK_URL`             | variable                     | The address of aidesk by name, when there is no VPC binding. It has to be reachable from the internet, and a name that serves a customer page does not serve the endpoint. |
+| `COPY_TO`                | variable                     | A verified destination address of the account that also gets a copy of every message. A failed copy is not a failure of the worker.                                        |
+| `AIDESK_TIMEOUT_SECONDS` | variable                     | How long to wait for aidesk before the bucket is used (default 20).                                                                                                        |
+
+Setup for one or more addresses:
+
+1. In the project, define an inbound connection of kind `push` for each address (settings,
+   Connections, "HTTPS endpoint"; or `POST /api/v1/projects/{id}/connections`). Let the form make
+   the token and copy it at once, then test the connection so that it is `ready`. The id of the
+   connection is in the list of connections.
+2. Put the routes into the secret. The token goes in through the standard input, not into the
+   command line:
+
+    ```sh
+    cat routes.json | pnpm dlx wrangler@4.143.0 secret put AIDESK_ROUTES \
+      --config cloudflare/mail-ingest/wrangler.jsonc
+    ```
+
+3. Choose how the worker reaches aidesk:
+    - **By name:** set `AIDESK_URL` (a variable in the dashboard or in `wrangler.jsonc`). The
+      address has to be public, and the product answers the endpoint on its application host.
+    - **Through a tunnel (Workers VPC):** run `cloudflared` next to the product. In the production
+      stack that is the service `tunnel` of the profile `tunnel` (`COMPOSE_PROFILES=...,tunnel`,
+      `CLOUDFLARE_TUNNEL_TOKEN` in the environment file; the token comes from the tunnel that you
+      create in the dashboard, Zero Trust, Networks, Tunnels, or under Workers VPC). Then register
+      the product as a VPC service and bind it:
+
+        ```sh
+        pnpm dlx wrangler@4.143.0 vpc service create aidesk --type http \
+          --tunnel-id <tunnel id> --hostname app --http-port 3000
+        ```
+
+        Add `"vpc_services": [{ "binding": "AIDESK", "service_id": "<service id>" }]` to
+        `wrangler.jsonc`. A VPC service routes to its own host and port whatever the worker asks
+        for, and it is the whole host and port, not one path: the token of the connection is what
+        protects the endpoint, and the other pages of the product are reachable through the same
+        service by a worker of the account. Creating a service needs the role "Connectivity
+        Directory Admin", binding to one "Connectivity Directory Bind".
+4. Create the bucket and deploy the worker as described under "Cloudflare mail", then point each
+   address at the worker in Email Routing (a rule has one action, so this replaces a forwarding
+   rule; `COPY_TO` keeps a copy).
+5. Test. Send a message to the address from outside; in the project it arrives as a ticket
+   within seconds (directly) or at the next poll (through the bucket). `wrangler tail` shows
+   whether the worker took the direct way. The endpoint alone can be tested without Cloudflare:
+
+    ```sh
+    curl -i -X POST https://<aidesk>/api/inbound/<connection id> \
+      -H "Authorization: Bearer <token>" -H "Content-Type: message/rfc822" \
+      -H "X-Aidesk-Recipient: <address>" -H "X-Aidesk-Delivery-Id: test-$(date +%s)" \
+      --data-binary @message.eml
+    ```
+
+Limits: Email Routing allows messages up to 25 MiB. Workers VPC is a beta and its interfaces may
+change; the bucket keeps mail flowing meanwhile. Whether an Email Worker can use a VPC binding is
+not stated in the documentation of Workers VPC (it shows the `fetch` handler); the test of step 5
+is the proof. Nothing here checks SPF, DKIM or DMARC of the sender.
 
 ## HTTPS inbound
 
