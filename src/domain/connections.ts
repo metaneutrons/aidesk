@@ -25,6 +25,25 @@ export const cloudflareInboundSecret = z.object({
   accessKeyId: z.string().min(1),
   secretAccessKey: z.string().min(1),
 });
+// A network range as address/prefix, IPv4 or IPv6. The shape is checked here; the server reads the address
+// with the network library before it saves the connection.
+const sourceRange = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}|[0-9a-fA-F:]*:[0-9a-fA-F:.]*\/\d{1,3})$/,
+    "A range looks like 192.0.2.0/24",
+  )
+  .describe("A network range, address/prefix");
+// Mail that is handed over through the HTTPS endpoint of the product: the sender of the request is
+// the Email Worker, or any program that holds the token of the connection. The addresses are the
+// ones the connection takes mail for.
+export const pushInboundConfig = z.object({
+  addresses: z.array(z.email()).min(1).max(20),
+  // Empty means every source; otherwise the request has to come from one of the ranges.
+  allowedSources: z.array(sourceRange).max(20).default([]),
+});
+export const pushInboundSecret = z.object({ token: z.string().min(32).max(200) });
 export const cloudflareOutboundConfig = z.object({
   accountId: z.string().regex(/^[a-f0-9]{32}$/),
   from: z.email(),
@@ -100,6 +119,7 @@ export const connectionTypes = {
     secret: cloudflareInboundSecret,
     secretRequired: true,
   },
+  "push:inbound": { config: pushInboundConfig, secret: pushInboundSecret, secretRequired: true },
   "smtp:outbound": { config: smtpConfig, secret: smtpSecret, secretRequired: false },
   "cloudflare:outbound": {
     config: cloudflareOutboundConfig,
@@ -160,6 +180,7 @@ const members = {
     cloudflareInboundSecret,
     true,
   ),
+  "push:inbound": define("push", "inbound", pushInboundConfig, pushInboundSecret, true),
   "smtp:outbound": define("smtp", "outbound", smtpConfig, smtpSecret, false),
   "cloudflare:outbound": define(
     "cloudflare",
@@ -178,6 +199,7 @@ const members = {
 export const connectionCreate = z.union([
   members["imap:inbound"],
   members["cloudflare:inbound"],
+  members["push:inbound"],
   members["smtp:outbound"],
   members["cloudflare:outbound"],
   members["anthropic:ai"],
@@ -199,7 +221,7 @@ export function parseConnectionCreate(input: unknown): ConnectionCreate {
         code: "custom",
         path: ["kind"],
         message:
-          "One of imap/inbound, cloudflare/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
+          "One of imap/inbound, cloudflare/inbound, push/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
       },
     ]);
   return members[key].parse(input);

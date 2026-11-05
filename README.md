@@ -30,7 +30,7 @@ The same operations are open to people, scripts and AI agents. The web interface
 | Part | What it does |
 |------|--------------|
 | Shared desk | Dashboard, filtered inbox, search, tags, reminders, response clock, private notes, English and German interface |
-| Email | IMAP or Cloudflare Email Routing in, SMTP or the Cloudflare Email Sending API out, threading, bounces, acknowledgements, junk handling, designed HTML and text mail |
+| Email | IMAP, Cloudflare Email Routing or an HTTPS endpoint in, SMTP or the Cloudflare Email Sending API out, threading, bounces, acknowledgements, junk handling, designed HTML and text mail |
 | Customer portal | A private page per ticket reached through a personal link, with replies that arrive in the desk |
 | REST API | A published [OpenAPI 3.1 definition](docs/api/openapi.json) generated from one route table |
 | MCP server | Streamable HTTP with project-scoped bearer tokens; tools come from the same route table |

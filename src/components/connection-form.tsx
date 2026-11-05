@@ -12,6 +12,8 @@ interface Field {
   type: FieldType;
   optional?: boolean;
   fallback?: string | number | boolean;
+  // A secret the product can make: a button fills the field with a random value and shows it once.
+  generate?: boolean;
 }
 interface Definition {
   key: string;
@@ -26,7 +28,12 @@ const text = (name: string, optional = false, fallback?: string): Field => ({
   optional,
   ...(fallback === undefined ? {} : { fallback }),
 });
-const secret = (name: string, optional = false): Field => ({ name, type: "password", optional });
+const secret = (name: string, optional = false, generate = false): Field => ({
+  name,
+  type: "password",
+  optional,
+  ...(generate ? { generate } : {}),
+});
 export const definitions: Definition[] = [
   {
     key: "imap:inbound",
@@ -48,6 +55,16 @@ export const definitions: Definition[] = [
     direction: "inbound",
     config: [text("endpoint"), text("bucket"), text("address"), text("region", true, "auto")],
     secret: [secret("accessKeyId"), secret("secretAccessKey")],
+  },
+  {
+    key: "push:inbound",
+    kind: "push",
+    direction: "inbound",
+    config: [
+      { name: "addresses", type: "lines" },
+      { name: "allowedSources", type: "lines", optional: true },
+    ],
+    secret: [secret("token", false, true)],
   },
   {
     key: "smtp:outbound",
@@ -202,6 +219,8 @@ export function ConnectionForm({
     definition ? toValues(definition, existing?.config ?? {}) : {},
   );
   const [secrets, setSecrets] = useState<Record<string, string>>({});
+  // The secrets that the product made and that are shown in plain text, so that they can be copied.
+  const [revealed, setRevealed] = useState<string[]>([]);
   const [problems, setProblems] = useState<string[]>([]);
   const [failed, setFailed] = useState<"error" | "stale" | null>(null);
   const [working, setWorking] = useState(false);
@@ -211,6 +230,7 @@ export function ConnectionForm({
     setKey(next);
     if (target) setValues(toValues(target, {}));
     setSecrets({});
+    setRevealed([]);
   };
   async function submit(): Promise<void> {
     if (!definition) return;
@@ -350,16 +370,37 @@ export function ConnectionForm({
         {definition.secret.map((field) => (
           <Row key={`${id}:${field.name}`} label={label(field, true)}>
             {(props) => (
-              <input
-                {...props}
-                type="password"
-                autoComplete="off"
-                value={secrets[field.name] ?? ""}
-                placeholder={existing?.secretSet ? t("connSecretKept") : ""}
-                onChange={(event) => {
-                  setSecrets({ ...secrets, [field.name]: event.target.value });
-                }}
-              />
+              <>
+                <input
+                  {...props}
+                  type={revealed.includes(field.name) ? "text" : "password"}
+                  autoComplete="off"
+                  value={secrets[field.name] ?? ""}
+                  placeholder={existing?.secretSet ? t("connSecretKept") : ""}
+                  onChange={(event) => {
+                    setSecrets({ ...secrets, [field.name]: event.target.value });
+                  }}
+                />
+                {field.generate && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      const bytes = crypto.getRandomValues(new Uint8Array(32));
+                      const token = Array.from(bytes, (byte) =>
+                        byte.toString(16).padStart(2, "0"),
+                      ).join("");
+                      setSecrets({ ...secrets, [field.name]: token });
+                      setRevealed([...revealed, field.name]);
+                    }}
+                  >
+                    {t("connSecretGenerate")}
+                  </button>
+                )}
+                {revealed.includes(field.name) && (
+                  <span role="status">{t("connSecretGenerated")}</span>
+                )}
+              </>
             )}
           </Row>
         ))}

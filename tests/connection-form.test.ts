@@ -8,7 +8,8 @@ const secretOf = (key: string): Record<string, string> =>
   Object.fromEntries(
     (definitions.find((entry) => entry.key === key)?.secret ?? []).map((field) => [
       field.name,
-      "x",
+      // A generated secret has a length of its own, as a token has.
+      field.generate ? "x".repeat(64) : "x",
     ]),
   );
 const filled: Record<string, Record<string, string>> = {
@@ -18,6 +19,7 @@ const filled: Record<string, Record<string, string>> = {
     bucket: "mail",
     address: "support@example.com",
   },
+  "push:inbound": { addresses: "support@example.com\n\n  hello@example.com  \n" },
   "smtp:outbound": {
     host: "smtp.example.com",
     from: "support@example.com",

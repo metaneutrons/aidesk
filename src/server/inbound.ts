@@ -33,7 +33,7 @@ import { mayReopen, replyPolicyOf } from "../domain/reply-policy";
 // Inbound mail, independent of the adapter that received it. The original is
 // stored first, then the ingress record and its processing job are committed
 // together. Processing is idempotent and may be retried.
-const maxRawBytes = 25 * 1024 * 1024;
+export const maxRawBytes = 25 * 1024 * 1024;
 export async function acceptInbound(input: {
   projectId: string;
   connectionId: string | null;
