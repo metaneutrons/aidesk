@@ -136,3 +136,58 @@ test("defines and changes connections in a form, and never shows the credentials
   });
   expect(rows.find((row) => row.name === docs)?.secretSet).toBe(false);
 });
+test("makes a token for the HTTPS endpoint, shows it once and answers the sender with the documented statuses", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  // Gamma, like the form test above. No message is taken here, so no ticket is made in the project.
+  const { gamma } = desk.projects;
+  await signIn();
+  await page.goto("/");
+  await openSettings(page, "Connections", gamma.name);
+  const section = page.getByRole("region", { name: `Connections` });
+  const name = `Endpoint ${desk.run}`;
+  const address = `endpoint-${desk.run}@example.test`;
+  await section.getByRole("button", { name: "Add connection" }).click();
+  const form = section.locator("form.connection-form");
+  await form.getByLabel("Type").selectOption({ label: "HTTPS endpoint · incoming" });
+  await form.getByLabel("Name", { exact: true }).fill(name);
+  await form.getByLabel("Receiving addresses").fill(address);
+  await form.getByRole("button", { name: "Generate a token" }).click();
+  await expect(form.getByText("Copy the token now")).toBeVisible();
+  const token = await form.getByLabel("Token").inputValue();
+  expect(token).toMatch(/^[0-9a-f]{64}$/);
+  await form.getByRole("button", { name: "Create connection" }).click();
+  await expect(section.locator("li strong").filter({ hasText: name })).toBeVisible();
+  const row = section.getByRole("listitem").filter({ hasText: name });
+  await section.getByRole("button", { name: `Test ${name}` }).click();
+  await expect(row.getByText("Ready")).toBeVisible();
+  // The token is not shown again, neither on the page nor by the API.
+  await expect(page.getByText(token)).toHaveCount(0);
+  const listed = await page.request.get(`/api/v1/projects/${gamma.id}/connections`);
+  const text = await listed.text();
+  expect(text).not.toContain(token);
+  const connection = (JSON.parse(text) as { id: string; name: string }[]).find(
+    (entry) => entry.name === name,
+  );
+  const url = `/api/inbound/${connection?.id ?? ""}`;
+  const send = (headers: Record<string, string>) =>
+    page.request.post(url, {
+      headers: { "content-type": "message/rfc822", ...headers },
+      data: "From: a@example.test\r\nSubject: x\r\n\r\nx\r\n",
+    });
+  const good = {
+    authorization: `Bearer ${token}`,
+    "x-aidesk-recipient": address,
+    "x-aidesk-delivery-id": `e2e-${desk.run}-delivery`,
+  };
+  expect((await send({ ...good, authorization: "Bearer wrong" })).status()).toBe(401);
+  expect((await send({ ...good, "x-aidesk-recipient": "other@example.test" })).status()).toBe(422);
+  expect((await send({ ...good, "x-aidesk-delivery-id": "" })).status()).toBe(400);
+  expect((await send({ authorization: good.authorization })).status()).toBe(400);
+  // A disabled connection takes nothing, and answers like one that does not exist.
+  await section.getByRole("button", { name: `Disable ${name}` }).click();
+  await expect(row.getByText("Disabled")).toBeVisible();
+  expect((await send(good)).status()).toBe(401);
+});

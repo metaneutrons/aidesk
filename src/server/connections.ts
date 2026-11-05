@@ -1,4 +1,5 @@
 import { redactRecord } from "../domain/audit";
+import { isIP } from "node:net";
 import { isDeepStrictEqual } from "node:util";
 import { ImapFlow } from "imapflow";
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
@@ -12,6 +13,8 @@ import {
   cloudflareInboundSecret,
   cloudflareOutboundConfig,
   cloudflareOutboundSecret,
+  pushInboundConfig,
+  pushInboundSecret,
   connectionDisable,
   connectionTypes,
   contextConfig,
@@ -112,6 +115,14 @@ async function checkDefinition(key: ConnectionTypeKey, config: Record<string, un
   const development = developmentStack();
   if (config.developmentOnly === true && !development)
     invalid(["config", "developmentOnly"], "Only a development stack accepts this");
+  if (key === "push:inbound")
+    for (const [index, range] of (config.allowedSources as string[]).entries()) {
+      const [base = "", prefix = ""] = range.split("/");
+      const family = isIP(base);
+      const bits = family === 4 ? 32 : 128;
+      if (family === 0 || !Number.isInteger(Number(prefix)) || Number(prefix) > bits)
+        invalid(["config", "allowedSources", index], "This is not a network range");
+    }
   const plain = config.developmentOnly === true;
   if (plain) return;
   if (key === "imap:inbound" && config.secure !== true)
@@ -519,6 +530,12 @@ async function probe(row: Row): Promise<void> {
     await client.send(new ListObjectsV2Command({ Bucket: config.bucket, MaxKeys: 1 }), {
       abortSignal: AbortSignal.timeout(timeout),
     });
+    return;
+  }
+  if (key === "push:inbound") {
+    // Nothing outside is called: the sender calls the product. A test checks what a delivery needs.
+    pushInboundConfig.parse(row.config);
+    pushInboundSecret.parse(secretText);
     return;
   }
   if (key === "smtp:outbound") {

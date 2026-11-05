@@ -815,6 +815,63 @@ sh scripts/dev.sh exec -T -e CLOUDFLARE_ACCOUNT_ID -e CLOUDFLARE_R2_ACCESS_KEY_I
   --address <address> --grant <operator email>
 ```
 
+## HTTPS inbound
+
+A connection of kind `push` and direction `inbound` takes mail through an endpoint of
+the product. The Email Worker of Cloudflare hands a message over there, or any program
+that holds the token of the connection. It is switched on by creating the connection
+and off by disabling it; nothing else in the product depends on it.
+
+```http
+POST /api/inbound/<connection id>
+Authorization: Bearer <token>
+Content-Type: message/rfc822
+X-Aidesk-Recipient: hello@example.com
+X-Aidesk-Delivery-Id: 7f9c2c3e-5c1a-4a0e-9d57-6a2f1b3c0d11
+
+<the message as it came, RFC 822, attachments included>
+```
+
+The body is the complete message with its attachments (up to 25 MiB). The product stores
+it unchanged, as it does for every other way in, and takes the text and the attachments
+out of it. `X-Aidesk-Recipient` is the address the message was sent to, and it has to be
+one of the `addresses` of the connection. `X-Aidesk-Delivery-Id` (8 to 100 characters
+of `A-Za-z0-9._-`) is the id of the delivery: the same id is the same mail. A repeat
+answers `200` with `"duplicate": true` and creates nothing, so a sender may repeat a
+request whose answer it did not get. The Email Worker puts the same id on the object
+that it leaves in the bucket, so a mail that arrives through both ways is taken once.
+
+| Answer | Meaning |
+|---|---|
+| `202` | Taken. The body has `ingressId` and `duplicate: false`. |
+| `200` | The same delivery id was taken before (`duplicate: true`). |
+| `400` | A header is missing or malformed. |
+| `401` | No token, a wrong token, a source that is not allowed, a connection that is not `ready`, or no such connection. All of these answer alike, before the body is read. |
+| `409` | The project is archived and takes no mail. |
+| `413` | The message is empty or larger than 25 MiB. |
+| `422` | The recipient is not one of the addresses of the connection. |
+| `503` | The product could not take it now. Try again, or leave it to the bucket. |
+
+Fields of the connection:
+
+- `addresses` (1 to 20 addresses): the recipients it takes mail for.
+- `allowedSources` (up to 20 ranges, for example `203.0.113.0/24`): when the list is not
+  empty, the request has to come from one of them. The product reads the source from the
+  last entry of `X-Forwarded-For`, which is the one the nearest proxy added. Without a
+  proxy that sets the header, a list that is not empty refuses everything. Cloudflare
+  Workers send from addresses that every Worker shares, so a range of Cloudflare does not
+  identify your Worker; it only keeps out the rest of the internet. Through a tunnel the
+  source is the address of the machine that runs `cloudflared`.
+- the secret `token` (32 to 200 characters): the form makes one with a button and shows
+  it once. Compare with `openssl rand -hex 32`. It is stored sealed like every secret,
+  and a changed token takes effect with the next request after the connection is `ready`
+  again.
+
+The route answers on the address of the application. A name that serves a customer page
+does not serve it (see `src/proxy.ts`). A test of the connection checks that the
+definition is complete; it cannot call the endpoint for you, because the sender is
+outside. Rate limits belong to the proxy in front of the product.
+
 ## What the slice supports
 
 Staff can log in with the generated development credentials, see only explicitly
@@ -1106,8 +1163,8 @@ diff in `config_change` and audited. The older settings route
 
 ## Connections
 
-A project reads mail through inbound connections (IMAP, or Cloudflare Email
-Routing through R2) and sends it through one outgoing connection (SMTP, or the
+A project reads mail through inbound connections (IMAP, Cloudflare Email
+Routing through R2, or the HTTPS endpoint) and sends it through one outgoing connection (SMTP, or the
 Cloudflare Email Sending API). Connections are managed through the API under the
 action `integration.manage`:
 
@@ -1133,7 +1190,7 @@ action `integration.manage`:
   to `draft`, and nothing is sent or read through a `draft` connection until a test
   succeeds. Leaving the secret out keeps the stored one.
 - `POST .../connections/{id}/test` checks login and mailbox (IMAP), the bucket
-  (Cloudflare inbound), the login (SMTP) or that the token is active (Cloudflare
+  (Cloudflare inbound), that the definition is complete (HTTPS inbound), the login (SMTP) or that the token is active (Cloudflare
   outbound) and records `ready`, or `degraded` with a code (`auth_failed`,
   `connect_failed`, `timeout`, `tls_failed`, `host_refused`, `not_found`, `failed`) that names no host
   or credential. It sends and reads no mail. For Cloudflare outbound it cannot tell
