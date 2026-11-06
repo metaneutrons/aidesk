@@ -108,6 +108,16 @@ describe("compose.coolify.yaml", () => {
     expect(compose).toContain("target: production");
   });
 });
+describe("the tunnel of compose.coolify.yaml", () => {
+  const tunnel = compose.slice(compose.indexOf("\n  tunnel:"), compose.indexOf("\nnetworks:"));
+  it("is off by default and stays on the internal network", () => {
+    expect(tunnel).toContain("profiles: [tunnel]");
+    expect(tunnel).toContain("networks: [backend]");
+    expect(tunnel).not.toContain("coolify");
+    expect(tunnel).toContain("TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}");
+    expect(tunnel).not.toMatch(/^\s+ports:/m);
+  });
+});
 describe("the names that the web server reaches in compose.coolify.yaml", () => {
   // The web server joins the network `coolify`, which every resource of the instance shares; Docker resolves a
   // bare `postgres` there to the database of Coolify itself, so the web server and the worker asked it for a

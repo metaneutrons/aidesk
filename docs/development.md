@@ -865,7 +865,9 @@ Setup for one or more addresses:
     - **Through a tunnel (Workers VPC):** run `cloudflared` next to the product. In the production
       stack that is the service `tunnel` of the profile `tunnel` (`COMPOSE_PROFILES=...,tunnel`,
       `CLOUDFLARE_TUNNEL_TOKEN` in the environment file; the token comes from the tunnel that you
-      create in the dashboard, Zero Trust, Networks, Tunnels, or under Workers VPC). Then register
+      create in the dashboard, Zero Trust, Networks, Tunnels, or under Workers VPC). In
+      `compose.coolify.yaml` the same service sits on the internal network, off unless
+      `COMPOSE_PROFILES=tunnel` and `CLOUDFLARE_TUNNEL_TOKEN` are variables of the resource. Then register
       the product as a VPC service and bind it:
 
         ```sh
