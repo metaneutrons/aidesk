@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/metaneutrons/aidesk/compare/v0.4.0...v0.5.0) (2026-11-06)
+
+
+### Features
+
+* **deploy:** optional Cloudflare Tunnel service in the Coolify Compose file ([#290](https://github.com/metaneutrons/aidesk/issues/290)) ([dd09b07](https://github.com/metaneutrons/aidesk/commit/dd09b07ea7849bb347a11cc533d4e94e5d936774))
+
 ## [0.4.0](https://github.com/metaneutrons/aidesk/compare/v0.3.0...v0.4.0) (2026-11-05)
 
 
