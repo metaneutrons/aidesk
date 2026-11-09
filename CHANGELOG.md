@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/metaneutrons/aidesk/compare/v0.5.0...v0.6.0) (2026-11-09)
+
+
+### Features
+
+* **mailjet:** send replies through the Mailjet Send API ([#296](https://github.com/metaneutrons/aidesk/issues/296)) ([4fc6c18](https://github.com/metaneutrons/aidesk/commit/4fc6c18f6622936313f9069e6cb1e2619114e178))
+
 ## [0.5.0](https://github.com/metaneutrons/aidesk/compare/v0.4.0...v0.5.0) (2026-11-06)
 
 
