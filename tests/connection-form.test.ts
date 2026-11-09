@@ -31,6 +31,7 @@ const filled: Record<string, Record<string, string>> = {
     from: "support@example.com",
     replyTo: "support@example.com",
   },
+  "mailjet:outbound": { from: "support@example.com", replyTo: "support@example.com" },
   "anthropic:ai": {},
   "openai:ai": {},
   "google:ai": {},

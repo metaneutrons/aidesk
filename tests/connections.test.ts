@@ -283,6 +283,26 @@ describe("defining a connection", () => {
     expect(
       (
         await createConnection(manager, projectId, {
+          kind: "mailjet",
+          direction: "outbound",
+          name: "Mailjet out",
+          config: { from: "a@example.test", replyTo: "a@example.test" },
+          secret: { apiKey: "k", secretKey: "s" },
+        })
+      ).outcome,
+    ).toBe("applied");
+    await expect(
+      createConnection(manager, projectId, {
+        kind: "mailjet",
+        direction: "outbound",
+        name: "Mailjet without secret key",
+        config: { from: "a@example.test", replyTo: "a@example.test" },
+        secret: { apiKey: "k" },
+      }),
+    ).rejects.toBeInstanceOf(ZodError);
+    expect(
+      (
+        await createConnection(manager, projectId, {
           kind: "cloudflare",
           direction: "inbound",
           name: "CF in",
@@ -668,6 +688,35 @@ describe("the checks of the other kinds", () => {
     const failed = await testConnection(manager, projectId, id);
     expect(failed).toMatchObject({ status: "degraded", lastErrorCode: "auth_failed" });
     expect(JSON.stringify(failed)).not.toContain("token-value");
+  });
+  it("runs the sandbox mode of Mailjet for an outgoing connection and leaks no key", async () => {
+    const id = await stored(
+      "mailjet",
+      "outbound",
+      { from: "a@example.test", replyTo: "a@example.test" },
+      { apiKey: "key-value", secretKey: "secret-value" },
+    );
+    const answer = (status: number, text: string) =>
+      Promise.resolve(new Response(text, { status }));
+    const fetched = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() => answer(200, '{"Messages":[{"Status":"success","To":[]}]}'));
+    expect(await testConnection(manager, projectId, id)).toMatchObject({ status: "ready" });
+    const [address, init] = fetched.mock.calls[0] as unknown as [string, RequestInit];
+    expect(address).toBe("https://api.mailjet.com/v3.1/send");
+    expect(JSON.parse(init.body as string)).toMatchObject({ SandboxMode: true });
+    fetched.mockImplementation(() => answer(401, '{"ErrorCode":"mj-0015"}'));
+    const refused = await testConnection(manager, projectId, id);
+    expect(refused).toMatchObject({ status: "degraded", lastErrorCode: "auth_failed" });
+    fetched.mockImplementation(() => answer(403, '{"ErrorCode":"send-0007"}'));
+    expect(await testConnection(manager, projectId, id)).toMatchObject({
+      status: "degraded",
+      lastErrorCode: "auth_failed",
+    });
+    fetched.mockImplementation(() => answer(500, "{}"));
+    const failed = await testConnection(manager, projectId, id);
+    expect(failed).toMatchObject({ status: "degraded", lastErrorCode: "provider_error" });
+    expect(JSON.stringify([refused, failed])).not.toMatch(/key-value|secret-value/);
   });
 });
 

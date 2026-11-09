@@ -63,9 +63,11 @@ async function overviewOf(projectId: string): Promise<ProcessingOverview> {
       host:
         row.kind === "cloudflare"
           ? "api.cloudflare.com"
-          : typeof config.host === "string"
-            ? config.host
-            : null,
+          : row.kind === "mailjet"
+            ? "api.mailjet.com"
+            : typeof config.host === "string"
+              ? config.host
+              : null,
       detail:
         row.kind === "cloudflare" && typeof config.accountId === "string"
           ? `account ${config.accountId}`

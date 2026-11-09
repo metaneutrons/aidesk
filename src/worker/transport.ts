@@ -4,6 +4,7 @@ import { classifySmtpFailure, smtpProgress } from "../domain/delivery";
 import { smtp2goSuppressed } from "../server/smtp2go";
 import { smtpConfig, smtpSecret } from "../domain/connections";
 import { parseCloudflareOutbound, sendViaCloudflare } from "../server/cloudflare";
+import { parseMailjetOutbound, sendViaMailjet } from "../server/mailjet";
 import { unsealSecret } from "../server/secrets";
 // Hands one mail to the outgoing connection of a project. Shared by replies
 // and test mails, so both go through the same configuration checks, the same
@@ -34,9 +35,35 @@ export interface Delivery {
 }
 export async function deliver(input: Delivery): Promise<{
   outgoingId: string | null;
+  // The reference of the provider to the mail, when it gives one, for looking its outcome up later.
+  providerId?: string;
   sender: { from: string; replyTo: string };
 }> {
   const { project, connection, to, subject, thread, content, report } = input;
+  if (connection.kind === "mailjet") {
+    const { config, secret } = parseMailjetOutbound(connection.config, connection.secretCiphertext);
+    report("transport_acceptance_unknown");
+    try {
+      const sent = await sendViaMailjet(config, secret, {
+        fromName: project.name,
+        to,
+        subject,
+        ...thread,
+        ...content,
+        ticketId: input.ticketId,
+        automatic: input.automatic,
+        localId: input.localId,
+      });
+      return {
+        outgoingId: sent.messageId,
+        ...(sent.providerId ? { providerId: sent.providerId } : {}),
+        sender: { from: config.from, replyTo: config.replyTo },
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === "transport_rejected") report(error.message);
+      throw error;
+    }
+  }
   if (connection.kind === "cloudflare") {
     const { config, secret } = parseCloudflareOutbound(
       connection.config,

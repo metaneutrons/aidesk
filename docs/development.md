@@ -787,6 +787,22 @@ before each send. A listed recipient stops the send as `recipient_suppressed`;
 if the list cannot be read, the send stops as `suppression_check_failed`. Both
 go to review without contacting the SMTP server.
 
+Mailjet outbound: a connection of kind `mailjet` sends replies through the Send API v3.1
+(`https://api.mailjet.com/v3.1/send`, Basic authentication with the API key and the secret key).
+The address is fixed, so the keys cannot be pointed at another host. The sender has to be a
+sender or domain that is validated in the Mailjet account. Mailjet returns only its own numeric
+id, which is not an RFC 5322 id, so aidesk sets the `Message-ID` header itself
+(`<message id@domain of the sender>`, the same id as the SMTP transport) and a reply of the
+customer finds the ticket again. The numeric id is kept as `providerId` in `source.sent` of the
+message, so the outcome can be looked up in the Mailjet API later. Open and click tracking are
+switched off for every mail, because a rewritten link would break the portal link of a ticket.
+A refusal with a 4xx status, or a message with status `error`, is recorded as
+`transport_rejected`; a timeout, a 5xx answer or an answer that cannot be read leaves the
+outcome unknown. Both go to review and are never resent automatically. The test of the
+connection runs the Send API in sandbox mode (the checks of a send, no delivery), with the
+`Message-ID` and `In-Reply-To` headers of a real reply, so a connection whose headers or sender
+Mailjet refuses is shown as failing before the first reply.
+
 Without the Workers Paid plan and an onboarded sending domain, Cloudflare only
 delivers to verified destination addresses of the account. Each routing rule
 names one address and one worker.
@@ -1131,7 +1147,7 @@ mail looks.
 version or the built-in design, in English or German) to the address of the
 person who asks and to no one else; the recipient cannot be chosen. People with
 `project.manage` can do it, up to ten times an hour each, through the project's
-outgoing connection (SMTP or the Cloudflare API) and the same transport path as
+outgoing connection (SMTP, the Cloudflare API or the Mailjet API) and the same transport path as
 replies. The worker sends it as a `mail.test` job, rechecks the permission, the
 connection and the pause switch, and does not replay a dispatch whose lease ran
 out. It creates no ticket and no message; `getTestMail` shows the status and
