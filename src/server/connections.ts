@@ -13,6 +13,8 @@ import {
   cloudflareInboundSecret,
   cloudflareOutboundConfig,
   cloudflareOutboundSecret,
+  mailjetOutboundConfig,
+  mailjetOutboundSecret,
   pushInboundConfig,
   pushInboundSecret,
   smtpInboundConfig,
@@ -34,6 +36,7 @@ import {
   type ConnectionTypeKey,
 } from "../domain/connections";
 import { checkHost, developmentStack } from "./host-guard";
+import { probeMailjet } from "./mailjet";
 import { permits, type Principal } from "../domain/permissions";
 import type { ConfigDiffEntry } from "../domain/configuration";
 import { db } from "./db";
@@ -627,6 +630,16 @@ async function probe(row: Row): Promise<void> {
         response.ok || (key === "context:knowledge" && [400, 404, 422].includes(response.status));
       if (!reachable) throw Object.assign(new Error("source"), { providerStatus: response.status });
     }
+    return;
+  }
+  if (key === "mailjet:outbound") {
+    // The sandbox mode of the Send API checks the keys, the sender and the headers of a reply and
+    // delivers nothing.
+    await probeMailjet(
+      mailjetOutboundConfig.parse(row.config),
+      mailjetOutboundSecret.parse(secretText),
+      timeout,
+    );
     return;
   }
   // Cloudflare outbound: the token has to be active. Whether it may send is

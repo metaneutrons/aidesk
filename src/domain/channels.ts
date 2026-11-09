@@ -22,7 +22,7 @@ export const channels = {
   email: {
     implemented: true,
     inbound: ["imap", "cloudflare"],
-    outbound: ["smtp", "cloudflare"],
+    outbound: ["smtp", "cloudflare", "mailjet"],
     capabilities: {
       html: true,
       plainText: true,

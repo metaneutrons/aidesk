@@ -61,6 +61,16 @@ export const cloudflareOutboundConfig = z.object({
   replyTo: z.email(),
 });
 export const cloudflareOutboundSecret = z.object({ apiToken: z.string().min(1) });
+// Mail that is sent through the Send API of Mailjet. The address of the API is fixed, so the connection
+// names no host. The sender has to be a sender or domain that is validated in the Mailjet account.
+export const mailjetOutboundConfig = z.object({
+  from: z.email(),
+  replyTo: z.email(),
+});
+export const mailjetOutboundSecret = z.object({
+  apiKey: z.string().min(1),
+  secretKey: z.string().min(1),
+});
 export const smtpConfig = z.object({
   host: z.string().min(1),
   port: z.number().int().min(1).max(65535),
@@ -138,6 +148,11 @@ export const connectionTypes = {
     secret: cloudflareOutboundSecret,
     secretRequired: true,
   },
+  "mailjet:outbound": {
+    config: mailjetOutboundConfig,
+    secret: mailjetOutboundSecret,
+    secretRequired: true,
+  },
   "anthropic:ai": { config: anthropicConfig, secret: aiSecret, secretRequired: true },
   "openai:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
   "google:ai": { config: aiConfig, secret: aiSecret, secretRequired: true },
@@ -202,6 +217,13 @@ const members = {
     cloudflareOutboundSecret,
     true,
   ),
+  "mailjet:outbound": define(
+    "mailjet",
+    "outbound",
+    mailjetOutboundConfig,
+    mailjetOutboundSecret,
+    true,
+  ),
   "anthropic:ai": define("anthropic", "ai", anthropicConfig, aiSecret, true),
   "openai:ai": define("openai", "ai", aiConfig, aiSecret, true),
   "google:ai": define("google", "ai", aiConfig, aiSecret, true),
@@ -216,6 +238,7 @@ export const connectionCreate = z.union([
   members["smtp:inbound"],
   members["smtp:outbound"],
   members["cloudflare:outbound"],
+  members["mailjet:outbound"],
   members["anthropic:ai"],
   members["openai:ai"],
   members["google:ai"],
@@ -235,7 +258,7 @@ export function parseConnectionCreate(input: unknown): ConnectionCreate {
         code: "custom",
         path: ["kind"],
         message:
-          "One of imap/inbound, cloudflare/inbound, push/inbound, smtp/inbound, smtp/outbound, cloudflare/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
+          "One of imap/inbound, cloudflare/inbound, push/inbound, smtp/inbound, smtp/outbound, cloudflare/outbound, mailjet/outbound, anthropic/ai, openai/ai, google/ai, github/knowledge, docs/knowledge, context/knowledge",
       },
     ]);
   return members[key].parse(input);

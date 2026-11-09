@@ -224,7 +224,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
       ),
     );
     const subject = `Re: ${ticket.subject}`;
-    const { outgoingId, sender } = await deliver({
+    const { outgoingId, providerId, sender } = await deliver({
       jobId: job.id,
       project,
       connection,
@@ -260,6 +260,7 @@ export async function runNext(scope?: { projectId: string }): Promise<boolean> {
             sent: {
               at: new Date().toISOString(),
               transport: connection.kind,
+              ...(providerId ? { providerId } : {}),
               to: ticket.requesterEmail,
               ...sender,
               subject,

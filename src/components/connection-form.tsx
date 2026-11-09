@@ -98,6 +98,13 @@ export const definitions: Definition[] = [
     secret: [secret("apiToken")],
   },
   {
+    key: "mailjet:outbound",
+    kind: "mailjet",
+    direction: "outbound",
+    config: [text("from"), text("replyTo")],
+    secret: [secret("apiKey"), secret("secretKey")],
+  },
+  {
     key: "anthropic:ai",
     kind: "anthropic",
     direction: "ai",

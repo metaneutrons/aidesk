@@ -43,7 +43,7 @@ interface Options {
   resolve?: boolean;
   acknowledgement?: boolean;
   settings?: Record<string, unknown>;
-  transport?: "smtp" | "cloudflare";
+  transport?: "smtp" | "cloudflare" | "mailjet";
   design?: Record<string, unknown>;
   // Queue another reply in a project that an earlier scenario set up.
   existing?: { projectId: string; connectionId: string; operatorId: string };
@@ -85,18 +85,25 @@ async function scenario(options: Options = {}) {
                 from: "support@example.test",
                 replyTo: "support@example.test",
               }
-            : {
-                host: "127.0.0.1",
-                port: smtp.port,
-                secure: false,
-                from: "support@example.test",
-                replyTo: "support@example.test",
-                developmentOnly: true,
-              },
+            : options.transport === "mailjet"
+              ? { from: "support@example.test", replyTo: "support@example.test" }
+              : {
+                  host: "127.0.0.1",
+                  port: smtp.port,
+                  secure: false,
+                  from: "support@example.test",
+                  replyTo: "support@example.test",
+                  developmentOnly: true,
+                },
         secretCiphertext:
           options.transport === "cloudflare"
             ? seal(JSON.stringify({ apiToken: "token-value" }), env().ENCRYPTION_KEY)
-            : null,
+            : options.transport === "mailjet"
+              ? seal(
+                  JSON.stringify({ apiKey: "key-value", secretKey: "secret-value" }),
+                  env().ENCRYPTION_KEY,
+                )
+              : null,
       });
     if (options.design) {
       const owner: Principal = {
@@ -636,6 +643,44 @@ describe("designs of two projects", () => {
     const viaSmtp = await bySmtp({ design: alpha });
     expect(viaSmtp.text.trim()).toBe(a.text.trim());
     expect(viaSmtp.html.replace(/\s+/g, "")).toBe(a.html.replace(/\s+/g, ""));
+  });
+  it("sends through the Mailjet API with the id of the mail and keeps the reference of Mailjet", async () => {
+    const entry = await scenario({ transport: "mailjet" });
+    const fetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          '{"Messages":[{"Status":"success","To":[{"Email":"alex@example.test","MessageUUID":"u","MessageID":1152921512359371122}]}]}',
+        ),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await entry.run();
+    expect(await entry.job()).toMatchObject({ status: "succeeded" });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    const sent = JSON.parse(init.body as string) as {
+      Messages: { To: unknown; Headers: Record<string, string>; CustomID: string }[];
+    };
+    expect(sent.Messages[0]).toMatchObject({
+      To: [{ Email: "alex@example.test" }],
+      CustomID: entry.messageId,
+      Headers: { "In-Reply-To": entry.customerId },
+    });
+    const message = await entry.message();
+    expect(message?.deliveryState).toBe("sent");
+    expect(message?.source).toMatchObject({
+      messageId: `<${entry.messageId}@example.test>`,
+      sent: { transport: "mailjet", providerId: "1152921512359371122" },
+    });
+  });
+  it("records a refusal of Mailjet as rejected before acceptance", async () => {
+    const entry = await scenario({ transport: "mailjet" });
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response('{"ErrorCode":"send-0007"}', { status: 403 }))),
+    );
+    await entry.run();
+    await expectReview(entry, "transport_rejected");
   });
   it("uses the version that is selected when the mail is sent", async () => {
     const entry = await scenario({ design: alpha });
