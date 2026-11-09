@@ -11,6 +11,7 @@ import { pruneNotifications } from "../server/notifications";
 import { scanResponseClock } from "../server/response-clock";
 import { reconcileIssues } from "../server/issues";
 import { claimSlot } from "../server/schedule";
+import { scanMailjetStatus } from "../server/mailjet-status";
 // The work of the worker, in passes that end: one pass looks at the clock, polls the mailboxes and
 // takes the next job of each kind once. The same pass serves the worker of the Docker stack, which
 // repeats it without end, and a platform that runs a function for a limited time and calls it from
@@ -23,6 +24,7 @@ let nextClockScan = 0;
 let nextIssueRefresh = 0;
 let nextAutoResolve = 0;
 let nextRetention = 0;
+let nextMailjetStatus = 0;
 // A pass that takes long holds back every job that waits for the next one (a test mail, a webhook, a reply), so the pass
 // says where the time went when it took five seconds or more: the stages that took a quarter of a second or more.
 export const slowPassMs = 5_000;
@@ -65,6 +67,19 @@ export async function runPass(): Promise<boolean> {
       await timed("retention", async () => {
         await scanRetention();
         await pruneNotifications();
+      });
+  }
+  // The status of replies that went out through Mailjet: a check is due a minute after the send and then at
+  // growing distances, so every two minutes is often enough.
+  if (Date.now() >= nextMailjetStatus) {
+    nextMailjetStatus = Date.now() + 2 * 60_000;
+    if (await claimSlot("mailjetStatus", 2 * 60_000))
+      await timed("mailjetStatus", async () => {
+        try {
+          await scanMailjetStatus();
+        } catch {
+          console.log(JSON.stringify({ event: "mailjet.status_failed" }));
+        }
       });
   }
   await timed("mailboxes", pollMailboxes);
