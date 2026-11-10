@@ -803,6 +803,21 @@ connection runs the Send API in sandbox mode (the checks of a send, no delivery)
 `Message-ID` and `In-Reply-To` headers of a real reply, so a connection whose headers or sender
 Mailjet refuses is shown as failing before the first reply.
 
+Status of Mailjet replies: Mailjet takes the return path, so a bounce does not come back as a
+delivery report by mail. The worker therefore asks the Mailjet API
+(`GET /v3/REST/message/{id}`, with the `providerId` that the send stored) about each reply that went
+out through a `mailjet` connection. Nothing calls the product, so no webhook and no public address
+are needed. The first check is due a minute after the send, then after 2, 10, 30, 120, 360 and 1440
+minutes (seven checks, about 33 hours); a pass runs every two minutes and asks about at most 25
+messages. A message counts as failed when the status is `hardbounced` or `blocked`, or when
+`StatePermanent` is set. It then takes the same path as a delivery report by mail: the message goes to
+review with `deliveryError: "bounced"` and `bounce.via: "mailjet"` (the diagnostic names the status and
+the `StateID` group), and the ticket is reopened. A soft bounce or a deferral is not final, because
+Mailjet retries. The result of every check is kept in `source.deliveryStatus`. A refused key or a limit
+of the API ends the pass, any other failure leaves the message to the next one. The Mailjet
+documentation names no lookup by `MessageUUID`, no suppression list per address and no per minute
+limit, so none is used.
+
 Without the Workers Paid plan and an onboarded sending domain, Cloudflare only
 delivers to verified destination addresses of the account. Each routing rule
 names one address and one worker.

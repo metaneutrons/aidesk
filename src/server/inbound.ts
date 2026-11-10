@@ -24,6 +24,7 @@ import { activeTexts } from "./texts";
 import { queueAgentRun } from "./agent-runs";
 import { emitEvent } from "./webhooks";
 import { parseDeliveryReport } from "../domain/bounce";
+import { recordBounce } from "./delivery-failure";
 import { fileRules } from "../domain/limits";
 import { getLimits } from "./limits";
 import { routeNewTicket } from "./routing";
@@ -362,30 +363,11 @@ export async function processIngress(
         // Further reports about a failure already recorded change nothing.
         if (report.action !== "failed" || sent.message.source.deliveryError === "bounced")
           return finish(sent.ticket.id, "processed", "report");
-        await tx
-          .update(messages)
-          .set({
-            deliveryState: "review",
-            source: {
-              ...sent.message.source,
-              deliveryError: "bounced",
-              bounce: { status: report.status, diagnostic: report.diagnostic, at: receivedAt },
-            },
-          })
-          .where(eq(messages.id, sent.message.id));
-        // A reply that did not arrive leaves the obligation to answer open, except
-        // for an acknowledgement, which was never an answer.
-        if (sent.message.source.kind !== "acknowledgement" && sent.ticket.junkAt === null)
-          await tx
-            .update(tickets)
-            .set({
-              status: "open",
-              resolvedAt: null,
-              pendingSince: sent.ticket.pendingSince ?? receivedAt,
-              revision: sql`${tickets.revision} + 1`,
-              updatedAt: new Date(),
-            })
-            .where(eq(tickets.id, sent.ticket.id));
+        await recordBounce(tx, sent, {
+          status: report.status,
+          diagnostic: report.diagnostic,
+          at: receivedAt,
+        });
         return finish(sent.ticket.id, "processed", "bounced");
       }
     }

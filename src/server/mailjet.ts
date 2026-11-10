@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { mailjetOutboundConfig, mailjetOutboundSecret } from "../domain/connections";
 import { isMessageId } from "../domain/threading";
+import type { MailjetMessageStatus } from "../domain/mailjet-status";
 import type { OutgoingMail } from "./cloudflare";
 import { unsealSecret } from "./secrets";
 // Replies that go out through the Send API of Mailjet (v3.1). The address is fixed, so a connection
@@ -184,4 +185,47 @@ export async function probeMailjet(
   throw Object.assign(new Error("provider"), {
     providerStatus: response.ok ? (refused ?? 400) : response.status,
   });
+}
+const statusResponse = z.object({
+  Data: z
+    .array(
+      z.object({
+        Status: z.string(),
+        StateID: z.number().optional(),
+        StatePermanent: z.boolean().optional(),
+      }),
+    )
+    .min(1),
+});
+// Asks Mailjet for the status of one message by the numeric id that the send returned. A message that
+// Mailjet does not know (yet) is "mailjet_status_not_found". A refused key and a limit of the API stop a
+// pass over many messages; any other failure leaves the message to the next pass.
+export async function fetchMailjetStatus(
+  secret: MailjetSecret,
+  providerId: string,
+  timeoutMs = 15_000,
+): Promise<MailjetMessageStatus> {
+  if (!/^\d{1,20}$/.test(providerId)) throw new Error("mailjet_status_unavailable");
+  let response: Response;
+  try {
+    response = await fetch(`https://api.mailjet.com/v3/REST/message/${providerId}`, {
+      headers: { Authorization: authorization(secret), Accept: "application/json" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new Error("mailjet_status_unavailable");
+  }
+  if (response.status === 401 || response.status === 403) throw new Error("mailjet_auth_failed");
+  if (response.status === 429) throw new Error("mailjet_rate_limited");
+  if (response.status === 404) throw new Error("mailjet_status_not_found");
+  if (!response.ok) throw new Error("mailjet_status_unavailable");
+  const parsed = statusResponse.safeParse(await response.json().catch(() => null));
+  const entry = parsed.success ? parsed.data.Data[0] : undefined;
+  if (!entry) throw new Error("mailjet_status_unavailable");
+  return {
+    status: entry.Status.toLowerCase(),
+    stateId: entry.StateID ?? null,
+    permanent: entry.StatePermanent ?? null,
+  };
 }
