@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/metaneutrons/aidesk/compare/v0.6.0...v0.7.0) (2026-11-10)
+
+
+### Features
+
+* **mailjet:** read the delivery status of replies from the Mailjet API ([#298](https://github.com/metaneutrons/aidesk/issues/298)) ([02f91ce](https://github.com/metaneutrons/aidesk/commit/02f91ce0eb22919ae0727aa5cb8519ad30e3dd4b))
+
 ## [0.6.0](https://github.com/metaneutrons/aidesk/compare/v0.5.0...v0.6.0) (2026-11-09)
 
 
