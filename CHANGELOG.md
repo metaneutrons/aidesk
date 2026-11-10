@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/metaneutrons/aidesk/compare/v0.7.0...v0.8.0) (2026-11-10)
+
+
+### Features
+
+* **mailjet:** find the ticket of a reply by sender and subject when the id does not lead to it ([#303](https://github.com/metaneutrons/aidesk/issues/303)) ([f6e690b](https://github.com/metaneutrons/aidesk/commit/f6e690b441ba183765491a2aeaf2ac68dc995bd8))
+
+
+### Bug Fixes
+
+* **mailjet:** accept a hexadecimal prefix in the Message-ID of Mailjet ([#302](https://github.com/metaneutrons/aidesk/issues/302)) ([a3c574b](https://github.com/metaneutrons/aidesk/commit/a3c574bebd6cbb42c9bbc8c06a21a39b27fd0e34))
+* **mailjet:** stop setting the Message-ID and match replies by the id of Mailjet ([#300](https://github.com/metaneutrons/aidesk/issues/300)) ([fab1518](https://github.com/metaneutrons/aidesk/commit/fab1518a7ecf9f27fd98ab74c2e3801551dbcc96))
+
 ## [0.7.0](https://github.com/metaneutrons/aidesk/compare/v0.6.0...v0.7.0) (2026-11-10)
 
 
