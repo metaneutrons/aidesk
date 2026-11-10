@@ -40,6 +40,18 @@ async function focusShown(page: Page): Promise<boolean> {
     return outline || shadow;
   });
 }
+// Unless the window is very high the tools of a ticket are closed behind Details. A click before the page has taken
+// its handlers is lost, so the button is clicked until the tools are there.
+async function openTools(page: Page) {
+  const details = page.getByRole("button", { name: "Details", exact: true });
+  const tool = page.getByText(/^(Knowledge|Wissen)$/).first();
+  await expect(async () => {
+    if ((await details.isVisible()) && (await details.getAttribute("aria-expanded")) !== "true")
+      await details.click();
+    await expect(tool).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+}
+
 test.describe("operator in German with a dark system", () => {
   test.use({ locale: "de-DE", colorScheme: "dark" });
   test("works a ticket from the overview to a sent reply, without violations on the way", async ({
@@ -57,6 +69,7 @@ test.describe("operator in German with a dark system", () => {
       panel.getByRole("textbox", { name: "Schreibe deine Antwort in Markdown…" }),
     ).toBeVisible();
     expect(await audit(page)).toEqual([]);
+    await openTools(page);
     for (const toggle of ["Übersetzen", "Wissen"]) {
       await panel.getByText(toggle, { exact: true }).first().click();
       expect(await audit(page)).toEqual([]);
@@ -233,6 +246,7 @@ test("the desk and the customer page log no error in the console", async ({
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.goto(`/?ticket=${desk.projects.alpha.tickets[0]}`);
   await expect(page.getByRole("region", { name: "Ticket" })).toBeVisible();
+  await openTools(page);
   await page.getByText("Knowledge", { exact: true }).first().click();
   await page.getByText("Translate", { exact: true }).first().click();
   await page.getByRole("button", { name: "Create portal link" }).click();

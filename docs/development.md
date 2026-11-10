@@ -322,6 +322,21 @@ left says `restricted: true`, shows nothing and is not applied (it cannot be cho
 projects are not changed, so the view works again when the access comes back. A view of no projects is every project that the
 person may read.
 
+### Layout of the inbox
+
+The ticket list and the conversation have a handle between them (a window splitter, `role="separator"`): dragged with a pointer,
+moved with the arrow keys (16 px, 64 px with Shift), set to the smallest and the largest width with Home and End, hidden with Enter
+and returned to the usual width of 350 px with a double click. The width is between 260 px and 560 px, and the conversation keeps at
+least 400 px. The list is hidden and shown again with the button at the left of the title of the list views. Below 761 px the
+list and the conversation take turns, and neither the handle nor the button is shown. The arrow
+keys, Home and End also move the focus from row to row of the list.
+
+The width and whether the list is hidden stay in the browser (`localStorage`, key `aidesk:layout`, `src/domain/pane-layout.ts`), not
+in the profile: a width that fits a large monitor does not fit a laptop, so it is a setting of the device like the theme. A script in
+the head of the page applies the stored layout before the first paint, so the page opens with it and does not jump. A value that is
+not valid is ignored field by field. The tools of a ticket (assignee, tags, reminder, link) are closed behind "Details" unless the
+window is at least 1,100 px high.
+
 ## Remote MCP over HTTPS
 
 The development stack serves the app through Caddy at `https://localhost:8443`

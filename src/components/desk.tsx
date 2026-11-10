@@ -55,6 +55,7 @@ import { tagStyle } from "../domain/tags";
 import { priorityKey, Triage } from "./triage";
 import { priorities, priorityOf, type Priority } from "../domain/triage";
 import { useZone } from "./time-zone";
+import { ListToggle, moveRowFocus, PaneResizer, usePaneLayout } from "./pane-layout";
 const ticketSchema = z.object({
   id: z.uuid(),
   number: z.number().nullable(),
@@ -327,6 +328,15 @@ export function Desk({
   const [more, setMore] = useState(false);
   // On a narrow screen the details of a ticket (assignee, tags, reminder, link) are closed until asked for.
   const [inspector, setInspector] = useState(false);
+  const pane = usePaneLayout();
+  // The views that show the list of tickets next to the conversation.
+  const listView = !(
+    view === "overview" ||
+    view === "notifications" ||
+    view === "junk" ||
+    view === "settings" ||
+    view === "account"
+  );
   // The settings and the account have an address of their own (the topic is part of it, see settings.tsx); another view
   // has none. An address of the other area is replaced by the list of the area that is shown.
   useEffect(() => {
@@ -1000,7 +1010,17 @@ export function Desk({
         </aside>
         <main className="desk-main">
           <header className="topbar">
-            <h1>{t(view)}</h1>
+            <div className="topbar-title">
+              {listView && (
+                <ListToggle
+                  collapsed={pane.layout.listCollapsed}
+                  label={t(pane.layout.listCollapsed ? "listShow" : "listHide")}
+                  controls="ticket-list"
+                  onToggle={pane.toggle}
+                />
+              )}
+              <h1>{t(view)}</h1>
+            </div>
             <div className="topbar-actions">
               {view !== "settings" && view !== "account" && view !== "notifications" && (
                 <>
@@ -1197,7 +1217,12 @@ export function Desk({
             </section>
           ) : (
             <div className={`inbox-layout ${selected ? "has-selection" : ""}`}>
-              <section className="ticket-list" aria-label={t("inbox")}>
+              <section
+                id="ticket-list"
+                className="ticket-list"
+                aria-label={t("inbox")}
+                onKeyDown={moveRowFocus}
+              >
                 <label className="search-field">
                   <Search size={16} />
                   <input
@@ -1289,6 +1314,7 @@ export function Desk({
                       <button
                         key={hit.id}
                         className={`ticket-row ${selected === hit.id ? "selected" : ""}`}
+                        aria-current={selected === hit.id ? "true" : undefined}
                         onClick={() => {
                           select(hit.id);
                         }}
@@ -1322,6 +1348,7 @@ export function Desk({
                       <button
                         key={ticket.id}
                         className={`ticket-row ${selected === ticket.id ? "selected" : ""}`}
+                        aria-current={selected === ticket.id ? "true" : undefined}
                         onClick={() => {
                           select(ticket.id);
                         }}
@@ -1400,6 +1427,15 @@ export function Desk({
                   </>
                 )}
               </section>
+              {!pane.layout.listCollapsed && (
+                <PaneResizer
+                  width={pane.layout.listWidth}
+                  label={t("listResize")}
+                  onResize={pane.setWidth}
+                  onReset={pane.resetWidth}
+                  onCollapse={pane.toggle}
+                />
+              )}
               <section className="conversation" aria-label={t("ticket")}>
                 {loading ? (
                   <div className="empty">{t("loading")}</div>
