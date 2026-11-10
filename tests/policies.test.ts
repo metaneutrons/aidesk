@@ -203,12 +203,24 @@ describe("Mailjet message ids", () => {
         "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>",
       ),
     ).toBe("288230418123682709");
+    // Mails of 10 November 2026: the part before the dot is hexadecimal, not always digits.
+    expect(
+      mailjetProviderId(
+        "<2a14ef5c.EAAACcLmvV4AAAAAAAAABBwxvQQAAYKK3FUAAAAAADeZWQBq8zyx@mailjet.com>",
+      ),
+    ).toBe("1152921546531454302");
+    expect(
+      mailjetProviderId(
+        "<c19631f3.EAAACcLmvWIAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8zyx@mailjet.com>",
+      ),
+    ).toBe("1152921546531454306");
   });
   it("yields nothing for another form", () => {
     for (const value of [
       "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@example.test>",
       "<BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>",
       "<26380871.short@mailjet.com>",
+      "<zz380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>",
       "<26380871.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@mailjet.com>",
       "<26380871.gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@mailjet.com>",
       "26380871.BAAACcW5c5UAAAAAAAAABBwxvQQ@mailjet.com",
