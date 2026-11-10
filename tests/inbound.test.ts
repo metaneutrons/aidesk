@@ -170,6 +170,7 @@ describe("inbound mail", () => {
     const { ticket } = await ticketOf(first.ingressId);
     // A Message-ID as Mailjet sets it (mail of 10 November 2026), with the message id 288230418123682709.
     const mailjetId = "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>";
+    const hexId = "<2a14ef5c.EAAACcLmvV4AAAAAAAAABBwxvQQAAYKK3FUAAAAAADeZWQBq8zyx@mailjet.com>";
     await db()
       .insert(messages)
       .values({
@@ -189,6 +190,26 @@ describe("inbound mail", () => {
     );
     expect(reply.outcome).toBe("appended");
     expect((await ticketOf(reply.ingressId)).ticket?.id).toBe(ticket?.id);
+    // The part before the dot is hexadecimal and not always made of digits.
+    await db()
+      .insert(messages)
+      .values({
+        ticketId: ticket?.id ?? "",
+        authorType: "human",
+        authorName: "Agent",
+        markdown: "Second answer",
+        language: "de",
+        deliveryState: "sent",
+        source: {
+          messageId: null,
+          sent: { transport: "mailjet", providerId: "1152921546531454302" },
+        },
+      });
+    const hexReply = await ingest(
+      mail({ subject: "Re: Help needed", inReplyTo: hexId, text: "Again" }),
+    );
+    expect(hexReply.outcome).toBe("appended");
+    expect((await ticketOf(hexReply.ingressId)).ticket?.id).toBe(ticket?.id);
     // The same id from someone else starts a separate ticket, as with any other reference.
     const stranger = await ingest(
       mail({ from: "Eve <eve@example.test>", inReplyTo: mailjetId, text: "Show me" }),

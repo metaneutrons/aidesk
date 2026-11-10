@@ -25,11 +25,11 @@ export function threadHeaders(
   const kept = ids.length > limit ? [ids[0] ?? "", ...ids.slice(ids.length - limit + 1)] : ids;
   return { inReplyTo: parent.messageId, references: kept.join(" ") };
 }
-// The Message-ID that Mailjet gives to a mail has the form <number.base64url@mailjet.com>, and the first
+// The Message-ID that Mailjet gives to a mail has the form <hex.base64url@mailjet.com>, and the first
 // eight bytes of the decoded second part are the numeric id of the message in the Mailjet API (the
-// providerId of the sent mail). Seen in a mail of 10 November 2026, not documented by Mailjet: a value
+// providerId of the sent mail). Seen in eight mails of 10 November 2026 from three sender domains, not documented by Mailjet: a value
 // that does not have this form yields null.
-const mailjetIdPattern = /^<\d{1,12}\.([A-Za-z0-9_-]{11,200})@mailjet\.com>$/;
+const mailjetIdPattern = /^<[0-9a-f]{4,16}\.([A-Za-z0-9_-]{11,200})@mailjet\.com>$/;
 export function mailjetProviderId(value: unknown): string | null {
   const encoded = typeof value === "string" ? mailjetIdPattern.exec(value)?.[1] : undefined;
   if (!encoded) return null;

@@ -794,9 +794,9 @@ sender or domain that is validated in the Mailjet account (DKIM and SPF of the d
 there, otherwise the mail is signed for `mailjet.com` only, fails DMARC for the sender domain and
 may land in the junk folder of the recipient). Mailjet sets the `Message-ID` of a mail itself and
 refuses the header in the request (`send-0011`), and the API does not return it, so aidesk keeps no
-Message-ID for such a mail. The Message-ID has the form `<number.base64url@mailjet.com>` and the
+Message-ID for such a mail. The Message-ID has the form `<hex.base64url@mailjet.com>` (eight hexadecimal digits before the dot) and the
 first eight bytes of the decoded second part are the numeric id of the message in the Mailjet API
-(seen in a mail of 10 November 2026; Mailjet does not document it). A reply of the customer names that
+(seen in eight mails of 10 November 2026 from three sender domains; Mailjet does not document it). A reply of the customer names that
 id in `In-Reply-To` or `References`, and aidesk reads the numeric id out of it and finds the mail by
 the `providerId` in `source.sent`, so the reply is added to the ticket. If a reply names a mail of
 Mailjet (a reference that ends in `@mailjet.com`) but the id does not lead to a mail, for example
