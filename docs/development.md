@@ -790,18 +790,24 @@ go to review without contacting the SMTP server.
 Mailjet outbound: a connection of kind `mailjet` sends replies through the Send API v3.1
 (`https://api.mailjet.com/v3.1/send`, Basic authentication with the API key and the secret key).
 The address is fixed, so the keys cannot be pointed at another host. The sender has to be a
-sender or domain that is validated in the Mailjet account. Mailjet returns only its own numeric
-id, which is not an RFC 5322 id, so aidesk sets the `Message-ID` header itself
-(`<message id@domain of the sender>`, the same id as the SMTP transport) and a reply of the
-customer finds the ticket again. The numeric id is kept as `providerId` in `source.sent` of the
-message, so the outcome can be looked up in the Mailjet API later. Open and click tracking are
+sender or domain that is validated in the Mailjet account (DKIM and SPF of the domain must show OK
+there, otherwise the mail is signed for `mailjet.com` only, fails DMARC for the sender domain and
+may land in the junk folder of the recipient). Mailjet sets the `Message-ID` of a mail itself and
+refuses the header in the request (`send-0011`), and the API does not return it, so aidesk keeps no
+Message-ID for such a mail. The Message-ID has the form `<number.base64url@mailjet.com>` and the
+first eight bytes of the decoded second part are the numeric id of the message in the Mailjet API
+(seen in a mail of 10 November 2026; Mailjet does not document it). A reply of the customer names that
+id in `In-Reply-To` or `References`, and aidesk reads the numeric id out of it and finds the mail by
+the `providerId` in `source.sent`, so the reply is added to the ticket. A reference of another form
+finds nothing. The numeric id is kept as `providerId` in `source.sent` of the message, so the
+outcome can be looked up in the Mailjet API later. Open and click tracking are
 switched off for every mail, because a rewritten link would break the portal link of a ticket.
 A refusal with a 4xx status, or a message with status `error`, is recorded as
 `transport_rejected`; a timeout, a 5xx answer or an answer that cannot be read leaves the
 outcome unknown. Both go to review and are never resent automatically. The test of the
 connection runs the Send API in sandbox mode (the checks of a send, no delivery), with the
-`Message-ID` and `In-Reply-To` headers of a real reply, so a connection whose headers or sender
-Mailjet refuses is shown as failing before the first reply.
+`In-Reply-To` header of a real reply, so a connection whose headers or sender Mailjet refuses is
+shown as failing before the first reply.
 
 Status of Mailjet replies: Mailjet takes the return path, so a bounce does not come back as a
 delivery report by mail. The worker therefore asks the Mailjet API

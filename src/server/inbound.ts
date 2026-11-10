@@ -19,7 +19,7 @@ import {
   acknowledgementText,
   isAutomaticMail,
 } from "../domain/acknowledgement";
-import { isMessageId } from "../domain/threading";
+import { isMessageId, mailjetProviderId } from "../domain/threading";
 import { activeTexts } from "./texts";
 import { queueAgentRun } from "./agent-runs";
 import { emitEvent } from "./webhooks";
@@ -118,6 +118,11 @@ async function findTarget(
   sender: string,
 ): Promise<typeof tickets.$inferSelect | undefined> {
   if (!references.length) return undefined;
+  // Mailjet sets the Message-ID of its mails itself, so a reply names a mail that was sent through Mailjet
+  // by an id that carries the numeric id of the message in the Mailjet API.
+  const providerIds = [
+    ...new Set(references.map(mailjetProviderId).filter((id): id is string => id !== null)),
+  ];
   const [match] = await reader
     .select({ ticket: tickets })
     .from(messages)
@@ -128,6 +133,12 @@ async function findTarget(
         or(
           inArray(messages.receivedMessageId, references),
           inArray(sql<string>`${messages.source}->>'messageId'`, references),
+          providerIds.length
+            ? and(
+                sql`${messages.source}->'sent'->>'transport' = 'mailjet'`,
+                inArray(sql<string>`${messages.source}->'sent'->>'providerId'`, providerIds),
+              )
+            : undefined,
         ),
       ),
     )

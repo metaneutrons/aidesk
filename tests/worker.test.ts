@@ -644,7 +644,7 @@ describe("designs of two projects", () => {
     expect(viaSmtp.text.trim()).toBe(a.text.trim());
     expect(viaSmtp.html.replace(/\s+/g, "")).toBe(a.html.replace(/\s+/g, ""));
   });
-  it("sends through the Mailjet API with the id of the mail and keeps the reference of Mailjet", async () => {
+  it("sends through the Mailjet API without a Message-ID and keeps the reference of Mailjet", async () => {
     const entry = await scenario({ transport: "mailjet" });
     const fetch = vi.fn(() =>
       Promise.resolve(
@@ -665,10 +665,11 @@ describe("designs of two projects", () => {
       CustomID: entry.messageId,
       Headers: { "In-Reply-To": entry.customerId },
     });
+    expect(sent.Messages[0]?.Headers).not.toHaveProperty("Message-ID");
     const message = await entry.message();
     expect(message?.deliveryState).toBe("sent");
     expect(message?.source).toMatchObject({
-      messageId: `<${entry.messageId}@example.test>`,
+      messageId: null,
       sent: { transport: "mailjet", providerId: "1152921512359371122" },
     });
   });

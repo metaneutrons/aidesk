@@ -11,7 +11,7 @@ import { responseAge, responseState } from "../src/domain/response-clock";
 import { seal, unseal } from "../src/server/crypto";
 import { markdownHtml } from "../src/server/markdown";
 import { renderEmail } from "../src/server/email";
-import { isMessageId, threadHeaders } from "../src/domain/threading";
+import { isMessageId, mailjetProviderId, threadHeaders } from "../src/domain/threading";
 import { extractReply } from "../src/domain/extraction";
 import { operatorRoles, roleOf, tokenRoles, within } from "../src/domain/roles";
 import { DomainError } from "../src/server/errors";
@@ -194,6 +194,28 @@ describe("communication rendering", () => {
     const error = new DomainError("forbidden", 403);
     expect(error.status).toBe(403);
     expect(error.code).toBe("forbidden");
+  });
+});
+describe("Mailjet message ids", () => {
+  it("reads the numeric id of the message out of the Message-ID that Mailjet sets", () => {
+    expect(
+      mailjetProviderId(
+        "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>",
+      ),
+    ).toBe("288230418123682709");
+  });
+  it("yields nothing for another form", () => {
+    for (const value of [
+      "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@example.test>",
+      "<BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>",
+      "<26380871.short@mailjet.com>",
+      "<26380871.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@mailjet.com>",
+      "<26380871.gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@mailjet.com>",
+      "26380871.BAAACcW5c5UAAAAAAAAABBwxvQQ@mailjet.com",
+      null,
+      42,
+    ])
+      expect(mailjetProviderId(value)).toBeNull();
   });
 });
 describe("mail threading headers", () => {

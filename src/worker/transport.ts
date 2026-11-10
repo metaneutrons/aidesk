@@ -54,8 +54,9 @@ export async function deliver(input: Delivery): Promise<{
         automatic: input.automatic,
         localId: input.localId,
       });
+      // Mailjet sets the Message-ID itself and does not return it: no id is kept for the mail.
       return {
-        outgoingId: sent.messageId,
+        outgoingId: null,
         ...(sent.providerId ? { providerId: sent.providerId } : {}),
         sender: { from: config.from, replyTo: config.replyTo },
       };
