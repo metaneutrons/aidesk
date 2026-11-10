@@ -798,8 +798,14 @@ Message-ID for such a mail. The Message-ID has the form `<hex.base64url@mailjet.
 first eight bytes of the decoded second part are the numeric id of the message in the Mailjet API
 (seen in eight mails of 10 November 2026 from three sender domains; Mailjet does not document it). A reply of the customer names that
 id in `In-Reply-To` or `References`, and aidesk reads the numeric id out of it and finds the mail by
-the `providerId` in `source.sent`, so the reply is added to the ticket. A reference of another form
-finds nothing. The numeric id is kept as `providerId` in `source.sent` of the message, so the
+the `providerId` in `source.sent`, so the reply is added to the ticket. If a reply names a mail of
+Mailjet (a reference that ends in `@mailjet.com`) but the id does not lead to a mail, for example
+because Mailjet changed the form, the ticket is found by sender and subject: the latest ticket of
+this sender in the project whose subject equals the subject of the reply (without `Re:`, `AW:` and
+similar prefixes, case and extra spaces ignored) and that got a mail through Mailjet within the last
+thirty days. This is logged as `inbound.mailjet_matched_by_subject`; a reply that names a mail of
+Mailjet and finds no ticket at all is logged as `inbound.mailjet_reference_unresolved`, so a changed
+form shows in the logs. A reference of another form finds nothing. The numeric id is kept as `providerId` in `source.sent` of the message, so the
 outcome can be looked up in the Mailjet API later. Open and click tracking are
 switched off for every mail, because a rewritten link would break the portal link of a ticket.
 A refusal with a 4xx status, or a message with status `error`, is recorded as

@@ -11,7 +11,13 @@ import { responseAge, responseState } from "../src/domain/response-clock";
 import { seal, unseal } from "../src/server/crypto";
 import { markdownHtml } from "../src/server/markdown";
 import { renderEmail } from "../src/server/email";
-import { isMessageId, mailjetProviderId, threadHeaders } from "../src/domain/threading";
+import {
+  isMailjetReference,
+  isMessageId,
+  mailjetProviderId,
+  normalizeSubject,
+  threadHeaders,
+} from "../src/domain/threading";
 import { extractReply } from "../src/domain/extraction";
 import { operatorRoles, roleOf, tokenRoles, within } from "../src/domain/roles";
 import { DomainError } from "../src/server/errors";
@@ -194,6 +200,19 @@ describe("communication rendering", () => {
     const error = new DomainError("forbidden", 403);
     expect(error.status).toBe(403);
     expect(error.code).toBe("forbidden");
+  });
+});
+describe("subjects of replies", () => {
+  it("compares a subject without the prefixes of replies and forwards, case and extra spaces", () => {
+    expect(normalizeSubject("AW: Re:  Printer   broken ")).toBe("printer broken");
+    expect(normalizeSubject("WG: FWD: Antw: Printer broken")).toBe("printer broken");
+    expect(normalizeSubject("Reorder: parts")).toBe("reorder: parts");
+    expect(normalizeSubject("  ")).toBe("");
+  });
+  it("tells a reference to a mail of Mailjet by its domain", () => {
+    expect(isMailjetReference("<anything@mailjet.com>")).toBe(true);
+    expect(isMailjetReference("<anything@example.test>")).toBe(false);
+    expect(isMailjetReference("<anything@mailjet.com.example.test>")).toBe(false);
   });
 });
 describe("Mailjet message ids", () => {

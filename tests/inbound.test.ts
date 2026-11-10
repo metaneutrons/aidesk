@@ -221,9 +221,51 @@ describe("inbound mail", () => {
       "<26380871.BAAACcW5c5@mailjet.com>",
       "<26380871.AQAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@mailjet.com>",
     ]) {
-      const unrelated = await ingest(mail({ inReplyTo: other, text: "Unrelated" }));
+      const unrelated = await ingest(
+        mail({ subject: "Unrelated topic", inReplyTo: other, text: "Unrelated" }),
+      );
       expect(unrelated.outcome).toBe("created");
     }
+  });
+  it("finds the ticket of a reply to a mail of Mailjet by sender and subject when the id does not lead to it", async () => {
+    const sentVia = async (ticketId: string, ageMs = 0) =>
+      db()
+        .insert(messages)
+        .values({
+          ticketId,
+          authorType: "human",
+          authorName: "Agent",
+          markdown: "Answer",
+          language: "de",
+          deliveryState: "sent",
+          createdAt: new Date(Date.now() - ageMs),
+          source: {
+            messageId: null,
+            sent: { transport: "mailjet", providerId: "1152921546531454777" },
+          },
+        });
+    const first = await ingest(mail({ subject: "Printer broken", text: "Question" }));
+    const ticket = (await ticketOf(first.ingressId)).ticket;
+    await sentVia(ticket?.id ?? "");
+    // An id of a form that is not known (Mailjet changed it), with the subject of a reply.
+    const unknown = "<new-format-0001@mailjet.com>";
+    const reply = await ingest(
+      mail({ subject: "AW: Re: Printer  broken", inReplyTo: unknown, text: "Still broken" }),
+    );
+    expect(reply.outcome).toBe("appended");
+    expect((await ticketOf(reply.ingressId)).ticket?.id).toBe(ticket?.id);
+    // Another sender, another subject, or a reference that does not name a mail of Mailjet: no match.
+    const others = [
+      mail({ from: "Eve <eve@example.test>", subject: "Re: Printer broken", inReplyTo: unknown }),
+      mail({ subject: "Re: Something else", inReplyTo: unknown, text: "Other" }),
+      mail({ subject: "Re: Printer broken", inReplyTo: "<abc@example.test>", text: "Other" }),
+    ];
+    for (const raw of others) expect((await ingest(raw)).outcome).toBe("created");
+    // A mail that went out through Mailjet longer than thirty days ago is not looked at.
+    const older = await ingest(mail({ subject: "Old topic", text: "Question" }));
+    await sentVia((await ticketOf(older.ingressId)).ticket?.id ?? "", 40 * 86_400_000);
+    const late = await ingest(mail({ subject: "Re: Old topic", inReplyTo: unknown, text: "Late" }));
+    expect(late.outcome).toBe("created");
   });
   it("reopens recently resolved tickets and links later follow-ups", async () => {
     const recent = await ingest(mail({ text: "First" }));
