@@ -165,6 +165,45 @@ describe("inbound mail", () => {
     expect(stranger.outcome).toBe("created");
     expect((await ticketOf(stranger.ingressId)).ticket?.id).not.toBe(ticket?.id);
   });
+  it("matches a reply to a mail sent through Mailjet by the id that Mailjet gave the mail", async () => {
+    const first = await ingest(mail({ text: "Question" }));
+    const { ticket } = await ticketOf(first.ingressId);
+    // A Message-ID as Mailjet sets it (mail of 10 November 2026), with the message id 288230418123682709.
+    const mailjetId = "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@mailjet.com>";
+    await db()
+      .insert(messages)
+      .values({
+        ticketId: ticket?.id ?? "",
+        authorType: "human",
+        authorName: "Agent",
+        markdown: "Answer",
+        language: "de",
+        deliveryState: "sent",
+        source: {
+          messageId: null,
+          sent: { transport: "mailjet", providerId: "288230418123682709" },
+        },
+      });
+    const reply = await ingest(
+      mail({ subject: "Re: Help needed", inReplyTo: mailjetId, text: "Thanks!" }),
+    );
+    expect(reply.outcome).toBe("appended");
+    expect((await ticketOf(reply.ingressId)).ticket?.id).toBe(ticket?.id);
+    // The same id from someone else starts a separate ticket, as with any other reference.
+    const stranger = await ingest(
+      mail({ from: "Eve <eve@example.test>", inReplyTo: mailjetId, text: "Show me" }),
+    );
+    expect(stranger.outcome).toBe("created");
+    // An id of another form, or one that no mail sent through Mailjet carries, finds nothing.
+    for (const other of [
+      "<26380871.BAAACcW5c5UAAAAAAAAABBwxvQQAAYKK3FMAAAAAADeZWQBq8vYM@example.test>",
+      "<26380871.BAAACcW5c5@mailjet.com>",
+      "<26380871.AQAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@mailjet.com>",
+    ]) {
+      const unrelated = await ingest(mail({ inReplyTo: other, text: "Unrelated" }));
+      expect(unrelated.outcome).toBe("created");
+    }
+  });
   it("reopens recently resolved tickets and links later follow-ups", async () => {
     const recent = await ingest(mail({ text: "First" }));
     const recentTicket = (await ticketOf(recent.ingressId)).ticket;

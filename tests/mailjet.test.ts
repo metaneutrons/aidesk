@@ -40,10 +40,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Mailjet outbound", () => {
-  it("sends one message with its threading headers and keeps the id of the mail", async () => {
+  it("sends one message with its threading headers and no Message-ID, which Mailjet refuses", async () => {
     const fetch = reply(200, accepted());
     expect(await sendViaMailjet(config, secret, mail)).toEqual({
-      messageId: "<message-1@example.test>",
       providerId: "1152921512359371122",
     });
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
@@ -62,7 +61,6 @@ describe("Mailjet outbound", () => {
           HTMLPart: "<p>Answer</p>",
           TextPart: "Answer",
           Headers: {
-            "Message-ID": "<message-1@example.test>",
             "X-Aidesk-Ticket": "ticket-1",
             "In-Reply-To": "<a@example.test>",
             References: "<a@example.test> <b@example.test>",
@@ -87,7 +85,6 @@ describe("Mailjet outbound", () => {
       automatic: true,
     });
     expect((body(fetch).Messages[0] as { Headers: unknown }).Headers).toEqual({
-      "Message-ID": "<message-1@example.test>",
       "X-Aidesk-Ticket": "ticket-1",
       "Auto-Submitted": "auto-replied",
       "X-Auto-Response-Suppress": "All",
@@ -153,8 +150,9 @@ describe("Mailjet probe", () => {
     expect(sent.SandboxMode).toBe(true);
     expect(sent.Messages[0]).toMatchObject({
       To: [{ Email: "support@example.test" }],
-      Headers: { "Message-ID": "<connection-test@example.test>" },
+      Headers: { "In-Reply-To": "<connection-test-parent@example.test>" },
     });
+    expect(sent.Messages[0]?.Headers).not.toHaveProperty("Message-ID");
   });
   it("reports the status that a failure carries, and an authentication failure as such", async () => {
     reply(401, '{"ErrorCode":"mj-0015","StatusCode":401}');

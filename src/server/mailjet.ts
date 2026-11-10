@@ -16,21 +16,16 @@ export function parseMailjetOutbound(config: unknown, secretCiphertext: string |
     secret: mailjetOutboundSecret.parse(JSON.parse(unsealSecret(secretCiphertext))),
   };
 }
-// The local part of the Message-ID is the id of the message, so a reply of the customer that names it
-// finds the ticket again. Mailjet returns only its own numeric id, which is not an RFC 5322 id.
+// Mailjet refuses a Message-ID in the headers (send-0011) and sets its own. That id is not returned by
+// the API, but it carries the numeric id of the message, which a reply of the customer names again (see
+// mailjetProviderId in domain/threading.ts). The id of the message here is only the custom id.
 export interface MailjetMail extends OutgoingMail {
   localId: string;
-}
-function messageIdOf(config: MailjetOutboundConfig, localId: string): string {
-  return `<${localId}@${config.from.slice(config.from.lastIndexOf("@") + 1)}>`;
 }
 // One message in the request. Tracking is switched off for every mail: a link that Mailjet rewrites
 // for click tracking would break the portal link of a ticket and tell a third party who opened it.
 function requestBody(config: MailjetOutboundConfig, mail: MailjetMail, sandbox: boolean) {
-  const headers: Record<string, string> = {
-    "Message-ID": messageIdOf(config, mail.localId),
-    "X-Aidesk-Ticket": mail.ticketId,
-  };
+  const headers: Record<string, string> = { "X-Aidesk-Ticket": mail.ticketId };
   if (mail.automatic) {
     headers["Auto-Submitted"] = "auto-replied";
     headers["X-Auto-Response-Suppress"] = "All";
@@ -114,7 +109,7 @@ export async function sendViaMailjet(
   config: MailjetOutboundConfig,
   secret: MailjetSecret,
   mail: MailjetMail,
-): Promise<{ messageId: string; providerId: string | null }> {
+): Promise<{ providerId: string | null }> {
   let response: Response;
   let text: string;
   try {
@@ -152,10 +147,7 @@ export async function sendViaMailjet(
   const recipient = mail.to.toLowerCase();
   const accepted = entry.To.find((target) => target.Email.toLowerCase() === recipient);
   if (entry.Status !== "success" || !accepted) throw new Error("transport_acceptance_unknown");
-  return {
-    messageId: messageIdOf(config, mail.localId),
-    providerId: accepted.MessageID === undefined ? null : String(accepted.MessageID),
-  };
+  return { providerId: accepted.MessageID === undefined ? null : String(accepted.MessageID) };
 }
 // Checks the credentials, the sender and the headers of a reply without a delivery: the sandbox mode of
 // the Send API runs every check of a send and delivers nothing. A failure carries the status of the
@@ -171,7 +163,7 @@ export async function probeMailjet(
     subject: "Connection test",
     html: "<p>Connection test</p>",
     text: "Connection test",
-    inReplyTo: messageIdOf(config, "connection-test-parent"),
+    inReplyTo: `<connection-test-parent@${config.from.slice(config.from.lastIndexOf("@") + 1)}>`,
     ticketId: "connection-test",
     localId: "connection-test",
   };
