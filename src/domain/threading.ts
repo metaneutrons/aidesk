@@ -38,3 +38,18 @@ export function mailjetProviderId(value: unknown): string | null {
   const id = bytes.readBigUInt64BE(0);
   return id > 0n && id < 2n ** 63n ? id.toString() : null;
 }
+// A reference that names a mail of Mailjet, whatever form its local part has.
+export function isMailjetReference(value: string): boolean {
+  return /@mailjet\.com>$/i.test(value);
+}
+// A subject without the prefixes of replies and forwards (Re, AW, Antw, WG, Fw, Fwd), without case and
+// with its spaces collapsed, to compare the subject of a reply with the one of the ticket.
+export function normalizeSubject(value: string): string {
+  let subject = value.trim();
+  for (;;) {
+    const next = subject.replace(/^(re|aw|antw|wg|fw|fwd)\s*:\s*/i, "");
+    if (next === subject) break;
+    subject = next;
+  }
+  return subject.replace(/\s+/g, " ").trim().toLowerCase();
+}

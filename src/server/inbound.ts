@@ -1,6 +1,6 @@
 import { assertProjectOpen } from "./archive";
 import { createHash } from "node:crypto";
-import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { simpleParser, type AddressObject } from "mailparser";
 import TurndownService from "turndown";
 import type { Tx } from "./changes";
@@ -19,7 +19,12 @@ import {
   acknowledgementText,
   isAutomaticMail,
 } from "../domain/acknowledgement";
-import { isMessageId, mailjetProviderId } from "../domain/threading";
+import {
+  isMailjetReference,
+  isMessageId,
+  mailjetProviderId,
+  normalizeSubject,
+} from "../domain/threading";
 import { activeTexts } from "./texts";
 import { queueAgentRun } from "./agent-runs";
 import { emitEvent } from "./webhooks";
@@ -111,11 +116,43 @@ export function htmlToMarkdown(html: string): string {
 }
 // The ticket that a reply continues: a reference to one of its messages in this project, from the
 // requester of the ticket. Claimed identifiers alone, or another sender, find none.
+// Mailjet sets the Message-ID of its mails itself and does not document its form. If a reply names a mail
+// of Mailjet but the id does not lead to a mail (the form changed, or the id was cut), the ticket is found
+// by the sender and the subject: the latest ticket of this sender whose subject matches and that got a mail
+// through Mailjet within thirty days.
+const mailjetSubjectWindow = 30 * 24 * 3_600_000;
+async function findByMailjetSubject(
+  reader: Pick<Tx, "select">,
+  projectId: string,
+  subject: string,
+  sender: string,
+): Promise<typeof tickets.$inferSelect | undefined> {
+  const wanted = normalizeSubject(subject);
+  if (!wanted) return undefined;
+  const rows = await reader
+    .select({ ticket: tickets })
+    .from(messages)
+    .innerJoin(tickets, eq(tickets.id, messages.ticketId))
+    .where(
+      and(
+        eq(tickets.projectId, projectId),
+        sql`lower(${tickets.requesterEmail}) = ${sender}`,
+        eq(messages.deliveryState, "sent"),
+        sql`${messages.source}->'sent'->>'transport' = 'mailjet'`,
+        gt(messages.createdAt, new Date(Date.now() - mailjetSubjectWindow)),
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(50);
+  return rows.find((row) => normalizeSubject(row.ticket.subject) === wanted)?.ticket;
+}
 async function findTarget(
   reader: Pick<Tx, "select">,
   projectId: string,
   references: string[],
   sender: string,
+  subject: string,
+  note?: (event: string) => void,
 ): Promise<typeof tickets.$inferSelect | undefined> {
   if (!references.length) return undefined;
   // Mailjet sets the Message-ID of its mails itself, so a reply names a mail that was sent through Mailjet
@@ -144,7 +181,11 @@ async function findTarget(
     )
     .orderBy(sql`${messages.createdAt} desc`)
     .limit(1);
-  return match?.ticket.requesterEmail.toLowerCase() === sender ? match.ticket : undefined;
+  if (match) return match.ticket.requesterEmail.toLowerCase() === sender ? match.ticket : undefined;
+  if (!references.some(isMailjetReference)) return undefined;
+  const bySubject = await findByMailjetSubject(reader, projectId, subject, sender);
+  note?.(bySubject ? "inbound.mailjet_matched_by_subject" : "inbound.mailjet_reference_unresolved");
+  return bySubject;
 }
 // A header value of the parser as text: most are strings, some are objects with a value.
 function headerText(value: unknown): string {
@@ -235,7 +276,7 @@ export async function processIngress(
             wantJunk:
               !entry.classification?.restored &&
               listed?.kind !== "allow" &&
-              !(await findTarget(db(), entry.projectId, references, sender.address)),
+              !(await findTarget(db(), entry.projectId, references, sender.address, subject)),
             stored: storedAi(entry.classification),
           },
           deps,
@@ -385,7 +426,16 @@ export async function processIngress(
     // A reply continues a ticket only through a reference to one of its
     // messages in this project and only from the ticket's requester. Claimed
     // identifiers alone, or another sender, start a separate ticket.
-    const target = await findTarget(tx, entry.projectId, references, sender.address);
+    const target = await findTarget(
+      tx,
+      entry.projectId,
+      references,
+      sender.address,
+      subject,
+      (event) => {
+        console.log(JSON.stringify({ event, ingressId: entry.id }));
+      },
+    );
     // The model's verdict can only add to the rules: a mail that starts a ticket and that it
     // calls junk stays out of the inbox, where a person can restore it. A reply to a ticket was
     // not asked about, and what it was not sure about is a ticket like any other, marked.
