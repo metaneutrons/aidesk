@@ -254,3 +254,34 @@ test("defines an SMTP receiver in the form and takes recipients only for its add
   ).toBeVisible();
   expect(await recipientCode(address)).toBe(550);
 });
+// A Mailjet connection is made in the form, shows up in the list of the project that the page is on, and its keys are
+// not shown again. The keys are not real: the connection is not tested here, since a test calls Mailjet.
+test("saves a Mailjet connection from the form into the list of the open project", async ({
+  page,
+  desk,
+  signIn,
+}) => {
+  const { gamma } = desk.projects;
+  await signIn();
+  await page.goto("/");
+  await openSettings(page, "Connections", gamma.name);
+  const section = page.getByRole("region", { name: "Connections" });
+  await section.getByRole("button", { name: "Add connection" }).click();
+  const form = section.locator("form.connection-form");
+  await form.getByLabel("Type").selectOption({ label: "Mailjet · outgoing" });
+  const name = `Mailjet ${desk.run}`;
+  await form.getByLabel("Name", { exact: true }).fill(name);
+  await form.getByLabel("Sender address").fill("hello@example.test");
+  await form.getByLabel("Reply-to address").fill("hello@example.test");
+  await form.getByLabel("Key", { exact: true }).fill("mailjet-key-for-e2e");
+  await form.getByLabel("Secret key").fill("mailjet-secret-for-e2e");
+  await form.getByRole("button", { name: "Create connection" }).click();
+  await expect(form).toBeHidden();
+  await expect(section.locator("li").filter({ hasText: name })).toBeVisible();
+  await expect(section.locator("li").filter({ hasText: name })).toContainText("Not tested");
+  // The keys are not part of what the page shows, also not after it is loaded again.
+  await page.reload();
+  await openSettings(page, "Connections", gamma.name);
+  await expect(section.locator("li").filter({ hasText: name })).toBeVisible();
+  expect(await page.content()).not.toContain("mailjet-secret-for-e2e");
+});
