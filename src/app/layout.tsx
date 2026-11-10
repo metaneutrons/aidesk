@@ -5,12 +5,13 @@ import { effectiveLocale, negotiateLocale } from "../domain/locale";
 import { identify } from "../server/principal";
 import { operatorInfo } from "../server/operations";
 import { DomainError } from "../server/errors";
+import { paneLayoutScript } from "../domain/pane-layout";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "aidesk",
   description: "Shared support inbox for multiple projects.",
 };
-// Applies an explicit appearance choice before the first paint. Without one,
+// Applies an explicit appearance choice and the stored layout of the panes before the first paint. Without one,
 // the stylesheet follows the operating system through color-scheme.
 const themeScript = `try{var t=localStorage.getItem("aidesk:theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -29,7 +30,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: themeScript + paneLayoutScript }} />
       </head>
       <body>{children}</body>
     </html>

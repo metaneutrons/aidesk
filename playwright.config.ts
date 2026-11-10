@@ -5,6 +5,9 @@ import { defineConfig, devices } from "@playwright/test";
 // the specs that need the services of the development stack (mailboxes, the identity provider and
 // the worker, which a deployment runs only when its schedule calls it) are left out.
 const deployed = Boolean(process.env.E2E_FIXTURE_ENV_FILE);
+// High enough (1100 px and more) that the tools of a ticket are shown under its title; below that they are closed
+// behind Details, which tests/e2e/ticket-layout.spec.ts covers on its own.
+const viewport = { width: 1280, height: 1200 };
 export default defineConfig({
   testDir: "tests/e2e",
   globalSetup: "./tests/e2e/warm-up.ts",
@@ -34,15 +37,15 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } },
+      use: { ...devices["Desktop Chrome"], viewport: viewport },
     },
     {
       name: "firefox",
-      use: { ...devices["Desktop Firefox"], viewport: { width: 1280, height: 900 } },
+      use: { ...devices["Desktop Firefox"], viewport: viewport },
     },
     {
       name: "webkit",
-      use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 900 } },
+      use: { ...devices["Desktop Safari"], viewport: viewport },
     },
   ],
 });

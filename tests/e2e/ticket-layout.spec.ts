@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
-// The tools of a ticket (assignee, tags, reminder, link, junk, erase) are in groups under the title. On a screen that is
-// not high enough they are closed behind Details, so that the conversation and the composer keep their room.
+// The tools of a ticket (assignee, tags, reminder, link, junk, erase) are in groups under the title. Unless the screen is very
+// high (1100 pixels and more) they are closed behind Details, so that the conversation and the composer keep their room.
 test("keeps the composer in view on a low screen and opens the tools on request", async ({
   page,
   desk,
@@ -28,8 +28,8 @@ test("keeps the composer in view on a low screen and opens the tools on request"
   const junkBox = await junk.boundingBox();
   expect(junkBox?.y ?? 0).toBeGreaterThan((portalBox?.y ?? 0) + 20);
 });
-test("shows the tools at once on a high screen", async ({ page, desk, signIn }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
+test("shows the tools at once on a very high screen", async ({ page, desk, signIn }) => {
+  await page.setViewportSize({ width: 1440, height: 1200 });
   await signIn();
   await page.goto(`/?ticket=${desk.projects.alpha.tickets[0]}`);
   await expect(page.getByRole("button", { name: "Create portal link" })).toBeVisible();
