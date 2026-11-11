@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/metaneutrons/aidesk/compare/v0.8.0...v0.9.0) (2026-11-10)
+
+
+### Features
+
+* **desk:** resizable and collapsible ticket list and a calmer inbox layout ([#304](https://github.com/metaneutrons/aidesk/issues/304)) ([46aa73c](https://github.com/metaneutrons/aidesk/commit/46aa73c019d1b8565d4019e6e319ce6531526049))
+
 ## [0.8.0](https://github.com/metaneutrons/aidesk/compare/v0.7.0...v0.8.0) (2026-11-10)
 
 
